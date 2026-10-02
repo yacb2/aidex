@@ -14,6 +14,7 @@ render-probe's, not asserted here). Each cell fails on its named regression:
 Stdlib only: `python3 test_video.py`, prints OK, exits 0.
 """
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -118,6 +119,48 @@ def run(tmp):
         text = fh.read()
     check("the page references the film relative to itself, no data URI",
           'src="../films/a.mp4"' in text and "data:video" not in text)
+
+    # BL-593: poster= (spec-relative, must exist) and a height cap in the kit.
+    write(tmp, "films/p.jpg", b"\xff\xd8\xff\xe0" + b"\x01" * 16)
+    html = build('::: video {src="films/a.mp4" poster="films/p.jpg"}\n:::\n',
+                 base_dir=tmp)
+    check("poster= is emitted on the <video>",
+          '<video controls preload="metadata" poster="films/p.jpg" '
+          'src="films/a.mp4"></video>' in html, html)
+    html = build('::: video {src="films/a.mp4" poster="films/p.jpg"}\n:::\n',
+                 base_dir=tmp, page=out)
+    check("...rewritten relative to the PAGE under -o",
+          'poster="../films/p.jpg"' in html, html)
+    refused("a missing poster", pre + '::: video {src="films/a.mp4" poster="films/no.jpg"}\n:::\n',
+            tmp, "poster", "no such file")
+    refused("an absolute poster", pre + '::: video {src="films/a.mp4" poster="%s"}\n:::\n'
+            % os.path.join(tmp, "films", "p.jpg"), tmp, "poster", "is absolute")
+    refused("a poster of the wrong type", pre + '::: video {src="films/a.mp4" poster="films/b.webm"}\n:::\n',
+            tmp, "poster", "has type")
+    css = os.path.join(SCRIPTS, "..", "assets", "artifact-kit", "components.css")
+    with open(css, encoding="utf-8") as fh:
+        rule = re.search(r"figure\.video video \{[^}]*\}", fh.read())
+    check("the kit caps a film's height so a 3:4 film fits the viewport",
+          bool(rule) and "max-height" in rule.group(0) and "vh" in rule.group(0))
+
+    # BL-547: a video nests inside an item, in written order, like a figure.
+    html = build('::: group {#G1 title="G"}\n::: item {#q1 title="Q"}\n'
+                 'Which cut?\n\n::: video {src="films/a.mp4" title="Cut A"}\n:::\n\n'
+                 '- A\n- B\n:::\n:::\n', base_dir=tmp)
+    item = html.split('id="q1"', 1)[-1]
+    check("a video renders inside its item, before the options",
+          '<figure class="video">' in item and
+          item.index('<figure class="video">') < item.index('class="opts'), item[:900])
+    spec = write(tmp, "item.spec.md", (
+        '::: masthead\n# Una película\n\nUna página con su film.\n:::\n\n'
+        '::: group {#G1 title="G"}\n::: item {#q1 title="Q"}\n'
+        'Which cut?\n\n::: video {src="films/a.mp4" title="Cut A"}\n:::\n\n'
+        '- A\n- B\n:::\n:::\n\n::: notes {title="Notas generales"}\n:::\n').encode())
+    ipage = os.path.join(tmp, "reports", "item.html")
+    r = subprocess.run([sys.executable, BUILD, spec, "-o", ipage],
+                       capture_output=True, text=True, cwd="/")
+    check("a page with a video inside an item passes check-artifact",
+          r.returncode == 0, (r.stdout + r.stderr)[-600:])
 
 
 def main():

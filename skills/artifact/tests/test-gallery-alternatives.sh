@@ -422,6 +422,10 @@ printf '{"gallery": "audit", "variants": ["light-desktop"], "rows": [{"cell": "x
 gen "$TMP/na.json" > "$TMP/na.html" 2>/dev/null
 [[ "$(grep -o '<section[^>]*data-id="audit-x-not-applicable"[^>]*>' "$TMP/na.html")" == *'data-decided="Aprobada"'* ]] \
   && ok "a decided not-applicable row carries data-decided" || fail "decided on a notApplicable row was ignored"
+# BL-545: the fold strips [`*], so a verdict of only asterisks is an empty one.
+narow "a not-applicable row decided \"**\" is refused as an empty verdict" "'decided' must be a non-empty string" \
+  '{"cell": "x", "notApplicable": "r", "decided": "**"}'
+refuse "a row decided \"**\" is refused as an empty verdict" "'decided' must be a non-empty string" 'd["rows"][0]["decided"] = "**"'
 narow "dropped + decided on a not-applicable row is refused, naming the cell" "row 'x'" \
   '{"cell": "x", "notApplicable": "r", "dropped": "gone", "decided": "Aprobada"}'
 narow "a dropped and a live not-applicable row of one cell are refused" "cell 'x'" \

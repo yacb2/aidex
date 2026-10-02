@@ -23,7 +23,7 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 BODY='<style>:root{--ink:#111}
-@media (prefers-color-scheme: dark){:root{--ink:#eee}}</style>
+@media (prefers-color-scheme: dark){:root{--ink:#eee}</style>
 <div class="page"><main class="main"><h1>Informe</h1><p>Acentuaci&oacute;n y datos.</p></main></div>'
 
 echo "== wrap-report.sh =="
@@ -120,6 +120,107 @@ out="$(bash "$CHECK" "$TMP/localsrcset.html" 2>&1)"
 [[ "$out" != *"[self]"* ]] \
   && ok "a local multi-candidate srcset passes self" || bad "a local srcset was judged a remote load: $out"
 
+# BL-564: remote loads via track, iframe, embed, object, protocol-relative and CSS url().
+mk exttrack.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><video><track src=\"https://x/a.vtt\"></video>"
+mk extiframe.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><iframe src=\"https://x/p\"></iframe>"
+mk extembed.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><embed src=\"https://x/a.swf\">"
+mk extobject.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><object data=\"https://x/a.pdf\"></object>"
+mk extproto.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><img src=\"//x/a.png\" alt=\"a\">"
+mk extprotoaudio.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><audio src=\"//x/a.mp3\"></audio>"
+mk extprotosrcset.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><img srcset=\"a.png 1x, //x/b.png 2x\" alt=\"a\">"
+mk extstyleurl.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><div style=\"background:url(https://x/a.png)\">x</div>"
+mk extcssurl.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>.a{background:url(//x/a.png)}@media (prefers-color-scheme: dark){}</style>"
+for case in "exttrack self" "extiframe self" "extembed self" "extobject self" "extproto self" "extprotoaudio self" "extprotosrcset self" "extstyleurl self" "extcssurl self"; do
+  set -- $case
+  out="$(bash "$CHECK" "$TMP/$1.html" 2>&1)"
+  if [[ "$out" == *"[$2]"* ]]; then ok "catches $2 ($1.html)"; else bad "did not catch $2 in $1.html: $out"; fi
+done
+mk localforms.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>.a{background:url(data:image/png;base64,AAAA)}.b{background:url(a.png)}@media (prefers-color-scheme: dark){}</style><video><track src=\"a.vtt\"></video><iframe src=\"p.html\"></iframe><embed src=\"a.swf\"><object data=\"a.pdf\"></object><img src=\"data:image/png;base64,AAAA\" alt=\"a\"><div style=\"background:url(a.png)\">x</div><svg><rect fill=\"url(#g)\"/></svg>"
+out="$(bash "$CHECK" "$TMP/localforms.html" 2>&1)"
+[[ "$out" != *"[self]"* ]] \
+  && ok "local, relative and data: URLs in the same forms pass self" || bad "a local URL was judged a remote load: $out"
+
+# BL-564 review notes: whitespace in the quote, unquoted/single-quoted style, @import string, // on every tag.
+mk extiframews.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><iframe src=\" https://x/p\"></iframe>"
+mk extcsswsurl.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>.a{background:url(\" //x/a.png\")}@media (prefers-color-scheme: dark){}</style>"
+mk extstyleunq.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><div style=background:url(//x/a.png)>x</div>"
+mk extstylesq.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><div style='background:url(//x/a.png)'>x</div>"
+mk extimportstr.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@import \"//x/a.css\";@media (prefers-color-scheme: dark){}</style>"
+mk extprotoiframe.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><iframe src=\"//x/p\"></iframe>"
+mk extprototrack.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><video><track src=\"//x/a.vtt\"></video>"
+mk extprotoembed.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><embed src=\"//x/a.swf\">"
+mk extprotoobject.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><object data=\"//x/a.pdf\"></object>"
+mk extimporturl.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@import url(https://x/a.css);@media (prefers-color-scheme: dark){}</style>"
+for case in "extiframews self" "extcsswsurl self" "extstyleunq self" "extstylesq self" "extimportstr self" "extprotoiframe self" "extprototrack self" "extprotoembed self" "extprotoobject self" "extimporturl self"; do
+  set -- $case
+  out="$(bash "$CHECK" "$TMP/$1.html" 2>&1)"
+  if [[ "$out" == *"[$2]"* ]]; then ok "catches $2 ($1.html)"; else bad "did not catch $2 in $1.html: $out"; fi
+done
+# One defect, one finding: @font-face and @import url() are not also reported as CSS url().
+for f in extfont extimporturl; do
+  n="$(bash "$CHECK" "$TMP/$f.html" 2>&1 | grep -c '\[self\]')"
+  [[ "$n" == 1 ]] && ok "$f yields exactly one [self] finding" || bad "$f yields $n [self] findings"
+done
+# BL-647: the remaining remote-load forms, and comments that load nothing.
+HEAD5='<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>t</title><style>@media (prefers-color-scheme: dark){}</style>'
+mk extbase.html "$HEAD5<base href=\"https://x/\"><img src=\"a.png\" alt=\"a\">"
+mk extsvgimage.html "$HEAD5<svg><image href=\"https://x/a.png\"/></svg>"
+mk extsvgxlink.html "$HEAD5<svg><image xlink:href=\"//x/a.png\"/></svg>"
+mk extsvgfill.html "$HEAD5<svg><rect fill=\"url(https://x/g.svg#g)\"/></svg>"
+mk extsvgfilter.html "$HEAD5<svg><rect filter=\"url(//x/f.svg#f)\"/></svg>"
+mk extsvgmask.html "$HEAD5<svg><rect mask='url(\"https://x/m.svg#m\")'/></svg>"
+mk exticon.html "$HEAD5<link rel=\"icon\" href=\"https://x/f.ico\">"
+mk exticonunq.html "$HEAD5<link rel=icon href=https://x/f.ico>"
+mk extbackslash.html "$HEAD5<img src=\"\\\\x/a.png\" alt=\"a\">"
+for f in extbase extsvgimage extsvgxlink extsvgfill extsvgfilter extsvgmask exticon exticonunq extbackslash; do
+  out="$(bash "$CHECK" "$TMP/$f.html" 2>&1)"
+  if [[ "$out" == *"[self]"* ]]; then ok "catches self ($f.html)"; else bad "did not catch self in $f.html: $out"; fi
+done
+mk commentedremote.html "$HEAD5<!-- <iframe src=\"https://x\"></iframe> <link rel=\"stylesheet\" href=\"https://x/a.css\"> --><p>x</p>"
+out="$(bash "$CHECK" "$TMP/commentedremote.html" 2>&1)"
+[[ "$out" != *"[self]"* ]] && ok "a remote URL in an HTML comment passes self" || bad "an HTML comment was judged a remote load: $out"
+mk csscomment.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>/* a{background:url(https://x/a.png)} */
+@media (prefers-color-scheme: dark){}</style>"
+out="$(bash "$CHECK" "$TMP/csscomment.html" 2>&1)"
+[[ "$out" != *"[self]"* ]] && ok "a remote url() in a CSS comment passes self" || bad "a CSS comment was judged a remote load: $out"
+mk localnew.html "$HEAD5<base href=\"sub/\"><link rel=\"icon\" href=\"f.ico\"><link rel=\"canonical\" href=\"https://x/p\"><svg><image href=\"a.png\"/><rect fill=\"url(#g)\" xmlns=\"http://www.w3.org/2000/svg\"/></svg>"
+out="$(bash "$CHECK" "$TMP/localnew.html" 2>&1)"
+[[ "$out" != *"[self]"* ]] && ok "local base, icon, image and url(#id) pass self" || bad "a local form was judged remote: $out"
+
+# BL-647 review: a "<!--" in a script string, a textarea or an attribute is not a comment.
+mk hidescript.html "$HEAD5<script>var s=\"<!--\";</script><img src=\"https://x/a.png\" alt=\"a\"><!-- c -->"
+mk hidetextarea.html "$HEAD5<textarea><!-- </textarea><iframe src=\"https://x\"></iframe><!-- c -->"
+mk hideattr.html "$HEAD5<img alt=\"<!--\" src=\"https://x/a.png\"><!-- c -->"
+# Security review: the HTML parser ends a comment at "<!-->", "<!--->" and "--!>";
+# a regex that waits for the next "-->" hides the live load in between.
+mk hideempty.html "$HEAD5<!--><img src=\"https://x/a.png\" alt=\"a\"><p>e</p><!-- c -->"
+mk hidedash.html "$HEAD5<!---><img src=\"https://x/a.png\" alt=\"a\"><p>e</p><!-- c -->"
+mk hidebang.html "$HEAD5<!-- a --!><img src=\"https://x/a.png\" alt=\"a\"><p>e</p><!-- c -->"
+for e in xmp noembed noframes noscript iframe; do
+  mk "hide$e.html" "$HEAD5<$e><!--</$e><img src=\"https://x/a.png\" alt=\"a\"><p>e</p><!-- c -->"
+done
+mk iconlabel.html "$HEAD5<link rel=preload href=https://x/icon.png>"
+for f in hidescript hidetextarea hideattr hideempty hidedash hidebang hidexmp hidenoembed hidenoframes hidenoscript hideiframe; do
+  out="$(bash "$CHECK" "$TMP/$f.html" 2>&1)"
+  if [[ "$out" == *"[self]"* ]]; then ok "catches self ($f.html)"; else bad "a comment opener hid a remote load in $f.html: $out"; fi
+done
+out="$(bash "$CHECK" "$TMP/iconlabel.html" 2>&1)"
+[[ "$out" != *"rel=icon"* ]] && ok "a preload href naming icon is not labelled rel=icon" || bad "preload mislabelled as icon: $out"
+# Quoted prose and non-loading attributes that merely spell url(https://...) are not loads.
+mk prose1.html "$HEAD5<pre><code>&lt;rect fill=\"url(https://x/g.svg#g)\"/&gt;</code></pre>"
+mk prose2.html "$HEAD5<p>set a=url(https://example.com) in config</p>"
+mk prose3.html "$HEAD5<div data-bg=\"url(https://x/a.png)\">x</div>"
+mk prose4.html "$HEAD5<span title=\"url(https://x)\">x</span>"
+for f in prose1 prose2 prose3 prose4; do
+  out="$(bash "$CHECK" "$TMP/$f.html" 2>&1)"
+  [[ "$out" != *"[self]"* ]] && ok "$f.html passes self" || bad "$f.html was judged a remote load: $out"
+done
+
+# An svg data: URI naming an http namespace is inlined, not a remote load.
+mk datasvg.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>.a{background:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3C/svg%3E\")}@media (prefers-color-scheme: dark){}</style>"
+out="$(bash "$CHECK" "$TMP/datasvg.html" 2>&1)"
+[[ "$out" != *"[self]"* ]] && ok "a data:image/svg+xml url() passes self" || bad "a data: svg url() was judged remote: $out"
+
 # An inlined font is the compliant form — the remote-font check must not flag it.
 mk datafont.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>
 @font-face{font-family:Inter;src:url(data:font/woff2;base64,AAAA) format('woff2');}
@@ -147,7 +248,7 @@ bash "$CHECK" "$TMP/does-not-exist.html" >/dev/null 2>&1 \
 # showing the check fired once — a probe samples behaviour, this makes skipping impossible.
 WRAP="$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts" && pwd -P)/wrap-report.sh"
 
-GOOD='<style>body{color:#111}@media (prefers-color-scheme: dark){body{color:#eee}}</style><div class="page"><main class="main"><h1>ok</h1></main></div>'
+GOOD='<style>body{color:#111}@media (prefers-color-scheme: dark){body{color:#eee}</style><div class="page"><main class="main"><h1>ok</h1></main></div>'
 printf '%s\n' "$GOOD" | bash "$WRAP" --title "T" --out "$TMP/coupled-ok.html" >/dev/null 2>&1 \
   && ok "--out writes and passes a conforming page" || bad "--out rejected a conforming page"
 [[ -f "$TMP/coupled-ok.html" ]] && ok "--out actually wrote the file" || bad "--out wrote nothing"
@@ -546,6 +647,27 @@ sed 's/data-title="Second claim"/data-title="Second   Claim"/' \
 bash "$CHECK" "$TMP/regen-retitle.html" --prev "$TMP/consult-ok.html" >/dev/null 2>&1 \
   && ok "case and whitespace changes in a title are not a shift" \
   || bad "a retyped title was reported as a moved claim"
+
+# BL-611: a declared retitle (`consult-retitled` meta) lets ONE named id change
+# its title, as a NOTE with both titles; an id not named still fails.
+C2_NORM="$(python3 -c 'import sys; print(" ".join(sys.argv[1].lower().split()))' "$C2_TITLE")"
+sed 's#<title>#<meta name="consult-retitled" content="c2"><title>#' \
+  "$TMP/regen-shift.html" > "$TMP/regen-retitled.html"
+grep -q 'name="consult-retitled" content="c2"' "$TMP/regen-retitled.html" \
+  || bad "BL-611: fixture drift: the sed did not insert the consult-retitled meta"
+out="$(bash "$CHECK" "$TMP/regen-retitled.html" --prev "$TMP/consult-ok.html" 2>&1)"
+[[ "$out" != *"FAIL [consult-ids]"* && "$out" == *"NOTE [consult-ids]"* && "$out" == *"c2"* \
+   && "$out" == *"$C2_NORM"* && "$out" == *"a different claim"* ]] \
+  && ok "BL-611: a retitle declared by consult-retitled is a NOTE with the old and new title" \
+  || bad "BL-611: a declared retitle did not pass with a NOTE naming both titles: $out"
+sed 's#<title>#<meta name="consult-retitled" content="c1"><title>#' \
+  "$TMP/regen-shift.html" > "$TMP/regen-retitled-other.html"
+grep -q 'name="consult-retitled" content="c1"' "$TMP/regen-retitled-other.html" \
+  || bad "BL-611: fixture drift: the sed did not insert the consult-retitled meta (c1)"
+out="$(bash "$CHECK" "$TMP/regen-retitled-other.html" --prev "$TMP/consult-ok.html" 2>&1)"
+[[ "$out" == *"id reused for a different claim"* && "$out" == *"c2"* ]] \
+  && ok "BL-611: declaring a DIFFERENT id does not excuse the retitle" \
+  || bad "BL-611: an undeclared retitle passed because another id was declared: $out"
 
 # BL-396: an id that DISAPPEARS is a failure too — a claim is closed by marking its
 # item decided, never by removing it. Two decided items vanished from a live
@@ -967,7 +1089,7 @@ out3b="$(shifted "A different claim")"; rc3b=$?
 # --- BL-168: the style profile is a FIELD the wrapper reads (D2) --------------
 echo "== style profile =="
 LANGP="$TMP/langproj"; mkdir -p "$LANGP/.context/reports"
-GOODB='<style>body{color:#111}@media (prefers-color-scheme: dark){body{color:#eee}}</style><div class="page"><main class="main"><h1>x</h1></main></div>'
+GOODB='<style>body{color:#111}@media (prefers-color-scheme: dark){body{color:#eee}</style><div class="page"><main class="main"><h1>x</h1></main></div>'
 
 # The one-time offer: it fires when the project has no profile, and records itself
 # so it cannot become the 14-offers-across-7-projects nag the usage-retro measured.
@@ -1227,7 +1349,7 @@ bash "$CHECK" "$TMP/halfwrap.html" >/dev/null 2>&1 \
 
 # A page that does NOT carry the kit is out of scope: it has no .page rule to be
 # inside of, and judging it would fail every pre-kit artifact on disk.
-printf '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">\n<meta name="viewport" content="width=device-width">\n<title>t</title>\n<style>@media (prefers-color-scheme: dark){body{background:#111}}</style>\n</head>\n<body><h1>Pre-kit</h1></body></html>\n' > "$TMP/prekit.html"
+printf '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">\n<meta name="viewport" content="width=device-width">\n<title>t</title>\n<style>@media (prefers-color-scheme: dark){body{background:#111}</style>\n</head>\n<body><h1>Pre-kit</h1></body></html>\n' > "$TMP/prekit.html"
 bash "$CHECK" "$TMP/prekit.html" >/dev/null 2>&1 \
   && ok "a page without the kit stamp is not judged on the kit's layout" \
   || bad "a pre-kit page was failed for a container it never had"
@@ -1319,7 +1441,7 @@ bash "$CHECK" "$TMP/norail-wrapped.html" >/dev/null 2>&1 \
 
 # Route A boards are full of tables and are not kit pages: the same stamp gate as
 # the layout check keeps them out of it.
-printf '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">\n<meta name="viewport" content="width=device-width">\n<title>t</title>\n<style>@media (prefers-color-scheme: dark){body{background:#111}}</style>\n</head>\n<body><table><tr><td>a</td></tr></table></body></html>\n' > "$TMP/board.html"
+printf '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">\n<meta name="viewport" content="width=device-width">\n<title>t</title>\n<style>@media (prefers-color-scheme: dark){body{background:#111}</style>\n</head>\n<body><table><tr><td>a</td></tr></table></body></html>\n' > "$TMP/board.html"
 bash "$CHECK" "$TMP/board.html" >/dev/null 2>&1 \
   && ok "a page without the kit stamp is not judged on the kit's table wrapper" \
   || bad "a non-kit page was failed for the kit's table wrapper"
@@ -1370,8 +1492,8 @@ grep -E '^  FAIL' <<<"$out" | grep >/dev/null -E 'ghost.html|dead.html' \
 [[ "$out" == *"orphaned baseline"* && "$out" == *"ghost.html"* ]] \
   && ok "census: an orphaned baseline is reported with its rm" \
   || bad "the orphaned baseline went unreported: $out"
-[[ "$out" == *"dead baseline"* ]] \
-  && ok "census: a baseline under _archive/ is reported as dead" \
+grep -q "orphaned baseline.*_archive/.aidex-artifact-prev/dead.html'" <<<"$out" \
+  && ok "census: a baseline under _archive/ whose page is gone is reported as orphaned" \
   || bad "the archived baseline went unreported: $out"
 [[ -f "$CEN/.context/reports/.aidex-artifact-prev/ghost.html" \
    && -f "$CEN/.context/backlog/_archive/.aidex-artifact-prev/dead.html" ]] \

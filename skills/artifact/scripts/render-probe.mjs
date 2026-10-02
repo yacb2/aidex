@@ -5,8 +5,13 @@
 // Each page is loaded headless at 1280 and 390 px (dark scheme) and checked for:
 //   text-overlap      two texts drawn over each other
 //   svg-text-clipped  svg text outside its svg viewport (clipped axis labels)
+//   svg-text-small    svg text drawn under 10.5 px on screen at 390 px (the kit's floor is
+//                     11 px, references/05-visual-review.md row 5; one line per svg)
+//   outline-over-text an unfilled stroked rect whose stroke crosses an svg text of the same svg
+//                     (not one sitting on a filled rect drawn after it: the tree badge pill)
 //   content-spills    a box whose content spills out of it (visible overflow)
 //   content-cut       a box whose content is cut by it (hidden overflow)
+//   table-cut         a table of 1-3 columns wider than the box it scrolls in
 //   fixed-over-text   a position:fixed control drawn over page text (any scroll position)
 //   page-hscroll      the page scrolls horizontally
 // and for the three render contract classes of the defect registry (LOOP-006):
@@ -129,6 +134,47 @@ const check = () => {
     if (a.width && (a.left < b.left - 1 || a.right > b.right + 1 || a.top < b.top - 1 || a.bottom > b.bottom + 1))
       out.push({ kind: 'svg-text-clipped', a: name(t), y: Math.round(a.top + sy) });
   }
+  // 2b. svg text drawn smaller than the kit's legible floor, as the reader sees it (font size
+  // times the viewBox scale), at phone width only (BL-648). 11 px is the floor
+  // references/05-visual-review.md names; a text at exactly 11 may measure 10.99, hence 10.5.
+  // One line per root svg, naming its smallest text.
+  const rootOf = el => { let s = el.ownerSVGElement; while (s && s.ownerSVGElement) s = s.ownerSVGElement; return s; };
+  const inertSvg = 'defs,clipPath,mask,marker,pattern,symbol';
+  if (innerWidth <= 390) {
+    const small = new Map();
+    for (const t of document.querySelectorAll('svg text')) {
+      const m = t.getScreenCTM(); if (!m || !t.textContent.trim() || !vis(t) || t.closest(inertSvg) || !t.getBoundingClientRect().width) continue;
+      const px = parseFloat(getComputedStyle(t).fontSize) * Math.hypot(m.a, m.b), r = rootOf(t);
+      const o = small.get(r); if (!o) small.set(r, { t, px, n: 1 }); else { o.n++; if (px < o.px) { o.t = t; o.px = px; } }
+    }
+    for (const { t, px, n } of small.values()) if (px < 10.5)
+      out.push({ kind: 'svg-text-small', a: name(t), msg: `${px.toFixed(1)}px on screen, under the 11 px floor (smallest of ${n} text${n > 1 ? 's' : ''} in its svg)`, y: Math.round(t.getBoundingClientRect().top + sy) });
+  }
+  // 2c. a highlight outline (an unfilled rect with a stroke) whose stroke band crosses a text
+  // of the same svg (BL-648). A text wholly inside the inner edge or wholly outside the
+  // outer edge is clear; one touching the band by more than 1 px is crossed. Rects only,
+  // read as screen boxes (no rotation); a filled rect is a card, not an outline.
+  for (const r of document.querySelectorAll('svg rect')) {
+    if (!vis(r) || r.closest(inertSvg)) continue;
+    const cs = getComputedStyle(r), m = r.getScreenCTM(); if (!m || cs.stroke === 'none' || !(parseFloat(cs.strokeWidth) > 0)) continue;
+    if (!(cs.fill === 'none' || /^rgba\(.*,\s*0\)$/.test(cs.fill) || parseFloat(cs.fillOpacity) === 0)) continue;
+    const q = r.getBoundingClientRect(), hw = parseFloat(cs.strokeWidth) * Math.hypot(m.a, m.b) / 2, root = rootOf(r);
+    for (const t of document.querySelectorAll('svg text')) {
+      if (rootOf(t) !== root || !t.textContent.trim() || !vis(t) || t.closest(inertSvg)) continue;
+      const b = t.getBoundingClientRect(); if (!b.width) continue;
+      const touches = b.right > q.left - hw + 1 && b.left < q.right + hw - 1 && b.bottom > q.top - hw + 1 && b.top < q.bottom + hw - 1;
+      const inside = b.left >= q.left + hw - 1 && b.right <= q.right - hw + 1 && b.top >= q.top + hw - 1 && b.bottom <= q.bottom - hw + 1;
+      // a filled rect drawn after the outline that holds the text is what the text sits on
+      // (the diagram engine's badge pill straddles its box's edge over a page-ground fill)
+      const padded = [...root.querySelectorAll('rect')].some(p => {
+        if (p === r || !(r.compareDocumentPosition(p) & Node.DOCUMENT_POSITION_FOLLOWING) || !vis(p) || p.closest(inertSvg)) return false;
+        const ps = getComputedStyle(p); if (ps.fill === 'none' || /^rgba\(.*,\s*0\)$/.test(ps.fill) || parseFloat(ps.fillOpacity) < 0.9) return false;
+        const pb = p.getBoundingClientRect();
+        return pb.left <= b.left + 1 && pb.right >= b.right - 1 && pb.top <= b.top + 1 && pb.bottom >= b.bottom - 1;
+      });
+      if (touches && !inside && !padded) { out.push({ kind: 'outline-over-text', a: name(r), b: name(t), y: Math.round(b.top + sy) }); break; }
+    }
+  }
   // 3. a box whose content spills out of it (visible overflow) or is cut by it (hidden
   // overflow). One wide child makes every ancestor up to the page overflow by the same
   // amount; a box is not reported when a descendant carries the SAME kind, because the
@@ -144,6 +190,18 @@ const check = () => {
       spilling.push({ el, x: { kind: s.overflowX === 'visible' ? 'content-spills' : 'content-cut', a: name(el), dx, dy, y: Math.round(el.getBoundingClientRect().top + sy) } });
   }
   for (const { el, x } of spilling) if (!spilling.some(o => o.el !== el && el.contains(o.el) && o.x.kind === x.kind)) out.push(x);
+  // 3b. a table of one to three columns wider than the box it scrolls in (BL-592). Check 3
+  // skips a scroller, yet the kit makes such a table fit the screen (BL-567): past the edge
+  // the reader sees its last column cut, fade or not. Four or more columns scroll on purpose
+  // (BL-248, BL-536). Columns counted as composer.js does: the most cells in an outer row,
+  // so a table nested in another one's cell is the outer table's to judge.
+  for (const t of document.body.querySelectorAll('table')) {
+    if (!vis(t) || t.parentElement.closest('table') || [].reduce.call(t.rows, (m, r) => Math.max(m, r.cells.length), 0) > 3) continue;
+    let sc = t.parentElement; while (sc && sc !== document.body && !/(auto|scroll)/.test(getComputedStyle(sc).overflowX)) sc = sc.parentElement;
+    if (!sc || sc === document.body || !sc.clientWidth) continue;
+    const r = t.getBoundingClientRect(), dx = Math.round(r.width - sc.clientWidth);
+    if (dx > 1) out.push({ kind: 'table-cut', a: name(t), dx, y: Math.round(r.top + sy) });
+  }
   // 4. a fixed control drawn over page text. Both the container's own rect and each fixed
   // text box are tested. The container rect alone misses a label hanging out of a 0-height
   // (or 0x0) fixed strip; the text boxes alone miss the opaque padding of a pill such as
@@ -481,7 +539,12 @@ for (const f of files) for (const width of [1280, 390]) {
           for (const el of document.querySelectorAll('[data-id]')) {
             const id = el.getAttribute('data-id');
             if (seen.has(id)) continue;
-            const r = el.getBoundingClientRect();
+            // a closed details shows only its summary row: measure the outermost closed one,
+            // so a folded id sits on the tile showing its fold row and on none below it
+            let box = el;
+            for (let d = el.closest('details:not([open])'); d; d = d.parentElement && d.parentElement.closest('details:not([open])')) box = d;
+            if (!box.checkVisibility({ contentVisibilityAuto: true, opacityProperty: true, visibilityProperty: true })) continue;
+            const r = box.getBoundingClientRect();
             if (!r.width || !r.height) continue;
             seen.set(id, { id, top: Math.floor(r.top + scrollY), bottom: Math.ceil(r.bottom + scrollY) });
           }

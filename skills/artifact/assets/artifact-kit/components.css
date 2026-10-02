@@ -97,12 +97,20 @@ textarea::-webkit-scrollbar-thumb:hover, .tw::-webkit-scrollbar-thumb:hover, pre
    in the DOM, not from the element that references it. */
 figure { margin: 0.4rem 0; display: flex; flex-direction: column; gap: 0.6rem; }
 figure svg { width: 100%; max-width: 100%; height: auto; color: var(--ink); }
+/* A png/jpg `figure` with a highlight (BL-619): the wrapper is the box the
+   outline layer is measured against, and the img fills it, so it renders at the
+   width a plain figure's img gets (a flex item stretched to the column). In an
+   item's thumbnail grid it is shown whole, never cropped to 4:3, so the
+   percentage overlay still sits on the region. */
+.fig-hl:where(:not(svg *)) { position: relative; }
+.fig-hl:where(:not(svg *)) > img { display: block; width: 100%; height: auto; }
+.gal.shots .fig-hl:where(:not(svg *)) > img { aspect-ratio: auto; object-fit: fill; }
 figure svg .acc { color: var(--accent); }
 figure svg .flg { color: var(--flag); }
 figure svg .mut { color: var(--muted); }
-/* A `video` block: the film sits in the column like a figure and never past it.
+/* A `video` block: the film sits in the column like a figure and never past it, and never taller than the viewport (BL-593: a 3:4 film).
    The letterbox is the sunk paper, so it reads in both themes. */
-figure.video video { width: 100%; max-width: 100%; height: auto; display: block;
+figure.video video { width: 100%; max-width: 100%; height: auto; max-height: 80vh; display: block;
                      background: var(--paper-sunk); border: 1px solid var(--rule); border-radius: 4px; }
 figcaption { font-family: var(--sans); font-size: 0.76rem; line-height: 1.5; color: var(--muted); }
 
@@ -124,6 +132,7 @@ li::marker { color: var(--muted); }
 
 .note:where(:not(svg *)) { font-family: var(--sans); font-size: 0.82rem; line-height: 1.55; color: var(--ink-soft);
         background: var(--paper-sunk); border-left: 2px solid var(--accent-dim); padding: 0.75rem 0.95rem; }
+.note.kit-stale:where(:not(svg *)) { position: sticky; top: 0; z-index: 20; background: var(--paper-sunk); box-shadow: 0 1px 0 var(--rule); }
 .note.warn { border-left-color: var(--flag); }
 .ex:where(:not(svg *)) { font-family: var(--sans); font-size: 0.8rem; line-height: 1.55; color: var(--ink-soft);
       border-left: 2px solid var(--rule); padding-left: 0.8rem; }
@@ -205,8 +214,11 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
    interface instead of being asked again. */
 /* `min(20rem, 100%)`: at 390 px the column is 294 px and a bare 20rem track spilled
    every row 28 px past the ledger's border. */
-.ledger { border: 1px solid var(--rule); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr)); gap: 1px; background: var(--rule); }
-.ledger > div { background: var(--paper); display: flex; gap: 0.7rem; align-items: baseline;
+/* Per-cell borders, not a 1px gap over a --rule background: an odd last row left
+   the unused track shaded as an empty cell (BL-614). The container carries the top
+   and left edge, each cell its right and bottom one. */
+.ledger { border-top: 1px solid var(--rule); border-left: 1px solid var(--rule); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr)); }
+.ledger > div { background: var(--paper); border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); display: flex; gap: 0.7rem; align-items: baseline;
                 padding: 0.55rem 0.9rem; font-family: var(--sans); font-size: 0.82rem; line-height: 1.5; }
 /* The key column is sized by its key, up to 40% of the row, and wraps beyond it:
    the value keeps at least 60% (its `min-width`, not a `max-width` on the key, which
@@ -596,7 +608,7 @@ textarea { resize: vertical; }
 .railitem.sec.grp:where(:not(svg *)) { color: var(--ink-soft); margin-top: 0.3rem; }
 .railitem.sub { padding-left: 1.4rem; }
 .railitem.sec .dot { border: none; background: none; }
-.railsep { height: 1px; background: var(--rule); margin: 0.5rem 0; }
+.railsep { height: 1px; background: var(--rule); margin: 0.5rem 0; flex: none; }
 /* When this page was built (BL-439), written by the wrap and not by the
    composer: the reader who cannot tell a stale tab from a fresh one is often
    the one whose viewer shows the file as a static snapshot with no script. At
@@ -739,6 +751,8 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 /* The one instruction of a gallery, under its heading (BL-595), and the variant
    said once under a row's captures, in words (BL-594). */
 .gal-intro:where(:not(svg *)) { font-family: var(--sans); font-size: 0.9rem; margin: 0.2rem 0 0.6rem; }
+.gal-intro-narrow:where(:not(svg *)) { display: none; }
+@media (max-width: 700px) { .gal-intro-narrow:where(:not(svg *)) { display: inline; } }
 .gal-variant:where(:not(svg *)) { font-family: var(--sans); font-size: 0.82rem; color: var(--muted); margin: 0.1rem 0 0.5rem; }
 /* A before/after pair on top of each other, each at the column's full width
    (BL-589): a capture is never cropped to fit a half-width cell. */

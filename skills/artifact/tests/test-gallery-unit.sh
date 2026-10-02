@@ -215,6 +215,35 @@ smp="$(item audit-empty-light-desktop-sample "$TMP/sample.html")"
   && ok "a sample row shows the pair and carries no verdict radios" \
   || fail "the sample row is missing or carries radios: $smp $(cat "$TMP/sample.err")"
 
+# -- untitled rows of one cell in two variants (BL-577) -------------------------
+# A FOLDED row (decided or dropped) shows only its heading, so two untitled rows of
+# one cell need the variant in it. An OPEN row already says the variant once, under
+# the capture (BL-594): its heading stays plain. A one-variant cell keeps the plain one.
+png actual/dark-desktop/audit-new-state.png 160 90
+python3 - "$TMP/rows.json" "$TMP/rows-var.json" "$TMP/rows-var-open.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1])); d["variants"] = ["light-desktop", "dark-desktop"]
+json.dump(d | {"rows": d["rows"] + [{"cell": "new-state", "variant": "dark-desktop", "kind": "review",
+                  "after": "actual/dark-desktop/audit-new-state.png"}]}, open(sys.argv[3], "w"))
+for r in d["rows"][:2]: r["decided"] = "Aprobado"
+d["rows"].append({"cell": "new-state", "variant": "dark-desktop", "kind": "review",
+                  "after": "actual/dark-desktop/audit-new-state.png", "decided": "Aprobado"})
+json.dump(d, open(sys.argv[2], "w"))
+PY
+bash "$GEN" "$TMP/rows-var.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/var.html" 2>"$TMP/var.err"
+bash "$GEN" "$TMP/rows-var-open.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/varo.html" 2>>"$TMP/var.err"
+hl() { item "$1" "$2" | grep -o 'data-heading="[^"]*"' | sed -n 1,1p; }
+[[ -n "$(hl audit-new-state-light-desktop "$TMP/var.html")" \
+   && "$(hl audit-new-state-light-desktop "$TMP/var.html")" != "$(hl audit-new-state-dark-desktop "$TMP/var.html")" ]] \
+  && [[ "$(hl audit-empty-light-desktop "$TMP/var.html")" == 'data-heading="Empty"' ]] \
+  && ok "two untitled decided rows of one cell in two variants get different headings; a one-variant cell keeps the plain one" \
+  || fail "headings: $(hl audit-new-state-light-desktop "$TMP/var.html") / $(hl audit-new-state-dark-desktop "$TMP/var.html") / $(hl audit-empty-light-desktop "$TMP/var.html") $(cat "$TMP/var.err")"
+open_dark="$(item audit-new-state-dark-desktop "$TMP/varo.html")"
+[[ "$(hl audit-new-state-dark-desktop "$TMP/varo.html")" == 'data-heading="New state"' \
+   && "$(grep -c 'gal-variant' <<<"$open_dark")" == 1 && "$(grep -o 'escritorio, tema oscuro' <<<"$open_dark" | wc -l | tr -d ' ')" == 1 ]] \
+  && ok "an open untitled row in a two-variant cell says its variant once (the line under the capture), heading plain" \
+  || fail "open row repeats or lacks the variant: $(grep -n 'data-heading\|gal-variant\|<h3' <<<"$open_dark")"
+
 # -- a declared cell the screen cannot reach ---------------------------------
 # The emitter sends `{"cell", "notApplicable": reason}` for a changed cell the
 # harness skips: no variant, no captures. The reason replaces the pair.
@@ -682,6 +711,299 @@ rc="$(run "$TMP/n7.html")"; red "N7 a row narrowed to before alone fails" \
 page "$TMP/n8.html" "$(block "$tiles_attr" "$(nrow ' data-tiles="light-desktop"' "<div class=\"gal\">$(figure light-desktop)</div>")")"
 rc="$(run "$TMP/n8.html")"; red "N8 a row of a four-tile matrix narrowed to one tile fails" \
   "audit-new-state-light-desktop.*declares data-tiles=\"light-desktop\".*only narrowing"
+
+# -- BL-609: a row's optional `note` -----------------------------------------
+# Explain-why / reframe / more-examples had no slot but the one-line `look`, and
+# the mixed-content check refused a four-clause look. `note` is a list of
+# strings rendered as a <ul> right under the look line.
+echo "== BL-609: the row note =="
+mkdir -p "$TMP/nspec"
+cp -R "$ROOT/shots" "$ROOT/actual" "$TMP/nspec/" 2>/dev/null
+cat > "$TMP/nspec/note.json" <<'JSON'
+{"gallery": "audit", "variants": ["light-desktop"],
+ "shots_dir": "shots", "actual_dir": "actual",
+ "rows": [
+  {"cell": "empty", "variant": "light-desktop", "kind": "review",
+   "look": "El estado vacío",
+   "note": ["Qué cambió desde la ronda 1: el título; el botón; el icono; el color",
+            "Si quitar falla: queda sin guía; se pierde el contexto",
+            "Ejemplo: Diego abre la lista; no ve nada; pulsa crear"],
+   "before": "shots/light-desktop/audit-empty.png", "after": "actual/light-desktop/audit-empty.png"}
+ ]}
+JSON
+cat > "$TMP/nspec/n.spec.md" <<MD
+::: masthead {eyebrow="Fixture" byline="Fuente: fixture" visual="none: fixture"}
+# Galería
+
+Una fila con nota.
+:::
+
+::: gallery {#G title="Revisión" rows="note.json" root="$ROOT"}
+:::
+
+::: notes {title="Notas generales"}
+:::
+MD
+( cd "$TMP/nspec" && python3 "$SKILL/scripts/spec_build.py" n.spec.md -o n.html > "$TMP/nb.out" 2>&1 ); rc=$?
+if [[ $rc == 0 && -f "$TMP/nspec/n.html" ]]; then
+  python3 - "$TMP/nspec/n.html" <<'PY' && ok "BL-609 N-1 a row note builds from a spec (no mixed-content refusal) as a <ul> of 3 <li> right under the look line" || fail "BL-609 N-1 the note is not a 3-item <ul> under the look line (see above)"
+import re, sys
+html = open(sys.argv[1], encoding="utf-8").read()
+m = re.search(r'<p class="gal-look">.*?</p>\s*<ul class="gal-note">(.*?)</ul>', html, re.S)
+if not m: sys.exit("no <ul class=gal-note> directly after the look line")
+n = len(re.findall(r'<li>', m.group(1)))
+if n != 3: sys.exit("expected 3 <li>, found %d" % n)
+PY
+else fail "BL-609 N-1 the spec with a note did not build: $(tail -3 "$TMP/nb.out")"; fi
+for bad in '"note": "texto"' '"note": []' '"note": ["ok", ""]' '"note": ["ok", 3]' '"note": [" "]'; do
+  python3 - "$TMP/nspec/note.json" "$TMP/nspec/bad.json" "$bad" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+d["rows"][0].update(json.loads("{%s}" % sys.argv[3]))
+json.dump(d, open(sys.argv[2], "w"))
+PY
+  bash "$GEN" "$TMP/nspec/bad.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/nspec/bad.out" 2> "$TMP/nspec/bad.err"; rc=$?
+  if [[ $rc == 2 && ! -s "$TMP/nspec/bad.out" ]] && grep -q "row 'empty'.*note" "$TMP/nspec/bad.err"; then ok "BL-609 N-2 $bad is refused naming the cell"
+  else fail "BL-609 N-2 $bad: exit $rc, stderr: $(cat "$TMP/nspec/bad.err")"; fi
+done
+# A not-applicable row is still a live question: a note there would be dropped
+# silently, so it is refused.
+python3 - "$TMP/nspec/note.json" "$TMP/nspec/na.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+d["rows"] = [{"cell": "empty", "notApplicable": "no permission state", "note": ["x"]}]
+json.dump(d, open(sys.argv[2], "w"))
+PY
+bash "$GEN" "$TMP/nspec/na.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/nspec/na.out" 2> "$TMP/nspec/na.err"; rc=$?
+if [[ $rc == 2 && ! -s "$TMP/nspec/na.out" ]] && grep -q "row 'empty'.*note" "$TMP/nspec/na.err"; then ok "BL-609 N-2 a note on a notApplicable row is refused naming the cell"
+else fail "BL-609 N-2 notApplicable+note: exit $rc, stderr: $(cat "$TMP/nspec/na.err")"; fi
+# N-3: a row without `note` carries no note markup, and the same row with a
+# note differs only by its <ul class="gal-note"> block.
+python3 - "$TMP/nspec/note.json" "$TMP/nspec/plain.json" <<'PY2'
+import json, sys
+d = json.load(open(sys.argv[1])); del d["rows"][0]["note"]
+json.dump(d, open(sys.argv[2], "w"))
+PY2
+G="--root $ROOT --page $PAGE --group-id E --group-title T"
+bash "$GEN" "$TMP/nspec/plain.json" $G > "$TMP/nspec/plain.html" 2>/dev/null
+bash "$GEN" "$TMP/nspec/note.json" $G | sed '/<ul class="gal-note">/,/<\/ul>/d' > "$TMP/nspec/stripped.html" 2>/dev/null
+if [[ -s "$TMP/nspec/plain.html" ]] && ! grep -q gal-note "$TMP/nspec/plain.html" \
+    && cmp -s "$TMP/nspec/plain.html" "$TMP/nspec/stripped.html"; then
+  ok "BL-609 N-3 a row without note renders as before, the note adds only its <ul>"
+else fail "BL-609 N-3 a no-note row changed: $(diff "$TMP/nspec/plain.html" "$TMP/nspec/stripped.html" | sed -n 1,4p)"; fi
+
+# -- BL-610: a single capture that says why it has no before ------------------
+# One capture used to be always "pantalla nueva". `noBefore` (a reason) lets a
+# row say there is no before and why; the intro's "the screen is new" sentence
+# then needs a row that is really new.
+echo "== BL-610: noBefore =="
+mkdir -p "$TMP/nb"
+REASON='aprobada en la ronda 3; no se guardó el antes'
+nbrun() {  # nbrun <name> <python expr editing d["rows"]> [lang args]
+  python3 - "$TMP/rows.json" "$TMP/nb/$1.json" "$2" <<'PY2'
+import json, sys
+d = json.load(open(sys.argv[1])); exec(sys.argv[3]); json.dump(d, open(sys.argv[2], "w"))
+PY2
+  bash "$GEN" "$TMP/nb/$1.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/nb/$1.out" 2> "$TMP/nb/$1.err"
+}
+# Rows of the fixture: [0] empty (pair), [1] new-state (single), [2] loaded.
+nbrun one "d['rows'][1]['noBefore'] = '$REASON'"; rc=$?
+nbrow="$(item audit-new-state-light-desktop "$TMP/nb/one.out")"
+if [[ "$(grep -c '<figure' <<<"$nbrow")" == 1 ]] && grep -q '<figure data-tile="after">' <<<"$nbrow" \
+    && ! grep -qi 'pantalla nueva' <<<"$nbrow" \
+    && grep -qF "<figcaption>sin antes: $REASON</figcaption>" <<<"$nbrow" \
+    && grep -qF "alt=\"New state · sin antes: $REASON\"" <<<"$nbrow"; then
+  ok "BL-610 1 a single capture with noBefore is one after figure, no 'pantalla nueva', the reason in the row"
+else fail "BL-610 1 noBefore row: $nbrow"; fi
+# 2: the fixture has exactly one single-capture row (new-state; the other two
+# rows carry a before), so with noBefore on it the sentence goes; without it
+# (group.html) the sentence stays.
+if grep -q 'Donde hay una sola captura' "$TMP/group.html" && ! grep -q 'Donde hay una sola captura' "$TMP/nb/one.out"; then
+  ok "BL-610 2 the 'la pantalla es nueva' intro sentence is emitted only while a single capture has no noBefore"
+else fail "BL-610 2 intro sentence: with=$(grep -c 'Donde hay una sola' "$TMP/group.html") without=$(grep -c 'Donde hay una sola' "$TMP/nb/one.out")"; fi
+# 2b: a plain single capture beside a noBefore row gets the sentence qualified;
+# with no noBefore anywhere it is today's sentence (group.html, byte-checked).
+nbrun two "d['rows'][1]['noBefore'] = '$REASON'; d['rows'].append({'cell': 'error', 'variant': 'light-desktop', 'kind': 'review', 'after': 'actual/light-desktop/audit-new-state.png'})"
+if grep -qF 'la pantalla es nueva y no hay antes, salvo donde la fila dice por qué no hay antes.' "$TMP/nb/two.out" \
+    && grep -qF 'Donde hay una sola captura, la pantalla es nueva y no hay antes.' "$TMP/group.html"; then
+  ok "BL-610 2b a mixed gallery qualifies the intro sentence; a gallery with no noBefore keeps today's"
+else fail "BL-610 2b mixed intro: $(grep -o 'Donde hay una sola[^<]*' "$TMP/nb/two.out")"; fi
+# 1b: English page
+bash "$GEN" "$TMP/nb/one.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T --lang en > "$TMP/nb/one-en.out" 2>/dev/null
+grep -qF "<figcaption>no before: $REASON</figcaption>" "$TMP/nb/one-en.out" \
+  && ok "BL-610 1b --lang en captions the row 'no before: <reason>'" \
+  || fail "BL-610 1b english caption: $(grep -o '<figcaption>[^<]*' "$TMP/nb/one-en.out")"
+# 3-4: refusals, exit 2, one line, nothing on stdout.
+for case in \
+  "both|d['rows'][0]['noBefore'] = 'x'" \
+  "blank|d['rows'][1]['noBefore'] = '  '" \
+  "nonstr|d['rows'][1]['noBefore'] = 3" \
+  "na|d['rows'] = [{'cell': 'empty', 'notApplicable': 'no state', 'noBefore': 'x'}]" ; do
+  name="${case%%|*}"
+  nbrun "r$name" "${case#*|}"; rc=$?
+  if [[ $rc == 2 && ! -s "$TMP/nb/r$name.out" && "$(wc -l < "$TMP/nb/r$name.err" | tr -d ' ')" == 1 ]] \
+      && grep -q "row '[a-z-]*'.*noBefore" "$TMP/nb/r$name.err"; then
+    ok "BL-610 3/4 noBefore ($name) is refused naming the cell, one line"
+  else fail "BL-610 3/4 noBefore ($name): exit $rc, stderr: $(cat "$TMP/nb/r$name.err")"; fi
+done
+
+# alternatives row (document declares alternatives): refused naming the cell.
+png shots/list-a.png 160 90
+cat > "$TMP/nb/alt.json" <<'JSON'
+{"gallery": "skel", "variants": ["light-desktop"],
+ "alternatives": [{"id": "a", "label": "A"}, {"id": "b", "label": "B"}],
+ "rows": [{"cell": "x", "variant": "light-desktop", "kind": "alternatives", "noBefore": "why",
+           "captures": {"a": "shots/list-a.png", "b": "shots/list-a.png"}}]}
+JSON
+bash "$GEN" "$TMP/nb/alt.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/nb/alt.out" 2> "$TMP/nb/alt.err"; rc=$?
+if [[ $rc == 2 && ! -s "$TMP/nb/alt.out" && "$(wc -l < "$TMP/nb/alt.err" | tr -d ' ')" == 1 ]] && grep -q "row 'x'.*noBefore" "$TMP/nb/alt.err"; then
+  ok "BL-610 5 noBefore on an alternatives row is refused naming the cell, one line"
+else fail "BL-610 5 alternatives+noBefore: exit $rc, stderr: $(cat "$TMP/nb/alt.err")"; fi
+# a dropped row does not read noBefore (like note): builds, carries no trace of it.
+nbrun drp "d['rows'][1].update({'dropped': 'gone', 'noBefore': 'zzzmarker'})"; rc=$?
+if [[ $rc == 0 ]] && ! grep -q zzzmarker "$TMP/nb/drp.out"; then ok "BL-610 6 noBefore on a dropped row is not read, not refused"
+else fail "BL-610 6 dropped+noBefore: exit $rc $(cat "$TMP/nb/drp.err")"; fi
+
+# -- BL-613: a row's optional `decided_note` ----------------------------------
+# A reversible decision ("decidido, corrígeme si no") had no slot in a gallery,
+# so builders crammed it into the Qué mirar line. `decided_note` renders as the
+# kit's callout under the captures, never in the look line.
+echo "== BL-613: decided_note =="
+mkdir -p "$TMP/dn"
+cp -R "$ROOT/shots" "$ROOT/actual" "$TMP/dn/" 2>/dev/null
+cat > "$TMP/dn/dn.json" <<'JSON'
+{"gallery": "audit", "variants": ["light-desktop"],
+ "shots_dir": "shots", "actual_dir": "actual",
+ "rows": [
+  {"cell": "empty", "variant": "light-desktop", "kind": "review",
+   "look": "El estado vacío",
+   "decided_note": "Decidido, corrígeme si no: dejamos el icono actual zzzdecided",
+   "before": "shots/light-desktop/audit-empty.png", "after": "actual/light-desktop/audit-empty.png"}
+ ]}
+JSON
+cat > "$TMP/dn/d.spec.md" <<MD
+::: masthead {eyebrow="Fixture" byline="Fuente: fixture" visual="none: fixture"}
+# Galería
+
+Una fila con decisión tomada.
+:::
+
+::: gallery {#G title="Revisión" rows="dn.json" root="$ROOT"}
+:::
+
+::: notes {title="Notas generales"}
+:::
+MD
+( cd "$TMP/dn" && python3 "$SKILL/scripts/spec_build.py" d.spec.md -o d.html > "$TMP/dn/b.out" 2>&1 ); rc=$?
+if [[ $rc == 0 && -f "$TMP/dn/d.html" ]]; then
+  python3 - "$TMP/dn/d.html" <<'PY' && ok "BL-613 D-1 decided_note is a callout element after the gal-variant line; the Qué mirar line does not hold it" || fail "BL-613 D-1 decided_note is not a callout under the captures (see above)"
+import re, sys
+html = open(sys.argv[1], encoding="utf-8").read()
+m = re.search(r'<div class="callout[^"]*"[^>]*>(?:(?!</div>).)*zzzdecided(?:(?!</div>).)*</div>', html, re.S)
+if not m: sys.exit("no callout element holds the decided note")
+look = re.search(r'<p class="gal-look">.*?</p>', html, re.S).group(0)
+if "zzzdecided" in look: sys.exit("the look line holds the decided note")
+row = html[html.index('class="consult-item consult-gallery"'):]
+if row.index("zzzdecided") < row.index('class="gal-variant"'): sys.exit("callout is not after the gal-variant line")
+PY
+  bash "$CHECK" "$TMP/dn/d.html" > "$TMP/dn/c.out" 2>&1; crc=$?
+  if [[ $crc == 0 ]] && grep -q zzzdecided "$TMP/dn/d.html" && ! grep -q "consult-shape" "$TMP/dn/c.out"; then ok "BL-613 D-2 check-artifact.sh exits 0 and raises no consult-shape finding on the page"
+  else fail "BL-613 D-2 consult-shape finding: $(grep consult-shape "$TMP/dn/c.out")"; fi
+else fail "BL-613 D-1 the spec with a decided_note did not build: $(tail -3 "$TMP/dn/b.out")"; fi
+for bad in '"decided": "Bien"' '"decided_note": ""' '"decided_note": " "' '"decided_note": ["x"]' '"decided_note": 3'; do
+  python3 - "$TMP/dn/dn.json" "$TMP/dn/bad.json" "$bad" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+d["rows"][0].update(json.loads("{%s}" % sys.argv[3]))
+json.dump(d, open(sys.argv[2], "w"))
+PY
+  bash "$GEN" "$TMP/dn/bad.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/dn/bad.out" 2> "$TMP/dn/bad.err"; rc=$?
+  if [[ $rc == 2 && ! -s "$TMP/dn/bad.out" ]] && grep -q "row 'empty'.*decided_note" "$TMP/dn/bad.err"; then ok "BL-613 D-3 $bad is refused naming the cell"
+  else fail "BL-613 D-3 $bad: exit $rc, stderr: $(cat "$TMP/dn/bad.err")"; fi
+done
+# A notApplicable row is a live question with no captures: a decided_note there
+# would be dropped silently, so it is refused; a dropped row does not read it.
+python3 - "$TMP/dn/dn.json" "$TMP/dn/na.json" "$TMP/dn/dr.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+d["rows"] = [{"cell": "empty", "notApplicable": "no permission state", "decided_note": "x"}]
+json.dump(d, open(sys.argv[2], "w"))
+d["rows"] = [{"cell": "empty", "notApplicable": "no permission state", "dropped": "gone", "decided_note": "zzzdecided"}]
+json.dump(d, open(sys.argv[3], "w"))
+PY
+bash "$GEN" "$TMP/dn/na.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/dn/na.out" 2> "$TMP/dn/na.err"; rc=$?
+if [[ $rc == 2 && ! -s "$TMP/dn/na.out" ]] && grep -q "row 'empty'.*decided_note" "$TMP/dn/na.err"; then ok "BL-613 D-3 a decided_note on a notApplicable row is refused naming the cell"
+else fail "BL-613 D-3 notApplicable+decided_note: exit $rc, stderr: $(cat "$TMP/dn/na.err")"; fi
+bash "$GEN" "$TMP/dn/dr.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/dn/dr.out" 2> "$TMP/dn/dr.err"; rc=$?
+if [[ $rc == 0 ]] && ! grep -q zzzdecided "$TMP/dn/dr.out"; then ok "BL-613 D-4 decided_note on a dropped row is not read, not refused"
+else fail "BL-613 D-4 dropped+decided_note: exit $rc $(cat "$TMP/dn/dr.err")"; fi
+
+# -- BL-629: a decided row's optional `answer` ----------------------------------
+# The reply to the owner's note on an approved row. It rides on a decided row only
+# (the fold shows it); the row keeps its id, drops the verdict radios, and the page
+# still passes the checker. Refusals name the cell.
+echo "== BL-629: answer =="
+mkdir -p "$TMP/an"
+cat > "$TMP/an/an.json" <<'JSON'
+{"gallery": "audit", "variants": ["light-desktop"],
+ "shots_dir": "shots", "actual_dir": "actual",
+ "rows": [
+  {"cell": "empty", "variant": "light-desktop", "kind": "review",
+   "look": "El estado vacío", "decided": "Aprobada en la ronda 2",
+   "answer": "Respuesta zzzanswer a tu nota",
+   "before": "shots/light-desktop/audit-empty.png", "after": "actual/light-desktop/audit-empty.png"}
+ ]}
+JSON
+bash "$GEN" "$TMP/an/an.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/an/ok.out" 2> "$TMP/an/ok.err"; rc=$?
+if [[ $rc == 0 ]] && grep -q 'data-answer="Respuesta zzzanswer a tu nota"' "$TMP/an/ok.out" \
+   && grep -q 'data-id="audit-empty-light-desktop"' "$TMP/an/ok.out" && ! grep -q 'type="radio"' "$TMP/an/ok.out"; then
+  ok "BL-629 A-1 a decided row with an answer renders data-answer, keeps its id, has no radios"
+else fail "BL-629 A-1 decided+answer: exit $rc $(cat "$TMP/an/ok.err")"; fi
+for bad in '"answer": ""' '"answer": " "' '"answer": ["x"]' '"answer": 3' '"decided": null' '"kind": "alternatives"'; do
+  lab629="$bad"; [[ "$bad" == *null* ]] && lab629="answer without decided"
+  python3 - "$TMP/an/an.json" "$TMP/an/bad.json" "$bad" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+d["rows"][0].update(json.loads("{%s}" % sys.argv[3]))
+if d["rows"][0].get("decided", 1) is None:   # an answer on a row that is not decided
+    del d["rows"][0]["decided"]
+json.dump(d, open(sys.argv[2], "w"))
+PY
+  bash "$GEN" "$TMP/an/bad.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/an/bad.out" 2> "$TMP/an/bad.err"; rc=$?
+  if [[ $rc == 2 && ! -s "$TMP/an/bad.out" ]] && grep -q "row 'empty'.*answer" "$TMP/an/bad.err"; then ok "BL-629 A-2 ${lab629} is refused naming the cell"
+  else fail "BL-629 A-2 $lab629: exit $rc, stderr: $(cat "$TMP/an/bad.err")"; fi
+done
+cp -R "$ROOT/shots" "$ROOT/actual" "$TMP/an/" 2>/dev/null
+cat > "$TMP/an/a.spec.md" <<MD
+::: masthead {eyebrow="Fixture" byline="Fuente: fixture" visual="none: fixture"}
+# Galería
+
+Una fila decidida con respuesta.
+:::
+
+::: gallery {#G title="Revisión" rows="an.json" root="$ROOT"}
+:::
+
+::: notes {title="Notas generales"}
+:::
+MD
+( cd "$TMP/an" && python3 "$SKILL/scripts/spec_build.py" a.spec.md -o a.html > "$TMP/an/b.out" 2>&1 ); rc=$?
+if [[ $rc == 0 && -f "$TMP/an/a.html" ]] && bash "$CHECK" "$TMP/an/a.html" > "$TMP/an/c.out" 2>&1 \
+   && grep -q zzzanswer "$TMP/an/a.html"; then ok "BL-629 A-3 the built page with a decided answered row passes check-artifact"
+else fail "BL-629 A-3 built page: $(tail -3 "$TMP/an/b.out") $(grep -v "^$" "$TMP/an/c.out" | sed -n 1,6p)"; fi
+python3 - "$TMP/an/an.json" "$TMP/an/na.json" "$TMP/an/dr.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+d["rows"] = [{"cell": "empty", "notApplicable": "no state", "decided": "Bien", "answer": "x"}]
+json.dump(d, open(sys.argv[2], "w"))
+d["rows"] = [{"cell": "empty", "variant": "light-desktop", "kind": "review", "dropped": "gone", "answer": "x"}]
+json.dump(d, open(sys.argv[3], "w"))
+PY
+for f in na dr; do
+  bash "$GEN" "$TMP/an/$f.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/an/$f.out" 2> "$TMP/an/$f.err"; rc=$?
+  if [[ $rc == 2 && ! -s "$TMP/an/$f.out" ]] && grep -q "row 'empty'.*answer" "$TMP/an/$f.err"; then ok "BL-629 A-2 an answer on a $f row is refused naming the cell"
+  else fail "BL-629 A-2 $f+answer: exit $rc, stderr: $(cat "$TMP/an/$f.err")"; fi
+done
 
 if (( failures )); then echo "$failures failure(s)"; exit 1; fi
 echo "ok: the gallery unit — generator, refusals, wrapped page and every RED control"

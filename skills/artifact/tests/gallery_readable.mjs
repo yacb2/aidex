@@ -32,6 +32,8 @@ out.desktop = await page.evaluate((ROW) => {
     hlStyle: (() => { const c = getComputedStyle(hl); return { bg: c.backgroundColor, outline: c.outlineStyle,
       offset: parseFloat(c.outlineOffset), border: c.borderTopWidth }; })(),
     zoomLabelPosition: zoomAfter.position, zoomLabel: zoomAfter.content,
+    introHint: (() => { const h = document.querySelector('.gal-intro .gal-intro-narrow');
+      return h ? getComputedStyle(h).display : null; })(),
     figureBottom: r(after).t + r(after).h, imgBottom: ib.t + ib.h,
   };
 }, ROW);
@@ -50,7 +52,8 @@ await page.setViewportSize({ width: 390, height: 800 });
 out.phone = await page.evaluate(() => {
   const w = document.documentElement.clientWidth;
   const imgs = [...document.querySelectorAll('.consult-gallery .gal img')];
-  return { overflow: document.documentElement.scrollWidth - w,
+  return { introText: document.querySelector('.gal-intro').innerText,
+           overflow: document.documentElement.scrollWidth - w,
            imgPastEdge: imgs.some((i) => i.getBoundingClientRect().right > w + 1) };
 });
 console.log(JSON.stringify(out));

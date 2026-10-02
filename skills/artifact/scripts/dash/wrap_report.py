@@ -345,7 +345,10 @@ def stamp_decided_rounds(body, outfile, this_round):
         if ATTR_DECIDED_ROUND.search(tag):
             return tag
         was = prev.get(_attr(ATTR_ID, tag) or "")
-        carried = was is not None and was[0] == verdict
+        # Compared in the plain form `decide` compares in (BL-545): `**x**` is
+        # the verdict `x` re-spelled, not a new decision.
+        carried = was is not None and (md_body.PLAIN.sub("", was[0]).strip()
+                                       == md_body.PLAIN.sub("", verdict).strip())
         rnd = was[1] if carried else this_round
         present = ANY_DECIDED_ROUND.search(tag)      # an invalid hand stamp
         if rnd is None:

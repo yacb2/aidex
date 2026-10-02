@@ -49,6 +49,8 @@ import struct
 import sys
 import urllib.parse
 
+import md_body
+
 LANGS = ("es", "en")
 
 # The two tiles of a row, in reading order. English tokens on purpose: they are
@@ -57,9 +59,9 @@ LANGS = ("es", "en")
 # reader sees is the caption below.
 TILES = ("before", "after")
 TILE_WORDS = {"es": {"before": "antes", "after": "propuesto",
-                     "new": "pantalla nueva"},
+                     "new": "pantalla nueva", "none": "sin antes"},
               "en": {"before": "before", "after": "proposed",
-                     "new": "new screen"}}
+                     "new": "new screen", "none": "no before"}}
 
 # What a variant name says, in the page's language (see `variant_label`).
 VIEW_WORDS = {"es": {"desktop": "escritorio", "mobile": "móvil",
@@ -89,6 +91,10 @@ VERDICTS = {
            ("Cannot judge", "Cannot judge it from this capture")],
 }
 
+# The narrow-screen hint (BL-615): the button word is the composer's zoomLabel.
+NARROW_HINT = {"es": "En el móvil, toca Ampliar para leer cada captura.",
+               "en": "On a phone, tap Enlarge to read each capture."}
+
 # The ONE instruction of a gallery (BL-595), written under the block's heading
 # and assembled from the kinds of row it holds, so a row repeats nothing.
 INTRO = {
@@ -96,6 +102,9 @@ INTRO = {
                   "cuáles en las notas de esa fila.",
            "new": "Donde hay una sola captura, la pantalla es nueva y no hay "
                   "antes.",
+           "new_mixed": "Donde hay una sola captura, la pantalla es nueva y no "
+                        "hay antes, salvo donde la fila dice por qué no hay "
+                        "antes.",
            "sample": "Las muestras no piden respuesta.",
            "alt": "Elige una variante en cada fila y, si quieres matizar, di "
                   "por qué en las notas de esa fila.",
@@ -105,6 +114,9 @@ INTRO = {
                   "which in that row's notes.",
            "new": "Where there is a single capture, the screen is new and "
                   "there is no before.",
+           "new_mixed": "Where there is a single capture, the screen is new "
+                        "and there is no before, except where the row says "
+                        "why there is no before.",
            "sample": "Samples ask for no answer.",
            "alt": "Pick a variant on each row and, if you want to qualify it, "
                   "say why in that row's notes.",
@@ -170,15 +182,19 @@ def variant_line(variant, lang):
     return VARIANT_LINE[lang] % variant_label(variant, lang)
 
 
-def row_heading(row_title, cell):
+def row_heading(row_title, cell, variant=None, lang="es"):
     """What the reader sees as the row's heading and in the rail: the row's own
     `title`, else the cell's name read as words (`users-list-menu` -> `Users
     list menu`) — never the `<gallery> · <cell> · <variant>` key, which stays
-    the reply's `data-title` (gallery_reply.py reads rows by it)."""
+    the reply's `data-title` (gallery_reply.py reads rows by it). A `variant`
+    is passed only when the cell has several in the block and the row is folded
+    (decided or dropped; an open row says its variant under the capture): it is then added, so
+    two untitled rows of one cell do not fold to the same label."""
     if row_title:
         return row_title
     words = cell.replace("-", " ")
-    return words[:1].upper() + words[1:]
+    words = words[:1].upper() + words[1:]
+    return words + " · " + variant_label(variant, lang) if variant else words
 
 
 def row_id(gallery, cell, variant, kind):
@@ -315,6 +331,34 @@ def check_title(row, cell):
     return title.strip()
 
 
+NAMED = re.compile(r"^@[A-Za-z0-9][A-Za-z0-9_.-]*$")
+
+
+def named_region(root, path, name, cell, tile):
+    """BL-607: the {x, y, w, h} of "@name", read from `<capture>.regions.json`
+    (the capture's path with `.png` swapped), a {"name": {x, y, w, h}} map in
+    the capture's own pixels written by the harness's capture step."""
+    side = os.path.join(root or "/", re.sub(r"\.png$", "", path, flags=re.I)
+                        + ".regions.json")
+    try:
+        with open(side, encoding="utf-8") as fh:
+            table = json.load(fh)
+    except OSError:
+        die("row '%s': highlight '%s' on the %s capture needs %s, which is "
+            "missing — the capture step writes it" % (cell, name, tile, side))
+    except ValueError:
+        die("row '%s': %s is not valid JSON" % (cell, side))
+    if not isinstance(table, dict) or name[1:] not in table:
+        die("row '%s': highlight '%s' is not in %s (it has: %s)"
+            % (cell, name, side,
+               ", ".join(sorted(table)) if isinstance(table, dict) else "none"))
+    entry = table[name[1:]]
+    if not isinstance(entry, dict):
+        die("row '%s': highlight '%s' in %s must be one {\"x\", \"y\", \"w\", "
+            "\"h\"} object, not %r" % (cell, name, side, entry))
+    return check_highlight(entry, cell, "%s in %s" % (name, side))[0]
+
+
 def check_highlight(value, cell, key="highlight"):
     """`highlight`: one region {x, y, w, h} in the capture's own pixels, or a
     non-empty list of them (BL-596). Returns a list of 4-tuples; whether it
@@ -325,6 +369,14 @@ def check_highlight(value, cell, key="highlight"):
             "at least one {x, y, w, h}" % (cell, key))
     out = []
     for r in regions:
+        if isinstance(r, str):
+            # BL-607: "@name" is resolved from the capture's regions.json
+            # sidecar in `figure`, where the capture path is known.
+            if not NAMED.match(r):
+                die("row '%s': a named highlight is \"@name\" (letters, "
+                    "digits, - _ .), not %r (%s)" % (cell, r, key))
+            out.append(r)
+            continue
         if not isinstance(r, dict) or set(r) != {"x", "y", "w", "h"}:
             die("row '%s': a highlight is {\"x\", \"y\", \"w\", \"h\"} in "
                 "capture pixels, not %r (%s)" % (cell, r, key))
@@ -350,6 +402,33 @@ def check_row(row, variants, n, alts=None, require_look=False):
     cell = row.get("cell")
     if not isinstance(cell, str) or not SLUG.match(cell):
         die("row %d: 'cell' must be a lowercase slug, not %r" % (n, cell))
+    # `answer` (BL-629): the reply to the owner's note on a row that is decided.
+    # The fold shows it in its summary; an open row carries its own text, and a
+    # notApplicable or dropped row has no slot for it, so it is refused there.
+    if "answer" in row:
+        ans = row["answer"]
+        if not isinstance(ans, str) or not ans.strip():
+            die("row '%s': 'answer' must be a non-empty string, not %r"
+                % (cell, ans))
+        if "decided" not in row:
+            die("row '%s': 'answer' goes on a decided row — an open row "
+                "carries its own text" % cell)
+        if "dropped" in row or "notApplicable" in row:
+            die("row '%s': 'answer' goes on a decided review row — a dropped "
+                "or notApplicable row has nowhere to show it" % cell)
+        if row.get("kind") == "alternatives":
+            die("row '%s': 'answer' does not go on an alternatives row — its "
+                "choice radios stay visible, so the fold would not hide it "
+                "and the row would still ask" % cell)
+    # `noBefore` (BL-610) is a reason on the one shape that shows a single
+    # capture. Anywhere else it would be dropped silently on a live question
+    # (notApplicable, alternatives), so it is refused there; a dropped row
+    # does not read it, like `note`.
+    if "noBefore" in row and "dropped" not in row and (
+            "notApplicable" in row or row.get("kind") == "alternatives"):
+        die("row '%s': 'noBefore' only goes on a row that shows a single "
+            "'after' capture, not a notApplicable or alternatives row"
+            % cell)
     # A declared cell the screen cannot reach: the emitter sends its reason
     # instead of captures, and the row asks the owner to accept that.
     if "notApplicable" in row:
@@ -357,6 +436,14 @@ def check_row(row, variants, n, alts=None, require_look=False):
         if not isinstance(reason, str) or not reason.strip():
             die("row '%s': 'notApplicable' must be a non-empty string (the "
                 "reason)" % cell)
+        if "note" in row:
+            die("row '%s': a 'notApplicable' row takes no 'note' — it is "
+                "still a live question, so put the explanation in the "
+                "reason" % cell)
+        if "decided_note" in row and "dropped" not in row:
+            die("row '%s': a 'notApplicable' row takes no 'decided_note' — "
+                "it shows no captures to put it under, so it would be "
+                "dropped silently" % cell)
         if "before" in row or "after" in row:
             die("row '%s' carries both captures and 'notApplicable' — a row "
                 "is either shown or not applicable, never both" % cell)
@@ -372,7 +459,8 @@ def check_row(row, variants, n, alts=None, require_look=False):
                     "question set or it was settled, not both" % cell)
             out["dropped"] = gone.strip()
         elif "decided" in row:
-            if not isinstance(row["decided"], str) or not row["decided"].strip():
+            if not isinstance(row["decided"], str) \
+                    or not md_body.PLAIN.sub("", row["decided"]).strip():
                 die("row '%s': 'decided' must be a non-empty string (the "
                     "verdict)" % cell)
             out["decided"] = row["decided"].strip()
@@ -419,10 +507,14 @@ def check_row(row, variants, n, alts=None, require_look=False):
                 % (cell, layout, ", ".join(LAYOUTS)))
         out["layout"] = layout
     if "decided" in row:
-        if not isinstance(row["decided"], str) or not row["decided"].strip():
+        # Blank in the plain form the fold shows (BL-545): "**" is no verdict.
+        if not isinstance(row["decided"], str) \
+                or not md_body.PLAIN.sub("", row["decided"]).strip():
             die("row '%s': 'decided' must be a non-empty string (the "
                 "verdict)" % cell)
         out["decided"] = row["decided"].strip()
+    if "answer" in row:
+        out["answer"] = row["answer"].strip()
     # What the owner should look at on THIS row (BL-516: a cell with no stated
     # reason could not be judged). The spec route requires it; the CLI, which
     # existing project emitters feed, only shows it when present.
@@ -435,6 +527,28 @@ def check_row(row, variants, n, alts=None, require_look=False):
             % cell)
     if look is not None:
         out["look"] = look.strip()
+    # `note` (BL-609): the explain-why / reframe / example lines a row used to
+    # cram into `look`. A list, one <li> each, shown under the look line; it is
+    # not a paragraph, so the one-line look limits do not apply to it.
+    if "note" in row:
+        note = row["note"]
+        if not isinstance(note, list) or not note \
+                or not all(isinstance(x, str) and x.strip() for x in note):
+            die("row '%s': 'note' must be a non-empty list of non-empty "
+                "strings, not %r" % (cell, note))
+        out["note"] = [x.strip() for x in note]
+    # `decided_note` (BL-613): the "decidido, corrígeme si no" text of a row,
+    # shown as the kit's callout under the captures, never in the look line.
+    if "decided_note" in row:
+        dn = row["decided_note"]
+        if not isinstance(dn, str) or not dn.strip():
+            die("row '%s': 'decided_note' must be a non-empty string, not %r"
+                % (cell, dn))
+        if "decided" in row:
+            die("row '%s': 'decided_note' goes on a row still open — a "
+                "'decided' row folds away and seals its notes, so the "
+                "correction offer would vanish" % cell)
+        out["decided_note"] = dn.strip()
     if alts is not None and kind != "alternatives":
         die("row '%s' is a %s row in a document that declares 'alternatives' "
             "— every row of that document is an alternatives row (or dropped "
@@ -480,6 +594,15 @@ def check_row(row, variants, n, alts=None, require_look=False):
     if "after" not in row:
         die("row '%s' (%s) has no 'after' capture" % (cell, variant))
     check_path(row["after"], cell, "after")
+    if "noBefore" in row:
+        why = row["noBefore"]
+        if "before" in row:
+            die("row '%s' carries both 'before' and 'noBefore' — a row has a "
+                "before or says why it has none" % cell)
+        if not isinstance(why, str) or not why.strip():
+            die("row '%s': 'noBefore' must be a non-empty string (why there "
+                "is no before), not %r" % (cell, why))
+        out["noBefore"] = why.strip()
     # Absent is the one way to say "new screen". A present-but-empty `before`
     # is a baseline the emitter lost, and showing it as new would hide that.
     if "before" in row:
@@ -533,6 +656,9 @@ def figure(root, path, tile, caption, cell, alt, assets, copies,
         name = hashlib.sha256(fh.read()).hexdigest()[:16] + ".png"
     copies[name] = full
     src = urllib.parse.quote("%s/%s" % (assets, name))
+    if regions:
+        regions = [named_region(root, path, r, cell, tile)
+                   if isinstance(r, str) else r for r in regions]
     layer = highlight_layer(regions, width, height, cell, tile) \
         if regions else ""
     return ('      <figure data-tile="%s"><img src="%s" alt="%s" width="%d"'
@@ -624,13 +750,19 @@ def group_intro(doc, variants, alts, require_look, lang):
         else:
             shapes.add("ask")
             if r.get("before") is None:
-                shapes.add("new")
-    return " ".join(INTRO[lang][k] for k in ("ask", "new", "alt", "sample", "na")
+                shapes.add("new_why" if "noBefore" in r else "new")
+    # Plain single captures say "new"; qualified when a noBefore row sits
+    # beside them so the intro never contradicts that row's caption.
+    if "new" in shapes and "new_why" in shapes:
+        shapes.add("new_mixed")
+        shapes.discard("new")
+    return " ".join(INTRO[lang][k]
+                    for k in ("ask", "new", "new_mixed", "alt", "sample", "na")
                     if k in shapes)
 
 
 def render(doc, root, group_id, group_title, lang, page=None,
-           require_look=False):
+           require_look=False, lead=""):
     """The block, or "" for an empty `rows`: when every capture matches its
     baseline (D2) the owner's page carries no gallery block and no text about
     it — not an empty heading, not a "nothing changed" line.
@@ -639,7 +771,8 @@ def render(doc, root, group_id, group_title, lang, page=None,
     beside it (see the module docstring). None is refused at the first tile:
     a capture linked where it is breaks on this page's next reader.
     `require_look` refuses a row with no "what to look at" line (the spec
-    route sets it)."""
+    route sets it). `lead` is the author's own prose as ready HTML, placed
+    between the heading and the generated intro."""
     if not doc["rows"]:
         return ""
     assets, copies = None, {}
@@ -659,10 +792,17 @@ def render(doc, root, group_id, group_title, lang, page=None,
     add('  <div class="sec-head">')
     add('    <h2>%s</h2>' % e(group_title))
     add('  </div>')
+    if lead:
+        add(lead)
     intro = group_intro(doc, variants, alts, require_look, lang)
     if intro:
-        add('  <p class="gal-intro">%s</p>' % e(intro))
+        add('  <p class="gal-intro">%s <span class="gal-intro-narrow">%s</span></p>'
+            % (e(intro), e(NARROW_HINT[lang])))
     seen, unrequested, ids = {}, {}, {}
+    cell_variants = {}
+    for row in doc["rows"]:
+        if isinstance(row, dict) and row.get("variant"):
+            cell_variants.setdefault(row.get("cell"), set()).add(row["variant"])
     for n, row in enumerate(doc["rows"], 1):
         r = check_row(row, variants, n, alts, require_look)
         cell, variant, kind = r["cell"], r.get("variant"), r["kind"]
@@ -703,7 +843,10 @@ def render(doc, root, group_id, group_title, lang, page=None,
                 % (ids[ident], n, ident))
         ids[ident] = n
         title = "%s · %s · %s" % (gallery, cell, variant)
-        heading = row_heading(r.get("title"), cell)
+        heading = row_heading(
+            r.get("title"), cell,
+            variant if len(cell_variants.get(cell, ())) > 1
+            and ("dropped" in r or "decided" in r) else None, lang)
         # A dropped row is out of the question set: same id, title and kind as
         # when it was asked, the reason where the tiles were, and a decided
         # mark so the composer folds it and counts it nowhere.
@@ -724,6 +867,8 @@ def render(doc, root, group_id, group_title, lang, page=None,
         narrow = '' if kind == "alternatives" or before is not None \
             else ' data-tiles="after"'
         settled = ' data-decided="%s"' % e(r["decided"]) if "decided" in r else ''
+        if "answer" in r:
+            settled += ' data-answer="%s"' % e(r["answer"])
         add('  <section class="consult-item consult-gallery" data-id="%s"'
             ' data-title="%s" data-heading="%s" data-variant="%s"%s%s>'
             % (e(ident), e(title), e(heading), e(variant), narrow, settled))
@@ -737,6 +882,11 @@ def render(doc, root, group_id, group_title, lang, page=None,
         if "look" in r:
             add('    <p class="gal-look"><strong>%s:</strong> %s</p>'
                 % (e(LOOK_LABEL[lang]), e(r["look"])))
+        if "note" in r:
+            add('    <ul class="gal-note">')
+            for item in r["note"]:
+                add('      <li>%s</li>' % e(item))
+            add('    </ul>')
         # A before/after pair sits side by side: captures scale to the cell and
         # are never cropped, and the owner enlarges them anyway (owner
         # 2026-10-01, reversing BL-589's stacked default); `"layout": "stacked"`
@@ -758,16 +908,24 @@ def render(doc, root, group_id, group_title, lang, page=None,
             add(figure(root, after, "after", words["after"], cell,
                        alt % words["after"], assets, copies, regions))
         else:
-            add(figure(root, after, "after", words["new"], cell,
-                       alt % words["new"], assets, copies, regions))
+            # A reason replaces the "new screen" label (BL-610).
+            label = "%s: %s" % (words["none"], r["noBefore"]) \
+                if "noBefore" in r else words["new"]
+            add(figure(root, after, "after", label, cell,
+                       alt % label, assets, copies, regions))
         add('    </div>')
         add('    <p class="gal-variant">%s</p>' % e(variant_line(variant, lang)))
+        if "decided_note" in r:
+            add('    <div class="callout"><p>%s</p></div>'
+                % e(r["decided_note"]))
+        if "answer" in r:
+            add('    <div class="callout"><p>%s</p></div>' % e(r["answer"]))
         if kind == "alternatives":
             choices = [(a["label"], a["label"]) for a in alts]
             choices.append(NONE_OF_THEM[lang])
             # Peer choices are all visible; only "none of them" collapses.
             out.extend(options(ident, lang, choices, visible=len(alts)))
-        elif kind != "sample":
+        elif kind != "sample" and "answer" not in r:
             out.extend(verdicts(ident, lang))
         out.extend(notes(lang))
         add('  </section>')

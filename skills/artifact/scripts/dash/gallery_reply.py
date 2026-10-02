@@ -142,7 +142,9 @@ def gallery_key(ident, title, n):
 def parse_answer(ident, para, extra=(), alt=False):
     """The answer block, or None when `para` is not one (then it is notes).
     `extra`: the labels an alternatives row's radios carry, known from the
-    rows document (`--rows`); bullets that are not one of them stay notes."""
+    rows document (`--rows`); bullets that are not one of them stay notes.
+    `extra=None` on an alternatives row means the labels are unknown (BL-632,
+    `parse(..., lenient=True)`): the first bullet is taken as the choice."""
     verdict, verdict_line, asks, provisional = "", 0, [], False
     for n, line in para:
         if not line.startswith("- "):
@@ -153,7 +155,8 @@ def parse_answer(ident, para, extra=(), alt=False):
             provisional = True
         if MARKER.match(label):
             asks.append(label)
-        elif label in (extra if alt else ANSWERS):
+        elif (alt and extra is None and not verdict) \
+                or label in (extra if alt else ANSWERS):
             if verdict:
                 die("line %d: row '%s' has more than one answer ('%s' on "
                     "line %d, '%s' here) — the page lets you pick one"
@@ -168,7 +171,7 @@ def parse_answer(ident, para, extra=(), alt=False):
     return {"verdict": verdict, "asks": asks, "provisional": provisional}
 
 
-def parse_row(ident, key, body, tiles=None, labels=None):
+def parse_row(ident, key, body, tiles=None, labels=None, lenient=False):
     gallery, cell, variant, kind = key
     body = trim(body)
     first = 0
@@ -176,12 +179,15 @@ def parse_row(ident, key, body, tiles=None, labels=None):
         first += 1
     extra = ()
     if kind == "alternatives":
-        if labels is None or gallery not in labels:
+        if lenient and (labels is None or gallery not in labels):
+            extra = None
+        elif labels is None or gallery not in labels:
             die("row '%s' is an alternatives row: its labels are the spec's, "
                 "so pass the rows document that built the page with "
                 "--rows <rows.json> (without it a chosen alternative cannot "
                 "be told from a bullet in the notes)" % ident)
-        extra = labels[gallery] | set(OTHER)
+        else:
+            extra = labels[gallery] | set(OTHER)
     answer = parse_answer(ident, body[:first], extra,
                           kind == "alternatives") if first else None
     if answer:
@@ -208,7 +214,10 @@ def parse_row(ident, key, body, tiles=None, labels=None):
             "marks": marks}
 
 
-def parse(text, tiles=None, labels=None):
+def parse(text, tiles=None, labels=None, lenient=False):
+    """`lenient`: an alternatives row needs no --rows document (its chosen
+    label is read as the first bullet); save_reply uses it, which only wants
+    to know what is owed, not which alternative was chosen."""
     items, cur = [], None
     for n, line in enumerate(text.splitlines(), 1):
         if line.startswith("### "):
@@ -224,7 +233,8 @@ def parse(text, tiles=None, labels=None):
     for it in items:
         key = gallery_key(it["id"], it["title"], it["line"])
         if key:
-            rows.append(parse_row(it["id"], key, it["body"], tiles, labels))
+            rows.append(parse_row(it["id"], key, it["body"], tiles, labels,
+                                  lenient))
         else:
             other.append({"id": it["id"], "title": it["title"],
                           "body": "\n".join(l for _, l in trim(it["body"]))})

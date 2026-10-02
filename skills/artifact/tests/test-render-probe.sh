@@ -181,6 +181,34 @@ out="$(bash "$PROBE" --shots "$TMP/shots" "$TMP/kit-rows.html" 2>&1)"; rc=$?
 [[ -s "$TMP/shots/kit-rows-1280.png" && -s "$TMP/shots/kit-rows-390.png" ]] \
   && ok "--shots writes kit-rows-1280.png and kit-rows-390.png" || bad "no kit-rows screenshots"
 
+echo "== a five-row ledger leaves no shaded empty track (BL-614) =="
+# Two columns at 1280 px, so five rows leave the sixth track empty. The ledger used
+# to draw a 1px gap over a --rule background, which showed that track as a grey cell.
+# Per-cell borders instead: the container itself paints nothing.
+out="$(bash "$PROBE" "$TMP/ledger-five.html" 2>&1)"; rc=$?
+[[ $rc -eq 0 ]] && ok "ledger-five fixture exits 0" || bad "ledger-five exit $rc: $(grep '^DEFECT' <<<"$out")"
+module="${AIDEX_PLAYWRIGHT_DIR:-}/node_modules/playwright"
+[[ -f "$module/package.json" ]] || module="$g/playwright"
+lg="$(PW="$module" node -e '
+const { chromium } = require(process.env.PW);
+(async () => {
+  const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1280, height: 900 } });
+  await p.goto("file://" + process.argv[1]);
+  console.log(await p.evaluate(() => {
+    const l = document.querySelector(".ledger"), cs = getComputedStyle(l);
+    const probe = document.createElement("i"); probe.style.color = "var(--rule)"; document.body.append(probe);
+    const rule = getComputedStyle(probe).color;
+    const cols = cs.gridTemplateColumns.split(" ").length;
+    return [l.children.length, cols, cs.backgroundColor === rule ? "rule-bg" : "no-rule-bg", cs.rowGap, cs.columnGap, getComputedStyle(l.children[0]).borderRightWidth].join(" ");
+  }));
+  await b.close();
+})();' "$TMP/ledger-five.html" 2>&1)"
+read -r rows cols bg rgap cgap cellb <<<"$lg"
+[[ "$rows" == 5 && "$cols" -ge 2 ]] && ok "precondition: 5 rows in $cols columns at 1280 (an empty track exists)" || bad "ledger-five layout: $lg"
+[[ "$bg" == no-rule-bg && "$rgap" =~ ^(normal|0px)$ && "$cgap" =~ ^(normal|0px)$ ]] \
+  && [[ "$cellb" == 1px ]] \
+  && ok ".ledger paints no --rule background and no gap, and each cell draws its own 1px border"  || bad ".ledger shades its empty track: $lg"
+
 echo "== a diagram built from a spec (must pass clean) =="
 # The F-shape flow, built by the real spec_build.py so the page carries today's
 # diagram renderer: lr at 1280, its tb twin at 390. Clean at both widths, and the
@@ -376,6 +404,45 @@ label-box svg-label-outside-its-box "cajafix 1280
 label-box svg-label-outside-its-box "anchorfix 1280
 figure-contrast figure-text-contrast "usefix 1280
 EOF
+
+echo "== a table of one to three columns cut by the box it scrolls in (BL-592) =="
+out="$(bash "$PROBE" "$TMP/table-cut.html" 2>&1)"; rc=$?
+[[ $rc -eq 1 ]] && ok "table-cut exits 1" || bad "table-cut exit $rc, expected 1"
+grep -qE '^DEFECT table-cut\.html @390px table-cut: table\.threefix ' <<<"$out" \
+  && ok "a three-column table wider than its .tw at 390 px is table-cut" || bad "no table-cut naming table.threefix at 390px in: $out"
+# The four-column table overflows its .tw only through the kit's own 30rem floor on
+# tables of four or more columns (components.css:531, BL-536): a scroll on purpose.
+hit="$(grep -E '^DEFECT table-cut\.html @[0-9]+px table-cut: table\.fourfix ' <<<"$out" || true)"
+[[ -z "$hit" ]] && ok "a four-column table scrolling in its .tw is not table-cut" || bad "$hit"
+# The kit counts the outer table's columns only: a three-column table inside a cell of a
+# four-column one scrolls with it.
+hit="$(grep -E '^DEFECT table-cut\.html @[0-9]+px table-cut: table\.innerfix ' <<<"$out" || true)"
+[[ -z "$hit" ]] && ok "a three-column table nested in a four-column one is not table-cut" || bad "$hit"
+
+echo "== svg text under the legible floor and an outline over text (BL-648) =="
+out="$(bash "$PROBE" "$TMP/svg-text-small.html" 2>&1)"; rc=$?
+[[ $rc -eq 1 ]] && ok "svg-text-small exits 1" || bad "svg-text-small exit $rc, expected 1"
+grep -qE '^DEFECT svg-text-small\.html @390px svg-text-small: text "diminutofix' <<<"$out" \
+  && ok "svg text drawn at about 10.4 px at 390 is svg-text-small" || bad "no svg-text-small naming diminutofix at 390px in: $out"
+hit="$(grep -E '^DEFECT svg-text-small\.html @1280px svg-text-small' <<<"$out" || true)"
+[[ -z "$hit" ]] && ok "the floor is a phone-width rule: nothing at 1280" || bad "$hit"
+hit="$(grep -E '^DEFECT svg-text-small\.html .*limitefix' <<<"$out" || true)"
+[[ -z "$hit" ]] && ok "svg text drawn at about 11.2 px is not svg-text-small" || bad "$hit"
+out="$(bash "$PROBE" "$TMP/outline-over-text.html" 2>&1)"; rc=$?
+[[ $rc -eq 1 ]] && ok "outline-over-text exits 1" || bad "outline-over-text exit $rc, expected 1"
+grep -qE '^DEFECT outline-over-text\.html @1280px outline-over-text: rect\.outcross "" over text "cruzafix' <<<"$out" \
+  && ok "an unfilled stroked rect whose edge crosses a label is outline-over-text" || bad "no outline-over-text naming outcross in: $out"
+hit="$(grep -E '^DEFECT outline-over-text\.html .*(outclear|card|librefix|cardfix)' <<<"$out" || true)"
+[[ -z "$hit" ]] && ok "an outline around a label with clearance, and a filled card, are not outline-over-text" || bad "$hit"
+
+# The diagram engine's tree badge straddles its box's top edge on purpose, over a page-ground
+# fill (diagram_layout.py:181-184, 03-spec-grammar.md:613): an unfilled stroked rect with a
+# text crossing it, but the text sits on a filled pill drawn after the box.
+( cd "$TMP" && python3 "$SCRIPTS/spec_build.py" "$FIX/tree-badge.spec.md" -o "$TMP/tree-badge.html" ) >/dev/null 2>&1 \
+  && ok "built tree-badge from its spec" || bad "spec_build.py failed on tree-badge.spec.md"
+out="$(bash "$PROBE" "$TMP/tree-badge.html" 2>&1)"; rc=$?
+hit="$(grep -E 'outline-over-text' <<<"$out" || true)"
+[[ $rc -eq 0 && -z "$hit" ]] && ok "the canon tree example (a badge on its box's edge) is clean" || bad "tree-badge exit $rc: $hit"
 
 echo "== the render contract classes (--contract) =="
 # contract-pass holds the passing cell of each class: the kit's own .fieldlabel, .note
@@ -607,6 +674,38 @@ bash "$PROBE" >/dev/null 2>&1; rc=$?
 [[ $rc -eq 2 ]] && ok "no page exits 2" || bad "no page exit $rc, expected 2"
 bash "$PROBE" "$TMP/missing.html" >/dev/null 2>&1; rc=$?
 [[ $rc -eq 2 ]] && ok "missing page exits 2" || bad "missing page exit $rc, expected 2"
+
+echo "== manifest ids of collapsed content =="
+# Production shape (composer fold): 2400 px of filler, then a CLOSED
+# <details class="decided-unit"> whose summary names Q11 and whose body is the data-id
+# carrier, then an OPEN details holding QO and a plain section QP. A closed details shows
+# only its summary row, so Q11 belongs on the tile(s) showing that row (y ~2400) and on no
+# tile below it; QO (y ~2440-2740) and QP (~2740-3040) sit on the tiles that show them.
+{
+  printf '<!doctype html><html><body style="margin:0">\n'
+  printf '<div style="height:2400px;font:32px monospace">filler</div>\n'
+  printf '<details class="decided-unit"><summary>Q11 verdict</summary><section data-id="Q11" style="height:2500px">hidden-body</section></details>\n'
+  printf '<details open><summary>open</summary><section data-id="QO" style="height:300px">shown-qo</section></details>\n'
+  printf '<section data-id="QP" style="height:300px">shown-qp</section>\n'
+  printf '<div style="height:1200px">tail</div></body></html>\n'
+} > "$TMP/collapsed.html"
+bash "$PROBE" --shots "$TMP/collapsed-shots" "$TMP/collapsed.html" >/dev/null 2>&1
+chk="$(python3 - "$TMP/collapsed-shots/collapsed-shots.json" <<'PY'
+import json, sys
+m = json.load(open(sys.argv[1]))
+# id -> (point a tile must contain, lowest y a tile may end at or before, y a tile may start at or after)
+want = {"Q11": (2405, 2400, 2440), "QO": (2600, 2430, 2800), "QP": (2900, 2700, 3100)}
+for w in ("1280", "390"):
+    tiles = m["widths"][w]["tiles"]
+    for i, (pt, below, above) in want.items():
+        for t in tiles:
+            has = i in t["ids"]
+            if t["y"] <= pt < t["y"] + t["height"] and not has: print(f"{w}: {i} missing from {t['file']}"); sys.exit()
+            if (t["y"] + t["height"] <= below or t["y"] >= above) and has: print(f"{w}: {i} wrongly on {t['file']}"); sys.exit()
+print("ok")
+PY
+)"
+[[ "$chk" == ok ]] && ok "a closed fold's id is on the tile showing its summary row and none below; visible ids on theirs" || bad "collapsed ids: $chk"
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [[ $FAIL -eq 0 ]]

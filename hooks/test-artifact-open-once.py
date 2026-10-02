@@ -225,6 +225,8 @@ def main():
         check("a lock dated in the future is stale, not a block", (rc, d), (0, ""))
         check("and no negative age is printed", "-" not in out.split("minutes")[0][-8:],
               True)
+        check("and the notice says it is dated in the future (BL-563)",
+              "in the future" in out and "0 minutes ago" not in out, True)
         os.unlink(lock)
 
         # --- the spellings of a path that `open` accepts and the hook must too ---

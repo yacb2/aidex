@@ -282,6 +282,40 @@ window.addEventListener('load', function () {
     Object.keys(d).forEach(function (k) { delete d[k].r; delete d[k].x; });
     localStorage.setItem(K, JSON.stringify(d));
     document.title = 'DOWNGRADED=' + JSON.stringify(d).replace(/[|<>]/g, ' ');
+  } else if (q.indexOf('phase=stale') !== -1) {
+    /* BL-635: another tab writing a NEWER built stamp for this path marks this tab
+     * stale; an equal or older stamp, or this tab's own load, shows nothing. No
+     * backticks in this branch (the heredoc is unquoted). */
+    var bm = document.querySelector('meta[name="artifact-built"]');
+    var mine = bm ? bm.getAttribute('content') : '';
+    var SK = 'aidex-kit-built:' + location.pathname;
+    var nb = function () { return document.getElementById('consult-stale') ? '1' : '0'; };
+    var send = function (b, r, m, k) {
+      window.dispatchEvent(new StorageEvent('storage', { key: k || SK,
+        newValue: JSON.stringify({ b: b, r: r === undefined ? '1' : r, m: m || 0 }) }));
+      return nb();
+    };
+    var R = parseInt(document.querySelector('meta[name="consult-round"]').getAttribute('content'), 10) || 0;
+    var LM = Date.parse(document.lastModified) || 0;
+    var own = nb(), eq = send(mine, String(R), LM), old = send('2000-01-01 00:00'),
+        xkey = send('9999-01-01 00:00', '1', 0, 'aidex-kit-built:/elsewhere.html');
+    /* Same minute: an equal stamp and round with an OLDER mtime shows nothing, a
+     * later round shows the banner (tie-break on the round as a number), and
+     * where the round ties a later mtime does (tie-break on the file). */
+    var eqold = send(mine, String(R), LM - 1000);
+    var sb0 = document.getElementById('consult-stale');
+    var other = send(mine, String(R + 1), 0);
+    if (sb0 = document.getElementById('consult-stale')) sb0.remove();
+    var eqm = send(mine, String(R), LM + 1000);
+    if (sb0 = document.getElementById('consult-stale')) sb0.remove();
+    var big = send('9999-01-01 00:00');
+    var sb = document.getElementById('consult-stale');
+    document.title = 'STALE|OWN=' + own + '|EQ=' + eq + '|OLD=' + old + '|XKEY=' + xkey + '|EQOLD=' + eqold + '|NEWR=' + other + '|NEWM=' + eqm + '|NEW=' + big
+      + '|N=' + document.querySelectorAll('#consult-stale').length
+      + '|BTN=' + (sb && sb.querySelector('a,button') ? '1' : '0')
+      + '|TXT=' + (sb ? sb.textContent : '').replace(/[|<>]/g, ' ')
+      + '|SHOWN=' + (sb && sb.getBoundingClientRect().height > 0 ? '1' : '0')
+      + '|STORED=' + (localStorage.getItem(SK) || '').replace(/[|<>]/g, ' ');
   } else if (q.indexOf('phase=clear') !== -1) {
     var btn = document.querySelector('[data-id="Q1"] .consult-clear');
     if (btn) btn.click();
@@ -712,6 +746,65 @@ ts="$(CHROME_WINDOW=1100,600 run 'phase=spy')"
 [[ "$ts" == *"BACK=#sec-ask"* ]] \
   || fail "BL-326: scrolling back up did not move the current entry back: $ts"
 
+# ---- BL-599: an overflowing rail shows the entry AFTER the current one -------
+# 21 entries at 1280x900 overflow the list. With Q3 current the general notes
+# entry is the next one; the tracker used to scroll the list only far enough for
+# Q3, so notes stayed below the list's edge until the page bottom, and the
+# separator above it shrank to 0 px as an empty flex child.
+PAGE_SAVED="$PAGE"; PAGE="$TMP/reports/rail599.html"
+{
+  echo '<meta name="consult-visual" content="none: a rail probe, nothing to draw">'
+  echo '<div class="page"><main class="main"><header><p class="eyebrow">PROBE</p><h1>Rail probe</h1></header>'
+  echo '<section class="consult-group" id="G1" data-id="G1" data-title="Estados"><div class="sec-head"><h2>Estados de la página</h2></div><p>Contexto.</p>'
+  for i in $(seq 1 14); do
+    echo "<section class=\"consult-item\" data-id=\"R$i\" data-title=\"Cambiar persona: el servidor lo rechaza $i\"><h3><span class=\"consult-id\">R$i</span>¿Cambiar persona en el caso $i?</h3><div class=\"opts one\"><label><input type=\"radio\" name=\"R$i\" data-label=\"Si\"><span>Sí</span></label><label><input type=\"radio\" name=\"R$i\" data-label=\"No\"><span>No</span></label></div><textarea></textarea></section>"
+  done
+  echo '</section><section class="consult-group" id="G2" data-id="G2" data-title="Detalles"><div class="sec-head"><h2>Tres detalles de la página</h2></div><p>Contexto.</p>'
+  for i in 1 2 3; do
+    echo "<section class=\"consult-item\" data-id=\"Q$i\" data-title=\"¿Un solo botón Dar acceso cuando la persona no tiene accesos $i?\"><h3><span class=\"consult-id\">Q$i</span>¿Un solo botón Dar acceso $i?</h3><div class=\"opts one\"><label><input type=\"radio\" name=\"Q$i\" data-label=\"Si\"><span>Sí</span></label><label><input type=\"radio\" name=\"Q$i\" data-label=\"No\"><span>No</span></label></div><textarea></textarea></section>"
+  done
+  echo '</section><section class="consult-item consult-notes" data-id="notes" data-title="Notas generales"><h3><span class="consult-id">notas</span>Notas generales</h3><textarea></textarea></section>'
+  echo '<div class="endbar"><button type="button" id="consult-copy-end">Copiar</button><span class="consult-status" id="consult-status-end"></span></div>'
+  echo '</main><aside class="rail"><p class="railhead">Contenido</p><nav class="raillist" id="raillist"></nav><div class="consult-bar"><button type="button" id="consult-copy">Copiar</button><span class="consult-status" id="consult-status"></span></div></aside></div>'
+  cat <<'HTML'
+<script>window.addEventListener('load', function () {
+  var rl = document.getElementById('raillist');
+  scrollTo(0, document.getElementById('Q3').getBoundingClientRect().top + scrollY - 100);
+  dispatchEvent(new Event('scroll'));
+  var cur = rl.querySelector('[aria-current]'), lr = rl.getBoundingClientRect();
+  var nr = rl.querySelector('a[href="#notes"]').getBoundingClientRect();
+  var cr = cur ? cur.getBoundingClientRect() : nr;
+  document.title = 'R599|OVER=' + (rl.scrollHeight > rl.clientHeight ? 1 : 0)
+    + '|CUR=' + (cur ? cur.getAttribute('href') : 'none')
+    + '|CURVIS=' + (cr.top >= lr.top - 1 && cr.bottom <= lr.bottom + 1 ? 1 : 0)
+    + '|NOTESVIS=' + (nr.top >= lr.top - 1 && nr.bottom <= lr.bottom + 1 ? 1 : 0)
+    + '|SEPH=' + rl.querySelector('.railsep').getBoundingClientRect().height
+    + '|CURTOP=' + (cr.top >= lr.top - 1 ? 1 : 0)
+    + '|PAIR=' + (function () {
+        var n = cur && cur.nextElementSibling;
+        while (n && !n.classList.contains('railitem')) n = n.nextElementSibling;
+        return n && n.getBoundingClientRect().bottom - cr.top > rl.clientHeight ? 1 : 0;
+      })() + '|';
+});</script>
+HTML
+} > "$TMP/body.html"
+wrap_page es
+tr="$(CHROME_WINDOW=1280,900 run 'phase=rail599')"
+[[ "$tr" == *"|OVER=1|"* && "$tr" == *"|CUR=#Q3|"* && "$tr" == *"|CURVIS=1|"* ]] \
+  || fail "BL-599: the probe did not reach an overflowing rail with Q3 current and in view, so the cell proves nothing: $tr"
+[[ "$tr" == *"|NOTESVIS=1|"* ]] \
+  || fail "BL-599: with Q3 current the next rail entry (general notes) is below the list's visible edge: $tr"
+[[ "$tr" =~ \|SEPH=([0-9.]+)\| ]] && python3 -c "import sys; sys.exit(abs(float('${BASH_REMATCH[1]}') - 1) > 0.5)" \
+  || fail "BL-599: the rail separator is not its declared 1 px in an overflowing list: $tr"
+# A short window: the current entry and the one after it no longer fit together, so the current
+# entry wins and its top stays inside the list.
+tr="$(CHROME_WINDOW=1280,300 run 'phase=rail599')"
+[[ "$tr" == *"|OVER=1|"* && "$tr" != *"|CUR=none|"* && "$tr" == *"|PAIR=1|"* ]] \
+  || fail "BL-599: the short-window probe did not reach a current+next pair taller than the list, so the cap cell proves nothing: $tr"
+[[ "$tr" == *"|CURTOP=1|"* ]] \
+  || fail "BL-599: keeping the next entry in view scrolled the current entry's top out of the list: $tr"
+PAGE="$PAGE_SAVED"
+
 # ---- BL-532 / BL-535 / BL-536: dropped items, one copy bar, the table's first column
 # One small page: a decided item, a DROPPED one (never answered), an open one, a
 # table whose second column is long prose, and both copy bars. Read at 390 px
@@ -725,7 +818,7 @@ cat > "$TMP/nbody.html" <<HTML
 <section id="sec-ask">
   <div class="sec-head"><h2>Questions</h2></div>
 <section class="consult-group" id="G1" data-id="G1" data-title="Uno"><div class="sec-head"><h2>Uno</h2></div><p>El contexto de la pregunta, en espa&ntilde;ol.</p>
-  <section class="consult-item" data-id="D1" data-title="Settled" data-decided="Option A">
+  <section class="consult-item" data-id="D1" data-title="Settled" data-decided="**Option A**, con notas">
     <h3><span class="consult-id">D1</span>Pregunta ya resuelta de esta sonda</h3>
     <div class="opts one"><label><input type="radio" name="D1" data-label="Option A" checked><span>Option A</span></label></div>
     <p class="fieldlabel">Notas sobre esta</p><textarea></textarea>
@@ -789,6 +882,7 @@ cat > "$TMP/nbody.html" <<HTML
     <thead><tr><th>Ruta</th><th>Estado</th></tr></thead>
     <tbody><tr><td id="pathcell">skills/artifact/assets/artifact_kit/scripts/composer_functional.js</td><td id="datecell">revisado el 01/10/2026 por el equipo</td></tr></tbody>
   </table></div>
+  <ul><li><div class="tw"><table id="t-li"><tbody><tr><td id="liprose">entrada/salida y/o errores</td></tr></tbody></table></div></li></ul>
   <div class="tw"><table id="t-pdate">
     <thead><tr><th>Ruta</th><th>Estado</th></tr></thead>
     <tbody><tr><td id="pathcell3">skills/artifact/assets/artifact_kit/2026/10/01/composer_functional.js</td><td>pendiente de revisar</td></tr></tbody>
@@ -796,6 +890,10 @@ cat > "$TMP/nbody.html" <<HTML
   <div class="tw"><table id="t-pnest">
     <thead><tr><th>Paso</th><th>Detalle</th><th>Estado</th></tr></thead>
     <tbody><tr><td>Medir</td><td><table><thead><tr><th>Ruta</th></tr></thead><tbody><tr><td id="pathcell2">skills/artifact/assets/artifact_kit/scripts/composer_functional.js</td></tr></tbody></table></td><td>ok</td></tr></tbody>
+  </table></div>
+  <div class="tw"><table id="t-pnestw">
+    <thead><tr><th>Paso</th><th>Detalle</th><th>Estado</th></tr></thead>
+    <tbody><tr><td>Medir</td><td><div class="tw"><table><thead><tr><th>Ruta</th></tr></thead><tbody><tr><td id="pathcell4">skills/artifact/assets/artifact_kit/scripts/composer_functional.js</td></tr></tbody></table></div></td><td>ok</td></tr></tbody>
   </table></div>
   <div class="tw"><table id="t-nest">
     <thead><tr><th>Paso</th><th>Detalle</th></tr></thead>
@@ -879,16 +977,18 @@ window.addEventListener('load', function () {
   var tw1 = document.getElementById('t-path').closest('.tw'), wb0 = slashWbr();
   tw1.style.width = '3000px'; tw1.style.maxWidth = 'none'; window.dispatchEvent(new Event('resize'));
   var wbWide = slashWbr(), brkWide = document.getElementById('pathcell').classList.contains('brk') ? 1 : 0;
+  /* BL-604: a table that fits, inside an <li> (which inherits overflow-wrap: anywhere), is not cut. */
+  var liWbr = document.querySelectorAll('#t-li wbr.kit-slash').length + '/' + (document.getElementById('liprose').classList.contains('brk') ? 1 : 0);
   tw1.style.width = ''; tw1.style.maxWidth = ''; window.dispatchEvent(new Event('resize'));
   var wbBack = slashWbr();
   /* BL-585: the same answer after every resize (the cut is re-measured each time). */
-  var first = pathBreaks(), first2 = pathBreaks('pathcell2'), rs = [];
+  var first = pathBreaks(), first2 = pathBreaks('pathcell2'), first2w = pathBreaks('pathcell4'), rs = [];
   for (var q = 0; q < 2; q++) {
     window.dispatchEvent(new Event('resize'));
     rs.push(pathBreaks() + '/' + fits('#t-path'));
   }
   document.title = 'NARROW|W=' + window.innerWidth
-    + '|PATHBRK=' + first + '|DATEJ=' + dateJ + '|PATHDATE=' + path3 + '|WBR=' + (wb0 > 0 ? 1 : 0) + '/' + wbWide + '/' + brkWide + '/' + (wbBack === wb0 ? 1 : 0) + '|PATHBRK2=' + first2 + '|PATHRS=' + rs.join(',')
+    + '|PATHBRK=' + first + '|DATEJ=' + dateJ + '|PATHDATE=' + path3 + '|WBR=' + (wb0 > 0 ? 1 : 0) + '/' + wbWide + '/' + brkWide + '/' + (wbBack === wb0 ? 1 : 0) + '|PATHBRK2=' + first2 + '|PATHBRK2W=' + first2w + '|LIWBR=' + liWbr + '|PATHRS=' + rs.join(',')
     + '|BARS=' + ['consult-copy', 'consult-copy-end'].filter(function (i) { return shown(document.getElementById(i)); }).length
     + '|L1=' + w('#t-label td:first-child') + '|L2=' + w('#t-label td:last-child') + '|I1=' + w('#t-id td:first-child')
     + '|FIT2=' + fits('#t-two') + '|FIT3=' + fits('#t-three') + '|FITS2=' + fits('#t-short2') + '|FITS3=' + fits('#t-short3') + '|FITN=' + fits('#t-nest')
@@ -927,8 +1027,14 @@ tn="$(grep -oE '<title>[^<]*</title>' "$TMP/ndom.html" | sed -n 1p)"
   || fail "BL-532: a dropped item was not shown as dropped, or the count is not what the section holds: $tn"
 [[ "$tn" == *"|DRPHINT=Estas preguntas salieron del conjunto"* ]] \
   || fail "BL-532: the dropped section reuses the decided hint instead of saying the questions left the set: $tn"
-[[ "$tn" == *"X2 (descartada)"* ]] \
-  || fail "BL-532: a dropped item inside a mixed block is filed under the decided section with no dropped marker: $tn"
+[[ "$tn" == *"Left two: Descartada: ya no aplica"* && "$tn" != *"Settled two: Descartada"* ]] \
+  || fail "BL-532/BL-608: in a mixed block the dropped item X2 must carry its dropped verdict and the decided D2 must not: $tn"
+# BL-545: D1's verdict is written `**Option A**, con notas`, which is NOT its checked
+# label: the fold shows the written verdict, plain (the checked label alone would be
+# decidedLine winning over data-decided).
+mix="${tn#*|MIX=}"; mix="${mix%%|*}"
+[[ "$mix" == *"Settled: Option A, con notas"* && "$mix" != *"**"* ]] \
+  || fail "BL-545: the decided summary does not show D1's written verdict plain (want 'Settled: Option A, con notas', no '**'): MIX=$mix"
 [[ "$tn" == *"RAIL="*"Descartadas"* ]] \
   || fail "BL-532: the rail has no entry for the dropped section: $tn"
 [[ "$tn" == *"|BARS=1|"* ]] \
@@ -947,6 +1053,13 @@ i1="$(sed -nE 's/.*\|I1=([0-9]+)\|.*/\1/p' <<<"$tn")"
   || fail "BL-585: at 390 px a still-overflowing table cuts a path mid-segment, or never cut it (want every line break after '/'): $tn"
 [[ "$tn" == *"|PATHBRK2=1|"* ]] \
   || fail "BL-585: a path in a table nested in a cell of a 3-column table is cut mid-segment or never cut on first load: $tn"
+# BL-604: the same nested table with its OWN .tw wrapper. The inner .tw is measured after the
+# outer one and its box fits (the outer cell's overflow-wrap reaches the path), so it used to
+# drop the slash hints and the path was cut mid-segment.
+[[ "$tn" == *"|PATHBRK2W=1|"* ]] \
+  || fail "BL-604: a path in a nested table with its own .tw wrapper is cut mid-segment or never cut (want breaks after '/' only): $tn"
+[[ "$tn" == *"|LIWBR=0/0|"* ]] \
+  || fail "BL-604: a fitting table inside an <li> got .brk or slash <wbr> from the li's inherited overflow-wrap (want 0/0): $tn"
 [[ "$tn" == *"|PATHRS=1/1,1/1|"* ]] \
   || fail "BL-585: after a resize the path cut changes (want 1/1 twice: broken after slashes, table fits): $tn"
 [[ "$tn" == *"|DATEJ=1|"* ]] \
@@ -992,6 +1105,148 @@ f4c2="$(sed -nE 's/.*\|F4C2=(-?[0-9]+)\|.*/\1/p' <<<"$tn")"
 # the bar is released only when no question is left to answer, not when none is blank.
 [[ "$tn" == *"|RAILANS=sticky"* ]] \
   || fail "BL-575: answering the last open question released the copy bar although the question is not decided: $tn"
+
+# ---- BL-608: the Decidido fold names each row and counts what it shows ----
+# A block of six gallery rows, every one decided: two approved, four "to redo" (a verdict the
+# owner gave, written decided="Se rehace ...", never dropped=). The summary must carry each
+# row's title with the verdict written on it (no bare "(descartada)", no slug) and the eyebrow
+# must equal the rows listed, in rows. Three pages: es rows, es rows mixed with a plain
+# question ("elementos"), en rows.
+rows_body() {  # rows_body <lang: es|en> <extra decided plain question: 0|1>
+  local lang="$1" plain="$2" n attr ok redo head=Contenido
+  [[ "$lang" == en ]] && head=Contents
+  if [[ "$lang" == es ]]; then ok="Aprobada: se ve bien"; redo="Se rehace seg&uacute;n Q1"; else ok="Approved: looks right"; redo="Redo per Q1"; fi
+  printf '%s\n' '<meta name="consult-visual" content="none: a layout probe, nothing to draw">' \
+    '<div class="page"><main class="main"><header><p class="eyebrow">PROBE</p><h1>Decided rows</h1></header>' \
+    '<section id="sec-ask"><div class="sec-head"><h2>Questions</h2></div>' \
+    '<section class="consult-group" id="E" data-id="E" data-title="La matriz" data-tiles="after"><div class="sec-head"><h2>La matriz</h2></div><p>Seis filas.</p>'
+  for n in 1 2 3 4 5 6; do
+    if (( n <= 2 )); then attr="data-decided=\"$ok $n\""; else attr="data-decided=\"$redo\""; fi
+    printf '<section class="consult-item consult-gallery" data-id="audit-row%s-after" data-title="audit &middot; row%s &middot; after" data-heading="Fila %s" %s><h3>Fila %s</h3><p class="gal-na">no aplica</p><textarea></textarea></section>\n' "$n" "$n" "$n" "$attr" "$n"
+  done
+  printf '%s\n' '</section>'
+  if (( plain )); then
+    printf '%s\n' '<section class="consult-group" id="P" data-id="P" data-title="Plain"><div class="sec-head"><h2>Plain</h2></div><p>One plain question.</p><section class="consult-item" data-id="P1" data-title="Plain" data-decided="Option A"><h3><span class="consult-id">P1</span>Una pregunta normal</h3><div class="opts one"><label><input type="radio" name="P1" data-label="Option A" checked><span>Option A</span></label></div><textarea></textarea></section></section>'
+  fi
+  printf '%s\n' '<div class="endbar"><button type="button" id="consult-copy-end">Copy</button><span class="consult-status" id="consult-status-end"></span></div>' \
+    '<section class="consult-item consult-notes" data-id="notes" data-title="Notas generales"><h3>Notas generales</h3><textarea></textarea></section>' \
+    '</section></main><aside class="rail"><p class="railhead">'"$head"'</p><nav class="raillist" id="raillist"></nav>' \
+    '<div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div></aside></div>' \
+    '<script>window.addEventListener("load", function () {' \
+    ' var t = function (q) { return ((document.querySelector(q) || {}).textContent || "").replace(/[|]/g, "/"); };' \
+    ' document.title = "ROWS|EYEBROW=" + t("#sec-decided .eyebrow") + "|SUM=" + t("#sec-decided summary") + "|ENTRIES=" + document.querySelectorAll("#sec-decided .consult-item").length;' \
+    '});</script>'
+}
+rows_title() {  # rows_title <lang> <plain> -> the probe's <title>
+  rows_body "$1" "$2" > "$TMP/rbody.html"
+  bash "$WRAP" --title "rows" --lang "$1" --out "$TMP/reports/rows-$1-$2.html" < "$TMP/rbody.html" > "$TMP/rwrap.log" 2>&1 \
+    || fail "BL-608: the decided-rows probe ($1/$2) failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/rwrap.log" | sed -n 1,4p)"
+  CHROME_WINDOW=1280,900 chrome_dump "$TMP/rdom.html" "file://$TMP/reports/rows-$1-$2.html" 45 || true
+  grep -oE '<title>[^<]*</title>' "$TMP/rdom.html" | sed -n 1p
+}
+tr="$(rows_title es 0)"
+[[ "$tr" == *"ROWS|EYEBROW=6 filas ya resueltas|"* && "$tr" == *"|ENTRIES=6"* ]] \
+  || fail "BL-608: the Decidido eyebrow does not equal the six rows it holds, or does not say filas: $tr"
+[[ "$tr" == *"Fila 1: Aprobada: se ve bien 1; Fila 2: Aprobada: se ve bien 2; Fila 3: Se rehace según Q1; "* && "$tr" == *"Fila 6: Se rehace según Q1"* ]] \
+  || fail "BL-608: the Decidido summary does not give each row its title and the verdict written on it: $tr"
+[[ "$tr" != *"(descartada)"* && "$tr" != *"audit-row"* ]] \
+  || fail "BL-608: the Decidido summary shows the bare '(descartada)' mark or a raw slug: $tr"
+tr="$(rows_title es 1)"
+[[ "$tr" == *"EYEBROW=7 elementos ya resueltos|"* ]] \
+  || fail "BL-608: a Decidido holding gallery rows and a plain question must count 'elementos', not rows or questions: $tr"
+tr="$(rows_title en 0)"
+[[ "$tr" == *"EYEBROW=6 rows already settled|"* ]] \
+  || fail "BL-608: on an English page the Decidido eyebrow must read '6 rows already settled': $tr"
+
+# ---- BL-629: a decided row carries the answer to the owner's note, visible while folded ----
+# The owner approved a row and attached a worry; the next round's decided row folds, so the
+# reply was hidden. `answer` on a decided row must show inside the folded summary, the row
+# keeps its verdict-less shape (no radios) and the id a plain review row of that cell has,
+# so consult-ids passes against the previous round. Layer: browser, because visibility
+# (the text with the fold closed) and the restore of round 1's answer are what the composer decides.
+mkdir -p "$TMP/g629/shots/light-desktop" "$TMP/g629/actual/light-desktop"
+for c629 in empty loaded; do
+  python3 "$SKILL/tests/png_fixture.py" "$TMP/g629/shots/light-desktop/audit-$c629.png" 160 90
+  python3 "$SKILL/tests/png_fixture.py" "$TMP/g629/actual/light-desktop/audit-$c629.png" 160 90
+done
+row629() {  # row629 <cell> <extra row keys, json fragment starting with a comma, or empty>
+  printf '{"cell": "%s", "variant": "light-desktop", "kind": "review", "look": "El estado", "before": "shots/light-desktop/audit-%s.png", "after": "actual/light-desktop/audit-%s.png"%s}' "$1" "$1" "$1" "$2"
+}
+ANS629=', "decided": "Aprobada en la ronda 2", "answer": "Respuesta zzzanswer a tu nota"'
+gen629() {  # gen629 <out html> <row json>...
+  local out="$1"; shift
+  local IFS=,; printf '{"gallery": "audit", "variants": ["light-desktop"], "shots_dir": "shots", "actual_dir": "actual", "rows": [%s]}\n' "$*" > "$TMP/g629/rows.json"
+  bash "$SKILL/scripts/gallery-items.sh" "$TMP/g629/rows.json" --root "$TMP/g629" --page "$TMP/reports/g629.html" \
+    --group-id E --group-title "La matriz" > "$out" 2> "$TMP/g629/gen.err" \
+    || fail "BL-629: gallery-items.sh failed: $(cat "$TMP/g629/gen.err")"
+}
+PROBE629='<script>window.addEventListener("load", function () {
+  var row = document.querySelector("[data-id=audit-empty-light-desktop]"), vis = 0;
+  if (location.search.indexOf("phase=fill") > -1) {
+    var r = row.querySelector("input[type=radio]"); r.checked = true; r.dispatchEvent(new Event("change", { bubbles: true }));
+    document.title = "FILLED"; return;
+  }
+  [].forEach.call(document.querySelectorAll("*"), function (n) { if (!n.children.length && (n.textContent || "").indexOf("zzzanswer") > -1 && n.offsetParent !== null && n.checkVisibility()) vis++; });
+  var fold = row && row.closest("details.decided-unit");
+  var rest = document.getElementById("consult-restored");
+  document.title = "ANS|FOLDED=" + (fold && !fold.open && !row.checkVisibility() ? 1 : 0) + "|INPLACE=" + (fold && fold.classList.contains("inplace") ? 1 : 0) + "|VIS=" + vis + "|RADIOS=" + (row ? row.querySelectorAll("input[type=radio]").length : -1) + "|ID=" + (row ? row.dataset.id : "") + "|REST=" + (rest ? rest.textContent.replace(/[|]/g, "/").slice(0, 80) : "none") + "|";
+});</script>'
+page629() {  # page629 <rows html> <out page>: wraps a probe page around a generated block
+  { printf '%s\n' '<meta name="consult-visual" content="none: a layout probe, nothing to draw">' \
+      '<div class="page"><main class="main"><header><p class="eyebrow">PROBE</p><h1>Answered row</h1></header>' \
+      '<section id="sec-ask"><div class="sec-head"><h2>Questions</h2></div>'
+    cat "$1"
+    printf '%s\n' '<div class="endbar"><button type="button" id="consult-copy-end">Copy</button><span class="consult-status" id="consult-status-end"></span></div>' \
+      '<section class="consult-item consult-notes" data-id="notes" data-title="Notas generales"><h3>Notas generales</h3><textarea></textarea></section>' \
+      '</section></main><aside class="rail"><p class="railhead">Contenido</p><nav class="raillist" id="raillist"></nav>' \
+      '<div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div></aside></div>' \
+      "$PROBE629"
+  } > "$TMP/g629/body.html"
+  bash "$WRAP" --title "ans" --lang es --out "$2" < "$TMP/g629/body.html" > "$TMP/g629/wrap.log" 2>&1 \
+    || fail "BL-629: the answered-row probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/g629/wrap.log" | sed -n 1,4p)"
+}
+title629() {  # title629 <page> [query]
+  CHROME_WINDOW=1280,900 chrome_dump "$TMP/g629/dom.html" "file://$1${2:+?$2}" 45 || true
+  grep -oE '<title>[^<]*</title>' "$TMP/g629/dom.html" | sed -n 1p
+}
+id629() { grep -oE 'data-id="audit-[a-z0-9-]+"' "$1" | sed -n 1p; }
+gen629 "$TMP/g629/plain.html" "$(row629 empty '')"
+gen629 "$TMP/g629/ans.html" "$(row629 empty "$ANS629")"
+id_plain="$(id629 "$TMP/g629/plain.html")"; id_ans="$(id629 "$TMP/g629/ans.html")"
+slug629="${id_plain#data-id=\"}"; slug629="${slug629%\"}"
+
+# Whole block decided: the block folds as one unit.
+page629 "$TMP/g629/ans.html" "$TMP/reports/ans629.html"
+ta="$(title629 "$TMP/reports/ans629.html")"
+[[ "$ta" == *"|FOLDED=1|"* ]] \
+  || fail "BL-629: a decided row with an answer is not folded (FOLDED=1 wanted): $ta"
+[[ "$ta" == *"|VIS=1|"* ]] \
+  || fail "BL-629: the answer text is not visible with the fold closed (a closed fold hides the row; the summary must carry the text): $ta"
+[[ "$ta" == *"|RADIOS=0|"* ]] \
+  || fail "BL-629: a decided row with an answer carries verdict radios: $ta"
+[[ -n "$slug629" && "$id_plain" == "$id_ans" && "$ta" == *"|ID=$slug629|"* ]] \
+  || fail "BL-629: the answered row's id (${id_ans:-none}) differs from a plain review row's (${id_plain:-none}), so consult-ids would fail: $ta"
+
+# Block with an open sibling: the answered row folds in place, and its summary says so with a separator.
+gen629 "$TMP/g629/mix.html" "$(row629 empty "$ANS629")" "$(row629 loaded '')"
+page629 "$TMP/g629/mix.html" "$TMP/reports/mix629.html"
+tm="$(title629 "$TMP/reports/mix629.html")"
+[[ "$tm" == *"|FOLDED=1|INPLACE=1|VIS=1|RADIOS=0|ID=$slug629|"* ]] \
+  || fail "BL-629: in a block with an open sibling the answered row must fold in place (details.decided-unit.inplace) with the answer visible once: $tm"
+grep -qE 'decided-answer">— [^<]*zzzanswer' "$TMP/g629/dom.html" \
+  || fail "BL-629: the in-place answer span does not start with the em dash separator the group path uses: $(grep -oE 'decided-verdict decided-answer">[^<]{0,60}' "$TMP/g629/dom.html" | sed -n 1p)"
+
+# Round 2: round 1's approval of this row (open, radio ticked, saved under the page's path) must not be
+# reported as 'left blank because the question changed' once the row is decided and answered.
+gen629 "$TMP/g629/open.html" "$(row629 empty '')"
+page629 "$TMP/g629/open.html" "$TMP/reports/r629.html"
+[[ "$(title629 "$TMP/reports/r629.html" "phase=fill")" == *FILLED* ]] || fail "BL-629: round 1 fill phase did not run"
+printf 'audit-empty-light-desktop: Aprobada\n' | bash "$SKILL/scripts/save-reply.sh" "$TMP/reports/r629.html" - >/dev/null 2>&1 \
+  || fail "BL-629: save-reply.sh failed on the round-1 page"
+page629 "$TMP/g629/ans.html" "$TMP/reports/r629.html"
+tr2="$(title629 "$TMP/reports/r629.html")"
+[[ "$tr2" == *"|FOLDED=1|"* && "$tr2" == *"|REST=none|"* ]] \
+  || fail "BL-629: round 2 reports the owner's round-1 approval of a now decided+answer row as restored or stale ('se dejaron en blanco'): $tr2"
 
 # ---- the chrome speaks the page's language ----------------------------------
 [[ "$t" == *"BTN=Copiar mis respuestas"* ]] \
@@ -1392,6 +1647,54 @@ t="$(run 'phase=verify')"
   || fail "BL-280 upgrade: localising the field label dropped a stored mark: $t"
 [[ "$t" == *"FL=Notas sobre esta"* ]] \
   || fail "BL-280 upgrade: the label was not localised on the reopened page: $t"
+
+# ---- BL-650b: relabelling the notes badge must not drop the reader's notes ----
+# spec_build now prints the default notes badge as "notas" on an es page. The badge
+# is inside the item, so a questionHash over the raw textContent moves with it and a
+# live page regenerated with the new kit would read the typed "Notas generales" text
+# as "the question changed". The hash must treat the badge as the item's data-id.
+# The rail chip must show the badge the reader sees, not the raw data-id.
+rm -rf "$TMP/profile"
+PAGE_SAVED="$PAGE"; PAGE="$TMP/reports/n650.html"
+n650() {  # n650 <badge text> <phase>: wrap a notes-only es page, load it with ?phase=
+  cat > "$TMP/body.html" <<HTML
+<meta name="consult-visual" content="none: a persistence probe, nothing to draw">
+<div class="page"><main class="main"><header><p class="eyebrow">PROBE</p><h1>Notes probe</h1></header>
+<section id="sec-ask"><div class="sec-head"><h2>Preguntas</h2></div>
+  <section class="consult-item consult-notes" data-id="notes" data-title="Notas generales">
+    <h3><span class="consult-id">$1</span>Notas generales</h3>
+    <p class="fieldlabel">Lo que no encaja arriba</p>
+    <textarea></textarea>
+  </section>
+  <div class="endbar"><button type="button" id="consult-copy-end">Copiar</button><span class="consult-status" id="consult-status-end"></span></div>
+</section></main>
+<aside class="rail"><p class="railhead">Contenido</p><nav class="raillist" id="raillist"></nav>
+<div class="consult-bar"><button type="button" id="consult-copy">Copiar</button><span class="consult-status" id="consult-status"></span></div></aside></div>
+<script>window.addEventListener('load', function () {
+  var ta = document.querySelector('[data-id="notes"] textarea');
+  if (location.search.indexOf('phase=fill') !== -1) {
+    ta.value = 'unsent-notes-650';
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    document.title = 'FILLED';
+  } else {
+    var st = document.getElementById('consult-restored');
+    document.title = 'N650|TA=' + ta.value + '|STALE=' + (/pregunta cambi/.test(st ? st.textContent : '') ? 1 : 0) + '|RS=' + (st ? st.textContent.slice(0,70).replace(/[|]/g, '/') : 'none')
+      + '|RAIL=' + document.getElementById('raillist').textContent.replace(/[|\s]+/g, ' ').trim() + '|';
+  }
+});</script>
+HTML
+  bash "$WRAP" --title "n650" --lang es --out "$PAGE" < "$TMP/body.html" > "$TMP/wrap.log" 2>&1 \
+    || fail "BL-650b: the notes probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/wrap.log" | sed -n 1,4p)"
+  run "$2"
+}
+t="$(n650 notes phase=fill)"
+[[ "$t" == *FILLED* ]] || fail "BL-650b: the fill phase did not run: $t"
+t="$(n650 notas phase=verify)"
+[[ "$t" == *"|TA=unsent-notes-650|"* && "$t" == *"|STALE=0|"* ]] \
+  || fail "BL-650b: relabelling the default notes badge notes->notas dropped the reader's unsent notes or marked them stale: $t"
+[[ "$t" == *"RAIL="*notas* && "$t" != *"RAIL="*notes* ]] \
+  || fail "BL-650b: the rail chip for the notes item shows the raw data-id instead of the visible badge: $t"
+PAGE="$PAGE_SAVED"
 
 # ---- BL-341: a page whose every question is DECIDED --------------------------
 #
@@ -2170,6 +2473,42 @@ window.addEventListener('load', function () {
       var esc = (ndlg().open ? 'noteopen' : 'noteclosed') + '/' + (dlg.open ? 'zoomopen' : 'zoomclosed')
         + '/' + (dlg.contains(aeE) ? 'in' : 'out:' + (aeE ? aeE.tagName : 'none'))
         + '/' + (chanE.value === vEsc ? 'same' : 'changed');
+      /* Two fingers (BL-649): a second finger down, moved, lifted, and a third
+         one cancelled while the first draws neither starts a box of its own
+         nor reshapes or ends the first one's. isPrimary as the browser sets it:
+         only the first finger down is primary. The saved line is the first
+         finger's rectangle (50,68 to 210,89), and no drawing box is left. */
+      var mly = layer(), mr = mly.getBoundingClientRect();
+      var mev = function (type, id, x, y) {
+        mly.dispatchEvent(new PointerEvent(type, { pointerType: 'touch', pointerId: id, isPrimary: id === 21,
+          button: 0, clientX: mr.left + x, clientY: mr.top + y, bubbles: true, cancelable: true }));
+      };
+      mev('pointerdown', 21, 50, 68); mev('pointerdown', 22, 300, 150);
+      mev('pointermove', 21, 210, 89); mev('pointermove', 22, 350, 180);
+      /* The box on screen is still the first finger's (left, width). */
+      var mbox = [].map.call(dlg.querySelectorAll('.kit-marks-layer .kit-mark.drawing'), function (d) {
+        return d.style.left + ',' + d.style.width;
+      }).join(';');
+      mev('pointerup', 22, 350, 180);
+      mev('pointerdown', 23, 100, 100); mev('pointercancel', 23, 100, 100);
+      mev('pointerup', 21, 210, 89);
+      note('multi', 'save');
+      var multi = chanE.value.split('\n')[2] || '';
+      var stray = dlg.querySelectorAll('.kit-marks-layer .kit-mark.drawing').length;
+      /* A primary press while a drag is still open (here a mouse while a
+         finger draws; also a drag whose up never came) replaces it: one box. */
+      var drawn = function () { return dlg.querySelectorAll('.kit-marks-layer .kit-mark.drawing').length; };
+      var mouse = function (type, x, y) {
+        mly.dispatchEvent(new PointerEvent(type, { pointerType: 'mouse', pointerId: 1, isPrimary: true,
+          button: 0, clientX: mr.left + x, clientY: mr.top + y, bubbles: true, cancelable: true }));
+      };
+      mev('pointerdown', 21, 60, 20); mev('pointermove', 21, 100, 40);
+      mouse('pointerdown', 200, 100);
+      var replaced = drawn();
+      mouse('pointerup', 240, 140);
+      if (ndlg().open) note(null, 'cancel');
+      mev('pointerup', 21, 100, 40);
+      replaced += '/' + drawn();
       dlg.querySelector('.kit-zoom-close').click();
       /* The grid tile: the note shows on hover, and a click on a mark is still
          a click on the tile, which opens the zoom. */
@@ -2181,7 +2520,9 @@ window.addEventListener('load', function () {
       document.title = 'GMEDGE|DEG1=' + deg1 + '|DEG2=' + deg2
         + '|REV=' + rev.replace(/[|<>\n]/g, ' ') + '|CLAMP=' + clamp.replace(/[|<>\n]/g, ' ')
         + '|PEDLG=' + peDlg + '|HIT=' + hitE + '|ESC=' + esc
-        + '|PETILE=' + peTile + '|TILEZOOM=' + tileZoom;
+        + '|PETILE=' + peTile + '|TILEZOOM=' + tileZoom
+        + '|MULTI=' + multi.replace(/[|<>\n]/g, ' ') + '|STRAY=' + stray
+        + '|MBOX=' + mbox + '|REPLACED=' + replaced;
     } else if (q.indexOf('phase=gmask') !== -1) {
       /* The row's notes box is a contenteditable; the hidden kit-marks
          textarea is the only textarea in it. The chip must reach the box the
@@ -2666,11 +3007,19 @@ tg="$(mrun "$GPAGE_M" 'phase=gmedge')"
   || fail "Esc on the note dialog closed the zoom dialog too, left the focus outside it, or wrote something: $tg"
 [[ "$tg" == *"TILEZOOM=light-desktop"* ]] \
   || fail "a click on a mark of the grid tile no longer opens the tile in the zoom dialog: $tg"
+[[ "$tg" == *"MULTI=[mark light-desktop 12.5,34.0 40.0x10.5] multi|"* ]] \
+  || fail "a second finger reshaped or ended the first finger's mark (or a third finger's cancel dropped it): $tg"
+[[ "$tg" == *"STRAY=0|"* ]] \
+  || fail "a second finger down during a mark drag left a stray drawing box behind: $tg"
+[[ "$tg" == *"MBOX=12.5%,40%|"* ]] \
+  || fail "a second finger's move reshaped the first finger's drawing box: $tg"
+[[ "$tg" == *"REPLACED=1/0"* ]] \
+  || fail "a primary press during an open mark drag left the old drawing box behind: $tg"
 
 # A round that RE-CAPTURES a tile is a new question for the row (marks are
 # answers, and the question-hash covers the tiles' image src): the unsent
 # marks of the old capture must not come back onto a different screenshot.
-# Same profile as gmedge, which left two marks on light-desktop.
+# Same profile as gmedge, which left three marks on light-desktop.
 PX="$PX" perl -0pe 's{(<figure data-tile="light-desktop"><img src=")[^"]*(" alt="with-data light-desktop")}{$1$ENV{PX}$2}' \
   "$TMP/gbody-marks.html" > "$TMP/gbody-marks-recap.html"
 bash "$WRAP" --title "gallery" --lang es --out "$GPAGE_M" < "$TMP/gbody-marks-recap.html" > "$TMP/gwrap-mr.log" 2>&1 \
@@ -2819,7 +3168,7 @@ tg="$(grep -oE '<title>[^<]*</title>' "$TMP/gdom-p.html" | sed -n 1p)"
 # this item's images, offers no compare/marks/rows, and the item stays a normal
 # question (not a gallery row). Layer: the browser, because the viewer is behaviour.
 mkdir -p "$TMP/shots"
-for n in 1 2 3 4; do python3 "$SKILL/tests/png_fixture.py" "$TMP/shots/s$n.png" 80 60; done
+for n in 1 2 3 4 5 6; do python3 "$SKILL/tests/png_fixture.py" "$TMP/shots/s$n.png" 80 60; done
 cat > "$TMP/shots/page.spec.md" <<'SPEC'
 ::: masthead {visual="none: a viewer probe, nothing to draw"}
 # Shots probe
@@ -2851,6 +3200,19 @@ b: dos
 - Primera — la primera
 - Segunda — la segunda
 :::
+
+::: item {#Q2 title="Otras capturas"}
+¿Y entre estas dos?
+
+::: figure {src="s5.png" alt="cinco"}
+:::
+
+::: figure {src="s6.png" alt="seis"}
+:::
+
+- Quinta — la quinta
+- Sexta — la sexta
+:::
 :::
 
 ::: notes {title="Notas generales"}
@@ -2858,6 +3220,9 @@ b: dos
 SPEC
 python3 "$SKILL/scripts/spec_build.py" "$TMP/shots/page.spec.md" > "$TMP/gbody-shots.html" 2> "$TMP/gshots-build.log" \
   || fail "the shots probe spec failed to build: $(head -3 "$TMP/gshots-build.log")"
+# The item carries a kit-marks channel of its own (the page may write one; the
+# checker accepts it); shots mode still draws no marks on it (BL-655).
+perl -0pi -e 's{(<section class="consult-item" data-id="Q1".*?)(</section>)}{$1  <textarea class="kit-marks" hidden></textarea>\n$2}s' "$TMP/gbody-shots.html"
 cat >> "$TMP/gbody-shots.html" <<'HTML'
 <script>
 window.addEventListener('load', function () {
@@ -2889,16 +3254,71 @@ window.addEventListener('load', function () {
     key('ArrowRight'); key('ArrowRight'); key('ArrowRight'); r.end = tile();
     key('ArrowLeft'); r.left = tile();
     var body = dlg.querySelector('.kit-zoom-body');
-    var touch = function (type, x, y, id) { body.dispatchEvent(new PointerEvent(type, { pointerType: 'touch', pointerId: id || 0, clientX: x, clientY: y || 0, bubbles: true })); };
+    /* isPrimary as the browser sets it: true only for the first finger down
+     * while no other synthetic touch is held (the constructor defaults false). */
+    var held = {};
+    var touch = function (type, x, y, id) {
+      id = id || 0;
+      if (type === 'pointerdown') held[id] = !Object.keys(held).length;
+      var primary = !!held[id];
+      if (type === 'pointerup' || type === 'pointercancel') delete held[id];
+      body.dispatchEvent(new PointerEvent(type, { pointerType: 'touch', pointerId: id, isPrimary: primary, clientX: x, clientY: y || 0, bubbles: true }));
+    };
     touch('pointerdown', 100); touch('pointerup', 200); r.swR = tile();   // drag right: previous
     touch('pointerdown', 200); touch('pointerup', 100); r.swL = tile();   // drag left: next
     touch('pointerdown', 100); touch('pointerup', 120); r.swS = tile();   // under 40 px: stays
     touch('pointerdown', 100, 100); touch('pointerup', 150, 300); r.swV = tile();   // mostly vertical: stays
-    touch('pointerdown', 100, 0, 1); touch('pointerdown', 300, 0, 2);
-    touch('pointerup', 95, 0, 1); r.swM = tile();   // finger 1 lifts 5 px from where IT went down: stays
+    /* Each recorded as before~after, and in opposite directions, so a step in
+     * one cannot be undone by the other into a matching value (BL-554). */
+    var b = tile();
+    touch('pointerdown', 200, 0, 5); touch('pointermove', 100, 0, 5);
+    touch('pointercancel', 100, 0, 5); touch('pointerup', 100, 0, 5);
+    r.swC = b + '~' + tile();   // cancelled mid-drag, then an up 100 px left: stays
+    b = tile();
+    touch('pointerdown', 300, 0, 6); touch('pointerdown', 100, 0, 7);
+    touch('pointermove', 200, 0, 7); touch('pointerup', 200, 0, 7);
+    touch('pointerup', 380, 0, 6);
+    r.swP = b + '~' + tile();   // a pinch: neither finger's lift walks, whichever moved 40+ px across
+    b = tile();
+    touch('pointerdown', 300, 0, 8); touch('pointerdown', 100, 0, 9); touch('pointerup', 100, 0, 9);
+    touch('pointerdown', 300, 0, 10); touch('pointerup', 200, 0, 10);
+    touch('pointerup', 300, 0, 8);
+    r.swT = b + '~' + tile();   // a finger put down while another is still held never starts a swipe
+    b = tile();
+    touch('pointerdown', 100, 0, 11);
+    body.dispatchEvent(new PointerEvent('pointerup', { pointerType: 'mouse', pointerId: 1, isPrimary: true, clientX: 200, clientY: 0, bubbles: true }));
+    touch('pointerup', 100, 0, 11);
+    r.swX = b + '~' + tile();   // a mouse released 100 px across while a touch is down is not that touch's lift
     touch('pointerdown', 200, 100); touch('pointerup', 100, 160); r.swD = tile();   // diagonal, mostly across: next
     touch('pointerdown', 100, 100); touch('pointerup', 150, 150); r.swE = tile();   // as far down as across: stays
     var mlayer = dlg.querySelector('.kit-marks-layer');
+    var mr = mlayer.getBoundingClientRect();
+    var mnote = document.querySelector('dialog.kit-mark-note');
+    /* Shots mode draws no marks (BL-493), even on an item that carries a
+     * kit-marks channel: a mouse drag on the image opens no note and, saved
+     * if one did open, writes no line (its tile would be null, so it could
+     * never be redrawn, opened or deleted: BL-655). */
+    var mmouse = function (type, x, y) {
+      mlayer.dispatchEvent(new PointerEvent(type, { pointerType: 'mouse', pointerId: 1, isPrimary: true, button: 0,
+        clientX: mr.left + x, clientY: mr.top + y, bubbles: true, cancelable: true }));
+    };
+    mmouse('pointerdown', 5, 5); mmouse('pointermove', 65, 45); mmouse('pointerup', 65, 45);
+    var mopened = mnote && mnote.open;
+    if (mopened) mnote.querySelector('button[data-act="save"]').click();
+    r.mkS = (mopened ? 'note' : 'nonote') + '~'
+      + (item.querySelector('textarea.kit-marks').value.indexOf('[mark') !== -1 ? 'mark' : 'nomark') + '~'
+      + (mlayer.classList.contains('readonly') ? 'ro' : 'rw');
+    /* So the layer is read-only there, and a touch 60 px across on it is a
+     * swipe like on any read-only layer: it walks back one image (BL-655). */
+    var mtouch = function (type, x, y) {
+      mlayer.dispatchEvent(new PointerEvent(type, { pointerType: 'touch', pointerId: 12, isPrimary: true, button: 0,
+        clientX: mr.left + x, clientY: mr.top + y, bubbles: true, cancelable: true }));
+    };
+    b = tile();
+    mtouch('pointerdown', 5, 5); mtouch('pointermove', 65, 15); mtouch('pointerup', 65, 15);
+    r.swK = b + '~' + tile() + '~' + (mnote && mnote.open ? 'note' : 'nonote');
+    if (mnote && mnote.open) mnote.querySelector('button[data-act="cancel"]').click();
+    key('ArrowRight');   // back to 4 / 4 for the cells below
     r.taFit = getComputedStyle(mlayer).touchAction;
     dlg.querySelector('.kit-zoom-size').click(); r.native = dlg.classList.contains('native') ? 1 : 0;
     r.taNat = getComputedStyle(mlayer).touchAction;
@@ -2906,6 +3326,23 @@ window.addEventListener('load', function () {
     dlg.close();
     dlg.dispatchEvent(new Event('close'));   // the engine queues the real one; see GZOOM
     r.focus = item.contains(document.activeElement) ? 1 : 0;
+    /* Q2 has no kit-marks channel, so its marks layer is read-only, and a
+     * real finger's swipe starts on that layer (it covers the image), not on
+     * the body: it still walks (BL-649). */
+    var figs2 = [].slice.call(document.querySelectorAll('[data-id="Q2"] .gal.shots figure'));
+    if (figs2.length) {
+      figs2[0].click();
+      var ly2 = dlg.querySelector('.kit-marks-layer'), lr2 = ly2.getBoundingClientRect();
+      var ltouch = function (type, x) {
+        ly2.dispatchEvent(new PointerEvent(type, { pointerType: 'touch', pointerId: 13, isPrimary: true, button: 0,
+          clientX: lr2.left + x, clientY: lr2.top + 10, bubbles: true, cancelable: true }));
+      };
+      b = tile();
+      ltouch('pointerdown', 75); ltouch('pointerup', 5);
+      r.swLy = b + '~' + tile() + '~' + (ly2.classList.contains('readonly') ? 'ro' : 'rw');
+      dlg.close();
+      dlg.dispatchEvent(new Event('close'));
+    }
     document.title = 'GSHOTS|' + JSON.stringify(r).replace(/[|<>]/g, ' ');
   } else document.title = 'GSHOTS|' + JSON.stringify(r);
 });
@@ -2942,8 +3379,20 @@ tg="$(grep -oE '<title>[^<]*</title>' "$TMP/gdom-h.html" | sed -n 1p)"
   || fail "a mostly vertical drag, or a drag at 1:1 size, walked the images instead of panning: $tg"
 [[ "$tg" == *'"swD":"4 / 4"'* ]] \
   || fail "a diagonal drag that is mostly across did not walk to the next image: $tg"
-[[ "$tg" == *'"swM":"3 / 4"'* ]] \
-  || fail "a swipe was measured from another finger's pointerdown: $tg"
+[[ "$tg" == *'"swC":"3 / 4~3 / 4"'* ]] \
+  || fail "a touch drag the browser cancelled (pointercancel) still walked the images on a later pointerup: $tg"
+[[ "$tg" == *'"swP":"3 / 4~3 / 4"'* ]] \
+  || fail "a two-finger pinch at fit size walked the images when a finger lifted: $tg"
+[[ "$tg" == *'"swT":"3 / 4~3 / 4"'* ]] \
+  || fail "a finger put down while another was still held started a swipe of its own and walked the images: $tg"
+[[ "$tg" == *'"swX":"3 / 4~3 / 4"'* ]] \
+  || fail "a mouse pointerup was measured from a touch's pointerdown and walked the images: $tg"
+[[ "$tg" == *'"mkS":"nonote~nomark~ro"'* ]] \
+  || fail "a mouse drag on a shots viewer image (item with a kit-marks channel) opened a note or saved a mark, or the layer is not read-only (BL-655): $tg"
+[[ "$tg" == *'"swK":"4 / 4~3 / 4~nonote"'* ]] \
+  || fail "a touch swipe 60 px across on a shots viewer image (item with a kit-marks channel) drew a mark instead of walking back one image (BL-655): $tg"
+[[ "$tg" == *'"swLy":"1 / 2~2 / 2~ro"'* ]] \
+  || fail "a touch swipe that starts on the read-only marks layer (where a finger lands on the image) no longer walks the images: $tg"
 [[ "$tg" == *'"taFit":"none"'* && "$tg" == *'"taNat":"'* && "$tg" != *'"taNat":"none"'* ]] \
   || fail "the 1:1 capture cannot be panned by touch (or the fit-size swipe lost touch-action none): $tg"
 [[ "$tg" == *'"native":1'* && "$tg" == *'"focus":1'* ]] \
@@ -3464,6 +3913,220 @@ tg="$(fprun "$FP_FOLD" 'phase=fpget')"
 [[ "$tg" == *"FPGET|VAL=typed before the fold"* ]] \
   || fail "an answer stored against the flat row was dropped once the row folded its third verdict (the fingerprint moved): $tg"
 rm -rf "$TMP/profile"
+
+# ---- BL-577 addendum: folded decided rows show the heading, never the row slug
+# Layer: browser (the fold is built by the kit's own script). One block of two
+# decided rows (folds as a group), one standalone decided row, one decided row with
+# no heading (control: keeps its id), one open question so the page is not all-decided.
+SLUGPAGE="$TMP/reports/slug.html"
+cat > "$TMP/slugbody.html" <<HTML
+<meta name="consult-visual" content="none: a layout probe, nothing to draw">
+<div class="page">
+<main class="main">
+<header><p class="eyebrow">PROBE</p><h1>Slug probe</h1></header>
+<section id="sec-ask">
+  <div class="sec-head"><h2>Questions</h2></div>
+<section class="consult-group" id="GA" data-id="GA" data-title="Menus"><div class="sec-head"><h2>Menus</h2></div><p>Contexto.</p>
+  <section class="consult-item" data-id="g-users-list-menu-light-desktop" data-title="menu light" data-heading="Men&uacute; de usuarios" data-decided="Option A">
+    <h3><span class="consult-id">g-users-list-menu-light-desktop</span>Men&uacute; de usuarios</h3>
+    <div class="opts one"><label><input type="radio" name="g-users-list-menu-light-desktop" data-label="Option A" checked><span>Option A</span></label><label><input type="radio" name="g-users-list-menu-light-desktop" data-label="Option B"><span>Option B</span></label></div>
+    <textarea></textarea>
+  </section>
+  <section class="consult-item" data-id="g-users-list-menu-dark-desktop" data-title="menu dark" data-heading="Men&uacute; oscuro" data-decided="Option A">
+    <h3><span class="consult-id">g-users-list-menu-dark-desktop</span>Men&uacute; oscuro</h3>
+    <div class="opts one"><label><input type="radio" name="g-users-list-menu-dark-desktop" data-label="Option A" checked><span>Option A</span></label><label><input type="radio" name="g-users-list-menu-dark-desktop" data-label="Option B"><span>Option B</span></label></div>
+    <textarea></textarea>
+  </section>
+</section>
+<section class="consult-group" id="GB" data-id="GB" data-title="Mixed"><div class="sec-head"><h2>Mixed</h2></div><p>Contexto.</p>
+  <section class="consult-item" data-id="g-users-list-access-link-tooltip-light-desktop" data-title="tip" data-heading="Tooltip de acceso" data-decided="Option A">
+    <h3><span class="consult-id">g-users-list-access-link-tooltip-light-desktop</span>Tooltip de acceso</h3>
+    <div class="opts one"><label><input type="radio" name="g-users-list-access-link-tooltip-light-desktop" data-label="Option A" checked><span>Option A</span></label><label><input type="radio" name="g-users-list-access-link-tooltip-light-desktop" data-label="Option B"><span>Option B</span></label></div>
+    <textarea></textarea>
+  </section>
+  <section class="consult-item" data-id="plain-row-id" data-title="Plain title" data-decided="Option A">
+    <h3><span class="consult-id">plain-row-id</span>Plain title</h3>
+    <div class="opts one"><label><input type="radio" name="plain-row-id" data-label="Option A" checked><span>Option A</span></label><label><input type="radio" name="plain-row-id" data-label="Option B"><span>Option B</span></label></div>
+    <textarea></textarea>
+  </section>
+  <section class="consult-item" data-id="OPEN1" data-title="Open one">
+    <h3><span class="consult-id">OPEN1</span>Open question</h3>
+    <div class="opts one"><label><input type="radio" name="OPEN1" data-label="Option A"><span>Option A</span></label><label><input type="radio" name="OPEN1" data-label="Option B"><span>Option B</span></label></div>
+    <textarea></textarea>
+  </section>
+</section>
+<section class="consult-item consult-notes" data-id="notes" data-title="Notas generales">
+  <h3><span class="consult-id">notes</span>Notas generales</h3>
+  <textarea></textarea>
+</section>
+<div class="endbar"><button type="button" id="consult-copy-end">Copiar mis respuestas</button><span class="consult-status" id="consult-status-end"></span></div>
+</main>
+<aside class="rail">
+  <p class="railhead">Contenido</p>
+  <nav class="raillist" id="raillist"></nav>
+  <div class="consult-bar">
+    <button type="button" id="consult-copy">Copiar mis respuestas</button>
+    <span class="consult-status" id="consult-status"></span>
+  </div>
+</aside>
+</div>
+<script>
+window.addEventListener('load', function () {
+  var sums = [].map.call(document.querySelectorAll('details.decided-unit > summary'), function (d) { return d.textContent.replace(/[|]/g, '/'); });
+  var emptyId = [].filter.call(document.querySelectorAll('details.decided-unit > summary > .consult-id'), function (e) { return !e.textContent; }).length;
+  document.title = 'SLUG|SUMS=' + sums.join(';;') + '|EMPTYID=' + emptyId;
+});
+</script>
+HTML
+bash "$WRAP" --title "slug" --lang es --out "$SLUGPAGE" < "$TMP/slugbody.html" > "$TMP/slugwrap.log" 2>&1 \
+  || fail "the slug probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/slugwrap.log" | sed -n 1,4p)"
+chrome_dump "$TMP/slugdom.html" "file://$SLUGPAGE" 45 || true
+tsl="$(grep -oE '<title>[^<]*</title>' "$TMP/slugdom.html" | sed -n 1p)"
+[[ "$tsl" == *"SLUG|SUMS="*"de usuarios"* ]] \
+  || fail "BL-577: the decided-group summary does not show the row headings: $tsl"
+[[ "$tsl" != *"users-list-menu"* ]] \
+  || fail "BL-577: a folded decided row still shows its raw slug (group summary or its own fold): $tsl"
+[[ "$tsl" != *"access-link-tooltip"* ]] \
+  || fail "BL-577: a decided row folded in place still shows its slug: $tsl"
+[[ "$tsl" == *"Tooltip de acceso"* ]] \
+  || fail "BL-577: a decided row folded in place lost its heading: $tsl"
+[[ "$tsl" == *"EMPTYID=0"* ]] \
+  || fail "BL-577: a headed fold carries an empty .consult-id span (margin, misalignment): $tsl"
+[[ "$tsl" == *"plain-row-id"* ]] \
+  || fail "BL-577: a decided row with no heading must keep its id as the label: $tsl"
+
+# ---- BL-635: a tab that another tab outdated says so ------------------------
+# Layer: browser (the storage event and the banner node are the engine's).
+t="$(run 'phase=stale')"
+[[ "$t" == *"OWN=0"* ]] || fail "BL-635: a tab marked itself stale on load: $t"
+[[ "$t" == *"EQ=0"* ]] || fail "BL-635: an EQUAL built stamp from another tab showed the stale banner: $t"
+[[ "$t" == *"OLD=0"* ]] || fail "BL-635: an OLDER built stamp from another tab showed the stale banner: $t"
+[[ "$t" == *"XKEY=0"* ]] || fail "BL-635: a newer stamp under ANOTHER path's key showed the banner: $t"
+[[ "$t" == *"EQOLD=0"* ]] || fail "BL-635: equal built and round with an older file mtime showed the banner: $t"
+[[ "$t" == *"NEWR=1"* ]] || fail "BL-635: equal built with a later round (same-minute re-wrap) did not show the banner: $t"
+[[ "$t" == *"NEWM=1"* ]] || fail "BL-635: equal built and round with a later file mtime did not show the banner: $t"
+[[ "$t" == *"NEW=1"* ]] || fail "BL-635: a NEWER built stamp for this path did not show the stale banner: $t"
+[[ "$t" == *"N=1"* ]] || fail "BL-635: the stale banner is not a single node: $t"
+[[ "$t" == *"BTN=1"* && "$t" == *"recárgala"* ]] || fail "BL-635: the stale banner has no reload action or is not in the page language (es): $t"
+[[ "$t" == *"SHOWN=1"* ]] || fail "BL-635: the stale banner has no box on screen: $t"
+[[ "$t" == *'STORED={"b":"2'* && "$t" == *'"m":1'* ]] || fail "BL-635: the load did not record this page's built stamp under its path: $t"
+t="$(CHROME_WINDOW=390,800 run 'phase=stale')"
+[[ "$t" == *"|NEW=1"* && "$t" == *"SHOWN=1"* ]] || fail "BL-635: the stale banner is not visible at 390: $t"
+
+# ---- a highlighted figure (BL-619): same size as a plain one, outline on its region ----
+# Layout only a browser decides: (a) a png figure with highlight= renders its
+# img at exactly the width a plain one gets, at 1280 and 390; (b) in an item's
+# thumbnail grid (cropped 4:3 by the kit) a highlighted figure is shown whole,
+# so every .gal-hl box lies inside its own img.
+FHL="$TMP/fhl"
+mkdir -p "$FHL/figures"
+python3 "$SKILL/tests/png_fixture.py" "$FHL/figures/mid.png" 800 500
+python3 "$SKILL/tests/png_fixture.py" "$FHL/figures/small.png" 300 200
+python3 "$SKILL/tests/png_fixture.py" "$FHL/figures/tall.png" 390 844
+python3 "$SKILL/tests/png_fixture.py" "$FHL/figures/wide.png" 1200 400
+cat > "$FHL/p.spec.md" <<'SPEC'
+::: masthead {visual="none: probe"}
+# Probe
+
+Probe page.
+:::
+
+::: group {#G title="Grupo"}
+::: item {#Q1 title="Mid plain"}
+Texto.
+
+::: figure {src="figures/mid.png" alt="mid"}
+:::
+
+- A — bien
+- B — mal
+:::
+
+::: item {#Q2 title="Mid highlighted"}
+Texto.
+
+::: figure {src="figures/mid.png" alt="mid" highlight="300,200,200,100"}
+:::
+
+- A — bien
+- B — mal
+:::
+
+::: item {#Q3 title="Small plain"}
+Texto.
+
+::: figure {src="figures/small.png" alt="small"}
+:::
+
+- A — bien
+- B — mal
+:::
+
+::: item {#Q4 title="Small highlighted"}
+Texto.
+
+::: figure {src="figures/small.png" alt="small" highlight="100,50,100,50"}
+:::
+
+- A — bien
+- B — mal
+:::
+
+::: item {#Q5 title="Shots highlighted"}
+Texto.
+
+::: figure {src="figures/wide.png" alt="wide" highlight="100,100,300,100" title="wide"}
+:::
+
+::: figure {src="figures/tall.png" alt="tall" highlight="20,700,200,100" title="tall"}
+:::
+
+- A — bien
+- B — mal
+:::
+:::
+
+::: notes {title="Notas generales"}
+:::
+SPEC
+python3 "$SKILL/scripts/spec_build.py" "$FHL/p.spec.md" > "$FHL/body.html" 2> "$FHL/build.log" \
+  || fail "BL-619: the highlighted-figure probe spec failed to build: $(head -3 "$FHL/build.log")"
+cat >> "$FHL/body.html" <<'HTML'
+<script>
+window.addEventListener('load', function () {
+  (function () {
+    var w = function (id) { return document.querySelector('[data-id="' + id + '"] figure img').getBoundingClientRect().width; };
+    var inside = 0, outside = 0;
+    [].forEach.call(document.querySelectorAll('[data-id="Q5"] .gal.shots figure'), function (f) {
+      var ir = f.querySelector('img').getBoundingClientRect();
+      [].forEach.call(f.querySelectorAll('.gal-hl'), function (b) {
+        var r = b.getBoundingClientRect();
+        if (r.left >= ir.left - 1 && r.right <= ir.right + 1 && r.top >= ir.top - 1 && r.bottom <= ir.bottom + 1) inside++; else outside++;
+      });
+    });
+    document.title = 'FHL|mid=' + Math.round(w('Q1')) + ',' + Math.round(w('Q2')) +
+      '|small=' + Math.round(w('Q3')) + ',' + Math.round(w('Q4')) +
+      '|in=' + inside + '|out=' + outside + '|';
+  })();
+});
+</script>
+HTML
+FHL_PAGE="$TMP/reports/fhl.html"
+bash "$WRAP" --title "fhl" --lang es --out "$FHL_PAGE" < "$FHL/body.html" > "$FHL/wrap.log" 2>&1 \
+  || fail "BL-619: the probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$FHL/wrap.log" | sed -n 1,4p)"
+for vp in 1280,900 390,900; do
+  rm -rf "$TMP/profile"
+  CHROME_WINDOW=$vp chrome_dump "$TMP/fhl-$vp.dom" "file://$FHL_PAGE" 45 || true
+  tf="$(grep -oE '<title>[^<]*</title>' "$TMP/fhl-$vp.dom" | sed -n 1p)"
+  [[ "$tf" =~ mid=([0-9]+),([0-9]+)\|small=([0-9]+),([0-9]+)\|in=([0-9]+)\|out=([0-9]+) ]] \
+    || fail "BL-619 $vp: the highlighted-figure probe did not report: $tf"
+  [[ "${BASH_REMATCH[1]}" -gt 0 && "${BASH_REMATCH[1]}" == "${BASH_REMATCH[2]}" ]] \
+    || fail "BL-619 $vp: a highlighted 800x500 figure's img is not as wide as a plain one: $tf"
+  [[ "${BASH_REMATCH[3]}" -gt 0 && "${BASH_REMATCH[3]}" == "${BASH_REMATCH[4]}" ]] \
+    || fail "BL-619 $vp: a highlighted 300x200 figure's img is not as wide as a plain one: $tf"
+  [[ "${BASH_REMATCH[5]}" == 2 && "${BASH_REMATCH[6]}" == 0 ]] \
+    || fail "BL-619 $vp: in a thumbnail grid an outline leaves its image (want in=2 out=0): $tf"
+done
 
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other, the not-now choice, the multi-select item built from a spec, the ask row and the provisional state, the explicit theme, v4 answer sets, the all-decided page, the half-answered block, the gallery zoom dialog with its keyboard walk, the block filters that never reach the paste, the light/dark compare with its slider kept out of the paste, and the localised chrome included"

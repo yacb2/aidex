@@ -88,6 +88,14 @@ CODE = re.compile(r"(?<!\\)`([^`]+)`")
 BOLD = re.compile(r"\*\*(.+?)\*\*")
 ITAL = re.compile(r"(?<![\w*])[_*]([^_*\n]+)[_*](?![\w*])")
 SEP_ROW = re.compile(r"^\|[\s:|-]+\|$")
+# The PLAIN form of a label or verdict. What `data-label` carries is TEXT: the
+# composer copies that attribute into the reply, so a backtick or a `**` written
+# for the page's own rendering would travel into the paste as punctuation the
+# reader never wrote. Backticks and asterisks only — `_` is stripped by NO rule
+# here, because this module italicises it only in pairs and a label naming
+# `a_file.py` must not come back as `afile.py`. spec_build (labels, `decide`)
+# and wrap_report (the decided-round stamp, BL-545) compare in this form.
+PLAIN = re.compile(r"[`*]")
 # `-`/`*`/`+` and `1.`/`1)` both open a list item. ONE marker for both kinds, because
 # the paragraph branch's guard has to exclude exactly what the list branch consumes:
 # when the two drifted apart, `1.` fell through to the paragraph branch and a

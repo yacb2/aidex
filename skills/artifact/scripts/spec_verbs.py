@@ -399,8 +399,8 @@ def decide(spec_text, item_id, verdict):
                         % (item_id, exc.line, exc.message))
     # Compared in the plain form the page's data-label carries (and the
     # reader's reply with it): `Use uv` is the option written `Use **uv**`.
-    plain = [spec_build.PLAIN.sub("", c) for c in chosen]
-    if chosen and (spec_build.PLAIN.sub("", verdict.strip())
+    plain = [spec_build.PLAIN.sub("", c).strip() for c in chosen]
+    if chosen and (spec_build.PLAIN.sub("", verdict).strip()
                    not in plain + [", ".join(plain)]):
         raise VerbError(
             "#%s carries {chosen} on %s, so deciding %r would leave the page "
@@ -409,9 +409,9 @@ def decide(spec_text, item_id, verdict):
                                          verdict.strip()))
     # The same verdict in another spelling (`Dos` for a recorded `**Dos**`, or
     # back) is already recorded: rewriting it would break idempotence and reset
-    # the round stamp, which compares the raw decided text.
-    if (spec_build.PLAIN.sub("", node.attrs.get("decided", "").strip())
-            == spec_build.PLAIN.sub("", verdict.strip())):
+    # the round stamp (wrap_report compares this plain form too since BL-545).
+    if (spec_build.PLAIN.sub("", node.attrs.get("decided", "")).strip()
+            == spec_build.PLAIN.sub("", verdict).strip()):
         return spec_text
     lines = _split(spec_text)
     if not _set_attr(lines, node, "decided", verdict):
@@ -444,34 +444,86 @@ def _set_attr(lines, node, name, value):
     return True
 
 
-def new_round(spec_text, dropped=()):
-    """`_sync_ledger`, then record `dropped` ids on the masthead (BL-533).
+def _drop_attr(lines, node, name):
+    """Remove `name=...` from `node`'s fence line, in place; False when absent.
+    A fence left with an empty `{}` loses the braces too."""
+    i = node.line - 1
+    line = lines[i]
+    brace = line.find("{")
+    if brace < 0:
+        return False
+    spans = {}
+    _, _, _, end = spec_parser._parse_attrs(node.line, line, brace, spans)
+    if name not in spans:
+        return False
+    lo, hi = spans[name]
+    while lo > 0 and line[lo - 1] in " \t":
+        lo -= 1
+    new = line[:lo] + line[hi:]
+    if new[brace:].strip() in ("{}", "{ }"):
+        new = new[:brace].rstrip() + new[brace:].replace("{}", "").replace("{ }", "")
+    lines[i] = new
+    return True
 
-    `dropped` is the ids this round takes OFF the page: the author removed the
-    blocks from the spec, and the id-stability check refuses a disappearing id
-    unless the page declares it. Each must really be gone from the spec; one that
-    stays takes `dropped="reason"` on its item instead. Recorded once, kept by
-    later rounds. Not derived from the old page: a removal nobody declared is
-    still the BL-396 failure, and the rebuild still refuses it.
+
+def new_round(spec_text, dropped=(), retitled=()):
+    """`_sync_ledger`, then record `dropped` and `retitled` ids on the masthead.
+
+    `dropped` (BL-533) is the ids this round takes OFF the page: the author
+    removed the blocks from the spec, and the id-stability check refuses a
+    disappearing id unless the page declares it. Each must really be gone from
+    the spec; one that stays takes `dropped="reason"` on its item instead.
+    Any id the spec no longer carries qualifies: an item, a GROUP (BL-612), or
+    a gallery row id (a row was never a spec node, so the verb accepts any id the
+    spec does not carry and does NOT check it against the rows document: drop
+    only rows that are really gone from it). The verb only
+    records ids on the masthead and rebuilds: it never opens a round (no
+    `--new-round`), so `consult-round` is the wrap's, as in the module
+    docstring. Recorded once, kept by later rounds.
+
+    `retitled` (BL-611) is the opposite: ids that STAY with a reworded title, so
+    each must still be in the spec; the id never changes, only the check is told
+    the title moved on purpose. It lasts ONE round: every call REPLACES the
+    masthead's `retitled-ids` with its own list (minus any id also dropped) and
+    removes the attribute when the call names none, so one round's verdict never
+    excuses a later, unrelated reword. Not derived from the old page: an
+    undeclared removal or reword is still the BL-396 failure.
     """
     text = _sync_ledger(spec_text)
-    dropped = [i for i in (d.strip().lstrip("#") for d in dropped) if i]
-    if not dropped:
-        return text
+    clean = lambda ids: [i for i in (d.strip().lstrip("#") for d in ids) if i]
+    dropped = list(dict.fromkeys(clean(dropped)))
+    retitled = [i for i in dict.fromkeys(clean(retitled)) if i not in dropped]
     tree = _parse(text, "the spec")
+    masthead = next((n for n in tree if n.block_type == "masthead"), None)
+    stale = masthead is not None and "retitled-ids" in masthead.attrs
+    if not dropped and not retitled and not stale:
+        return text
     live = [i for i in dropped if _by_id(tree, i) is not None]
     if live:
         raise VerbError("--drop %s: still in the spec. A dropped id is one the "
                         "page no longer carries; an item that stays is marked "
                         "dropped=\"reason\" on its fence instead"
                         % ", ".join("#" + i for i in live))
-    masthead = next((n for n in tree if n.block_type == "masthead"), None)
+    absent = [i for i in retitled if _by_id(tree, i) is None]
+    if absent:
+        raise VerbError("--retitle %s: not in the spec. A retitled id is one "
+                        "that stays on the page with a new title"
+                        % ", ".join("#" + i for i in absent))
     if masthead is None:
-        raise VerbError("the spec has no `masthead` to record the dropped ids on")
-    have = masthead.attrs.get("dropped-ids", "").split()
-    merged = have + [i for i in dict.fromkeys(dropped) if i not in have]
+        if not dropped and not retitled:
+            return text
+        raise VerbError("the spec has no `masthead` to record the ids on")
     lines = _split(text)
-    if not _set_attr(lines, masthead, "dropped-ids", " ".join(merged)):
+    changed = False
+    if dropped:
+        have = masthead.attrs.get("dropped-ids", "").split()
+        merged = have + [i for i in dropped if i not in have]
+        changed |= _set_attr(lines, masthead, "dropped-ids", " ".join(merged))
+    if retitled:
+        changed |= _set_attr(lines, masthead, "retitled-ids", " ".join(retitled))
+    elif stale:
+        changed |= _drop_attr(lines, masthead, "retitled-ids")
+    if not changed:
         return text
     return "\n".join(lines)
 
@@ -773,8 +825,8 @@ def decide_many_file(spec_path, pairs, out=None, lang="es"):
     return apply_edit(spec_path, transform, out=out, lang=lang)
 
 
-def new_round_file(spec_path, out=None, lang="es", dropped=()):
-    return apply_edit(spec_path, lambda text: new_round(text, dropped),
+def new_round_file(spec_path, out=None, lang="es", dropped=(), retitled=()):
+    return apply_edit(spec_path, lambda text: new_round(text, dropped, retitled),
                       out=out, lang=lang)
 
 
@@ -815,9 +867,15 @@ def main(argv):
     n = common(subs.add_parser(
         "new-round", help="sync the ledger to the decided items and rebuild"))
     n.add_argument("--drop", action="append", default=[], dest="dropped",
-                   metavar="<#id>", help="an item this round removed from the "
-                   "spec; its id is recorded on the masthead so the page may "
-                   "lose it (repeat for several)")
+                   metavar="<#id>", help="any id this round removed: an item, "
+                   "a group, or a gallery row id (only refused while still in "
+                   "the spec; rows are not checked against the rows file, "
+                   "drop only rows really gone); it is recorded on the masthead so the "
+                   "page may lose it (repeat for several)")
+    n.add_argument("--retitle", action="append", default=[], dest="retitled",
+                   metavar="<#id>", help="an item that stays but whose title "
+                   "this round reworded; its id is recorded on the masthead so "
+                   "the title may change (repeat for several)")
 
     args = p.parse_args(argv)
     if not args.verb:
@@ -841,7 +899,8 @@ def main(argv):
                 out=args.out, lang=args.lang)
         else:
             out = new_round_file(args.spec, out=args.out, lang=args.lang,
-                                 dropped=[i.lstrip("#") for i in args.dropped])
+                                 dropped=[i.lstrip("#") for i in args.dropped],
+                                 retitled=[i.lstrip("#") for i in args.retitled])
     except VerbError as exc:
         sys.stderr.write("spec-verbs %s: %s\n" % (args.verb, exc))
         return 1

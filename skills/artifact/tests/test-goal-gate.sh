@@ -110,14 +110,37 @@ seven_lines() {
   # figure is carried or waived by name in the census (a waived figure is one
   # the census records as not carried) and no page newly fails (corpus and
   # escapes held).
-  local waived fc ft
-  waived=$(grep -cE '^page=.* waived=[a-z-]+$' "$dir/figure-census.md" 2>/dev/null)
+  local fc ft cc ec fl_c fl_e floor_ok
   fc=$(printf '%s\n' "$full" | sed -n 's/^figures: \([0-9]*\)\/[0-9]*$/\1/p')
   ft=$(printf '%s\n' "$full" | sed -n 's/^figures: [0-9]*\/\([0-9]*\)$/\1/p')
-  if [ -n "$fc" ] && [ -n "$ft" ] && [ $((fc + ${waived:-0})) -eq "$ft" ] \
+  # `short` comes from the gate's own figure_count: every uncarried record not
+  # excused by a waiver that still holds. A stale waiver (original changed)
+  # keeps `figures:` at N/45 and still makes the run exit 1, so it is counted
+  # here, not by a regex over the census (BL-653).
+  fig_short=$(AIDEX_SPEC_CORPUS="$dir" python3 - "$HERE" <<'PY' 2>/dev/null
+import json, sys
+sys.path.insert(0, sys.argv[1])
+import goal_gate as g
+s = json.load(open(g.SAMPLE))
+print(g.figure_count(s["pages"], s["root"])[4])
+PY
+)
+  # `corpus:` regresses from GATE-FLOOR.json (its N/N cell is the caller's and
+  # the "gate floor" cell below); `escapes:` gets its own cell so a regression
+  # is not reported as a wrong exit.
+  cc=$(printf '%s\n' "$full" | sed -n 's/^corpus: \([0-9]*\)\/[0-9]*$/\1/p')
+  ec=$(printf '%s\n' "$full" | sed -n 's/^escapes: \([0-9]*\)$/\1/p')
+  fl_c=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["corpus"])' "$dir/corpus-specs/GATE-FLOOR.json")
+  fl_e=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["escapes"])' "$dir/corpus-specs/GATE-FLOOR.json")
+  check "[$label] escapes hold their floor ($fl_e)" \
+    "$([ -n "$ec" ] && [ "$ec" -le "$fl_e" ] && echo 1 || echo 0)" "escapes ${ec:-?}, floor $fl_e: $full"
+  floor_ok=0
+  [ -n "$cc" ] && [ -n "$ec" ] && [ "$cc" -ge "$fl_c" ] && [ "$ec" -le "$fl_e" ] && floor_ok=1
+  if [ "$fig_short" = 0 ] && [ -n "$fc" ] && [ -n "$ft" ] && [ "$floor_ok" = 1 ] \
      && printf '%s\n' "$full" | grep >/dev/null -x 'newly-fail: 0'; then want_rc=0; else want_rc=1; fi
-  check "[$label] the contract run exits $want_rc, as its figures/newly-fail lines say" \
+  check "[$label] the contract run exits $want_rc, as its corpus/escapes/figures/newly-fail lines say" \
     "$([ $rcf -eq $want_rc ] && echo 1 || echo 0)" "exit $rcf: $full"
+  fig_have="$fc"; fig_total="$ft"
   out_full="$full"
 }
 
@@ -131,10 +154,14 @@ check "[synthetic] every synthetic figure is carried, and the gate is green" \
      && printf '%s\n' "$out_full" | grep >/dev/null -x 'newly-fail: 0' && echo 1 || echo 0)" "$out_full"
 if [ -n "$REAL" ]; then
   seven_lines corpus "$REAL"
-  check "[corpus] corpus counts against the frozen 30" \
-    "$(printf '%s\n' "$out" | grep >/dev/null -E '^corpus: [0-9]+/30$' && echo 1 || echo 0)" "$out"
-  check "[corpus] figures counts against the census's 45" \
-    "$(printf '%s\n' "$out" | grep >/dev/null -E '^figures: [0-9]+/45$' && echo 1 || echo 0)" "$out"
+  # 30/30, not the N/30 shape: the shape held at 25/30 (BL-552).
+  check "[corpus] every page of the frozen 30 builds back to itself" \
+    "$(printf '%s\n' "$out" | grep >/dev/null -x 'corpus: 30/30' && echo 1 || echo 0)" "$out"
+  # Exactly 45, none short: the gate's own `short` is 0, so every figure is
+  # carried or waived by a waiver that still holds (37 + 8 today). The N/45
+  # shape held at any count (BL-653).
+  check "[corpus] figures: all 45 carried or waived, exactly (none short)" \
+    "$([ "$fig_total" = 45 ] && [ "$fig_short" = 0 ] && echo 1 || echo 0)" "total $fig_total, short $fig_short: $out"
 else
   skip "the seven lines on the real corpus"
 fi
@@ -1147,6 +1174,12 @@ case("a select=many build checking an extra, not recommended option fails",
 case("a select=many build checking the recommended option beside the original's chosen one fails",
      item(box("Uno", False, True) + box("Dos", True, True)), False,
      "option marks differ", orig=item(box("Uno", False, True) + box("Dos", True)))
+# The input type is the item's select (BL-550): checkboxes are select=many,
+# radios select=one, and a build that turns one into the other asks a
+# different question with the same words.
+case("an original's checkbox options built as radios fail",
+     item(mark("Uno", True) + mark("Dos"), decided=False), False,
+     "option marks differ", orig=item(box("Uno", True) + box("Dos"), decided=False))
 case("a pre-checked option of an undecided item is not compared",
      item(mark("Uno", True) + mark("Dos"), decided=False), True,
      orig=item(mark("Uno", True, True) + mark("Dos"), decided=False))
@@ -1159,6 +1192,32 @@ LEAD_NEW = ('<section class="consult-item" data-id="q"><h3><span class="consult-
             '</span>¿Qué hacemos?</h3><p class="consult-lead">Hoy falla.</p></section>')
 case("a built item's situation lead reads in front of its question", LEAD_NEW, True,
      orig=LEAD_OLD)
+# BL-576: an item whose first paragraph is not a question keeps its TITLE in the
+# h3 and that paragraph becomes the lead under it. The original wrote h3 = title,
+# then the statement: the lead is read AFTER the heading there. The hoist of
+# BL-514 stays for question h3s, decided per item (a title h3 hoists only when the
+# ORIGINAL item had content before its h3: a finding card's chips).
+def sec(i, h3, extra="", title=None, pre=""):
+    t = ' data-title="%s"' % title if title else ""
+    return ('<section class="consult-item" data-id="%s"%s>%s<h3><span class="consult-id">%s'
+            '</span>%s</h3>%s</section>' % (i, t, pre, i, h3, extra))
+
+def lead(t):
+    return '<p class="consult-lead">%s</p>' % t
+
+MIX_OLD = (sec("q", "Hoy falla. ¿Qué hacemos?") +
+           sec("s", "Corte", "<p>Ayer cortamos.</p>"))
+MIX_NEW = (sec("q", "¿Qué hacemos?", lead("Hoy falla."), title="Q") +
+           sec("s", "Corte", lead("Ayer cortamos."), title="Corte"))
+case("a page with a question item and a title item reads each lead its own way",
+     MIX_NEW, True, orig=MIX_OLD)
+case("a lead moved from a title item to the next item fails",
+     sec("a", "Corte", title="Corte") + sec("b", "Plan", lead("Hoy falla."), title="Plan"),
+     False, "visible text differs",
+     orig=sec("a", "Corte", "<p>Hoy falla.</p>") + sec("b", "Plan"))
+case("a finding card's chips before the title read in front of it",
+     sec("f", "Corte", lead("P1 bug."), title="Corte"), True,
+     orig=sec("f", "Corte", pre="<p>P1 bug.</p>"))
 case("a lead placed after the options is not read in front of the question",
      LEAD_NEW.replace("</section>", "")
      .replace('<p class="consult-lead">Hoy falla.</p>',
@@ -1167,6 +1226,30 @@ case("a lead placed after the options is not read in front of the question",
 case("a lead whose words changed still fails",
      LEAD_NEW.replace("Hoy falla.", "Hoy no falla."), False, "visible text differs",
      orig=LEAD_OLD)
+# BL-652: a `heading=` h3 is the original's h3 word for word, so its lead reads
+# after it. The hoist is decided per item from the ORIGINAL's h3, never from the
+# built h3's shape: a build that put the situation in the h3 and the question
+# in the lead still fails.
+case("a question built as the lead under its situation fails",
+     sec("q", "Hoy falla.", lead("¿Qué hacemos?"), title="Q"), False,
+     "visible text differs", orig=sec("q", "Hoy falla. ¿Qué hacemos?"))
+case("a heading= h3 equal to the original's reads its lead after it",
+     sec("q", "Frase larga", lead("Contexto."), title="Corta"), True,
+     orig=sec("q", "Frase larga", "<p>Contexto.</p>"))
+case("a heading= h3 that closes on a question reads its lead after it too",
+     sec("q", "¿Seguimos así?", lead("Contexto."), title="Corta"), True,
+     orig=sec("q", "¿Seguimos así?", "<p>Contexto.</p>"))
+# The title is the rail entry and the reply heading: a build that rewords it
+# keeps every visible word and still moves what the reader pastes back.
+case("an item whose data-title differs from the original's fails",
+     sec("q", "Frase larga", title="Larga una"), False, "data-titles differ",
+     orig=sec("q", "Frase larga", title="Corta"))
+case("a data-title that loses an underscore fails",
+     sec("q", "H", title="opslint"), False, "data-titles differ",
+     orig=sec("q", "H", title="ops_lint"))
+case("a build that drops an item's data-title fails",
+     sec("q", "H"), False, "data-titles differ",
+     orig=sec("q", "H", title="Corta"))
 
 # corpus_html.BADGE_WORDS is a hand copy of the kit's `rec` strings, one per
 # language: a language added to the composer, or a word changed there, would
@@ -1202,6 +1285,9 @@ echo
 if [ -n "$REAL" ]; then real_note="at $REAL"; else real_note="SKIPPED (AIDEX_SPEC_CORPUS not set)"; fi
 if [ "$fails" -eq 0 ]; then
   echo "OK — goal-gate.sh: no corpus means exit 2 and no line; seven lines in the fixed order, every figure counted from the figure census on its assigned rung (and every malformed or non-covering census refusing to count), newly-fail blocking, the blind trial counted from its log (and every malformed log refusing to read 3/3), the naming rule, all four escape detectors (including the two no corpus page can fire), and the hand-advanced floor — on the synthetic corpus, and on the real one $real_note"
+  # Exit 2 is run-all's SKIP: an exit 0 prints one PASS row and none of the
+  # SKIP lines above, so the real-corpus cases went unrun in silence (BL-552).
+  [ -n "$REAL" ] || exit 2
   exit 0
 fi
 echo "NOT OK — $fails failure(s)"

@@ -30,7 +30,9 @@ Checks (per file):
                and no block or item after the general notes — reference
                sections may follow them (BL-457)
   consult-ids  with --prev: an id kept between two regenerations still names
-               the same claim, and no id disappears — a closed claim stays on
+               the same claim (unless the page declares a reword with the
+               `consult-retitled` meta, a note not a failure, BL-611), and no
+               id disappears — a closed claim stays on
                the page; only a page declaring `consult-surfaces: none` (the
                closed-page exit) may drop ids (BL-396)
   consult-marker-duties with --prev: every ask marker a saved reply
@@ -84,6 +86,10 @@ a census warning on a page nobody is editing is noise no one can clear.
                id: a BL-/M095-style id, a backticked path, an HTTP verb, "fila N"
                or "gate N". The lead is the product situation in plain language;
                ids go on a trailing "Fuente:" line (BL-503)
+  consult-fuente-unreadable on a Spanish page, an item's "Fuente:" line made only
+               of short codes (d4, M4) and a few untranslated English words (phase,
+               empty, notes); a line of backlog ids alone is clean (BL-623)
+  consult-heading-statement an item with options whose <h3> has no "?" (BL-623)
   consult-order a block whose last item is followed by evidence (figure, img,
                svg, video, table, canvas, a `@@VIDEO` marker paragraph) before
                the block ends — the answer box rendered above the material it
@@ -111,6 +117,7 @@ import os
 import re
 import time
 import sys
+import contract_defects                             # same directory
 import unicodedata
 
 # --- § 8 detection patterns --------------------------------------------------
@@ -396,6 +403,13 @@ def consult_items(text):
     return items
 
 
+def group_ids(text):
+    """The data-ids of the blocks (`.consult-group`), which `consult_items`
+    skips: a context, not a claim (BL-612)."""
+    return {next(g for g in m.groups()[1:] if g is not None)
+            for m in ITEM_OPEN.finditer(text) if GROUP_CLASS.search(m.group(0))}
+
+
 def visual_declaration(text):
     """The consult-visual meta's `none:` reason, or "" when there is none.
     Only a `none:` declaration carries a reason — anything else (svg / img) is a
@@ -417,6 +431,16 @@ def dropped_declaration(text):
     """The ids the page declares it took off (`consult-dropped` meta, BL-533):
     written only by a spec's masthead `dropped-ids`, i.e. by an explicit drop."""
     m = re.search(r'<meta\b[^>]*\bname\s*=\s*["\x27]?consult-dropped["\x27]?'
+                  r'[^>]*\bcontent\s*=\s*(?:"([^"]*)"|\x27([^\x27]*)\x27)',
+                  text, re.I | re.S)
+    return set() if not m else set(
+        next(g for g in m.groups() if g is not None).split())
+
+
+def retitled_declaration(text):
+    """The ids the page declares it reworded on purpose (`consult-retitled`
+    meta, BL-611): written only by a spec's masthead `retitled-ids`."""
+    m = re.search(r'<meta\b[^>]*\bname\s*=\s*["\x27]?consult-retitled["\x27]?'
                   r'[^>]*\bcontent\s*=\s*(?:"([^"]*)"|\x27([^\x27]*)\x27)',
                   text, re.I | re.S)
     return set() if not m else set(
@@ -578,6 +602,27 @@ def _gal_grids(body):
     return out
 
 
+def _is_gallery_item(open_tag, body):
+    """What makes an item a gallery row (see gallery_findings): the class, a
+    `.gal` grid, or any `<figure data-tile>`. `body` has script/style out."""
+    return bool(GALLERY_CLASS.search(open_tag) or _gal_grids(body)
+                or FIGURE_TILE.search(body))
+
+
+def ordinary_item_ids(text):
+    """The `data-id`s of the page's items that are NOT gallery rows. A reply
+    heading with one of these ids is an ordinary question even when its
+    heading happens to have a gallery row's shape (BL-654: `cache-ttl ·
+    cache · ttl` read as an old light/dark matrix row)."""
+    text = strip_html_comments(text)
+    out = set()
+    for m in ITEM_OPEN.finditer(text):
+        body = strip_script_style(_subtree(text, m.group(1), m.end()))
+        if not _is_gallery_item(m.group(0), body):
+            out.add(next(g for g in m.groups()[1:] if g is not None))
+    return out
+
+
 def gallery_findings(text):
     """Every violation of the gallery-row shape, as plain messages.
 
@@ -617,8 +662,7 @@ def gallery_findings(text):
         body = strip_script_style(_subtree(text, m.group(1), m.end()))
 
         grids = _gal_grids(body)
-        if not (GALLERY_CLASS.search(m.group(0)) or grids
-                or FIGURE_TILE.search(body)):
+        if not _is_gallery_item(m.group(0), body):
             continue
 
         if not GALLERY_ID.match(ident):
@@ -808,7 +852,9 @@ def facts_paragraphs(body):
         # warning counts: semicolons inside <code>.
         bare = _html.unescape(re.sub(r'<[^>]+>', ' ', re.sub(
             r'<code\b[^>]*>.*?</code\s*>', ' ', inner, flags=re.I | re.S)))
-        if codes >= FACTS_MIN or bare.count(';') + 1 >= FACTS_MIN:
+        # A Fuente line's <code> count is not a FAIL (BL-643): only clauses decide.
+        owned = codes >= FACTS_MIN and not contract_defects.is_fuente_line(bare)
+        if owned or bare.count(';') + 1 >= FACTS_MIN:
             continue
         if clauses >= FACTS_MIN:
             excerpt = ' '.join(prose.split())
@@ -831,7 +877,7 @@ LEAD_ID_PATTERNS = (
 SENTENCE_END = re.compile(r'[.!?]\s+(?=[A-ZÁÉÍÓÚÑ\u00bf\u00a1])')
 LEAD_ABBREV = {"sr", "sra", "srta", "dr", "dra", "mr", "mrs", "ms", "e.g", "i.e",
                "etc", "vs", "p.ej", "ej", "fig", "no", "núm", "num"}
-FUENTE_LEAD = re.compile(r'^\s*(?:fuente|source)s?\s*:', re.I)
+FUENTE_LEAD = contract_defects.FUENTE_LEAD
 
 
 def _first_sentence(prose):
@@ -841,6 +887,98 @@ def _first_sentence(prose):
             continue
         return prose[:m.start() + 1]
     return prose
+
+
+# BL-631: a bare letter+digits ("T8" in "Los Simpson T8") is a product name, not
+# an id. It counts only after an id word, or as a known prefix (Q3, M095), and
+# never right after a capitalized word. The hyphenated form (BL-12) always counts.
+ID_WORD_BEFORE = re.compile(
+    r'\b(?:decisi[oó]n|pregunta|fila|decision|question|row)(?:es|s)?\s*[:«"“(]?\s*$',
+    re.I)
+KNOWN_BARE_ID = re.compile(r'Q\d{1,4}|M\d{3}')
+
+
+def _id_hits(sentence):
+    out = []
+    for m in LEAD_ID_PATTERNS[0][1].finditer(sentence):
+        tok = m.group(0)
+        if '-' not in tok:
+            before = sentence[:m.start()]
+            if not (ID_WORD_BEFORE.search(before) or (
+                    KNOWN_BARE_ID.fullmatch(tok)
+                    and not re.search(r'\S\s+[A-ZÁÉÍÓÚÑ][\wáéíóúñ]*\s+$', before))):
+                continue
+        out.append(tok)
+    return out
+
+
+# BL-623: a "Fuente:" line the reader cannot follow. On a Spanish page it is
+# unreadable when every word is a short code (d4, M4, BL-12) or one of a few
+# untranslated English words; a real word beside the code ("decisión d4 ...,
+# fase 8") keeps it clean. A number alone is neither code nor word.
+FUENTE_CODE = re.compile(r'[A-Za-z]{1,2}\d+|[A-Z]{1,5}-\d+')
+# A line of backlog ids alone ("Fuente: BL-617.") is what consult-lead-id asks for.
+BACKLOG_ID = re.compile(r'[A-Z]{1,5}-\d+')
+FUENTE_ENGLISH = {"phase", "empty", "notes", "note", "row", "rows", "gate",
+                  "gates", "question", "decision", "step"}
+
+
+def fuente_unreadable(body):
+    """The text of the first item "Fuente:" paragraph made only of codes and
+    English words, else None."""
+    own = _strip_subtrees(strip_html_comments(strip_script_style(body)), ITEM_OPEN)
+    for _, raw in (m.groups() for m in P_BLOCK.finditer(own)):
+        prose = ' '.join(_html.unescape(re.sub(r'<[^>]+>', ' ', raw)).split())
+        if not FUENTE_LEAD.match(prose):
+            continue
+        words = [w for w in re.findall(r'[\w-]+', FUENTE_LEAD.sub('', prose, 1))
+                 if not w.isdigit()]
+        if (words and all(FUENTE_CODE.fullmatch(w) or w.lower() in FUENTE_ENGLISH
+                          for w in words)
+                and not all(BACKLOG_ID.fullmatch(w) for w in words)):
+            return prose
+    return None
+
+
+# BL-650: a raw row slug or the raw "notes" label in the visible prose of an
+# item. The slug arm matches the page's OWN gallery-row data-ids (the exact ids
+# the kit derived), never a generic "3 hyphen-joined segments" shape: that shape
+# also matches tool, skill and package names (claude-session-handoff, markdown-it-py)
+# that are ordinary prose, and 2026-10 census of 85 real pages put it there.
+NOTES_LABEL = re.compile(r'>\s*notes\s*<', re.I)
+
+
+def raw_label_findings(body, row_ids=frozenset()):
+    """[token] raw ids/slugs, plus "notes" when it stands alone as an element's
+    text, found in the visible prose of one item (Spanish pages only). Fuente lines,
+    <code>/<pre>, svg, comments and attributes are not visible prose."""
+    own = _strip_subtrees(strip_html_comments(strip_script_style(body)), ITEM_OPEN)
+    own = re.sub(r'<(code|pre|svg)\b.*?</\1\s*>', ' ', own, flags=re.I | re.S)
+    # The kit's own id badge (<span class="consult-id">) prints every item's id,
+    # a gallery slug and "notes" included: it is chrome an author cannot edit.
+    own = re.sub(r'<span\b[^>]*\bconsult-id\b[^>]*>.*?</span\s*>', ' ', own,
+                 flags=re.I | re.S)
+    own = P_BLOCK.sub(lambda m: ' ' if FUENTE_LEAD.match(' '.join(_html.unescape(
+        re.sub(r'<[^>]+>', ' ', m.group(2))).split())) else m.group(0), own)
+    out = []
+    if NOTES_LABEL.search(own):
+        out.append("notes")
+    prose = _html.unescape(re.sub(r'<[^>]+>', ' ', own))
+    for rid in row_ids:
+        if rid.count('-') < 2:
+            continue                # "vacio" collides with prose
+        if re.search(r'(?<![\w-])' + re.escape(rid) + r'(?![\w-])', prose):
+            out.append(rid)
+    return list(dict.fromkeys(out))
+
+
+def heading_statement(body):
+    """True when an item with radio/checkbox options has an <h3> with no
+    question mark."""
+    own = strip_html_comments(strip_script_style(body))
+    h3 = re.search(r'<h3\b[^>]*>(.*?)</h3\s*>', own, re.I | re.S)
+    return bool(h3 and MARK_INPUT.search(own)
+                and not re.search(r'[?\u00bf]', re.sub(r'<[^>]+>', '', h3.group(1))))
 
 
 def lead_id_finding(body, item_ids=frozenset()):
@@ -870,7 +1008,8 @@ def lead_id_finding(body, item_ids=frozenset()):
             continue
         sentence = _first_sentence(prose)
         for kind, rx in LEAD_ID_PATTERNS:
-            hits = [h for h in rx.findall(sentence)
+            hits = [h for h in (_id_hits(sentence) if kind == "an id"
+                                else rx.findall(sentence))
                     if not (kind == "an id" and h in item_ids)]
             if hits:
                 return kind, sentence
@@ -2110,14 +2249,22 @@ FIGURE_TALL_BLOCK = re.compile(r'<figure\b([^>]*)>(.*?)</figure>', re.S | re.I)
 
 
 def figure_tall_findings(text):
-    """Messages for every <figure> whose root <svg> (its first; a nested svg is
+    """Messages for every <figure> (or a bare-svg file) whose root <svg> (its first; a nested svg is
     part of the drawing, not the figure) has a viewBox taller than
     FIGURE_TALL."""
     out = []
     body = strip_html_comments(strip_script_style(text))
-    for n, f in enumerate(FIGURE_TALL_BLOCK.finditer(body), 1):
-        ident = _svg_attrs(f.group(1)).get('id')
-        m = re.search(r'<svg\b([^>]*)>', f.group(2), re.I)
+    blocks = [(f.group(1), f.group(2))
+              for f in FIGURE_TALL_BLOCK.finditer(body)]
+    # BL-620: a bare .svg file (root element <svg>, optional xml prolog or
+    # doctype before it) is one figure with no wrapper, so the drawer's own
+    # gate run sees the verdict too.
+    if not blocks and re.match(r'\ufeff?\s*(?:<\?xml\b[^>]*>\s*|<!doctype\b[^>]*>\s*)*<svg\b',
+                               body, re.I):
+        blocks = [('', body)]
+    for n, (fattrs, inner) in enumerate(blocks, 1):
+        ident = _svg_attrs(fattrs).get('id')
+        m = re.search(r'<svg\b([^>]*)>', inner, re.I)
         if not m:
             continue
         vb = _svg_attrs(m.group(1)).get('viewbox') or ''
@@ -2220,7 +2367,8 @@ def warn_file(path):
         except Exception:                           # noqa: BLE001 — advisory
             continue
         for codes, clauses, excerpt in dense:
-            shape = (f"{codes} <code> tokens" if codes >= FACTS_MIN
+            shape = (f"{codes} <code> tokens"
+                     if codes >= FACTS_MIN and not clauses >= FACTS_MIN
                      else f"{clauses} semicolon-separated clauses")
             warns.append(("consult-facts", name,
                           f"'{ident}' carries a paragraph with {shape} "
@@ -2249,6 +2397,54 @@ def warn_file(path):
                           f"(who, which screen, what they do, what happens today); "
                           f"internal ids go on a trailing \"Fuente:\" line "
                           f"(§8.4, BL-503). Cleared by the rewrite, not by a waiver"))
+
+    # Gallery rows (heading = state name) and decided items (heading = statement
+    # on purpose) are not asked, so only the rest owes a question mark.
+    asked = {next(g for g in m.groups()[1:] if g is not None)
+             for m in ITEM_OPEN.finditer(text)
+             if re.search(r'\bconsult-item\b', m.group(0))
+             and not ITEM_DECIDED.search(m.group(0))
+             and not GALLERY_CLASS.search(m.group(0))}
+    lang = HTML_LANG.search(text)
+    es_page = bool(lang) and lang.group(1).lower() == "es"
+    gallery_ids = {next(g for g in m.groups()[1:] if g is not None)
+                   for m in ITEM_OPEN.finditer(text)
+                   if GALLERY_CLASS.search(m.group(0))}
+    for ident, body in bodies:
+        if ident not in item_ids:
+            continue
+        try:
+            fuente = fuente_unreadable(body) if es_page else None
+            statement = ident in asked and heading_statement(body)
+        except Exception:                           # noqa: BLE001 — advisory
+            continue
+        if fuente:
+            warns.append(("consult-fuente-unreadable", name,
+                          f"'{ident}' has a source line (\"{fuente[:60]}\") made "
+                          f"only of short codes or untranslated English words — "
+                          f"write it in the page language so a reader can follow "
+                          f"it, or drop it (§8.4, BL-623). Cleared by the rewrite, "
+                          f"not by a waiver"))
+        try:
+            raw = raw_label_findings(body, gallery_ids) if es_page else []
+        except Exception:                           # noqa: BLE001 — advisory
+            raw = []
+        if raw:
+            warns.append(("consult-raw-label", name,
+                          f"'{ident}' shows {', '.join(repr(r) for r in raw[:3])} "
+                          f"in its visible text — a row slug, raw id or the "
+                          f"English label \"notes\" is internal shorthand; write "
+                          f"the state or label in the page language, and keep ids "
+                          f"in <code>, a Fuente line or a data attribute (§8.4, "
+                          f"BL-650). Cleared by the rewrite, not by a waiver"))
+        if statement:
+            warns.append(("consult-heading-statement", name,
+                          f"'{ident}' has options but its heading states instead "
+                          f"of asking — the <h3> is the decision question. In a "
+                          f"spec, end the item's question paragraph with \"?\" "
+                          f"(the builder uses it as the heading) rather than "
+                          f"editing the h3 (§8.4, BL-623). Cleared by the "
+                          f"rewrite, not by a waiver"))
 
     try:
         trailing = trailing_evidence(text)
@@ -2358,7 +2554,6 @@ def svg_contrast_reports(text, name):
 # contract_defects' classes (ruling 2026-09-28, LOOP-006): a page nobody is
 # editing was built by an older kit and is red on them by construction, so the
 # census reports them and the page being written or wrapped is what they block.
-import contract_defects                             # noqa: E402 — same directory
 CENSUS_ADVISORY = ("svg-contrast", "contract") + tuple(contract_defects.CHECKS)
 
 
@@ -2476,22 +2671,78 @@ def check_file(path):
     # prefilled reply box holding the marker is pasted back as the leak.
 
     # --- self: one file, no network -------------------------------------------
-    if re.search(r'<link[^>]+rel=["\']?stylesheet', flat, re.I):
+    # BL-647: a commented-out example loads nothing, and a /* */ comment in a
+    # <style> is not CSS. skeleton.html carries both as examples. HTML comments
+    # go only in markup context: raw-text bodies (script, style, textarea, title,
+    # xmp, noembed, noframes, noscript, iframe) and whole
+    # tags are kept, so a "<!--" inside a string or an attribute value cannot
+    # swallow the real loads after it. A comment ends where the HTML parser ends
+    # it: "<!-->", "<!--->" and "--!>" close it too, else the regex would run on
+    # to the next "-->" past a live load. Known limit, accepted: content:"/*"
+    # inside a <style> can still swallow the rules that follow it.
+    sflat = flatten(re.sub(
+        r'(<(script|style|textarea|title|xmp|noembed|noframes|noscript|iframe)\b[^>]*>.*?</\2\s*>)|(<[a-z][^>]*>)|<!--(?:-?>|.*?--!?>)',
+        lambda m: m.group(0) if (m.group(1) or m.group(3)) else ' ',
+        text, flags=re.S | re.I))
+    sflat = re.sub(
+        r'(<style\b[^>]*>)(.*?)(</style)',
+        lambda m: m.group(1) + re.sub(r'/\*.*?\*/', ' ', m.group(2), flags=re.S)
+        + m.group(3), sflat, flags=re.S | re.I)
+    if re.search(r'<link[^>]+rel=["\']?stylesheet', sflat, re.I):
         report("self", "external stylesheet — the file must stand alone offline")
-    if re.search(r'<script[^>]+src=', flat, re.I):
+    if re.search(r'<script[^>]+src=', sflat, re.I):
         report("self", "external script — the file must stand alone offline")
-    if re.search(r'@import\s+(url\()?["\']?https?:', flat, re.I):
+    # A backslash is a slash in a URL: \\host and /\host load like //host (BL-647).
+    REMOTE = r'(?:https?:|[/\\]{2})'
+    if re.search(r'@import\s+(?:url\(\s*)?["\']?\s*' + REMOTE, sflat, re.I):
         report("self", "@import of a remote stylesheet")
     # A <video> is a visual like an <img>: its own src or a <source> child.
     # srcset and poster load too; data-src is a script's, and loads nothing.
     # Every srcset candidate loads, not only the first, and <audio> is media
     # like <video> (BL-553).
-    if re.search(r'<(?:img|video|audio|source)\b[^>]*\s(?:(?:src|poster)=["\']?'
-                 r'|srcset=(?:"(?:[^">]*,)?|\'(?:[^\'>]*,)?|(?:[^\s"\'>]*,)?)\s*)https?:',
-                 flat, re.I):
+    # Protocol-relative //host loads like https: (BL-564); <track>, <iframe>,
+    # <embed> src and <object data> load too.
+    if re.search(r'<(?:img|video|audio|source)\b[^>]*\s(?:(?:src|poster)=["\']?\s*'
+                 r'|srcset=(?:"(?:[^">]*,)?|\'(?:[^\'>]*,)?|(?:[^\s"\'>]*,)?)\s*)' + REMOTE,
+                 sflat, re.I):
         report("self", "remote image or video — breaks offline and leaks a request")
+    if re.search(r'<(?:track|iframe|embed)\b[^>]*\ssrc=["\']?\s*' + REMOTE
+                 + r'|<object\b[^>]*\sdata=["\']?\s*' + REMOTE, sflat, re.I):
+        report("self", "remote track, iframe, embed or object — breaks offline "
+                       "and leaks a request")
+    # <base href> turns every relative URL on the page remote; an inline SVG
+    # <image> / <feImage> href or xlink:href loads; so does a url() in a loading
+    # presentation attribute (fill, stroke, filter, mask, clip-path, markers),
+    # style= apart (reported below); and a remote favicon is fetched on open (BL-647).
+    if re.search(r'<base\b[^>]*\shref=["\']?\s*' + REMOTE, sflat, re.I):
+        report("self", "remote <base href> — every relative URL becomes a "
+                       "network request")
+    if re.search(r'<(?:image|feimage)\b[^>]*\s(?:xlink:)?href=["\']?\s*' + REMOTE,
+                 sflat, re.I):
+        report("self", "remote SVG <image> — breaks offline and leaks a request")
+    if re.search(r'<[a-z][^>]*\s(?:fill|stroke|filter|mask|clip-path|marker-start'
+                 r'|marker-mid|marker-end)=["\']?\s*url\(\s*["\']?\s*' + REMOTE,
+                 strip_script_style(sflat), re.I):
+        report("self", "remote url() in an SVG attribute — breaks offline and "
+                       "leaks a request")
+    for tag in re.findall(r'<link\b[^>]*>', sflat, re.I):
+        if (re.search(r'\srel=(?:"[^"]*icon|\'[^\']*icon|[^\s"\'>]*icon)', tag, re.I)
+                and re.search(r'\shref=["\']?\s*' + REMOTE, tag, re.I)):
+            report("self", "remote <link rel=icon> — the favicon is fetched "
+                           "on open")
+    # CSS url() in a <style> block or a style= attribute (url(data:) and
+    # url(#id) are local and do not match).
+    # An @import or @font-face url() is reported by its own rule: one defect,
+    # one finding.
+    css_url = r'url\(\s*["\']?\s*' + REMOTE
+    style_css = re.sub(r'@import[^;}]*|@font-face[^}]*', ' ',
+                       "\n".join(SVG_STYLE_BLOCK.findall(sflat)), flags=re.I)
+    if (re.search(css_url, style_css, re.I)
+            or re.search(r'\sstyle=(?:"[^"]*|\'[^\']*|[^\s"\'>]*)' + css_url,
+                         sflat, re.I)):
+        report("self", "remote CSS url() — breaks offline and leaks a request")
     # Only a remote src counts: url(data:…) is inlined and honours the contract.
-    if re.search(r'@font-face[^}]*url\(\s*["\']?(https?:)?//', flat, re.I):
+    if re.search(r'@font-face[^}]*url\(\s*["\']?(https?:)?//', sflat, re.I):
         report("self", "remote @font-face src — the font never loads offline "
                        "and leaks a request")
 
@@ -3353,6 +3604,39 @@ def check_marker_duties(new_path):
                 f"{ident} was marked {which} and this round answers it with "
                 f"the identical item — the ask was for what is missing, not a "
                 f"re-render of the same text"))
+    # BL-654: a gallery duty (save_reply.gallery_duties_for, BL-632) is unmet
+    # while its row is byte-identical to the answered one — the markup, not
+    # the text: a rebuilt capture changes an `<img>`. Same exemptions and
+    # warnings as a marker above; an unreadable paste has no row to judge.
+    try:
+        import save_reply
+        gallery = save_reply.gallery_duties_for(
+            paste, ordinary_item_ids(text) | ordinary_item_ids(answered_text))
+    except Exception as e:                          # noqa: BLE001 — fail closed
+        return fails + [("consult-marker-duties", name,
+                         f"the gallery-row scan did not run ({e})")], warns
+    tags_by_id = {}
+    for ident, tag, _ in gallery:
+        tags_by_id.setdefault(ident, []).append(tag)
+    for ident, tags in tags_by_id.items():
+        if ident in decided_now:
+            continue
+        if "unreadable" in tags:
+            warns.append(("consult-marker-duties", name,
+                "gallery rows in the saved reply could not be read, so their "
+                "duties are not checked — list them by hand"))
+            continue
+        if ident not in bodies or ident not in answered_bodies:
+            where = "the new page" if ident not in bodies else "the answered snapshot"
+            warns.append(("consult-marker-duties", name,
+                f"the reply owes gallery row {ident}, which is not in {where} "
+                f"— the reply may have been saved against the wrong page"))
+            continue
+        if bodies[ident] == answered_bodies[ident]:
+            fails.append(("consult-marker-duties", name,
+                f"gallery row {ident} owes [{', '.join(tags)}] and this round "
+                f"answers it with the identical row — rebuild what the "
+                f"reader's verdict, note or marks name"))
     return fails, warns
 
 
@@ -3517,6 +3801,12 @@ def check_prev(new_path, prev_path):
                       f"change"))
         return fails, notes
     moved = [i for i in sorted(set(old) & set(new)) if old[i] != new[i]]
+    new_page = open(new_path, encoding="utf-8", errors="replace").read()
+    retitled = retitled_declaration(new_page)
+    # A block on BOTH pages: an item id that became a block id is a different
+    # claim, not a relabel.
+    groups = group_ids(new_page) & group_ids(
+        open(prev_path, encoding="utf-8", errors="replace").read())
     dropped = sorted(set(old) - set(new))
     if dropped:
         new_text = open(new_path, encoding="utf-8", errors="replace").read()
@@ -3557,6 +3847,18 @@ def check_prev(new_path, prev_path):
                           f'({_page_lang(prev_path)} → {_page_lang(new_path)}) '
                           f'— was "{old[i]}", now "{new[i]}". Read as a '
                           f'translation, not a moved claim; check it is one'))
+        elif i in groups:
+            # BL-612: a block's title is its label, not a claim a reply points
+            # at; only an item's id is the reply key.
+            notes.append(("consult-ids", os.path.basename(new_path),
+                          f'{i}: block relabelled — was "{old[i]}", now '
+                          f'"{new[i]}". The id stays; items inside keep their '
+                          f'own ids'))
+        elif i in retitled:
+            notes.append(("consult-ids", os.path.basename(new_path),
+                          f'{i}: retitled, declared by consult-retitled — '
+                          f'was "{old[i]}", now "{new[i]}". The id stays; '
+                          f'check the claim behind it did not change'))
         else:
             fails.append(("consult-ids", os.path.basename(new_path),
                           f'id reused for a different claim — {i}: was '
@@ -3673,22 +3975,17 @@ BUILD_LOCK_STALE_AFTER = 20 * 60
 
 def baseline_hygiene(walk_root):
     """Dead .aidex-artifact-prev content, as note strings with the exact rm to
-    run. Report-only, never deletes: a baseline is dead when its artifact is
-    gone (nothing will ever compare against it) or when the whole set was moved
-    into _archive/ (the artifact is closed, so no wrap runs at that path
-    again). Without this, every report is silently doubled on disk forever —
-    field-observed following archived items into _archive/."""
+    run. Report-only, never deletes: an entry is dead when its artifact is
+    gone (nothing will ever compare against it), wherever the folder sits. A
+    folder beside a LIVE page under _archive/ is not dead: the builder recreates
+    it on every build there (BL-624). Without this, every report is silently
+    doubled on disk forever."""
     notes = []
     for dirpath, dirnames, filenames in os.walk(walk_root):
         for d in list(dirnames):
             if d != ".aidex-artifact-prev":
                 continue
             bdir = os.path.join(dirpath, d)
-            if "_archive" in dirpath.split(os.sep):
-                notes.append(f"dead baseline (archived artifact): rm -r "
-                             f"'{bdir}'")
-                dirnames.remove(d)
-                continue
             entries = os.listdir(bdir)
             # Five spellings live here and all of them are the PAGE's, not files with
             # a life of their own: the baseline `<page>`, its source `<page>.body`

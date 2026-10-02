@@ -37,14 +37,15 @@ line and stop.
 
 ## Step 0 — At fire time: the harness, then the design discussion
 
-**Check the harness first, before any plan or discussion.** Detect what the project
-exposes against `references/01-harness-contract.md`, reading the testing profile's
-`gallery_gate_cmd` and `gallery_scripts` first (optional keys; absent, detect). Present: continue. Absent: say so in
-one line, and route a boilerplate fork to its ui-contract harness migration
-(`ui-contract-harness-overlay-runner-one-gate-call-and-spec-derived-gallery-scripts`, number
-140 at the time of writing; it needs entry 132 applied first) or say the harness is missing.
-Without a harness the gallery and the gate stop; the design discussion and `ui-contract.md`
-still proceed. Nothing below is briefed on a harness that may not be there.
+**Check the harness first, before any plan or discussion.** Read the testing profile's
+`gallery_gate_cmd` and `gallery_scripts` first (optional keys), then check the
+"Presence check" markers of `references/01-harness-contract.md` in the repo itself. Never
+say "absent" before those checks ran: a research note, a memory or an earlier session
+saying the harness is missing is not evidence, since a project may have adopted it since.
+Present: continue. Absent (every marker checked, none found): say so in one line and name
+the checks; a boilerplate fork can adopt the ui-contract harness migration from its
+boilerplate. Without a harness the gallery and the gate stop; the design discussion and
+`ui-contract.md` still proceed. Nothing below is briefed on a harness that may not be there.
 
 **The design discussion is a ui-contract step, not a free chat.** When the screen is not
 decided yet, hold it as a consultation (`/aidex:artifact`) in this skill's vocabulary:
@@ -158,6 +159,8 @@ component is built for a layout, and an unapproved layout makes it rework.
    to approve one alternative against the other as if it were the old state
    (`/aidex:artifact`, § Gallery rows). The owner's verdict on the layout closes this phase;
    a rejected layout goes back to phase 1 and loses only composition, never logic.
+   A cross-screen placement question gets one drawn or gallery alternative per option inside its
+   own item, never prose only (`/aidex:artifact`, `02-local-first-artifacts.md`, the figure rule).
 3. **Shared primitives** — the new or changed components the approved skeleton needs.
 4. **Gallery and gate** — the full state matrix over the approved skeleton, with the gate's
    closing line from a run with no snapshot update.

@@ -213,10 +213,14 @@ mkpage "$TMP/read.html" "$header<section id=\"a\"><h2>One</h2><p>x</p></section>
 rc="$(run "$TMP/read.html")"
 [[ "$rc" == 0 ]] || fail "a read page has no shape rules: $(cat "$TMP/out")"
 
-# --- a group id kept across rounds names the same context ---------------------
+# --- a group relabelled across rounds is a note, not a failure (BL-612) --------
+# A block's title is a label, not a claim a reply points at: --prev reports it
+# and passes. An item retitled under the same id still fails (consult-ids).
 mkpage "$TMP/v1.html" "$good"
 mkpage "$TMP/v2.html" "$visual$header$ledger$(group G1 'A different context' "$(item Q1 'First')$(item Q2 'Second')")$(group G2 'Context two' "$(item Q3 'Third')")$notes$bars$ref"
-rc="$(run "$TMP/v2.html" --prev "$TMP/v1.html")"; expect_fail "group id reused for a different context" "G1"
+rc="$(run "$TMP/v2.html" --prev "$TMP/v1.html")"
+[[ "$rc" == 0 ]] || fail "group relabelled: expected exit 0, got $rc: $(cat "$TMP/out")"
+grep -q 'NOTE \[consult-ids\].*G1: block relabelled' "$TMP/out" || fail "group relabelled: no NOTE naming G1: $(cat "$TMP/out")"
 
 # --- the group is not counted as an item ---------------------------------------
 # It carries data-id/data-title for --prev; it has no reply surface of its own

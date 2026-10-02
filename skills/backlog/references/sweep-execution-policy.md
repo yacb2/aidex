@@ -36,6 +36,8 @@ Enforced by `scripts/sweep-kickoff.sh` (with `sweep-eligible.py`, `sweep-order.p
 3. The work-list is written `mode: sweep`, ordered **by cluster** (`worklist-conventions.md`
    § A sweep queue is ordered by cluster): shared `touches:` adjacent, `depends:` edges
    respected, `merge:BL-NNN` pairs marked MERGE.
+   An item whose dependency (or MERGE twin) is still open, or unknown, and not in the queue
+   is not queued: it goes to NEEDS-DECISION as `depends on open BL-NNN` (BL-605).
 4. **One consultation artifact** for the whole NEEDS-DECISION list — a block page per
    `artifacts-local-first`, explain-before-ask, each option carrying its consequence and a
    recommendation. `AskUserQuestion` is for parameters only (gate policy, scope toggles);
@@ -113,6 +115,12 @@ suite, paying the boundary gate once per item (BL-363).
 5. `close-item.sh --sweep` — refuses `done` without `## Verification` rows with proof that
    meet the item's `surface` minimum (`01-backlog-conventions.md` § Verification).
    `worklist-advance.sh` calls it and will not tick past a refusal.
+
+   *Split workspace (items in the workspace repo, code on a branch in a linked worktree of
+   a sub-repo; BL-646):* closures are **post-merge**. Fill the Verification rows at
+   implementation time, then close each item after the merge into the sub-repo's main,
+   citing the merge sha (or the item's commit, now reachable from main). `close-item.sh`
+   cannot see a worktree branch from the workspace root and says so, naming the branch.
 
 *Prose — a test that DENIES something needs a different proof than one that asserts it.*
 RED→GREEN proves the call site is load-bearing; it does **not** prove the assertion can

@@ -36,6 +36,8 @@
       stale: function (n) { return ' ' + n + ' were left blank because their question changed since you answered it.'; },
       consumed: function (n) { return ' ' + n + ' were left blank because you already sent them in an earlier round.'; },
       discard: 'Discard them',
+      staleTab: 'A newer version of this page is open in another tab: ',
+      staleReload: 'reload this one',
       copy: 'Copy my answers',
       contents: 'Contents',
       notes: 'Notes on this one',
@@ -80,7 +82,10 @@
       toDark: 'Dark',
       themeTitle: 'Switch this page between light and dark',
       decided: 'Decided',
-      decidedCount: function (n) { return n + (n === 1 ? ' question already settled' : ' questions already settled'); },
+      decidedCount: function (n, w) {
+        var word = w === 'row' ? 'row' : w === 'item' ? 'item' : 'question';
+        return n + ' ' + word + (n === 1 ? ' already settled' : 's already settled');
+      },
       dropped: 'Dropped',
       droppedMark: ' (dropped)',
       droppedHint: 'These questions left the set without an answer. Open one to re-read what it asked and why it was dropped.',
@@ -140,6 +145,8 @@
       stale: function (n) { return ' ' + n + ' se dejaron en blanco porque su pregunta cambió desde que la respondiste.'; },
       consumed: function (n) { return ' ' + n + ' se dejaron en blanco porque ya las enviaste en una ronda anterior.'; },
       discard: 'Descartarlas',
+      staleTab: 'Hay una versión más nueva de esta página en otra pestaña: ',
+      staleReload: 'recárgala',
       copy: 'Copiar mis respuestas',
       contents: 'Contenido',
       notes: 'Notas sobre esta',
@@ -184,7 +191,11 @@
       toDark: 'Oscuro',
       themeTitle: 'Cambia esta p\u00e1gina entre claro y oscuro',
       decided: 'Decidido',
-      decidedCount: function (n) { return n + (n === 1 ? ' pregunta ya resuelta' : ' preguntas ya resueltas'); },
+      decidedCount: function (n, w) {
+        var word = w === 'row' ? 'fila' : w === 'item' ? 'elemento' : 'pregunta';
+        var done = w === 'item' ? 'resuelto' : 'resuelta';
+        return n + ' ' + word + (n === 1 ? ' ya ' + done : 's ya ' + done + 's');
+      },
       dropped: 'Descartadas',
       droppedMark: ' (descartada)',
       droppedHint: 'Estas preguntas salieron del conjunto sin respuesta. Abre una para releer qu\u00e9 preguntaba y por qu\u00e9 se descart\u00f3.',
@@ -389,11 +400,17 @@
 
   /* A verdict written on the attribute wins over the options it chose: an item
    * whose outcome is not any single option ("both, in this order") has nowhere
-   * else to say so. Bare `data-decided` keeps the derived line. */
+   * else to say so. Bare `data-decided` keeps the derived line. The fold is
+   * text, so a verdict written `**x**` shows plain, the same [`*] strip as the
+   * builder's PLAIN (md_body.py) (BL-545). */
   function decidedSummary(el) {
-    var v = (el.getAttribute('data-decided') || '').trim();
+    var v = (el.getAttribute('data-decided') || '').replace(/[`*]/g, '').trim();
     return v || decidedLine(el);
   }
+
+  /* BL-629: the reply to the owner's note on a decided row (data-answer) rides in
+   * the fold's summary, so it is read without opening the fold. */
+  function answerOf(el) { return (el.getAttribute('data-answer') || '').trim(); }
 
   var decidedSection = null, droppedSection = null;
   /* A dropped item (data-dropped, BL-516.4) left the question set unanswered:
@@ -448,17 +465,29 @@
       if (u.group) {
         var inner = [].slice.call(u.node.querySelectorAll('.consult-item'));
         k.textContent = u.node.dataset.id || u.node.id || '';
+        /* Each row: its title, then the verdict as written on it (BL-608), dropped
+         * rows included (their data-decided reads "Descartada: reason"). The id and
+         * the generic droppedMark are fallbacks, never the first choice. */
         v.textContent = (u.node.dataset.title || '') + ' \u2014 ' +
           inner.map(function (el) {
-            return el.dataset.id + (isDropped(el) ? L.droppedMark : '');
-          }).join(', ');
+            var verdict = decidedSummary(el) || (isDropped(el) ? L.droppedMark.trim() : '');
+            var ans = answerOf(el);
+            return (el.dataset.heading || el.dataset.title || el.dataset.id) + (verdict ? ': ' + verdict : '') + (ans ? ' \u2014 ' + ans : '');
+          }).join('; ');
       } else {
-        k.textContent = u.node.dataset.id || '';
+        /* A row with a heading is labelled by it (BL-577); the slug stays on data-id. */
+        k.textContent = u.node.dataset.heading ? '' : (u.node.dataset.id || '');
         var line = decidedSummary(u.node);
         v.textContent = (u.node.dataset.heading || u.node.dataset.title || '') + (line ? ' \u2014 ' + line : '');
       }
-      sum.appendChild(k);
+      if (k.textContent) sum.appendChild(k);
       sum.appendChild(v);
+      if (!u.group && answerOf(u.node)) {
+        var a = document.createElement('span');
+        a.className = 'decided-verdict decided-answer';
+        a.textContent = '\u2014 ' + answerOf(u.node);
+        sum.appendChild(a);
+      }
       d.appendChild(sum);
       return d;
     }
@@ -511,19 +540,29 @@
     var settled = units.filter(function (u) { return !u.dropped; });
     var gone = units.filter(function (u) { return u.dropped; });
     /* Counts are what each section HOLDS: a dropped item inside a block that is
-     * otherwise decided stays in that block's unit, marked "(dropped)" in its
-     * summary, and is neither a decision nor counted as a dropped section item. */
+     * otherwise decided stays in that block's unit, marked with its written
+     * verdict in the summary, and is neither a decision nor counted as a dropped
+     * section item. A row to redo is a verdict, not a drop: decided="Se rehace…". */
     function held(list) {
       return list.reduce(function (n, u) {
         return n + (u.group ? u.node.querySelectorAll('.consult-item').length : 1);
       }, 0);
     }
+    /* Gallery rows are rows, not questions: say so when every counted entry is
+     * one, and use the neutral word when the two are mixed. */
+    var shown = [];
+    settled.forEach(function (u) {
+      if (u.group) shown = shown.concat([].slice.call(u.node.querySelectorAll('.consult-item')).filter(function (el) { return !isDropped(el); }));
+      else shown.push(u.node);
+    });
     var mixedDropped = settled.reduce(function (n, u) {
       return n + (u.group ? [].slice.call(u.node.querySelectorAll('.consult-item')).filter(isDropped).length : 0);
     }, 0);
+    var galleryRows = shown.filter(function (el) { return el.classList.contains('consult-gallery'); }).length;
+    var countWord = !galleryRows ? 'question' : galleryRows === shown.length ? 'row' : 'item';
     if (settled.length) {
       place(decidedSection = section('sec-decided', 'decided',
-        L.decidedCount(held(settled) - mixedDropped),
+        L.decidedCount(held(settled) - mixedDropped, countWord),
         L.decided, L.decidedHint, settled));
     }
     if (gone.length) {
@@ -566,7 +605,8 @@
     var cls = el.closest('.consult-group') ? 'railitem sub' : 'railitem';
     /* A row with a human heading (data-heading, a gallery row) lists by it and
      * without its slug id: the id stays the anchor and what a reply names. */
-    var a = railLink(cls, '#' + el.id, el.dataset.heading ? '' : el.dataset.id,
+    var badge = el.querySelector('.consult-id');
+    var a = railLink(cls, '#' + el.id, el.dataset.heading ? '' : ((badge && badge.textContent.trim()) || el.dataset.id),
                      el.dataset.heading || el.dataset.title || '');
     list.appendChild(a);
     links[i] = a;
@@ -657,9 +697,17 @@
        * offsetTop, which is relative to an offsetParent this code does not own. */
       var lr = list.getBoundingClientRect(), cr = current.getBoundingClientRect();
       var top = cr.top - lr.top + list.scrollTop;
+      /* The entry AFTER the current one is kept in view too (BL-599): with
+       * only the current entry shown, the general notes listed last stayed
+       * below the list's edge until the page bottom. Capped so keeping the
+       * next entry never pushes the current one's top out; the separator is skipped. */
+      var next = current.nextElementSibling;
+      while (next && !next.classList.contains('railitem')) next = next.nextElementSibling;
+      var bottom = top + cr.height;
+      if (next) bottom = Math.min(next.getBoundingClientRect().bottom - lr.top + list.scrollTop, top + list.clientHeight);
       if (top < list.scrollTop) list.scrollTop = top;
-      else if (top + cr.height > list.scrollTop + list.clientHeight) {
-        list.scrollTop = top + cr.height - list.clientHeight;
+      else if (bottom > list.scrollTop + list.clientHeight) {
+        list.scrollTop = bottom - list.clientHeight;
       }
     }
 
@@ -973,6 +1021,11 @@
         if (c.textContent.trim() === L[row[2]]) c.textContent = STRINGS.en[row[2]];
       });
     });
+    /* The id badge prints the item's id, so it IS the id, not question text: a
+     * kit that relabels the default notes badge (notes -> notas on an es page)
+     * must not make every stored note read as "the question changed". Every
+     * badge before that equalled data-id, so older hashes stay byte-identical. */
+    clone.querySelectorAll('.consult-id').forEach(function (c) { c.textContent = el.dataset.id || ''; });
     var text = (clone.textContent || '').replace(/\s+/g, ' ').trim();
     /* A gallery row's question is also WHAT IT SHOWS: a round that re-captures
      * a tile under the same text is a new question, so the marks drawn on the
@@ -1026,6 +1079,9 @@
       items.forEach(function (el) {
         var s = data[el.dataset.id];
         if (!s) return;
+        /* A decided row is not a question: its round-1 answer is settled, and its
+         * text changed by design (BL-629), so it is neither restored nor "stale". */
+        if (isDecided(el)) return;
         /* No `h` means an answer set saved before this existed. It is restored,
          * not discarded: upgrading the kit must not blank answers a reader
          * already typed, and the first input event re-saves the entry with a
@@ -1070,6 +1126,59 @@
       });
     } catch (e) { return { n: 0, stale: 0, spent: 0 }; }
     return { n: n, stale: stale, spent: spent };
+  }
+
+  /* BL-635. Each round re-opens the same file in a new tab, and the older tabs
+   * never said they were old. On load the page records its build stamp under
+   * its own path; a `storage` event from another tab carrying a LATER stamp for
+   * the same path marks this tab stale. The stamp is wrap_report.py's
+   * "YYYY-MM-DD HH:MM" (fixed width, so a string comparison orders it), with
+   * round and file mtime as tie-breaks (see newer()); an equal or older one
+   * shows nothing, and a tab never reacts to its own write
+   * (the event does not fire in the writing tab). No stamp meta, or storage
+   * that throws, means no watch. */
+  function watchStaleTab() {
+    var bm = document.querySelector('meta[name="artifact-built"]');
+    var built = bm ? (bm.getAttribute('content') || '') : '';
+    if (!built) return;
+    var key = 'aidex-kit-built:' + location.pathname;
+    function num(v) { var n = parseInt(v, 10); return isNaN(n) ? 0 : n; }
+    function parse(raw) {
+      var o = {};
+      try { o = JSON.parse(raw) || {}; } catch (e) {}
+      return { b: o.b || '', r: num(o.r), m: num(o.m) };
+    }
+    /* The stamp has minute resolution, so a re-wrap inside the same minute ties
+     * on it: then the round decides (a number), then the file's own mtime
+     * (document.lastModified, second resolution on file://). */
+    function newer(x, y) {
+      if (x.b !== y.b) return x.b > y.b;
+      if (x.r !== y.r) return x.r > y.r;
+      return x.m > y.m;
+    }
+    var mine = { b: built, r: num(ROUND), m: num(Date.parse(document.lastModified)) };
+    try {
+      if (newer(mine, parse(localStorage.getItem(key)))) {
+        localStorage.setItem(key, JSON.stringify({ b: mine.b, r: mine.r, m: mine.m }));
+      }
+    } catch (e) { return; }
+    window.addEventListener('storage', function (ev) {
+      if (ev.key !== key || !newer(parse(ev.newValue), mine)) return;
+      var main = document.querySelector('.main');
+      if (!main || document.getElementById('consult-stale')) return;
+      var note = document.createElement('div');
+      note.className = 'note warn kit-stale';
+      claimId(note, 'consult-stale');
+      note.setAttribute('role', 'status');
+      note.appendChild(document.createTextNode(L.staleTab));
+      var a = document.createElement('a');
+      a.href = '#';
+      a.textContent = L.staleReload;
+      a.addEventListener('click', function (e) { e.preventDefault(); location.reload(); });
+      note.appendChild(a);
+      note.appendChild(document.createTextNode('.'));
+      main.insertBefore(note, main.firstChild);
+    });
   }
 
   function showRestoredNote(n, stale, spent) {
@@ -1440,7 +1549,12 @@
          * `overflow-wrap: anywhere` only falls back from, so a path breaks between segments and
          * mid-segment only when one segment alone is wider than the column. <wbr> adds no text. */
         cells.forEach(function (c) {
-          if (!c.classList.contains('brk')) return;
+          /* BL-604: a cell of a nested .tw inherits `anywhere` from its outer cell.brk (the
+           * outer .tw is measured first), and its own box then fits: it is cut all the same.
+           * Only an outer CELL counts: p, li and the rest inherit `anywhere` too, and a table
+           * that fits inside them is not cut. */
+          if (!c.classList.contains('brk') && !c.parentNode.closest('td.brk, th.brk')) return;
+          c.classList.add('brk');
           /* A nested cell is also inside its outer cell: each text node belongs to its own cell only. */
           var walker = document.createTreeWalker(c, NodeFilter.SHOW_TEXT), t, nodes = [];
           while ((t = walker.nextNode())) {
@@ -1994,7 +2108,9 @@
      * answer, Clear empties it. The checker does not count it as a notes box.
      *
      * Drawing needs an open row and compare off; a decided row shows its marks
-     * (a page may carry them in its own kit-marks textarea) and draws none. */
+     * (a page may carry them in its own kit-marks textarea) and draws none.
+     * Neither does an item's images (shots mode, BL-493): its figures carry no
+     * tile, so a mark there could never be redrawn or opened (BL-655). */
     var MARK_LINE = /^\[mark (\S+) (\d{1,3}(?:\.\d)?),(\d{1,3}(?:\.\d)?) (\d{1,3}(?:\.\d)?)x(\d{1,3}(?:\.\d)?)\](?: (.*))?$/;
 
     function marksBox(row) { return row.querySelector('textarea.kit-marks'); }
@@ -2013,7 +2129,8 @@
       draft.box.style.height = draft.h + '%';
     }
     function canMark(row) {
-      return !!row && !isDecided(row) && !!marksBox(row) && dlg.getAttribute('data-compare') === 'off';
+      return !!row && !isDecided(row) && !!marksBox(row) && !dlg.classList.contains('shots')
+        && dlg.getAttribute('data-compare') === 'off';
     }
     function startDraft() {
       if (!opener || pending || drag) return;
@@ -2145,9 +2262,9 @@
       if (!opener) return;
       var row = opener.closest('.consult-item');
       var tile = opener.getAttribute('data-tile');
-      mlayer.classList.toggle('readonly', isDecided(row) || !marksBox(row));
       /* Parked first: a disabled button drops the focus out of the dialog. */
-      var noMark = isDecided(row) || !marksBox(row);
+      var noMark = isDecided(row) || !marksBox(row) || dlg.classList.contains('shots');
+      mlayer.classList.toggle('readonly', noMark);
       if (noMark && document.activeElement === bMark) dlg.focus();
       bMark.disabled = noMark;
       drawBoxes(mlayer, readMarks(row).filter(function (k) { return k.tile === tile; }));
@@ -2232,16 +2349,19 @@
 
     var drag = null;
     mlayer.addEventListener('pointerdown', function (ev) {
-      if (ev.button !== 0 || !opener || pending) return;
+      /* Only a primary pointer draws: a second finger neither starts a box
+       * nor takes over the first one's (BL-649). */
+      if (ev.button !== 0 || !ev.isPrimary || !opener || pending) return;
+      if (drag) { drag.box.remove(); drag = null; }   /* a drag whose up never came */
       cancelDraft();
       var row = opener.closest('.consult-item');
-      if (isDecided(row) || !marksBox(row) || dlg.getAttribute('data-compare') !== 'off') return;
+      if (!canMark(row)) return;
       ev.preventDefault();
       try { mlayer.setPointerCapture(ev.pointerId); } catch (e) { /* synthetic pointer */ }
       var box = document.createElement('div');
       box.className = 'kit-mark drawing';
       mlayer.appendChild(box);
-      drag = { x: ev.clientX, y: ev.clientY, box: box, row: row, tile: opener.getAttribute('data-tile') };
+      drag = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, box: box, row: row, tile: opener.getAttribute('data-tile') };
     });
 
     function rectOf(d, ev) {
@@ -2257,7 +2377,7 @@
     }
 
     mlayer.addEventListener('pointermove', function (ev) {
-      if (!drag) return;
+      if (!drag || ev.pointerId !== drag.id) return;
       var k = rectOf(drag, ev);
       if (!k) return;
       drag.box.style.left = k.x + '%';
@@ -2267,7 +2387,7 @@
     });
 
     mlayer.addEventListener('pointerup', function (ev) {
-      if (!drag) return;
+      if (!drag || ev.pointerId !== drag.id) return;
       var d = drag;
       drag = null;
       /* Under 4 px either way is a click: it opens the mark under it, if any,
@@ -2294,8 +2414,9 @@
       if (!k || k.w < 1 || k.h < 1) { d.box.remove(); return; }
       openNote({ row: d.row, index: null, mark: k, box: d.box });
     });
-    mlayer.addEventListener('pointercancel', function () {
-      if (drag) drag.box.remove();
+    mlayer.addEventListener('pointercancel', function (ev) {
+      if (!drag || ev.pointerId !== drag.id) return;
+      drag.box.remove();
       drag = null;
     });
 
@@ -2304,11 +2425,15 @@
      * its own, and at 1:1 a drag pans the capture (components.css). */
     var swipeFrom = null;
     body.addEventListener('pointerdown', function (ev) {
-      swipeFrom = ev.pointerType === 'touch' ? { id: ev.pointerId, x: ev.clientX, y: ev.clientY } : null;
+      /* Only a primary touch (no other touch held) starts one; any other
+       * finger down drops it, so a pinch never walks. A press the mark layer
+       * took (its handler runs first) is a mark, never a swipe (BL-649). */
+      swipeFrom = ev.isPrimary && ev.pointerType === 'touch' && !drag ? { x: ev.clientX, y: ev.clientY } : null;
     });
+    body.addEventListener('pointercancel', function () { swipeFrom = null; });
     body.addEventListener('pointerup', function (ev) {
-      /* Measured from the same finger's pointerdown, never another one's. */
-      if (swipeFrom && ev.pointerId !== swipeFrom.id) return;
+      /* Only the tracked finger's lift: no other touch, mouse or pen. */
+      if (!ev.isPrimary || ev.pointerType !== 'touch') return;
       var from = swipeFrom;
       swipeFrom = null;
       if (from === null || !dlg.classList.contains('shots') || dlg.classList.contains('native')) return;
@@ -2449,6 +2574,7 @@
     if (recovered.n || recovered.stale || recovered.spent) {
       showRestoredNote(recovered.n, recovered.stale, recovered.spent);
     }
+    watchStaleTab();
     markRecommendations();
     addClearControls();
     document.addEventListener('input', function () { refresh(); save(); });

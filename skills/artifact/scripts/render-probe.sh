@@ -2,7 +2,9 @@
 # render-probe.sh — the rendered-geometry gate that runs AFTER check-artifact.sh.
 # check-artifact reads source; this loads the page headless (Playwright Chromium,
 # 1280 and 390 px) and fails on what the reader sees: text over text, svg text
-# outside its svg, content spilling out of or cut by its box, a fixed control over
+# outside its svg, content spilling out of or cut by its box, a table of one to three
+# columns wider than the box it scrolls in, svg text under the 11 px floor at 390 px,
+# an unfilled stroked rect whose edge crosses an svg text, a fixed control over
 # body text, horizontal page scroll; and the three render contract classes
 # (text-style-drift, figure-text-contrast in both schemes, svg-label-outside-its-box).
 # text-style-drift's svg font-family half runs only under --contract text-style-drift:

@@ -63,14 +63,15 @@ ui-string-language
 decided-item-without-verdict
     A `.consult-item` carrying `data-decided` must carry the verdict its fold
     shows, read the way composer.js decidedSummary/decidedLine read it: a
-    non-blank `data-decided` value, or anywhere in its subtree (nested items
+    `data-decided` value non-blank once its [`*] markup is stripped (md_body.PLAIN,
+    as the fold strips it), or anywhere in its subtree (nested items
     included, as querySelectorAll walks them) a `checked` radio/checkbox whose
     label (data-label, else value, else "on") is non-blank, or an explicitly
     `selected` <option> whose value (value attribute, else its text) is
     non-empty — a selected placeholder `value=""` is no verdict. Two rules are
     deliberately STRICTER than the runtime: a select's implicit first option
     is not a verdict (the source does not say it was chosen), and a
-    `data-decided` of "yes"/"true"/"1" (any case) is not one either — the fold
+    `data-decided` of "yes"/"true"/"1" (any case, any [`*] markup) is not one either — the fold
     would show a bare "yes". A verdict only in the item's prose is hidden by
     the fold.
 
@@ -157,6 +158,10 @@ import re
 import sys
 import unicodedata
 from html.parser import HTMLParser
+
+# Loaders by file path (tests, the usage-retro reader) need not put dash/ on the path.
+sys.path.insert(0, __file__.rsplit("/", 1)[0])
+import md_body                                              # noqa: E402
 
 # --- a small tree ------------------------------------------------------------
 
@@ -404,6 +409,12 @@ def check_decision_page_not_interactive(path, html_text):
 
 FACTS_MIN = 4           # check_artifact.FACTS_MIN (consult-facts warning, BL-270)
 PROSE_SENTENCES = 3
+# A source line ("Fuente: ..." / "Source: ..."): it may list several file paths
+# (BL-643), so the <code> count and the path run skip it. check_artifact's
+# facts_paragraphs and its Fuente checks import this one recogniser.
+FUENTE_LEAD = re.compile(r"^\s*(?:fuente|source)s?\s*:", re.I)
+# A sentence break inside a paragraph: ". " / "? " / "! " followed by more text.
+SENTENCE_BREAK = re.compile(r"[.!?]\s+\S")
 PATH_RUN = 3
 # A prose sentence: starts with a capital (or ¿/¡), runs at least four words of
 # letters, ends with . ! or ? before whitespace or the end. A token excludes the
@@ -422,6 +433,12 @@ PATH_SEP = re.compile(r"^(?:\s*[,;]\s*(?:(?:and|y|e)\s+)?|\s+(?:and|y|e)\s+)$")
 # Not paths although they carry a slash: dd/mm and dd/mm/yyyy dates, and
 # `<area>/BL-nnn` backlog references (corpus false positives, 2026-09-27).
 NOT_PATH = re.compile(r"^\d{1,2}/\d{1,2}(?:/\d{2,4})?$|(?:^|/)BL-\d+$")
+
+
+def is_fuente_line(bare):
+    """True when `bare` (a paragraph's text outside <code>) is a source LINE: it
+    starts with Fuente:/Source: and has no internal sentence break (BL-643)."""
+    return bool(FUENTE_LEAD.match(bare)) and not SENTENCE_BREAK.search(bare.strip())
 
 
 def path_run(text):
@@ -467,13 +484,15 @@ def check_mixed_content_types(path, html_text):
             prose = n.text()
             bare = text_outside_code(n)          # a `;` inside <code> is code
             clauses = bare.count(";") + 1 if ";" in bare else 1
-            if codes >= FACTS_MIN or clauses >= FACTS_MIN:
-                shape = ("%d <code> tokens" % codes if codes >= FACTS_MIN
+            fuente = is_fuente_line(bare)
+            if (codes >= FACTS_MIN and not fuente) or clauses >= FACTS_MIN:
+                shape = ("%d <code> tokens" % codes
+                         if codes >= FACTS_MIN and not fuente
                          else "%d semicolon-separated clauses" % clauses)
                 out.append((slug, n.line, "paragraph with %s (\"%s…\"): facts of "
                             "one shape are a list or a table"
                             % (shape, _norm(prose)[:50])))
-            run = path_run(prose)
+            run = "" if fuente else path_run(prose)
             if run:
                 out.append((slug, n.line, "paragraph lists file paths in a "
                             "sentence (\"%s\"): write them as a list"
@@ -540,14 +559,14 @@ KIT_STRINGS = {
            "Anything the options do not cover…", "Anything the list does not cover…",
            "Anything the value alone does not say…", "The choice", "The value",
            "Anything that does not fit above", "Whatever it is…", "Your answer…",
-           "Notes on this row", "What to change…"},
+           "Notes on this row", "What to change…", "notes"},
     "es": {"Copiar mis respuestas", "Contenido", "Notas sobre esta",
            "Notas sobre esto", "Cualquier cosa que las opciones no cubran…",
            "Lo que las opciones no cubren…", "Cualquier cosa que la lista no cubra…",
            "Cualquier cosa que el valor por sí solo no diga…", "La elección",
            "El valor", "Cualquier cosa que no encaje arriba",
            "Lo que no encaja arriba", "Lo que sea…", "Tu respuesta…",
-           "Notas sobre esta fila", "Qué cambiar…"},
+           "Notas sobre esta fila", "Qué cambiar…", "notas"},
 }
 CHROME_IDS = ("consult-copy", "consult-copy-end")
 CHROME_CLASSES = ("railhead", "fieldlabel", "consult-status")
@@ -589,7 +608,8 @@ NOT_A_VERDICT = ("yes", "true", "1")      # stricter than the runtime, on purpos
 
 
 def _has_verdict(item):
-    v = (item.attrs.get("data-decided") or "").strip()
+    # The fold strips [`*] before it shows the verdict (BL-545): read it the same way.
+    v = md_body.PLAIN.sub("", item.attrs.get("data-decided") or "").strip()
     if v:
         return v.lower() not in NOT_A_VERDICT
     for d in item.walk():                     # composer.js:346, the whole subtree

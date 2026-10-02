@@ -124,6 +124,50 @@ PY
 msg="$(gen "$TMP/bad2.json" 2>&1 >/dev/null)"; [[ "$msg" == *"runs outside"* ]] \
   && ok "highlight_before is validated against the before capture" || fail "highlight_before not validated: $msg"
 
+echo "== BL-607: \"highlight\": \"@name\" resolves from <capture>.regions.json =="
+png shots/named.png 1600 900
+png shots/named-before.png 1600 900
+cat > "$ROOT/shots/named.regions.json" <<'JSON'
+{"error": {"x": 120, "y": 340, "w": 200, "h": 24}, "bad": {"x": 1}, "lst": [{"x": 1, "y": 1, "w": 5, "h": 5}, {"x": 9, "y": 9, "w": 5, "h": 5}], "str": "@other", "wide": {"x": 1500, "y": 0, "w": 200, "h": 10}}
+JSON
+cat > "$ROOT/shots/named-before.regions.json" <<'JSON'
+{"old": {"x": 800, "y": 450, "w": 160, "h": 90}}
+JSON
+named() {  # named <highlight json> [<highlight_before json>] -> rows file
+  python3 - "$TMP/named.json" "$1" "${2:-}" <<'PY'
+import json, sys
+row = {"cell": "hlrow", "variant": "light-desktop", "kind": "review",
+       "before": "shots/named-before.png", "after": "shots/named.png",
+       "highlight": json.loads(sys.argv[2])}
+if sys.argv[3]: row["highlight_before"] = json.loads(sys.argv[3])
+json.dump({"gallery": "audit", "variants": ["light-desktop"], "rows": [row]}, open(sys.argv[1], "w"))
+PY
+}
+named '"@error"' '"@old"'
+gen "$TMP/named.json" > "$TMP/named.html" 2> "$TMP/named.err" \
+  || fail "a named highlight was refused: $(cat "$TMP/named.err")"
+nm="$(item audit-hlrow-light-desktop "$TMP/named.html")"
+grep -q 'data-tile="after".*left:7.5%;top:37.778%;width:12.5%;height:2.667%' <<<"$nm" \
+  && grep -q 'data-tile="before".*left:50%;top:50%;width:10%;height:10%' <<<"$nm" \
+  && ok "@error is 120/1600, 340/900 and its size in percent on the after; @old on the before sidecar" \
+  || fail "the named highlight markup is wrong: $(grep -o 'gal-hl[^>]*' <<<"$nm")"
+named '{"x":120,"y":340,"w":200,"h":24}'
+literal="$(gen "$TMP/named.json" 2>/dev/null | grep -o 'gal-hl" style="[^"]*"')"
+[[ "$literal" == "$(grep -o 'gal-hl" style="[^"]*"' <<<"$(item audit-hlrow-light-desktop "$TMP/named.html")" | sed -n 2p)" ]] \
+  && ok "the literal form still draws the same box" || fail "named and literal differ: $literal"
+refuse_named() {  # refuse_named <label> <highlight json> <message part>
+  named "$2"; msg="$(gen "$TMP/named.json" 2>&1 >/dev/null)"; rc=$?
+  [[ $rc == 2 && "$msg" == *"row 'hlrow'"* && "$msg" == *"$3"* ]] && ok "$1" || fail "$1 (rc=$rc): $msg"
+}
+refuse_named "an unknown name is refused, naming the cell" '"@missing"' "is not in"
+refuse_named "a malformed sidecar entry names the sidecar" '"@bad"' "named.regions.json"
+refuse_named "a list sidecar entry is refused, not cut to its first box" '"@lst"' "named.regions.json"
+refuse_named "a string sidecar entry is refused, not a traceback" '"@str"' "named.regions.json"
+refuse_named "a region outside the capture is refused" '"@wide"' "runs outside"
+refuse_named "a name that is not @name is refused" '"@a b"' "a named highlight is"
+rm "$ROOT/shots/named.regions.json"
+refuse_named "a missing sidecar is refused" '"@error"' "is missing"
+
 echo "== layout: a pair sits side by side by default (owner 2026-10-01); stacked only on request =="
 ! grep -q 'gal stacked' <<<"$pair" && ! grep -q 'gal stacked' <<<"$(item audit-phone-dark-mobile "$TMP/g.html")" \
   && ok "a desktop pair and a mobile pair both sit side by side" || fail "the default layout is not side by side"
@@ -144,6 +188,9 @@ import json, sys
 r = json.load(sys.stdin)["rows"]
 sys.exit(0 if len(r) == 1 and r[0]["cell"] == "users-list-menu" and r[0]["verdict"] == "Necesita cambios" else 1)' \
   && ok "the row id, cell and verdict come back" || fail "the reply did not round-trip"
+
+gen "$TMP/rows.json" --lang en 2>/dev/null | grep >/dev/null -F '<span class="gal-intro-narrow">On a phone, tap Enlarge to read each capture.</span>' \
+  && ok "BL-615: an English page carries the English hint" || fail "BL-615: the English hint is missing"
 
 echo "== the browser: rail, label, outline, overflow =="
 module=""
@@ -178,6 +225,8 @@ PY
     "Ampliar sits in the flow below the capture, covering none of it"
   check 'd["zoom"]["open"] and d["zoom"]["boxes"] == 1 and d["zoom"]["frac"] == [10, 10, 20, 20]' \
     "the zoom view draws the same outline over the enlarged capture"
+  check 'd["desktop"]["introHint"] == "none"' "BL-615: the narrow-screen hint is display:none at 1280 px"
+  check '"toca Ampliar" in d["phone"]["introText"]' "BL-615: at 390 px the visible intro tells the reader to tap Ampliar"
   check 'd["phone"]["overflow"] <= 0 and not d["phone"]["imgPastEdge"]' "at 390 px nothing overflows the page"
 fi
 

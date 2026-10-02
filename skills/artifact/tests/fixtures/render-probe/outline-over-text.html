@@ -1,0 +1,21 @@
+<!-- render-probe fixture (BL-648): a highlight outline (stroked rect, no fill) whose stroke
+     crosses a text of the same figure. The first svg's outline edge runs through the
+     label "cruzafix"; the second svg's outline surrounds "libre" with clearance on every
+     side, and a filled card behind a label is not an outline: both stay clean. -->
+<div class="page"><main class="main">
+<h1>Resaltado</h1>
+<figure>
+<svg viewBox="0 0 300 100" width="300" height="100" role="img" aria-label="Resaltado cruzado">
+  <text x="40" y="55" font-size="14" fill="currentColor">cruzafix etiqueta</text>
+  <rect class="outcross" x="30" y="30" width="60" height="40" rx="4" fill="none" stroke="#d33" stroke-width="2"/>
+</svg>
+</figure>
+<figure>
+<svg viewBox="0 0 300 100" width="300" height="100" role="img" aria-label="Resaltado limpio">
+  <text x="60" y="55" font-size="14" fill="currentColor">librefix</text>
+  <rect class="outclear" x="20" y="20" width="160" height="60" rx="4" fill="none" stroke="#d33" stroke-width="2"/>
+  <rect class="card" x="200" y="30" width="60" height="30" fill="#eee" stroke="#d33" stroke-width="2"/>
+  <text x="205" y="50" font-size="12" fill="#000">cardfix</text>
+</svg>
+</figure>
+</main></div>

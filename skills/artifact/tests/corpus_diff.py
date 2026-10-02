@@ -6,11 +6,15 @@ Usage:
     python3 corpus_diff.py --quiet <spec.md> <original>  # exit status only
 
 Exit 0 when the conversion is clean: the `data-id` sequence is IDENTICAL and
-the visible-text token sequence is IDENTICAL. One allowance (owner ruling
-2026-09-28, the consult contract wins): a group id or the general-notes item
+the visible-text token sequence is IDENTICAL. Two allowances. (1) Owner ruling
+2026-09-28, the consult contract wins: a group id or the general-notes item
 that only the build has is not counted, the notes item's title with it, as long
-as every original id keeps its order. Which option is recommended and which is
-checked is compared too (`corpus_html.option_flags`, rule in `_first_flag_divergence`). Inside an option's label the " — "
+as every original id keeps its order. (2) A built item's situation lead is
+read in front of its h3 (BL-514), except under a title h3 (BL-576), where it is
+read there only if the ORIGINAL item had content before its h3 (a finding
+card's chips); `corpus_html._lead_first`. Each option's input type (radio or
+checkbox), and which option is recommended and which is checked, are compared
+too (`corpus_html.option_flags`, rule in `_first_flag_divergence`). Inside an option's label the " — "
 separator the builder leaves implicit and the kit's badge word are read in one
 canonical form (`corpus_html.py`). Exit 1 otherwise, with the first
 divergence printed in context — a conversion is never eyeballed, so the failure
@@ -71,10 +75,20 @@ def compare_body(body, page_path):
         problems.append("ids differ\n  original: %s\n  built:    %s\n%s"
                         % (wi, gi, _unified(wi, gi, "id")))
 
-    wt, gt = corpus_html.tokens(want), corpus_html.tokens(got)
+    wh, gh = corpus_html.h3_texts(want), corpus_html.h3_texts(got)
+    same_h3 = {i for i, t in wh.items() if gh.get(i) == t}
+    wt, gt = corpus_html.tokens(want), corpus_html.tokens(
+        got, lead_first_ids=corpus_html.ids_with_content_before_h3(want),
+        same_h3_ids=same_h3)
     if wt != gt:
         problems.append("visible text differs (%d words in the page, %d built)\n%s"
                         % (len(wt), len(gt), _first_divergence(wt, gt)))
+
+    wd, gd = corpus_html.data_titles(want), corpus_html.data_titles(got)
+    moved = ["  %s: original %r, built %r" % (i, t, gd.get(i))
+             for i, t in wd.items() if gd.get(i) != t]
+    if moved:
+        problems.append("data-titles differ\n" + "\n".join(moved[:5]))
 
     wf = corpus_html.option_flags(want, original=True)
     gf = corpus_html.option_flags(got)
@@ -88,18 +102,19 @@ def compare_body(body, page_path):
 def _first_flag_divergence(want, got):
     """The first option whose marks drifted, or "" when they hold.
 
-    Recommended must be identical. Checked must hold for every option the
-    original checked; the build may ALSO check the recommended option of an
-    item the ORIGINAL marks decided and in which it checked no option
+    The input type (radio or checkbox) and recommended must be identical.
+    Checked must hold for every option the original checked; the build may
+    ALSO check the recommended option of an item the ORIGINAL marks decided
+    and in which it checked no option
     (`open_verdict`; `decided=yes` shows a verdict: the consult contract wins,
     owner ruling 2026-09-28).
     """
     def show(f):
-        return "recommended=%s checked=%s" % (f[1], f[2])
+        return "%s recommended=%s checked=%s" % (f[4], f[1], f[2])
     if len(want) != len(got):
         return "  %d options in the page, %d built" % (len(want), len(got))
     for i, (w, g) in enumerate(zip(want, got)):
-        if w[1] != g[1] or (w[2] and not g[2]) or (g[2] and not w[2] and not (g[1] and w[3])):
+        if w[4] != g[4] or w[1] != g[1] or (w[2] and not g[2]) or (g[2] and not w[2] and not (g[1] and w[3])):
             return ("  option %d (%s): original %s, built %s"
                     % (i + 1, w[0][:50], show(w), show(g)))
     return ""

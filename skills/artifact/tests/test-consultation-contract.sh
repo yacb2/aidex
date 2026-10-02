@@ -537,6 +537,11 @@ mkpage "$TMP/warn-facts.html" "$visual
   <p>The hook runs <code>a; b; c; d</code> once per session.</p>
   <textarea></textarea>
 </section>
+<section class=\"consult-item\" data-id=\"Q4\" data-free data-title=\"Source line\">
+  <h3>Source line</h3>
+  <p>Fuente: sección 4; sección 5; <code>a.py</code>, <code>b.py</code>, <code>c.py</code>, <code>run.sh; exit</code>.</p>
+  <textarea></textarea>
+</section>
 $gclose
 $notesitem
 $bars
@@ -558,6 +563,12 @@ grep -Eq "WARN \[consult-facts\].*'(Q1|G1)'" "$TMP/out" \
 # code to mixed-content-types, and still clauses to consult-facts.
 grep -q "WARN \[consult-facts\].*'Q3' carries a paragraph with 4 semicolon-separated clauses" "$TMP/out" \
   || fail "10b. the paragraph only consult-facts sees lost its warning: $(cat "$TMP/out")"
+# BL-643: a Fuente LINE may list several paths, so its <code> count is no FAIL; the
+# semicolons inside <code> still make the consult-facts warning, named by clauses.
+grep -q "WARN \[consult-facts\].*'Q4' carries a paragraph with 4 semicolon-separated clauses" "$TMP/out" \
+  || fail "10b. BL-643: a Fuente line with in-code semicolons lost its clause warning: $(cat "$TMP/out")"
+grep -q "'Q4'.*<code> tokens\|mixed-content-types.*sección 4" "$TMP/out" \
+  && fail "10b. BL-643: a Fuente line was reported by code count: $(cat "$TMP/out")"
 grep -q "\[mixed-content-types\].*a; b; c; d\|\[mixed-content-types\].*The hook runs" "$TMP/out" \
   && fail "10b. semicolons inside <code> were counted as clauses by mixed-content-types: $(cat "$TMP/out")"
 grep -q "WARN \[consult-facts\].*'Q2'" "$TMP/out" \
@@ -568,7 +579,7 @@ grep -q "WARN \[consult-facts\].*'Q2'" "$TMP/out" \
 mkpage "$TMP/warn-clean.html" "$visual
 $gopen
 <section class=\"consult-item\" data-id=\"Q1\" data-title=\"Declared properly\">
-  <h3>Declared properly</h3>
+  <h3>Declared properly?</h3>
   <div class=\"opts one\">
     <label><input type=\"radio\" name=\"Q1\" data-label=\"A\" data-recommended><span>A</span></label>
     <label><input type=\"radio\" name=\"Q1\" data-label=\"B\" data-recommended=\"no\"><span>B</span></label>
@@ -829,6 +840,147 @@ grep -q "WARN \[consult-lead-id\].*'E2'" "$TMP/out" \
 grep -q "WARN \[consult-lead-id\].*'E3'" "$TMP/out" \
   || fail "10b4c. a situation lead opening with M095 above its question did not warn: $(cat "$TMP/out")"
 
+# 10b4d. BL-631: a product name with a number ("Los Simpson T8") is not an id.
+# A bare letter+digits counts only after an id word or as a Q/M095 prefix, and
+# never right after a capitalized proper-noun word.
+mkpage "$TMP/lead-ids3.html" "$visual
+$gopen
+$(idem F1 'Ana sube el archivo X al proyecto Los Simpson T8 y al día siguiente llega E0804_v2.')
+$(idem F2 'La decisión B10 fija el límite del proyecto.')
+$(idem F3 'The Q3 decides the scope of the project.')
+$(idem F4 'Per M095 the manager cannot delete the project.')
+$(idem F5 'Ana buys a Samsung Q80 and plugs it in.')
+$(idem F6 'The decisions B10 and B11 set the project limit.')
+$gclose
+$notesitem
+$bars
+$composer"
+rc="$(run "$TMP/lead-ids3.html")"
+[[ "$rc" == "0" ]] || fail "10b4d. consult-lead-id changed the exit code: $(cat "$TMP/out")"
+grep -q "WARN \[consult-lead-id\].*'F1'" "$TMP/out" \
+  && fail "10b4d. BL-631: a product name with a number is not an id, F1 must not warn: $(cat "$TMP/out")"
+grep -q "WARN \[consult-lead-id\].*'F2'" "$TMP/out" \
+  || fail "10b4d. BL-631: 'La decisión B10' must still warn: $(cat "$TMP/out")"
+for id in F3 F4 F6; do
+  grep -q "WARN \[consult-lead-id\].*'$id'" "$TMP/out" \
+    || fail "10b4d. BL-631: $id opens with a known id and must warn: $(cat "$TMP/out")"
+done
+grep -q "WARN \[consult-lead-id\].*'F5'" "$TMP/out" \
+  && fail "10b4d. BL-631: F5 (Samsung Q80) is a product name and must not warn: $(cat "$TMP/out")"
+
+# 10b4e. BL-623: a Fuente line made only of short codes / untranslated English
+# words on a Spanish page, and an item with options whose h3 states instead of
+# asking. WARN only. A real word beside the code ("decisión d4 ... fase 8") and
+# an English page ("phase") stay clean. mkpage is lang=en, so sed swaps it.
+qitem() {  # id, h3 text, fuente text
+  printf '<section class=\"consult-item\" data-id=\"%s\" data-title=\"T %s\"><h3>%s</h3><p>Ana abre el proyecto y no ve el botón.</p><p>%s</p><div class=\"opts\"><label><input type=\"radio\" name=\"%s\" data-label=\"A\"><span>A</span></label><label><input type=\"radio\" name=\"%s\" data-label=\"B\"><span>B</span></label></div><textarea></textarea></section>' "$1" "$1" "$2" "$3" "$1" "$1"
+}
+mkpage "$TMP/fuente-es.html" "$visual
+$gopen
+$(qitem H1 '¿Mostramos el botón?' 'Fuente: d4, M4, phase 8.')
+$(qitem H2 'La columna Idiomas muestra el texto cortado.' 'Fuente: decisión d4 del contrato de pantallas, fase 8.')
+$(qitem H3 '¿Mostramos el botón?' 'Fuente: decisión d4 del contrato de pantallas, fase 8.')
+$gclose
+$notesitem
+$bars
+$composer"
+sed -i.bak 's/<html lang="en">/<html lang="es">/' "$TMP/fuente-es.html"
+rc="$(run "$TMP/fuente-es.html")"
+[[ "$rc" == "0" ]] || fail "10b4e. the new warnings changed the exit code: $(cat "$TMP/out")"
+grep -q "WARN \[consult-fuente-unreadable\].*'H1'" "$TMP/out" \
+  || fail "10b4e. BL-623: 'Fuente: d4, M4, phase 8.' on a Spanish page was not reported: $(cat "$TMP/out")"
+grep -q "WARN \[consult-heading-statement\].*'H2'" "$TMP/out" \
+  || fail "10b4e. BL-623: an item with options and a statement h3 was not reported: $(cat "$TMP/out")"
+for id in H2 H3; do
+  grep -q "WARN \[consult-fuente-unreadable\].*'$id'" "$TMP/out" \
+    && fail "10b4e. BL-623: $id has a readable Fuente and must not warn: $(cat "$TMP/out")"
+done
+for id in H1 H3; do
+  grep -q "WARN \[consult-heading-statement\].*'$id'" "$TMP/out" \
+    && fail "10b4e. BL-623: $id heading is a question and must not warn: $(cat "$TMP/out")"
+done
+# 10b4e review round: gallery rows and decided items are not asked, backlog-id
+# Fuente lines are what consult-lead-id tells authors to write.
+radios2='<div class="opts"><label><input type="radio" name="g" data-label="A"><span>A</span></label><label><input type="radio" name="g" data-label="B"><span>B</span></label></div>'
+mkpage "$TMP/fuente-es2.html" "$visual
+$gopen
+<section class=\"consult-item consult-gallery\" data-id=\"g-a-b\" data-title=\"g · a · b\"><h3>Lista vacía</h3>$radios2<textarea></textarea></section>
+$(qitem K1 'La columna muestra el texto cortado.' 'Fuente: decisión d4 del contrato.' | sed 's/data-title=/data-decided=\"Aprobada\" data-title=/')
+$(qitem K2 '¿Mostramos el botón?' 'Fuente: BL-617.')
+$(qitem K3 '¿Mostramos el botón?' 'Fuente: BL-716, BL-708, P11.')
+$gclose
+$notesitem
+$bars
+$composer"
+sed -i.bak 's/<html lang="en">/<html lang="es">/' "$TMP/fuente-es2.html"
+rc="$(run "$TMP/fuente-es2.html")"
+grep -q "WARN \[consult-heading-statement\].*'g-a-b'" "$TMP/out" \
+  && fail "10b4e. BL-623: a gallery row heading is a state name and must not warn: $(cat "$TMP/out")"
+grep -q "WARN \[consult-heading-statement\].*'K1'" "$TMP/out" \
+  && fail "10b4e. BL-623: a decided item is not asked and must not warn: $(cat "$TMP/out")"
+grep -q "WARN \[consult-fuente-unreadable\].*'K2'" "$TMP/out" \
+  && fail "10b4e. BL-623: 'Fuente: BL-617.' is what consult-lead-id asks for and must stay clean: $(cat "$TMP/out")"
+grep -q "WARN \[consult-fuente-unreadable\].*'K3'" "$TMP/out" \
+  || fail "10b4e. BL-623: 'Fuente: BL-716, BL-708, P11.' was not reported: $(cat "$TMP/out")"
+mkpage "$TMP/fuente-en.html" "$visual
+$gopen
+$(qitem J1 'Do we show the button?' 'Source: d4, M4, phase 8.')
+$gclose
+$notesitem
+$bars
+$composer"
+rc="$(run "$TMP/fuente-en.html")"
+grep -q "WARN \[consult-fuente-unreadable\]" "$TMP/out" \
+  && fail "10b4e. BL-623: 'phase' on an English page is not untranslated: $(cat "$TMP/out")"
+
+# 10b4f. BL-650: a raw gallery-row slug, or a bare "notes" label, in the visible
+# prose of a Spanish page WARNs (consult-raw-label). The same strings inside a
+# Fuente line, <code> or a data attribute stay clean, and so does ordinary
+# hyphenated content (a date, BL-123, a file name, a URL, an e-mail).
+slug='users-list-actions-menu-invited-light-desktop'
+mkpage "$TMP/raw-label-es.html" "$visual
+$(printf '%s' "$gopen" | sed 's/data-title=\"The context\"/data-title=\"The context\" data-tiles=\"light-desktop\"/')
+<section class=\"consult-item consult-gallery\" data-id=\"$slug\" data-title=\"users · list\"><h3><span class=\"consult-id\">$slug</span>Menú de acciones</h3><p class=\"gal-na\">No aplica a este estado.</p>$radios2<textarea></textarea></section>
+<section class=\"consult-item\" data-id=\"R1\" data-title=\"Titulo 1\"><h3>¿Cambiamos el menú?</h3><p>Ana abre la lista. La fila $slug se ve cortada.</p>$radios2<textarea></textarea></section>
+<section class=\"consult-item\" data-id=\"R2\" data-title=\"Titulo 2\"><h3>¿Mostramos el botón?</h3><p>Ana abre el proyecto.</p><label>notes</label><div class=\"opts\"><label><input type=\"radio\" name=\"R2\" data-label=\"A\"><span>A</span></label><label><input type=\"radio\" name=\"R2\" data-label=\"B\"><span>B</span></label></div><textarea></textarea></section>
+<section class=\"consult-item\" data-id=\"R3\" data-title=\"Titulo 3\"><h3>¿Mostramos el botón?</h3><p>Ana abre el proyecto; ver <code>$slug</code>.</p><p>Fuente: $slug, notes.</p><p>Fuente: <em>notes</em></p><p data-x=\"$slug\">Sin ids a la vista.</p><div class=\"opts\"><label><input type=\"radio\" name=\"R3\" data-label=\"A\"><span>A</span></label><label><input type=\"radio\" name=\"R3\" data-label=\"B\"><span>B</span></label></div><textarea></textarea></section>
+<section class=\"consult-item\" data-id=\"R4\" data-title=\"Titulo 4\"><h3>¿Mostramos el botón?</h3><p>Ana abre el proyecto. Desde 2026-10-02 (BL-123) el archivo foo-bar-baz.md y https://x.dev/a-b-c-d no cambian; escríbenos a e-mail@x.dev. Es un cambio socio-económico.</p><div class=\"opts\"><label><input type=\"radio\" name=\"R4\" data-label=\"A\"><span>A</span></label><label><input type=\"radio\" name=\"R4\" data-label=\"B\"><span>B</span></label></div><textarea></textarea></section>
+$gclose
+$(printf '%s' "$notesitem" | sed 's|<h3>General notes</h3>|<h3><span class="consult-id">notes</span>Notas generales</h3>|')
+$bars
+$composer"
+sed -i.bak 's/<html lang="en">/<html lang="es">/' "$TMP/raw-label-es.html"
+rc="$(run "$TMP/raw-label-es.html")"
+[[ "$rc" == "0" ]] || fail "10b4f. BL-650: consult-raw-label changed the exit code — it is a warning: $(cat "$TMP/out")"
+grep -q "WARN \[consult-raw-label\].*'R1'.*$slug" "$TMP/out" \
+  || fail "10b4f. BL-650: a row slug in visible prose was not reported: $(cat "$TMP/out")"
+grep -q "WARN \[consult-raw-label\].*'R2'.*'notes'" "$TMP/out" \
+  || fail "10b4f. BL-650: a bare notes label on a Spanish page was not reported: $(cat "$TMP/out")"
+for id in "$slug" R3 R4 notes; do
+  grep -q "WARN \[consult-raw-label\] [^:]*: '$id' shows" "$TMP/out" \
+    && fail "10b4f. BL-650: $id has only Fuente/code/attribute/ordinary hyphens and must stay clean: $(cat "$TMP/out")"
+done
+
+sed -i.bak 's/<html lang="es">/<html lang="en">/' "$TMP/raw-label-es.html"
+rc="$(run "$TMP/raw-label-es.html")"
+grep -q "WARN \[consult-raw-label\]" "$TMP/out" \
+  && fail "10b4f. BL-650: an English page is not judged for a Spanish label: $(cat "$TMP/out")"
+
+# A hand-written row id of fewer than three segments ("vacio") is ordinary prose
+# elsewhere; the gallery contract FAILs such a page, but the WARN must not add noise.
+mkpage "$TMP/raw-short.html" "$visual
+$(printf '%s' "$gopen" | sed 's/data-title=\"The context\"/data-title=\"The context\" data-tiles=\"light-desktop\"/')
+<section class=\"consult-item consult-gallery\" data-id=\"vacio\" data-title=\"vacio\"><h3>Estado vacío</h3><p class=\"gal-na\">No aplica a este estado.</p>$radios2<textarea></textarea></section>
+<section class=\"consult-item\" data-id=\"S1\" data-title=\"Titulo S1\"><h3>¿Mostramos el botón?</h3><p>Ana abre la lista y se ve vacio hoy.</p>$radios2<textarea></textarea></section>
+$gclose
+$notesitem
+$bars
+$composer"
+sed -i.bak 's/<html lang="en">/<html lang="es">/' "$TMP/raw-short.html"
+rc="$(run "$TMP/raw-short.html")"
+grep -q "WARN \[consult-raw-label\]" "$TMP/out" \
+  && fail "10b4f. BL-650: a gallery id of fewer than three segments is prose and must not warn: $(cat "$TMP/out")"
+
 # ---- 10c. BL-310: SVG text that overlaps, leaves the viewBox or outgrows
 # its box. A consultation shipped with two hand-authored figures whose labels
 # collided and two labels wider than their boxes, and passed 'artifact
@@ -916,6 +1068,23 @@ grep -q "WARN \[figure-tall\].*#n:" "$TMP/out" \
 rc="$(run "$TMP/siete.html")"
 grep -q "WARN \[figure-tall\].*#siete:.*fewer boxes per column, or a wider layout" "$TMP/out" \
   || fail "10c3. a 7-box diagram (508 units) did not warn with advice that fits an engine figure: $(cat "$TMP/out")"
+
+# BL-620: the same verdict on a bare .svg file (root element <svg>), so the
+# figure drawer's own gate run sees it. 1200x820 and 960x508 warn, 960x500 does not.
+for dims in "1200 820" "960 508" "960 500"; do
+  set -- $dims
+  printf '<?xml version="1.0"?>\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %s %s" role="img" aria-label="bare"><rect x="1" y="1" width="9" height="9"/></svg>\n' "$1" "$2" > "$TMP/bare-$2.svg"
+done
+# A UTF-8 BOM before the prolog is a valid deliverable (the embedder accepts it).
+{ printf '\xef\xbb\xbf'; cat "$TMP/bare-820.svg"; } > "$TMP/bare-bom.svg"
+grep -q "WARN \[figure-tall\].*820 units tall" <(bash "$CHECK" "$TMP/bare-bom.svg" 2>&1) \
+  || fail "10c3. BL-620: a BOM-prefixed bare 1200x820 svg file got no figure-tall verdict"
+grep -q "WARN \[figure-tall\].*820 units tall" <(bash "$CHECK" "$TMP/bare-820.svg" 2>&1) \
+  || fail "10c3. BL-620: a bare 1200x820 svg file got no figure-tall verdict"
+grep -q "WARN \[figure-tall\].*508 units tall" <(bash "$CHECK" "$TMP/bare-508.svg" 2>&1) \
+  || fail "10c3. BL-620: a bare 960x508 svg file got no figure-tall verdict"
+grep -q "WARN \[figure-tall\]" <(bash "$CHECK" "$TMP/bare-500.svg" 2>&1) \
+  && fail "10c3. BL-620: a bare svg at the 500-unit cap was reported"
 
 # ---- 10d. BL-330: an embedded <style> is a stylesheet in the PAGE, and the
 # text nobody measured. Reported by the owner on a bench page: "los textos que

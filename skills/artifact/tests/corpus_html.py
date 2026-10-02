@@ -197,8 +197,8 @@ def figures_dropped(node):
 # (composer.js `rec`; test-goal-gate.sh holds BADGE_WORDS to it). So an option
 # label is read in one canonical form: a `.hint` gets the " — " separator in front unless it already starts with one,
 # and one badge word is taken out. Nothing outside an option label is
-# normalised. Which option is recommended, and which is checked, IS compared
-# (`option_flags`): a decided item's winning option is `{chosen}` in a spec
+# normalised. Which option is recommended, which is checked, and its input type
+# (radio/checkbox, BL-550) IS compared (`option_flags`): a decided item's winning option is `{chosen}` in a spec
 # (checked, not recommended), a real recommendation is `{recommended}`.
 OPTION_SEP = "\u2014"
 BADGE_WORDS = {"Recomendada", "Recommended"}
@@ -213,8 +213,8 @@ def _option_input(node):
 
 
 def option_flags(node, original=False):
-    """`[(label, recommended, checked, open_verdict), ...]`, one per option,
-    in reading order.
+    """`[(label, recommended, checked, open_verdict, type), ...]`, one per
+    option, in reading order.
 
     Recommended is the `data-recommended` attribute OR the badge the older
     pages carried as markup or text (a `.rec` element or a badge word in the
@@ -225,6 +225,8 @@ def option_flags(node, original=False):
     (contracts-sweep-decisions Q17) has no spelling and is not compared.
     The fourth flag, `open_verdict`, is whether the option's item is decided
     with no option checked in it: only there may a build add a check.
+    The fifth, `type`, is the input's `radio` or `checkbox`: the item's
+    select=one or select=many (BL-550).
     """
     found = []
     for el in node.walk():
@@ -248,7 +250,8 @@ def option_flags(node, original=False):
             or any(n.has("rec") for n in el.walk())))
         decided = item is not None and "data-decided" in item.attrs
         out.append((" ".join(words), rec, decided and "checked" in inp.attrs,
-                    decided and id(item) not in checked_items))
+                    decided and id(item) not in checked_items,
+                    inp.attrs.get("type")))
     return out
 
 
@@ -282,17 +285,54 @@ def _option_tokens(label):
     return words
 
 
-def _lead_first(children):
+def _h3_is_title(h3):
+    """True when the h3 reads exactly as its section's data-title (id badge aside)."""
+    title = h3.parent.attrs.get("data-title") if h3.parent else None
+    if not title:
+        return False
+    words = []
+    for n in h3.walk():
+        if n.tag == "#text" and not any(
+                a.has("consult-id") for a in _ancestors(n, h3)):
+            words.append(n.text)
+    return _plain("".join(words)) == _plain(title)
+
+
+def _plain(text):
+    """Words of a title with its inline markup (tags, backticks, emphasis) off."""
+    text = re.sub(r"<[^>]*>", "", html.unescape(text))
+    return " ".join(re.sub(r"[`*_]", "", text).split())
+
+
+def _ancestors(node, stop):
+    n = node.parent
+    while n is not None and n is not stop.parent:
+        yield n
+        n = n.parent
+
+
+def _lead_first(children, lead_first_ids=(), same_h3_ids=()):
     """Reading order of an item's children, the situation lead first.
 
     The builder (BL-514) keeps only an item's closing question in the h3 and
     moves the situation sentences into a `.consult-lead` paragraph right UNDER it;
     older pages wrote both in the h3, lead first. A built item is read in the
     old order: its lead goes in front of the h3. Nothing else is moved.
+
+    An item whose first paragraph asks no question keeps its TITLE in the h3 and
+    that paragraph becomes the lead (BL-576): the original read heading, then
+    statement, so a lead under an h3 that is the item's data-title stays put
+    unless the original item with that data-id had content before its h3
+    (`lead_first_ids`: a finding card whose chips precede the title). Likewise
+    an h3 the build wrote exactly as the original did (`same_h3_ids`, BL-652: a
+    `heading=`) keeps its lead after it; every other h3 hoists, so a build that
+    swapped situation and question is not accepted.
     """
     out, moved = [], set()
     for i, c in enumerate(children):
-        if c.tag != "h3":
+        did = c.parent.attrs.get("data-id")
+        if c.tag != "h3" or ((_h3_is_title(c) or did in same_h3_ids) and (
+                did not in lead_first_ids)):
             continue
         nxt = next((n for n in children[i + 1:]
                     if not (n.tag == "#text" and not n.text.strip())), None)
@@ -309,8 +349,8 @@ def _lead_first(children):
     return out
 
 
-def _collect(node, out):
-    for child in _lead_first(node.children):
+def _collect(node, out, lead_first_ids=(), same_h3_ids=()):
+    for child in _lead_first(node.children, lead_first_ids, same_h3_ids):
         if child.tag == "#text":
             out.append(child.text)
             continue
@@ -320,19 +360,70 @@ def _collect(node, out):
         if _option_input(child) is not None:
             out.append(" ".join(_option_tokens(child)))
         else:
-            _collect(child, out)
+            _collect(child, out, lead_first_ids, same_h3_ids)
         out.append(" ")
 
 
-def visible_text(node):
+def visible_text(node, lead_first_ids=(), same_h3_ids=()):
     out = []
-    _collect(node, out)
+    _collect(node, out, lead_first_ids, same_h3_ids)
     return html.unescape("".join(out))
 
 
-def tokens(node):
+def tokens(node, lead_first_ids=(), same_h3_ids=()):
     """The comparison unit: whitespace-collapsed words, in reading order."""
-    return visible_text(node).split()
+    return visible_text(node, lead_first_ids, same_h3_ids).split()
+
+
+def h3_texts(node):
+    """data-id -> the words of its first h3, the id badge aside."""
+    found = {}
+    for n in node.walk():
+        if "data-id" not in n.attrs or n.attrs["data-id"] in found:
+            continue
+        for c in n.children:
+            if c.tag == "h3":
+                found[n.attrs["data-id"]] = _plain("".join(
+                    x.text for x in c.walk() if x.tag == "#text" and not any(
+                        a.has("consult-id") for a in _ancestors(x, c))))
+                break
+    return found
+
+
+def data_titles(node):
+    """data-id -> its data-title (the rail entry and reply heading), when it has one."""
+    found = {}
+    for n in node.walk():
+        i, t = n.attrs.get("data-id"), n.attrs.get("data-title")
+        if i and t and i not in found:
+            found[i] = _title_norm(t)
+    return found
+
+
+def _title_norm(t):
+    """A data-title as the reader sees it: an inline <code>x</code> in an
+    original equals the builder's `x`, and whitespace runs collapse. Nothing
+    else is dropped, so ops_lint and opslint stay different."""
+    t = re.sub(r"<code>(.*?)</code>", r"`\1`", html.unescape(t))
+    return " ".join(t.split())
+
+
+def ids_with_content_before_h3(node):
+    """data-ids of the ORIGINAL's items that show something before their h3."""
+    found = set()
+    for n in node.walk():
+        if "data-id" not in n.attrs:
+            continue
+        for c in n.children:
+            if c.tag == "h3":
+                break
+            if c.tag != "#text" and not _dropped(c) and visible_text(c).strip():
+                found.add(n.attrs["data-id"])
+                break
+            if c.tag == "#text" and c.text.strip():
+                found.add(n.attrs["data-id"])
+                break
+    return found
 
 
 def ids(node, skip=()):

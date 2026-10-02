@@ -41,6 +41,8 @@ Four claims, in the order the plan's acceptance names them:
 
 Stdlib only, no runner: `python3 test_build.py`, prints OK, exits 0.
 """
+import contextlib
+import io
 import json
 import os
 import re
@@ -302,9 +304,42 @@ try:
               'Hoy recibe un error.</p>')
     check("...and the situation reads between the question and the options",
           -1 < h.find("</h3>") < h.find("consult-lead") < h.find('type="radio"'), h)
-    holds("item: a one-sentence lead stays whole in the h3",
+    # BL-576: a one-sentence situation has no sentence boundary, and it took
+    # the h3 whole instead of the title ("Quien entra a Inicio hoy ve ocho
+    # tarjetas…" headed an item titled KPIs; a second sentence fixed it).
+    holds("item: a one-sentence situation with no question asks the title",
           ITEM.replace("¿La pregunta, preguntada?", "El Sr. López lo pidió."),
-          '<h3><span class="consult-id">Q1</span>El Sr. López lo pidió.</h3>')
+          '<h3><span class="consult-id">Q1</span>Short name</h3>',
+          '<p class="consult-lead">El Sr. López lo pidió.</p>')
+    # BL-652: `heading=` is the sentence over an item, `title=` its short name
+    # (rail entry, reply heading) — the same split `group` already has. Without
+    # it the h3 is the title (BL-576, the case above).
+    H = ITEM.replace('title="Short name"', 'title="Short name" heading="Una oración larga que encabeza"'
+                     ).replace("¿La pregunta, preguntada?", "Contexto, no pregunta.")
+    holds("item: heading= is the h3 and title= stays the data-title",
+          H, 'data-title="Short name"',
+          '<h3><span class="consult-id">Q1</span>Una oración larga que encabeza</h3>',
+          '<p class="consult-lead">Contexto, no pregunta.</p>')
+    # ...but a one-sentence QUESTION still heads the item when it closes on
+    # markup or punctuation: the paragraph is rendered HTML, so `**¿…?**` ends
+    # in `</strong>` (asset_lab sweep 2026-10-01 Q10, Q11) and a quote in
+    # `&quot;` or `”`.
+    for label, body, heading in (
+            ("in bold", "**¿La pregunta, preguntada?**",
+             "<strong>¿La pregunta, preguntada?</strong>"),
+            ("in a closing quote", 'Lo llamamos "¿Inicio?"',
+             "Lo llamamos &quot;¿Inicio?&quot;"),
+            ("in parentheses", "(¿Lo cambiamos?)", "(¿Lo cambiamos?)"),
+            # A trailing parenthetical qualifies the answer, not the question;
+            # it headed the item before BL-576 and a rebuild must not move a
+            # live page's h3 for it.
+            ("before a parenthetical", "¿Lo cambiamos? (sí o no)",
+             "¿Lo cambiamos? (sí o no)")):
+        h = holds("item: a one-sentence question %s still heads the item"
+                  % label, ITEM.replace("¿La pregunta, preguntada?", body),
+                  '<h3><span class="consult-id">Q1</span>%s</h3>' % heading)
+        check("...and leaves no consult-lead (%s)" % label,
+              "consult-lead" not in h, h)
     holds("item: a situation with no closing question asks the title",
           ITEM.replace("¿La pregunta, preguntada?",
                        "Ana silencia una pista. Hoy recibe un error."),
@@ -344,6 +379,20 @@ try:
     rejects("item: decided=yes with no {recommended} option is refused",
             ITEM.replace(" {recommended}", ""), 2,
             "no option marked {recommended}")
+    # BL-545: the fold shows the plain form, so `**yes**` is the same bare flag.
+    rejects("item: decided=\"**yes**\" with no {recommended} option is refused "
+            "like decided=yes",
+            ITEM.replace(" {recommended}", "").replace(
+                "decided=yes", 'decided="**yes**"'), 2,
+            "no option marked {recommended}")
+    # ...and `decided="**"` folds to nothing, so it is `decided=""`: no decision
+    # at all, and a {chosen} winner with no decision is refused the same way.
+    holds("item: decided=\"**\" is no decision, like decided=\"\"",
+          ITEM.replace("decided=yes", 'decided="**"'),
+          '<section class="consult-item" data-id="Q1" data-title="Short name">')
+    rejects("item: {chosen} with decided=\"**\" is refused as not decided",
+            ITEM.replace("decided=yes", 'decided="**"').replace(
+                "{recommended}", "{chosen}"), 2, "not decided")
     # Two checked radios in one name group: the parser keeps the last, and the
     # fold shows that one as the verdict with nothing on the page saying so.
     rejects("item: decided=yes on a select=one item with two {recommended} "
@@ -466,6 +515,12 @@ try:
           MAST + CH, '<meta name="consult-dropped" content="Q7 Q8">')
     rejects("masthead: dropped-ids naming an id still in the spec is refused",
             MAST.replace("Q7", "Q1") + CH, 1, "still in the spec")
+    # BL-611: masthead retitled-ids records ids that stay with a reworded title.
+    RMAST = '::: masthead {title="T" retitled-ids="Q1"}\n:::\n\n'
+    holds("masthead: retitled-ids reaches the page as the consult-retitled meta",
+          RMAST + CH, '<meta name="consult-retitled" content="Q1">')
+    rejects("masthead: retitled-ids naming an id not in the spec is refused",
+            RMAST.replace("Q1", "Q9") + CH, 1, "not in the spec")
     qspec = os.path.join(tmp, "quoted.spec.md")
     with open(qspec, "w", encoding="utf-8") as fh:
         fh.write('::: masthead {eyebrow="P" visual="none: probe"}\n# Quoted\n\nX\n:::\n\n'
@@ -527,7 +582,23 @@ try:
           '::: notes {title="Notas generales"}\n:::',
           '<section class="consult-item consult-notes" data-id="notes" '
           'data-title="Notas generales">',
-          '<h3><span class="consult-id">notes</span>Notas generales</h3>')
+          '<h3><span class="consult-id">notas</span>Notas generales</h3>')
+    holds("notes: a lang=es default-id badge is localised, data-id stays notes",
+          '::: masthead {lang="es"}\n# T\n\nS\n:::\n'
+          '::: notes {title="Notas generales"}\n:::',
+          'data-id="notes"', '<span class="consult-id">notas</span>')
+    holds("notes: an explicit {#notes} on a lang=es page is localised too",
+          '::: masthead {lang="es"}\n# T\n\nS\n:::\n'
+          '::: notes {#notes title="N"}\n:::',
+          'data-id="notes"', '<span class="consult-id">notas</span>')
+    holds("notes: lang=en keeps the badge notes",
+          '::: masthead {lang="en"}\n# T\n\nS\n:::\n'
+          '::: notes {title="N"}\n:::',
+          '<span class="consult-id">notes</span>')
+    holds("notes: an explicit author id keeps its own badge on lang=es",
+          '::: masthead {lang="es"}\n# T\n\nS\n:::\n'
+          '::: notes {#G9 title="N"}\n:::',
+          'data-id="G9"', '<span class="consult-id">G9</span>')
     holds("ledger: a grid of .k/.v rows and nothing else",
           "::: ledger\n- d4 — **Hecho.** T-100.\n- d12 — Plantilla.\n:::",
           '<div class="ledger">',
@@ -734,6 +805,33 @@ try:
     else:
         fail("gallery: `git init` failed in the temp dir, so the checkout-root "
              "default could not be exercised")
+    # BL-625: a gallery may carry a prose body, an author lead inside its
+    # consult-group above the first consult-gallery item. It was refused
+    # (`gallery` takes no body); the page built with it must pass the gate.
+    lspec = os.path.join(tmp, "lead.spec.md")
+    with open(lspec, "w", encoding="utf-8") as fh:
+        fh.write('::: masthead {eyebrow="P" visual="none: probe"}\n# Lead\n\nX\n:::\n\n'
+                 '::: gallery {#G1 title="Galería audit" rows="rows.json" root="%s"}\n'
+                 'LEADMARK context the brief placed before the tiles.\n:::\n\n'
+                 '::: notes {title="Notas"}\n:::\n' % checkout)
+    lout = os.path.join(tmp, "lead.html")
+    r = subprocess.run([sys.executable, BUILD, lspec, "-o", lout, "--check"],
+                       capture_output=True, text=True)
+    check("gallery: a prose body builds and the page passes check-artifact "
+          "(consult-shape and gallery 0 FAIL)", r.returncode == 0,
+          r.stdout + r.stderr)
+    if r.returncode == 0:
+        with open(lout, encoding="utf-8") as fh:
+            lead = fh.read()
+        grp = lead.find('<section class="consult-group" id="G1"')
+        mark = lead.find("LEADMARK")
+        item = lead.find('class="consult-item consult-gallery"')
+        check("gallery: the prose body sits inside the group, above the first item",
+              0 <= grp < mark < item, "group %d lead %d item %d" % (grp, mark, item))
+    rejects("gallery: a nested block in the body is refused",
+            '::: gallery {#E title="G" rows="rows.json" root="%s"}\nPara.\n\n'
+            '::: note\nhi\n:::\n:::' % checkout, 4, "its body is prose",
+            base_dir=tmp)
     outside = os.path.join(tmp, "outside")
     os.makedirs(outside)
 
@@ -1508,6 +1606,51 @@ try:
         del spec_build.EMITTERS["zz-probe"]
     check("`chart` arrived through that same seam (Phase 2)",
           "chart" in spec_build.EMITTERS)
+
+    print()
+    print("== a failed first build removes only its own attempt (BL-624) ==")
+    # `.aidex-artifact-prev/` is shared by every page in the directory: a sibling
+    # page's baseline, source, lock and reply may be written during the wrap.
+    sdir = os.path.join(tmp, "bl624")
+    os.makedirs(sdir)
+    sspec = os.path.join(sdir, "p.spec.md")
+    with open(sspec, "w", encoding="utf-8") as fh:
+        fh.write(PAGE)
+    sprev = os.path.join(sdir, ".aidex-artifact-prev")
+
+    real_run = subprocess.run
+
+    def fake_wrap(cmd, **kw):
+        if spec_build.WRAP not in cmd:    # the profile lookup's own call is real
+            return real_run(cmd, **kw)
+        os.makedirs(sprev, exist_ok=True)
+        for rel in ("a.html.body", "a.html.building", "a.reply.md",
+                    "p.html.failed", "p.html.failed.body"):
+            with open(os.path.join(sprev, rel), "w") as fh:
+                fh.write("x")
+        with open(os.path.join(sdir, "a.html"), "w") as fh:
+            fh.write("x")
+        return subprocess.CompletedProcess(cmd, 1)
+
+    spec_build.subprocess.run = fake_wrap
+    try:
+        with contextlib.redirect_stderr(io.StringIO()) as errbuf:
+            rc = spec_build.main([sspec, "-o", os.path.join(sdir, "p.html"),
+                                  "--lang", "en"])
+    finally:
+        spec_build.subprocess.run = real_run
+    check("the failed build's exit status is propagated", rc == 1)
+    check("a sibling page's baseline, source, lock and reply survive",
+          all(os.path.exists(os.path.join(sprev, n)) for n in
+              ("a.html.body", "a.html.building", "a.reply.md"))
+          and os.path.exists(os.path.join(sdir, "a.html")))
+    check("this build's own .failed and .failed.body are gone",
+          not os.path.exists(os.path.join(sprev, "p.html.failed"))
+          and not os.path.exists(os.path.join(sprev, "p.html.failed.body")))
+    check("no page was left at --out", not os.path.exists(os.path.join(sdir, "p.html")))
+    check("the note names what was removed",
+          "p.html.failed" in errbuf.getvalue()
+          and "p.html.failed.body" in errbuf.getvalue())
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

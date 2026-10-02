@@ -1,6 +1,6 @@
 ---
 name: artifact-grader
-description: Grades an artifact page from its screenshot tiles against the aidex visual-review rubric, with no access to its source. Handoff: the request the page answers, the absolute path of the shots manifest (<name>-shots.json from render-probe.sh --shots), the list of shot files regenerated this run, the rubric path, and — for a consultation round built over a reply — the DUTIES list save-reply.sh printed. Returns the fixed SCORE block, plus a DUTIES block when one was handed in, or `INVALID: unreadable` naming the tile when a tile cannot be read. Used by the artifact skill before a page is handed over, launched by the main session; not for building or editing pages.
+description: Grades an artifact page from its screenshot tiles against the aidex visual-review rubric, with no access to its source. Handoff: the request the page answers, the absolute path of the shots manifest (<name>-shots.json from render-probe.sh --shots), the list of shot files regenerated this run, the rubric path, the profile's `viewports:` line when it declares one, and — for a consultation round built over a reply — the DUTIES list save-reply.sh printed. Returns the fixed SCORE block, plus a DUTIES block when one was handed in, or `INVALID: unreadable` naming the tile when a tile cannot be read. Used by the artifact skill before a page is handed over, launched by the main session; not for building or editing pages.
 model: opus
 tools: Read
 ---
@@ -11,7 +11,7 @@ You grade one HTML page the way its reader will meet it: from screenshots only.
 2. Read the manifest (`<name>-shots.json`). Check its `written` list and run stamp against
    the regenerated-files list you were handed; a tile the caller did not list as regenerated
    this run is stale: return `INVALID: stale <file>` (reason on line 2).
-3. Read the tiles in order, `1280` first (`widths.1280.tiles`), then `390`. Each tile is at
+3. Read the tiles in order, `1280` first (`widths.1280.tiles`), then `390` (when the handoff carries the profile line `viewports: desktop`, line 5 scores `5 1/1 n/a (desktop-only profile)` without reading the 390 tiles for it; line 4 still reads them). Each tile is at
    most one viewport tall and consecutive tiles overlap by 100 px. Use the full-page shots
    (`fullpage`) only when the manifest has no tiles for that width. A tile edge is not a
    page edge: text cut at a tile's top or bottom is read whole in the neighbouring tile and

@@ -115,6 +115,63 @@ assert byid["BL-001"]["checkable"] and not byid["BL-002"]["checkable"]
 PY
 pass "--json carries the same order and the same anchor verdicts"
 
+# --- workspace layout: .context/ in a non-git parent, the repo in a child dir -------
+# BL-602: a `../` citation is relative to the item's own directory (.context/backlog/),
+# not to the dir holding .context/; it used to be reported ABSENT though it existed.
+WS2="$WS/ws2"; CTX2="$WS2/.context"
+mkdir -p "$CTX2/backlog" "$CTX2/plans" "$WS2/code"; : > "$CTX2/plans/x.md"; : > "$WS2/code/y.sh"
+# A root-relative sibling citation (../sibling/z.py from the workspace root) must not
+# vanish because one `../` from .context/backlog/ happens to land inside .context/.
+mkdir -p "$WS/sibling"; : > "$WS/sibling/z.py"
+cat > "$CTX2/backlog/2026-01-10-bl-010-a.md" <<'EOF'
+---
+title: "item BL-010"
+id: BL-010
+status: open
+priority: P2
+---
+
+# item BL-010
+
+The plan is ../plans/x.md and the code is ../../code/y.sh, the sibling ../sibling/z.py
+EOF
+python3 "$DR" "$CTX2" --json "$WS/dr2.json" >/dev/null 2>&1
+python3 - "$WS/dr2.json" <<'PY' || fail "BL-602: a ../ citation was misresolved (an existing file reported ABSENT, or dropped)"
+import json, sys
+byid = {r["id"]: r for r in json.load(open(sys.argv[1]))["items"]}
+assert byid["BL-010"]["paths_not_found"] == [], byid["BL-010"]["paths_not_found"]
+assert byid["BL-010"]["paths"] == ["../../code/y.sh", "../sibling/z.py"], byid["BL-010"]["paths"]
+PY
+pass "a ../ citation resolves against the item's own directory"
+
+# BL-603: the cited commit lives in a child repo, and is found there whether or not the
+# dir holding .context/ is itself a repo (the planning repo with code repos inside).
+git -C "$WS2" init -q
+git -C "$WS2/code" init -q
+git -C "$WS2/code" -c user.name=t -c user.email=t@t add y.sh
+git -C "$WS2/code" -c user.name=t -c user.email=t@t commit -qm init
+SHA2="$(git -C "$WS2/code" rev-parse HEAD)"
+cat > "$CTX2/backlog/2026-01-11-bl-011-b.md" <<EOF
+---
+title: "item BL-011"
+id: BL-011
+status: open
+priority: P2
+---
+
+# item BL-011
+
+Fixed in ${SHA2:0:12}.
+EOF
+OUT_W="$(python3 "$DR" "$CTX2" --json "$WS/dr3.json" 2>&1)"
+grep -q 'no git repo' <<<"$OUT_W" && fail "BL-603: a child repo was not found, commits went unverified"
+python3 - "$WS/dr3.json" "${SHA2:0:12}" <<'PY' || fail "BL-603: a commit in the child repo was not verified"
+import json, sys
+byid = {r["id"]: r for r in json.load(open(sys.argv[1]))["items"]}
+assert byid["BL-011"]["commits"] == [sys.argv[2]], byid["BL-011"]["commits"]
+PY
+pass "with .context/ in a non-git parent, cited commits are verified in child repos"
+
 # --- the SKILL.md must distinguish these from the existing `triage` ----------------
 grep -qi 'health, not' "$SKILL" \
   || fail "SKILL.md does not state how these differ from triage (health, not prioritization)"

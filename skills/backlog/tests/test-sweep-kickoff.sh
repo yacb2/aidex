@@ -202,4 +202,78 @@ PY2
   else echo "  skip: git worktree add unavailable"; fi
 fi
 
+# BL-605: depends only ordered the queue, so an item whose dependency was still open and
+# outside the queue was presented as workable (walkcut BL-032 -> BL-027, 2026-10-01).
+# A dependency that is closed, or queued in the same run, does not block; one that is open
+# and not queued does, and so does a dependency on an item that this rule just blocked.
+mkdir -p "$TMP/dep/.context/backlog"; cd "$TMP/dep"
+O="$(reg --title "open medium dep" --estimate M)"; OID="$(idof "$O")"; accept "$O"
+Z="$(reg --title "archived dep" --estimate XS)"; ZID="$(idof "$Z")"; accept "$Z"
+mkdir -p .context/backlog/_archive && sed 's/^status: open/status: done/' "$Z" > ".context/backlog/_archive/$(basename "$Z")" && rm "$Z"
+V="$(reg --title "victor queued dep" --estimate XS)"; VID="$(idof "$V")"; accept "$V"
+X="$(reg --title "xray waits on open" --estimate S)"; XID="$(idof "$X")"; accept "$X"
+Y="$(reg --title "yankee after archived" --estimate S)"; YID="$(idof "$Y")"; accept "$Y"
+W="$(reg --title "whiskey after victor" --estimate S)"; WID="$(idof "$W")"; accept "$W"
+T="$(reg --title "tango after xray" --estimate S)"; TID="$(idof "$T")"; accept "$T"
+bash "$SCRIPTS/define-item.sh" "$XID" --depends "$OID" --no-index >/dev/null 2>&1
+bash "$SCRIPTS/define-item.sh" "$YID" --depends "$ZID" --no-index >/dev/null 2>&1
+bash "$SCRIPTS/define-item.sh" "$WID" --depends "$VID" --no-index >/dev/null 2>&1
+bash "$SCRIPTS/define-item.sh" "$TID" --depends "$XID" --no-index >/dev/null 2>&1
+# a MERGE twin is one change: when one side cannot run, neither is queued alone (either side
+# may hold the `merge:` edge); a dependency parked in _deferred/ is still open; an id found
+# in no backlog directory is a typo, not a closed item
+MA="$(reg --title "mike merges xray" --estimate S)"; MAID="$(idof "$MA")"; accept "$MA"
+Q="$(reg --title "quebec twin of papa" --estimate S)"; QID="$(idof "$Q")"; accept "$Q"
+P="$(reg --title "papa holds the merge" --estimate S)"; PID="$(idof "$P")"; accept "$P"
+D="$(reg --title "deferred dep" --estimate XS)"; DID="$(idof "$D")"; accept "$D"
+bash "$SCRIPTS/defer-item.sh" defer "$DID" --reason "vendor" --no-index >/dev/null 2>&1
+DD="$(reg --title "dd waits on deferred" --estimate S)"; DDID="$(idof "$DD")"; accept "$DD"
+U="$(reg --title "uniform typo dep" --estimate S)"; UID_="$(idof "$U")"; accept "$U"
+bash "$SCRIPTS/define-item.sh" "$MAID" --depends "merge:$XID" --no-index >/dev/null 2>&1
+bash "$SCRIPTS/define-item.sh" "$PID" --depends "merge:$QID, $OID" --no-index >/dev/null 2>&1
+bash "$SCRIPTS/define-item.sh" "$DDID" --depends "$DID" --no-index >/dev/null 2>&1
+bash "$SCRIPTS/define-item.sh" "$UID_" --depends "BL-9999" --no-index >/dev/null 2>&1
+# the merge edge held by an item OUTSIDE the queue (estimate M, off --size) still binds its twin
+SI="$(reg --title "sierra twin of an M holder" --estimate S)"; SIID="$(idof "$SI")"; accept "$SI"
+H="$(reg --title "hotel holds merge, medium" --estimate M)"; HID="$(idof "$H")"; accept "$H"
+bash "$SCRIPTS/define-item.sh" "$HID" --depends "merge:$SIID" --no-index >/dev/null 2>&1
+OUT="$(bash "$SCRIPTS/sweep-kickoff.sh" --dry-run 2>&1)"
+QS="$(sed -n '/^QUEUE/,/^$/p' <<<"$OUT")"; NDS="$(sed -n '/^NEEDS-DECISION/,/^$/p' <<<"$OUT")"
+qpos() { grep -nE "^ +[0-9]+\. $1 " <<<"$QS" | cut -d: -f1; }   # the item column, not a depends: tail
+[[ -n "$(qpos "$XID")" ]] && bad "an item depending on an open non-queued item was queued: $QS" \
+  || ok "an item whose dependency is open and not queued stays out of QUEUE"
+grep -qE "^  $XID .*depends on open $OID" <<<"$NDS" && ok "it is listed under NEEDS-DECISION naming the open dependency" || bad "blocked reason: $NDS"
+[[ -n "$(qpos "$TID")" ]] && bad "an item depending on a blocked item was queued: $QS" || ok "an item depending on a blocked item is blocked too"
+grep -qE "^  $TID .*depends on open $XID" <<<"$NDS" && ok "the transitive block names the blocked dependency" || bad "transitive reason: $NDS"
+[[ -n "$(qpos "$MAID")" ]] && bad "a merge twin of a blocked item was queued alone: $QS" || ok "a merge twin of a blocked item stays out of QUEUE"
+grep -qE "^  $MAID .*merge partner $XID not queued" <<<"$NDS" && ok "it is listed naming the merge partner" || bad "merge holder reason: $NDS"
+grep -qE "^  $QID .*merge partner $PID not queued" <<<"$NDS" && [[ -z "$(qpos "$QID")" ]] \
+  && ok "the twin named by a blocked merge holder is blocked too" || bad "merge target: $OUT"
+grep -qE "^  $SIID .*merge partner $HID not queued" <<<"$NDS" && [[ -z "$(qpos "$SIID")" ]] \
+  && ok "a merge edge held by an item outside the queue blocks its queued twin" || bad "outside merge holder: $OUT"
+grep -qE "^  $DDID .*depends on open $DID" <<<"$NDS" && [[ -z "$(qpos "$DDID")" ]] \
+  && ok "a dependency parked in _deferred/ blocks (still open)" || bad "deferred dep: $OUT"
+grep -qE "^  $UID_ .*depends on unknown BL-9999" <<<"$NDS" && [[ -z "$(qpos "$UID_")" ]] \
+  && ok "a dependency found in no backlog directory blocks as unknown" || bad "unknown dep: $OUT"
+[[ -n "$(qpos "$YID")" ]] && ok "a dependency closed in _archive/ does not block" || bad "archived dep blocked: $OUT"
+[[ -n "$(qpos "$WID")" && "$(qpos "$VID")" -lt "$(qpos "$WID")" ]] 2>/dev/null \
+  && ok "a dependency queued in the same run does not block (and runs first)" || bad "queued dep: $QS"
+WLD="$(bash "$SCRIPTS/sweep-kickoff.sh" --title "Depends run" --slug depends-run 2>/dev/null | tail -1)"
+grep -q "^- $XID — xray waits on open   <!-- reason: depends on open $OID -->$" "$WLD" 2>/dev/null \
+  && ok "the written work-list records the blocked item under Needs decision" || bad "work-list needs block: $(sed -n '/^## Needs decision/,/^## Deferred/p' "$WLD" 2>/dev/null)"
+sed -i.bak 's/^status: doing/status: done/' "$WLD" 2>/dev/null && rm -f "$WLD.bak"
+# every eligible item blocked: the empty-queue message must not claim nothing was eligible
+bash "$SCRIPTS/sweep-kickoff.sh" --dry-run --exclude "$VID,$YID" >/dev/null 2>"$TMP/allblocked.err"; RC=$?
+[[ $RC -eq 2 ]] && grep -q "nothing queueable at --size XS,S — [0-9]* eligible, all blocked by open or unknown depends" "$TMP/allblocked.err" \
+  && ok "an all-blocked queue exits 2 saying the eligible items are blocked" || bad "all blocked: rc=$RC $(head -2 "$TMP/allblocked.err")"
+grep -q "QUEUE (0 items" "$TMP/allblocked.err" \
+  && ok "the all-blocked summary is computed with the same --include/--exclude" || bad "all-blocked summary: $(cat "$TMP/allblocked.err")"
+# a depends cycle still exits 2 when an open dependency would otherwise block its members
+CA="$(reg --title "cycle a" --estimate S)"; CAID="$(idof "$CA")"; accept "$CA"
+CB="$(reg --title "cycle b" --estimate S)"; CBID="$(idof "$CB")"; accept "$CB"
+bash "$SCRIPTS/define-item.sh" "$CAID" --depends "$CBID, $OID" --no-index >/dev/null 2>&1
+bash "$SCRIPTS/define-item.sh" "$CBID" --depends "$CAID" --no-index >/dev/null 2>&1
+bash "$SCRIPTS/sweep-kickoff.sh" --dry-run >/dev/null 2>"$TMP/cyc.err"; RC=$?
+[[ $RC -eq 2 ]] && grep -q "cycle among" "$TMP/cyc.err" && ok "a depends cycle is reported before open depends block its members" || bad "hidden cycle: rc=$RC $(cat "$TMP/cyc.err")"
+
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — sweep kickoff: $PASS cells"; exit 0; }; echo "$FAIL failure(s)"; exit 1

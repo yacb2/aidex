@@ -12,6 +12,22 @@ not to improvise a gallery — it is to say the harness is missing and stop.
 
 ---
 
+## Presence check — before saying "absent"
+
+Run these in the repo (quote globs; in zsh an unmatched glob is an error, so use `find`).
+One marker found means the harness is present: continue and cite the file.
+
+1. The testing profile's `gallery_gate_cmd` and `gallery_scripts` keys, if set.
+2. A gallery spec set: `find <frontend> -path '*/node_modules' -prune -o -name '*.demo.spec.ts' -print`
+   (shipped tree: `frontend/tests/demo/`).
+3. The harness module and its meta-suite: `state-gallery.ts` and
+   `state-gallery.meta.demo.spec.ts` in that directory, plus `meta-count-reporter.ts`.
+4. The runner config: `playwright.demo.config.ts` next to `playwright.config.ts`.
+5. The contact-sheet scripts: `gallery_board.py` / `gallery_contact_sheet.py` (shipped
+   tree: `_scripts/` or the repo's scripts directory).
+
+A research note or memory saying "missing" is not evidence; the repo is.
+
 ## 1. The harness module and its matrix validation
 
 One module, imported by every gallery spec, that turns a declared matrix into one test
@@ -78,7 +94,11 @@ per cell. What it must guarantee:
   volatile-region or mask list below, where the checks still see it.
 - Volatile regions (a ticking timer panel, an auto-dismissing toaster) are removed from
   the DOM for the evidence pass, and a version string in the chrome is masked. Both exist
-  because they otherwise decide whether a run is green.
+  because they otherwise decide whether a run is green. **A mask is painted in the
+  colour of what it covers**: pass `maskColor` (Playwright's `toHaveScreenshot` /
+  `screenshot` option) set to the surrounding background token, never the default
+  `#FF00FF`. A magenta bar on every capture reads to a reviewer as a leftover highlight
+  and gets explained page by page; a background-coloured mask reads as nothing.
 
 ## 1b. The meta-suite — every predicate proven able to fail, before the galleries
 
@@ -127,6 +147,13 @@ that passes 4 of 5). **A flake fix needs a named cause, or three clean runs**; c
 locator until it passes, with no cause, is neither. The harness warms the dev server before
 the first cell and one retry absorbs a host hiccup; the closing line prints the retries
 (`retries: N`), so a green run that retried is visible. Read it beside `meta:`.
+
+**Charts animate in JavaScript, which the freeze does not reach.** Freezing CSS motion
+and `reducedMotion` stop CSS transitions only; a d3/unovis chart (or any JS-driven
+transition) keeps animating, so a shot can land between frames and a cell passes some
+runs and fails others. Fix the cause: set the chart's animation duration to 0 under the
+gallery, or make the cell's `ready` mean the final frame (a marker set when the animation
+ends). Never a fixed `waitForTimeout`, which is a guess about speed, not a cause.
 
 ## 2. The runner invocation — ALWAYS with a spec path
 
@@ -253,7 +280,7 @@ does. A NEW screen has no baseline and no `before`: the emitter takes a `--new` 
 variants. Every shown row carries a `look` line (one sentence: what to look at in this
 picture); the spec route (`::: gallery rows=`) refuses a shown row without it, while
 `gallery-items.sh` alone renders the row and exits 0, so an emitter that does not write it
-gets it added before the page is built. For alternatives (N labelled variants of one cell)
+gets it added before the page is built. The same goes for `noBefore` (a reason string on a single-capture row whose before is lost or unreachable, instead of the "new screen" label): the emitters never write it, the author adds it to the emitted rows before the build and likewise `decided_note` (the "decidido, corrígeme si no" text of a still-open row, rendered as a callout under the captures). Named highlights (BL-607): for each element a row should outline, the capture step writes `<capture>.regions.json` next to the PNG (`shots/x.png` gets `shots/x.regions.json`), a `{"name": {"x","y","w","h"}}` map from Playwright `locator.boundingBox()` scaled to the capture's own pixels (device scale factor applied; full-page captures add the scroll offset). The author then writes `"highlight": "@name"` and `gallery-items.sh` resolves it, refusing a missing sidecar, an unknown name or a region outside the capture; no emitter writes the sidecar yet, so literal pixels remain the fallback. For alternatives (N labelled variants of one cell)
 the rows document declares them once and the reply parses back with `--rows` (SKILL.md,
 "Verified" part 1). An empty `rows` (everything matched) means no gallery block on the page. The
 artifact kit's `gallery-items.sh` turns that document into consultation items
@@ -310,4 +337,5 @@ the harness copies this table into its own record and edits the rows its setup c
 | **Known-defect guards proven on seeded input only** | The meta-suite exercises the scoping and the rot guard against seeded defects; a list with no real entry has still never been exercised against real input. |
 | **The lockstep test parses source by regex** | A reformat is a false red, not a false green — but it is still a red nobody caused. |
 | **Overflow does not see clipped or spilling boxes** | An `overflow: hidden`/`clip` box (a truncated label is wider than its box on purpose) and a visible-overflow child spilling out without growing any scroller are not findings; the pixels have to show them. |
+| **JS-driven animation is not frozen** | Freezing CSS motion and `reducedMotion` do not stop d3/unovis chart transitions; a cell whose `ready` resolves mid-animation gets a baseline of an intermediate frame and flakes. The chart's duration must be 0 under the gallery, or `ready` must mean the final frame (§ 1c). |
 | **Taste is not gated** | Overflow, contrast, layout churn and pixel drift, and nothing else. Whether the screen is good is the owner's call on the contact sheet. |

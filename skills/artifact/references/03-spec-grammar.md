@@ -236,8 +236,8 @@ real page said something the grammar could not:
   volumes: a host that took the quieter one and refused the louder one would be an
   asymmetry with nothing behind it. Everything else these could nest is still
   refused, by the same `PARENTS` table.
-- **An `item` also accepts a nested figure block** — `figure`, `chart`, `graph` or
-  `diagram`, all four alike, in the position it was written. 4 figures of the corpus
+- **An `item` also accepts a nested figure block** — `figure`, `chart`, `graph`, `video` or
+  `diagram`, all alike, in the position it was written. 4 figures of the corpus
   illustrate one decision from inside it, and placing them before the item detached
   them from it. `masthead` and `note` do not: a drawing there is a page-level figure
   in the wrong place (`spec_build.FIGURE_BLOCKS`).
@@ -758,6 +758,16 @@ the page here, still on the spec route. It has **no body** — the drawing is th
   inline SVG carries its own text.
 - `title` is the `<figcaption>`, as on `chart` and `diagram`. `#id` and classes land on
   the `<figure>`.
+- `highlight="x,y,w,h"` (BL-619, `.png`/`.jpg` only) outlines one region of the capture,
+  in the **image's own pixels** (x, y from the top-left). It becomes the same
+  percentage overlay a gallery row's `highlight` draws (`gal-hl-layer`), so it scales with
+  the image. The builder measures the file (PNG header or JPEG SOF marker) and refuses a
+  region outside it, naming the figure: x, y >= 0, w, h > 0, x+w <= image width,
+  y+h <= image height (touching the far edge is allowed). Four plain numbers only: no
+  `@name`, no list. On an `.svg` it is refused: outline inside the drawing instead.
+  The figure is wrapped in `.fig-hl` (kit class), its img at the width a plain figure's gets;
+  in an item's thumbnail grid a highlighted figure is shown whole, not cropped to 4:3, so the
+  outline stays on its region.
 - An `.svg` is **never shown wider than its viewBox** (BL-511): the builder reads the
   root's viewBox width and writes `style="max-width:<width>px"` on the `<figure>`, so a
   360-wide drawing shows at 360 px on a wide screen and still shrinks to the column at
@@ -765,7 +775,7 @@ the page here, still on the spec route. It has **no body** — the drawing is th
   at 1280). The drawing itself stays byte for byte; a root with no viewBox, or one that
   is not four numbers with a positive width, gets no cap. So author at display size, with
   text at about 12-14 units. check-artifact WARNs (`figure-tall`) on any figure whose
-  root viewBox is over 500 units tall.
+  root viewBox is over 500 units tall. The same check runs on a bare `.svg` file (root element `<svg>`) given to check-artifact.sh, so a figure drawer's own gate run shows it.
 
 An `.svg` is checked before it is inlined, by `check_artifact.svg_embed_sanitize` —
 the rules live there and the builder keeps no copy. It is an **allowlist over a real
@@ -799,7 +809,7 @@ a file with no `<svg>` element, and any SVG rule above.
 ## The `video` block: a local film, by reference
 
 ```
-::: video {#v1 src="films/intro.mp4" title="La película, 12 s"}
+::: video {#v1 src="films/intro.mp4" poster="films/intro.jpg" title="La película, 12 s"}
 :::
 ```
 
@@ -815,9 +825,13 @@ A film enters the page through the spec route with no post-build step. It has **
 - A `<video>` counts as the page's visual for check-artifact, like an `<svg>` or `<img>`.
 - `title` is the `<figcaption>`. `#id` and classes land on the `<figure class="video">`,
   which `components.css` sizes to the column in both themes.
-- A `video` is page-level only: an `item` or a `note` refuses it at the fence's line,
-  because neither lists it among the blocks it nests (`_segments`; an item's list is
-  `ASIDES` + `FIGURE_BLOCKS`).
+- `poster` (optional, BL-593) is the still the player shows before play: relative to the
+  spec, must exist, `.png`, `.jpg`, `.jpeg` or `.webp`, an absolute path is refused. It is
+  emitted as `<video poster="…">` and rewritten relative to the page under `-o`, like `src`.
+- The kit caps the player at `max-height: 80vh` (BL-593), so a 3:4 film never grows taller
+  than the viewport at 1280 px; the letterbox is the sunk paper.
+- A `video` also nests inside an `item` (BL-547), like a figure, in written order: it is in
+  an item's list (`ASIDES` + `FIGURE_BLOCKS`). A `note` still refuses it at the fence's line.
 
 ## The `graph` body: DOT, laid out by Graphviz
 
@@ -876,12 +890,20 @@ Graphviz version is written in a comment inside the `<figure>`.
 
 `::: gallery {#id title=… rows=<rows.json>}` reads its rows from a JSON document (shape:
 `04-block-vocabulary.md` § `gallery`, and § Gallery rows of `02-local-first-artifacts.md`).
-Three things of the grammar are worth stating here:
+These things of the grammar are worth stating here:
 
+- **Prose body** (BL-625): the block may carry one or more paragraphs between its fences. They
+  render inside the gallery's group as an author lead, above the generated intro and the first
+  row, so context the brief placed before the tiles does not need a group of its own. Prose
+  only: a nested block is refused. The lead goes with the block: an empty `rows` (D2) drops
+  both, silently.
 - **`kind`** of a row is `review`, `unrequested`, `sample` (no radios) or `alternatives`
   (labelled variants declared once in the document's `alternatives`, one which-one radio).
 - **`look`** is required on every shown row by this route: a row without it fails the build
   (and `--check`), with a message naming the cell. Not-applicable and dropped rows are exempt.
+- **`answer`** (BL-629) on a `decided` row is the reply to the owner's note on it: the row folds,
+  keeps its id, has no radios, and the fold's summary shows the text. Refused on a row without
+  `decided`, blank, or on a dropped, not-applicable or alternatives row.
 - **`dropped="<reason>"`** on an `item` (and `"dropped"` on a row) takes it out of the question
   set: its id stays, it folds like a decided item and reads `Descartada: <reason>` /
   `Dropped: <reason>`. An empty reason, or `dropped` together with `decided`, is refused.
@@ -892,7 +914,36 @@ drop. `spec_verbs.py new-round --drop <#id>` (repeatable) records the ids on the
 masthead as `dropped-ids="Q6 Q7"`, which builds `<meta name="consult-dropped">`; the
 check then notes those ids instead of failing. Every drop must be declared: an id left
 out still fails. An id that stays in the spec is an error there (use `dropped="reason"`
-on the item instead).
+on the item instead). Any id the page no longer carries qualifies (BL-612): an item, a
+`group` (`--drop G1`), and a gallery row id (`--drop audit-with-data-light-desktop`, a
+row is never a spec node). The verb only refuses ids still in the spec; it does NOT check a
+row id against the rows document, so drop only rows really gone from it.
+The verb only records and rebuilds; it never opens a round.
+
+Relabelling: a `group` or gallery block whose id stays and whose `title` changes only
+produces a note in `consult-ids` (a block title is a label, not a claim a reply points
+at). An `item` whose title changes still fails unless declared with `--retitle`.
+
+**Rewording an item's title** (BL-611). Changing the title of a kept id fails `consult-ids`
+("id reused for a different claim"). `spec_verbs.py new-round --retitle <#id>` (repeatable)
+records the ids on the masthead as `retitled-ids="Q1 Q3"`, which builds
+`<meta name="consult-retitled">`; the check then notes each id with its old and new title
+instead of failing. The id never changes, and an id left out still fails. Unlike `--drop`,
+the declaration lasts ONE round: every `new-round` replaces `retitled-ids` with its own
+`--retitle` list and removes it when the call names none, so a later reword of the same id
+must be declared again. The id must still be in the spec. Start every round with
+`new-round`; a rebuild by other means keeps the previous declaration.
+
+## An `item`'s heading: `heading=` over `title=` (BL-652)
+
+The `<h3>` of an item is its first paragraph when that paragraph closes on a question,
+else its `title=` (BL-576). When the sentence over the item is not a question and the
+rail entry and the reply heading must stay a short name, write `heading="…"` beside
+`title="…"`: the h3 is the heading whole, `data-title` stays the title, and the first paragraph
+becomes the situation lead (`.consult-lead`) under the h3, as for a title-headed item. It is the same attr `group` and
+`section` already take, with the same meaning (`title` the NAME, `heading` the sentence).
+Without `heading=` nothing changes. Adding `heading=` to an item on a live page changes its h3, so its `questionHash` changes once and typed-but-unsent text reads blank once (as BL-576). `heading=` follows the `title=` quoting rules and is
+not a retitle: `consult-ids` and `check_prev` read `data-title` only.
 
 ## An `item`'s option list: one choice or a set
 

@@ -54,6 +54,7 @@ import html as htmllib
 import io
 import os
 import re
+import struct
 import subprocess
 import sys
 import urllib.parse
@@ -87,6 +88,7 @@ STRINGS = {
         "item_notes": "Notas sobre esto",
         "item_placeholder": "Lo que las opciones no cubren…",
         "item_open_placeholder": "Tu respuesta…",
+        "notes_badge": "notas",
         "notes_label": "Lo que no encaja arriba",
         "notes_placeholder": "Lo que sea…",
         "copy": "Copiar mis respuestas",
@@ -95,6 +97,7 @@ STRINGS = {
         "item_notes": "Notes on this one",
         "item_placeholder": "Anything the options do not cover…",
         "item_open_placeholder": "Your answer…",
+        "notes_badge": "notes",
         "notes_label": "Anything that does not fit above",
         "notes_placeholder": "Whatever it is…",
         "copy": "Copy my answers",
@@ -110,13 +113,8 @@ RECOMMENDED = "{recommended}"
 CHOSEN = "{chosen}"       # BL-496: a decided item's winning option, checked, not recommended
 REC_MARK = re.compile(r"\s*(?:" + re.escape(RECOMMENDED) + "|" + re.escape(CHOSEN)
                       + r")\s*")
-# What `data-label` carries is TEXT: the composer copies that attribute into the
-# reply, so a backtick or a `**` written for the page's own rendering would
-# travel into the paste as punctuation the reader never wrote. Backticks and
-# asterisks only — `_` is stripped by NO rule here, because `md_body` italicises
-# it only in pairs and a label naming `a_file.py` must not come back as
-# `afile.py`.
-PLAIN = re.compile(r"[`*]")
+# The plain form of a label or verdict: one definition, in md_body (BL-545).
+PLAIN = md_body.PLAIN
 
 # The two inline types. They are NOT fences: a one-word span in the middle of a
 # sentence cannot be a block, and a fence for it would only be a way to get it
@@ -385,7 +383,8 @@ def _unfenced(lines):
 
 @emitter("masthead")
 def emit_masthead(node, ctx):
-    a = _attrs(node, {"title", "eyebrow", "byline", "visual", "lang", "dropped-ids"},
+    a = _attrs(node, {"title", "eyebrow", "byline", "visual", "lang", "dropped-ids",
+                     "retitled-ids"},
                forbid_id=True)
     # A masthead may carry a framed aside, in the position it was written. One
     # sampled page opens with
@@ -630,7 +629,7 @@ ASIDES = ("note", "callout")
 # All four figure blocks, uniformly — which rung draws it is the ladder's call,
 # not the host's. Item only: a masthead or note with a drawing is a page-level
 # figure in the wrong place.
-FIGURE_BLOCKS = ("figure", "chart", "graph", "diagram")
+FIGURE_BLOCKS = ("figure", "chart", "graph", "diagram", "video")
 
 
 def _segments(node, nests, carries="prose"):
@@ -662,12 +661,32 @@ def _segments(node, nests, carries="prose"):
     return out
 
 
+# What may follow a closing `?` in a rendered paragraph: closing inline tags,
+# quotes (raw or as the entities md_body emits) and closing brackets.
+_QUESTION_CLOSERS = re.compile(
+    r'(?:\s|</[a-z]+>|["\'\u201d\u2019\u00bb)\]]|&quot;|&#x27;|&#39;|'
+    r'&rsquo;|&rdquo;|&raquo;)+$')
+_TRAILING_PAREN = re.compile(r'\s*\([^()]*\)\s*$')
+
+
+def _closes_on_question(inline):
+    """A one-sentence paragraph is a question when its `?` comes last but for
+    closing markup, quotes and brackets (`**¿…?**`, `"¿…?"`, `(¿…?)`), or a
+    trailing parenthetical (`¿…? (sí o no)`) that qualifies the answer."""
+    for text in (inline, _TRAILING_PAREN.sub("", inline)):
+        if _QUESTION_CLOSERS.sub("", text).endswith("?"):
+            return True
+    return False
+
+
 def _split_question(inline):
-    """(situation, heading) for an item's rendered first paragraph. One
-    sentence is the heading whole. Several sentences are a situation lead: the
-    closing run of `?` sentences is the heading, or None (ask the title) when
-    it does not close on a question. Sentence ends and abbreviations are
-    check_artifact's; a boundary inside a tag does not count."""
+    """(situation, heading) for an item's rendered first paragraph. A
+    paragraph that does not close on a question is all situation, one sentence
+    or several, and the heading is None (ask the title — BL-576). One sentence
+    that does (`_closes_on_question`) is the heading whole; several are a
+    situation lead and the closing run of `?` sentences is the heading.
+    Sentence ends and abbreviations are check_artifact's; a boundary inside a
+    tag does not count."""
     ends = []
     for m in check_artifact.SENTENCE_END.finditer(inline):
         before = inline[:m.start()]
@@ -679,7 +698,7 @@ def _split_question(inline):
             continue
         ends.append(m)
     if not ends:
-        return "", inline
+        return ("", inline) if _closes_on_question(inline) else (inline, None)
     if not inline.rstrip().endswith("?"):
         return inline, None
     cut = [m for m in ends if inline[m.start()] != "?"]
@@ -695,8 +714,8 @@ def _is_raster_figure(node):
 
 @emitter("item")
 def emit_item(node, ctx):
-    a = _attrs(node, {"title", "decided", "dropped", "free", "select"},
-               required=("title",), need_id=True)
+    a = _attrs(node, {"title", "heading", "decided", "dropped", "free",
+                     "select"}, required=("title",), need_id=True)
     # `select=many` is a question whose answer is a SET (BL-454): checkboxes,
     # the kit's `.opts` without `one`. Anything else but `one` is a typo that
     # would otherwise ship radios silently.
@@ -772,7 +791,13 @@ def emit_item(node, ctx):
     # is headed with — two different strings on every corpus item. The first
     # paragraph of the body is the question; an item that opens with something
     # else keeps it and asks its title instead.
-    if parts and parts[0].startswith("<p>") and parts[0].endswith("</p>"):
+    if a.get("heading", "").strip():
+        # BL-652: an explicit `heading=` is the h3 whole. A first paragraph is
+        # the situation lead under it, as for a title-headed item (BL-576).
+        question = md_body._inline(a["heading"].strip())
+        if parts and parts[0].startswith("<p>") and parts[0].endswith("</p>"):
+            parts[0] = '<p class="consult-lead">%s</p>' % _unwrap_p(parts[0])
+    elif parts and parts[0].startswith("<p>") and parts[0].endswith("</p>"):
         question, parts = _unwrap_p(parts[0]), parts[1:]
         # A situation lead (BL-514): only its closing question is the heading,
         # or the title when it asks none; the situation is body text under it.
@@ -790,6 +815,9 @@ def emit_item(node, ctx):
     # decided-item-without-verdict). So the flag checks the option the author
     # recommended; any other value is the verdict line itself.
     decided = a.get("decided", "").strip()
+    # Blank in the plain form the fold shows (BL-545): `decided="**"` is `decided=""`.
+    if not PLAIN.sub("", decided).strip():
+        decided = ""
     flag, check_recommended = "", False
     # `dropped="<reason>"`: the question left the set (BL-516.4). The item and
     # its id stay on the page, folded and asked of no one, with the reason as
@@ -812,12 +840,13 @@ def emit_item(node, ctx):
             node.line, "`item` marks more than one option {chosen} on a "
             "select=one item: it has one winner; keep the marker on it (only "
             "select=many can choose several)")
-    if chosen_n and not a.get("decided", "").strip():
+    if chosen_n and not PLAIN.sub("", a.get("decided", "")).strip():
         raise SpecBuildError(
             node.line, "`item` marks an option {chosen} but is not decided: "
             "{chosen} is the winner of a decided item (decided=yes), so add "
             "decided or drop the marker")
-    if decided.lower() in contract_defects.NOT_A_VERDICT:
+    # Read in the plain form the fold shows (BL-545): `**yes**` folds to "yes".
+    if PLAIN.sub("", decided).strip().lower() in contract_defects.NOT_A_VERDICT:
         flag, check_recommended = " data-decided", True
         recommended = sum(1 for t in opts if _option(t)[2])
         if not recommended and not chosen_n:
@@ -887,12 +916,15 @@ def emit_notes(node, ctx):
     a = _attrs(node, {"title"}, required=("title",))
     _no_children(node)
     ident = node.id or "notes"
+    # data-id stays the default id (replies key on it); only the visible badge
+    # is localised, and only for the id `notes` (default or written out).
+    badge = ctx.s["notes_badge"] if ident == "notes" else ident
     return "\n".join([
         '<section class="%s" data-id="%s" data-title="%s">'
         % (_classes("consult-item consult-notes", node), esc(ident),
            esc(a["title"])),
         '  <h3><span class="consult-id">%s</span>%s</h3>'
-        % (esc(ident), esc(a["title"])),
+        % (esc(badge), esc(a["title"])),
         '  <p class="fieldlabel">%s</p>' % esc(ctx.s["notes_label"]),
         '  <textarea placeholder="%s"></textarea>'
         % esc(ctx.s["notes_placeholder"]),
@@ -903,7 +935,10 @@ def emit_notes(node, ctx):
 def emit_gallery(node, ctx):
     a = _attrs(node, {"title", "rows", "lang", "root"},
                required=("title", "rows"), need_id=True)
-    _no_children(node)
+    # The body is an optional author lead (prose only) rendered above the
+    # generated intro; any nested block is refused by `_prose_lines`.
+    lead = "\n".join(_prose_lines(node)).strip()
+    lead_html = md_body.fragment(lead) if lead else ""
     lang = a.get("lang", ctx.lang)
     if lang not in gallery_items.LANGS:
         raise SpecBuildError(node.line, "`gallery` lang=%r is not one of %s"
@@ -938,7 +973,7 @@ def emit_gallery(node, ctx):
             doc = gallery_items.load(rows)
             html = gallery_items.render(doc, os.path.normpath(root), node.id,
                                         a["title"], lang, page=ctx.page,
-                                        require_look=True)
+                                        require_look=True, lead=lead_html)
     except SystemExit:
         said = [ln for ln in err.getvalue().splitlines() if ln.strip()]
         raise SpecBuildError(
@@ -1247,6 +1282,66 @@ FIGURE_RASTER = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg
 FIGURE_TYPES = (".svg",) + tuple(FIGURE_RASTER)
 
 
+def _jpeg_size(path):
+    """(width, height) of a JPEG from its SOF marker, walking the segments
+    before it (APPn, DQT, ...). None when there is no SOF to read."""
+    with open(path, "rb") as fh:
+        data = fh.read()
+    if data[:2] != b"\xff\xd8":
+        return None
+    i = 2
+    while i + 9 <= len(data) and data[i] == 0xFF:
+        marker = data[i + 1]
+        if 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):
+            h, w = struct.unpack(">HH", data[i + 5:i + 9])
+            return (w, h) if w and h else None
+        i += 2 + struct.unpack(">H", data[i + 2:i + 4])[0]
+    return None
+
+
+def _highlighted(img, path, src, value, node):
+    """BL-619: `highlight="x,y,w,h"` in the image's own pixels becomes the
+    gallery's outline overlay (`gal-hl-layer`, percentages of the image), over
+    the picture. The gallery's own `check_highlight`, `highlight_layer` and
+    `png_size` decide (numbers, x,y >= 0, w,h > 0, inside the image, a real
+    PNG); their `die()` is a SystemExit, carried here as the documented
+    refusal like `gallery` does. A JPEG is measured here (`_jpeg_size`)."""
+    def refuse(why):
+        raise SpecBuildError(
+            node.line, "`figure` src=%r highlight=%r was refused: %s"
+            % (src, value, why)) from None
+
+    parts = [p.strip() for p in value.split(",")]
+    try:
+        x, y, w, h = [float(p) for p in parts] if len(parts) == 4 else (None,) * 4
+    except ValueError:
+        x = None
+    if x is None:
+        refuse("it must be four numbers x,y,w,h in the image's pixels")
+    err = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(err):
+            regions = gallery_items.check_highlight(
+                {"x": x, "y": y, "w": w, "h": h}, src)
+            with open(path, "rb") as fh:
+                is_jpeg = fh.read(2) == b"\xff\xd8"
+            size = _jpeg_size(path) if is_jpeg \
+                else gallery_items.png_size("/", path, src, "figure")
+            if size is None:
+                gallery_items.die("row '%s': the JPEG has no readable size"
+                                  % src)
+            layer = gallery_items.highlight_layer(
+                regions, size[0], size[1], src, "figure")
+    except SystemExit:
+        said = [ln for ln in err.getvalue().splitlines() if ln.strip()]
+        why = said[-1].strip() if said else "not usable"
+        why = why.replace("gallery-items: row '%s': " % src, "", 1)
+        refuse(why)
+    # The kit class gives the wrapper `position: relative` and the img the
+    # width an unhighlighted figure's img gets, so the overlay is exact.
+    return '<div class="fig-hl">%s%s</div>' % (img, layer)
+
+
 @emitter("figure")
 def emit_figure(node, ctx):
     """`::: figure {#id src="rel/path.svg" title="…"}` — a drawing from a file.
@@ -1264,7 +1359,7 @@ def emit_figure(node, ctx):
     never repaired: a builder that rewrote a colour would ship a drawing its
     author never saw.
     """
-    a = _attrs(node, {"src", "title", "alt"}, required=("src",))
+    a = _attrs(node, {"src", "title", "alt", "highlight"}, required=("src",))
     _no_children(node)
     src = a["src"].strip()
     if os.path.isabs(src):
@@ -1284,6 +1379,10 @@ def emit_figure(node, ctx):
     alt = a.get("alt", "").strip()
     cap = ""
     if ext == ".svg":
+        if "highlight" in a:
+            raise SpecBuildError(
+                node.line, "`figure` highlight= is for a png/jpg capture; an "
+                "inline SVG is drawn, so outline inside the drawing")
         if alt:
             raise SpecBuildError(
                 node.line, "`figure` alt= is for a png/jpg; an inline SVG "
@@ -1336,6 +1435,8 @@ def emit_figure(node, ctx):
                 % (src, exc)) from None
         drawing = '<img src="data:%s;base64,%s" alt="%s">' % (
             FIGURE_RASTER[ext], data, esc(alt))
+        if "highlight" in a:
+            drawing = _highlighted(drawing, path, src, a["highlight"], node)
     head = "<figure"
     if node.id:
         head += ' id="%s"' % esc(node.id)
@@ -1352,17 +1453,18 @@ def emit_figure(node, ctx):
 # The film types a `video` references. Never inlined: a film as a base64 data
 # URI would take a page past any size a browser or a reviewer handles (BL-456).
 VIDEO_TYPES = (".mp4", ".webm")
+POSTER_TYPES = (".png", ".jpg", ".jpeg", ".webp")
 
 
 @emitter("video")
 def emit_video(node, ctx):
-    """`::: video {#id src="films/a.mp4" title="…"}` — a local film, by reference.
+    """`::: video {#id src="films/a.mp4" poster="films/a.jpg" title="…"}` — a local film, by reference.
 
     `src` is relative to the SPEC (as `figure`'s is) and must exist. The page
     carries a path, never the bytes: with `-o`, the path is rewritten relative
     to the page, so the film plays wherever the page lands next to it.
     """
-    a = _attrs(node, {"src", "title"}, required=("src",))
+    a = _attrs(node, {"src", "title", "poster"}, required=("src",))
     _no_children(node)
     src = a["src"].strip()
     if os.path.isabs(src):
@@ -1379,18 +1481,39 @@ def emit_video(node, ctx):
         raise SpecBuildError(
             node.line, "`video` src=%r: no such file (looked in %s)"
             % (src, ctx.base_dir))
-    href = src
-    if ctx.page:
-        href = os.path.relpath(
-            path, os.path.dirname(os.path.abspath(ctx.page))).replace(os.sep, "/")
-    # A path is not a URL: `#` and `?` would cut the name the browser fetches.
-    href = urllib.parse.quote(href, safe="/")
+    def local_href(rel, path):
+        href = rel
+        if ctx.page:
+            href = os.path.relpath(
+                path, os.path.dirname(os.path.abspath(ctx.page))).replace(os.sep, "/")
+        # A path is not a URL: `#` and `?` would cut the name the browser fetches.
+        return urllib.parse.quote(href, safe="/")
+
+    href = local_href(src, path)
+    poster = ""
+    if a.get("poster", "").strip():
+        pst = a["poster"].strip()
+        if os.path.isabs(pst):
+            raise SpecBuildError(
+                node.line, "`video` poster=%r is absolute — write it relative "
+                "to the spec, so the spec builds from any checkout" % pst)
+        pext = os.path.splitext(pst)[1].lower()
+        if pext not in POSTER_TYPES:
+            raise SpecBuildError(
+                node.line, "`video` poster=%r has type %r; a poster is %s"
+                % (pst, pext or "(none)", ", ".join(POSTER_TYPES)))
+        ppath = os.path.join(ctx.base_dir, pst)
+        if not os.path.isfile(ppath):
+            raise SpecBuildError(
+                node.line, "`video` poster=%r: no such file (looked in %s)"
+                % (pst, ctx.base_dir))
+        poster = ' poster="%s"' % esc(local_href(pst, ppath))
     head = "<figure"
     if node.id:
         head += ' id="%s"' % esc(node.id)
     head += ' class="%s">' % esc(" ".join(["video"] + list(node.classes)))
-    out = [head, '<video controls preload="metadata" src="%s"></video>'
-           % esc(href)]
+    out = [head, '<video controls preload="metadata"%s src="%s"></video>'
+           % (poster, esc(href))]
     title = a.get("title", "").strip()
     if title:
         out.append("<figcaption>%s</figcaption>" % esc(title))
@@ -1725,6 +1848,19 @@ def build(spec_text, lang=None, base_dir=".", page=None):
             if gone:
                 head.append('<meta name="consult-dropped" content="%s">'
                             % esc(" ".join(gone)))
+            # BL-611: ids that stay with a reworded title, so the id-stability
+            # check reads the new title as a decision, not a moved claim.
+            reworded = node.attrs.get("retitled-ids", "").split()
+            absent = [i for i in reworded
+                      if not any(n.id == i for n in _walk(tree))]
+            if absent:
+                raise SpecBuildError(
+                    node.line, "`masthead` retitled-ids lists %s, not in the "
+                    "spec: a retitled id stays on the page with a new title"
+                    % ", ".join(absent))
+            if reworded:
+                head.append('<meta name="consult-retitled" content="%s">'
+                            % esc(" ".join(reworded)))
 
     body = [emit_node(n, ctx) for n in tree if not _blank_prose(n)]
 
@@ -1841,11 +1977,37 @@ def main(argv):
     # Through STDIN, not a temp file: `--in` would leave a path beside the page
     # for the window of the wrap, and the wrap keeps the author's source itself
     # (`<baseline>.body`). Content on stdin is page markup, which is what this is.
+    # A failed FIRST build leaves no page, and the wrap keeps its attempt under
+    # `.aidex-artifact-prev/` for an author with no other copy. Here the spec is the
+    # source, so that folder, when THIS build created it, is only residue (BL-624).
+    prev_dir = os.path.join(os.path.dirname(os.path.abspath(args.out)),
+                            ".aidex-artifact-prev")
+    prev_existed = os.path.isdir(prev_dir)
     rc = subprocess.run(["bash", WRAP, "--title", title, "--lang", lang,
                          "--out", args.out]
                         + (["--new-round"] if args.new_round else []),
                         input=body.encode("utf-8")).returncode
     if rc != 0:
+        if not prev_existed and not os.path.exists(args.out):
+            # The folder is shared by every page beside this one: remove only this
+            # page's own names, then the folder if that left it empty.
+            removed = []
+            for suffix in (".failed", ".failed.body", ".failed.body.md"):
+                own = os.path.join(prev_dir, os.path.basename(args.out) + suffix)
+                try:
+                    os.unlink(own)
+                    removed.append(own)
+                except OSError:
+                    pass
+            try:
+                os.rmdir(prev_dir)
+            except OSError:
+                pass
+            if removed:
+                sys.stderr.write("spec-build: removed %s (this build's attempt; "
+                                 "the paths above no longer exist). Fix %s and "
+                                 "build again.\n"
+                                 % (" and ".join(removed), args.spec))
         return rc
     if args.check:
         # wrap-report.sh --out already verified the contract; re-running it is

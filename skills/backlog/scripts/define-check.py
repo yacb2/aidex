@@ -90,12 +90,13 @@ def deduce(root, item):
             touches.append(p)
         else:
             head = p.split('/', 1)[0]
-            if head in siblings and head != os.path.basename(root):
+            if head in siblings and head != os.path.basename(root) and not os.path.isdir(os.path.join(root, head)):
                 cross.append(p)
     declared = [x.strip() for x in item['fm'].get('touches', '').split(',') if x.strip()]
     for d in declared:
         head = d.split('/', 1)[0]
-        if not os.path.exists(os.path.join(root, d)) and head in siblings and head != os.path.basename(root):
+        if (not os.path.exists(os.path.join(root, d)) and head in siblings and head != os.path.basename(root)
+                and not os.path.isdir(os.path.join(root, head))):
             cross.append(d)
     me = item['fm'].get('id', '')
     cites = sorted({'BL-' + n for n in _BL.findall(item['body']) if 'BL-' + n != me})

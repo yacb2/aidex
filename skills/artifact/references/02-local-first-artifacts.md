@@ -311,6 +311,11 @@ screen wireframes and mockups only, and `graph` is not used for consult figures
 A figure that illustrates one decision goes INSIDE that `item`, where it was written;
 `masthead` and `note` do not nest one.
 
+**An item that decides where something sits or moves** (placement on a screen, a move between
+screens) carries its own figure INSIDE the item: one drawn option (`figure` or `diagram`) or
+one gallery alternative per option. A page-level visual does not cover it, and prose alone
+is never enough: the owner will ask for the mockup and a round is lost (BL-630).
+
 ### The `chart` block
 
 The one block whose body is **data, not prose**. Two forms, chosen by the first non-blank
@@ -625,6 +630,8 @@ id, and **which** markers is the whole point:
 | **`[more-examples]`** | More worked examples, not a longer explanation | More visuals, tables or example blocks than the last round carried — never the same shape stretched longer. | `check_marker_duties`: visual+table+example count must be higher than the answered snapshot |
 | **`[page-defect]`** | The page itself is broken (encoding, a dead control, a rendering bug) — never a route back to `[reframe]` for it | Fix the page defect in place. Nothing about the item's question changes, so nothing is re-asked. | none — a page defect is not a re-ask |
 
+A gallery row has no body to rewrite, so its explain-why and reframe text go in the row's `note` list (§ Gallery rows), never packed into `look`. `[more-examples]` on a gallery row is answered with another capture or a table, not a note: the duty check counts visuals and tables, not `<li>` lines.
+
 A `[not-now]` deferral (below) carries no re-ask duty either: the item leaves the round and is carried open on the ledger until the reader brings it back.
 
 **3+ markers stacked on one item is not a bigger version of any one of them — it
@@ -665,7 +672,9 @@ saved the same way, no bypass — runs `scripts/save-reply.sh <page.html>
 `.aidex-artifact-prev/<stem>.reply.md` AND snapshots the page exactly as the
 reader answered it to `.aidex-artifact-prev/<stem>.answered.html`, then prints
 one DUTY line per marked item (the Gate column above) — paste that list into
-the brief.
+the brief. DUTIES also include every gallery row whose verdict is
+anything but Approved (Needs changes, Other, Cannot judge) and every gallery row that carries region
+marks, approved or not (BL-632); an approved row with no mark owes nothing.
 
 `.aidex-artifact-prev/<stem>.html`, the contract baseline `consult-ids` uses for
 id stability, is advanced on **every** passing wrap, by design. A check keyed to
@@ -690,15 +699,23 @@ re-asked.
 A duty never expires by being overwritten, and a second `save-reply.sh` cannot
 be used to escape one. If a previous reply exists and the page on disk does
 not yet meet every duty that reply named, a new paste is **appended** to
-`reply.md` under a `<!-- reply saved <iso time> duty -->` separator and
+`reply.md` under a `<!-- reply saved <iso time> page:<fingerprint> duty -->` separator and
 `answered.html` is **left untouched** — the union of every mark the id has
 ever carried, across every appended block, is what the next check reads.
-The same append happens when the page on disk still equals `answered.html`
-(two saves in one round, no rebuild between; separator mode `same-round`): the
-second paste must not erase the first. This page check wins over the duty
-check: a page that still equals `answered.html` is labelled `same-round` even
+A gallery duty (BL-632) is unmet while its row is still byte-identical to the
+row in `answered.html` (BL-654): the wrap gate refuses that round and this
+guard holds, exactly as for a marker duty. Any change to the row's markup
+clears the duty, as for a body-change marker, including an edit to the look
+text alone.
+The same append happens when the page on disk is the page the save before it
+came from (two saves in one round, no rebuild between; separator mode
+`same-round`): the second paste must not erase the first. That page is the
+fingerprint the last separator carries, or `answered.html` when there is none
+(the first save, or a separator written before BL-644). This page check wins
+over the duty check: a save from the same page is labelled `same-round` even
 with a duty unmet, so a later full composer paste from it supersedes the
-earlier one. Only once the page has been rebuilt
+earlier one — also when that page was rebuilt outside the gate and two saves
+came from it (BL-644). Only once the page has been rebuilt
 and satisfies every outstanding duty does a fresh reply **replace** `reply.md` and re-snapshot
 `answered.html`: that is a delivered round, not an unanswered one waved
 through by an unrelated follow-up.
@@ -897,7 +914,7 @@ What the composer does, and none of it is written by an author:
 | Where it goes | One `section#sec-decided`, inserted after the ledger (or after the header when there is none), each unit inside a `<details>` whose summary carries the id, the title and the option that won |
 | The verdict line | Derived from the checked options. `data-decided="<one line>"` overrides it, for an outcome that is not any single option |
 | The rail | One entry for the section, never one per settled question — the index is the other half of "navegar sobre cosas ya respondidas". A block still open keeps its entry and lists only its OPEN items under it; a decided item folded in place has none, the block is the way in |
-| Dropped items | An item with `data-dropped` (spec `dropped="reason"`, BL-516.4) left the question set unanswered, so it is never counted as decided: its unit goes to its own `section#sec-dropped` (heading "Descartadas" / "Dropped", its own count and hint), right after `#sec-decided`, with one rail entry of its own. A dropped item inside a block whose other items are decided stays in that block's unit, marked "(descartada)" in the summary, and is not counted as a decision |
+| Dropped items | An item with `data-dropped` (spec `dropped="reason"`, BL-516.4) left the question set unanswered, so it is never counted as decided: its unit goes to its own `section#sec-dropped` (heading "Descartadas" / "Dropped", its own count and hint), right after `#sec-decided`, with one rail entry of its own. A dropped item inside a block whose other items are decided stays in that block's unit, listed in the summary with its written verdict ("Descartada: reason"), and is not counted as a decision. A row the owner asked to redo is NOT dropped: it is a verdict, `decided="Se rehace según Q1"`, and counts as decided |
 
 The node is **moved**, never copied or deleted, so the static file is unchanged: the same
 markup parses the same way, `check_artifact.py` needs no rule of its own, and BL-359's fix
@@ -1171,9 +1188,10 @@ artifact-layout | .context/reports/x.html | sha256:<prefix> | pre-.tw page, thre
 Anchored waivers resurface when the file changes; waived findings are reported as
 `waived: N`, never dropped. Fix a drifted page by re-wrapping it; waive it when the
 thread is closed and the page is kept as a record. The census also reports **baseline
-hygiene** — orphaned `.aidex-artifact-prev/` copies whose artifact is gone, and baseline
-dirs that followed an artifact into `_archive/` — with the exact `rm` to run. It reports;
-it never deletes.
+hygiene** — `.aidex-artifact-prev/` entries whose artifact is gone, one note per entry
+(also under `_archive/`; a folder beside a live archived page is not reported, the builder
+recreates it) — with the exact `rm` to run. It reports; it never deletes. A first spec build
+that fails removes the `.aidex-artifact-prev/` it created; a pre-existing one is never touched.
 
 ### 6. Save it as a sibling of the anchor
 
@@ -1389,15 +1407,27 @@ messages and the tests; § 8.4 is the block shape.
    what the user would see. `check-artifact.sh` warns (`consult-lead-id`) when the first
    sentence of an item's lead paragraph cites a BL-/M095-style id, a backticked path, an
    HTTP verb, "fila N" or "gate N"; only that first sentence counts, and all of it is
-   checked, not only the text before the id; an id that is the `data-id` of another item on
+   checked, not only the text before the id; a product name with a number ("Los Simpson T8") is not an id, so a bare letter plus digits counts only after "decisión/pregunta/fila" (or the English words) or as a Q/M095 prefix, never right after a capitalized word; an id that is the `data-id` of another item on
    the same page ("your answer to Q2") is a cross-reference and does not warn; a `Fuente:` line
-   never warns, and the warning is cleared by the rewrite, not by a waiver.
+   never warns `consult-lead-id`, and the warning is cleared by the rewrite, not by a waiver.
+   A `Fuente:` line may list several file paths: the `mixed-content-types` check (and its `consult-facts` mirror) does not count the `<code>` tokens or the path run of a paragraph that is one source LINE, i.e. starts with `Fuente:`/`Source:` and has no sentence break (". ", "? ", "! " followed by more text outside `<code>`); a multi-sentence paragraph that merely opens with "Fuente:" is prose and still fails. Semicolon clauses still count (BL-643).
+
+   **The `Fuente:` line is readable, and the heading is the question (BL-623).** On a
+   Spanish page a `Fuente:` line made only of short codes and untranslated English words
+   ("Fuente: d4, M4, phase 8.") tells the reader nothing (a line of backlog ids alone, "Fuente: BL-617.", is what the lead-id warning asks for and stays clean): write it in the page language
+   ("decisión d4 del contrato de pantallas, fase 8") or drop it. An item with options
+   carries an `<h3>` that is the decision question and ends in "?", never a statement
+   ("La columna Idiomas muestra el texto cortado."). `check-artifact.sh` warns
+   (`consult-fuente-unreadable`, `consult-heading-statement`; gallery rows and decided items skip the heading check); the English words it
+   counts are phase, empty, notes, note, row(s), gate(s), question, decision, step.
 
    **Triage before asking (BL-503).** Before the brief lists items, sort the open
    decisions: one that is reversible in minutes and carries a recommendation is
    DECIDED, not asked. It goes in a block titled "decidido, corrígeme si no" (one line
    each: the situation, what was chosen, why) and the reader only corrects. Only the
-   rest become items.
+   rest become items. Inside a gallery, that
+   block goes in the `decided_note` of a row still open (a callout under the captures), never in the
+   row's Qué mirar line.
 
    **An item that comes back with 3+ ask markers is rewritten, not patched.** Three or
    more of `[explain-state]`, `[explain-options]`, `[explain-simpler]`, `[explain-why]`,
@@ -1599,6 +1629,8 @@ render), or as the one capture of a new screen, with one answer, a notes box and
 marks. A cell that changed without being asked for is a row of its own, marked as such. The
 project decides which rows exist; the kit owns the markup. Neither re-declares the other.
 
+A row the owner asked to redo is settled with `decided="Se rehace según Q1"`, never `dropped=`: dropped means the row left the question set and is counted nowhere, while a verdict to redo is a decision and shows in Decidido with the text written on it.
+
 **Two steps, never folded into the wrap.** The project emits the rows, the kit turns them
 into items, the items go into the body sidecar, and the page is wrapped as usual:
 
@@ -1634,7 +1666,9 @@ heading and its rail entry; without it the heading is the cell's name read as wo
 variant is said once under the captures ("Vista: escritorio, tema claro"), the one
 instruction sits at the top of the block, and an optional `highlight` (one `{x, y, w, h}`
 or a list, in the AFTER capture's own pixels) is outlined over the after and in the zoom
-view, outside the region with padding and no fill; the before gets an outline only from
+view, outside the region with padding and no fill (prefer `"highlight": "@name"`, resolved
+from the `<capture>.regions.json` sidecar the capture step writes, over hand-measured pixels,
+which stay as the fallback; refused when the sidecar, the name or the fit is wrong); the before gets an outline only from
 `highlight_before`, measured on the before capture (the two layouts differ). A before/after pair sits side by side (captures scale, never cropped; owner
 2026-10-01); `"layout": "stacked"` puts before above after at full width. Field table:
 `04-block-vocabulary.md` § `gallery`.
@@ -1727,6 +1761,36 @@ spec route (`spec_build.py`) refuses a row without it, naming the cell; `gallery
 on its own only shows it when present, so existing project emitters keep working. A
 not-applicable or dropped row is exempt: its reason is its content.
 
+**Prose beyond the look goes in `note`.** An optional row key, a non-empty list of non-empty
+strings, printed as a `<ul>` (one `<li>` each) directly under the look line. Use it for what
+`look` cannot hold in one sentence: what changed since the last round, what happens if the
+element is removed, a worked example. Its items are not held to the one-line look limits.
+A non-list, an empty list or an empty entry is refused naming the cell.
+
+**A single capture says why it has no before with `noBefore`.** An optional row key, a non-empty
+string (the reason), valid only on a row with an `after` and no `before`. It replaces the
+"pantalla nueva" / "new screen" caption and alt with `sin antes: <reason>` / `no before: <reason>`, so the
+reason is shown in the row; use it for a row approved in an earlier round whose before was lost, or a
+state the old screen cannot reach. The intro sentence "Donde hay una sola captura, la pantalla es nueva"
+is emitted only while at least one single-capture row has no `noBefore`. `noBefore` with a `before`, a
+blank or non-string value, or on a not-applicable or alternatives row (it would be dropped silently)
+is refused naming the cell; a dropped row does not read it. When a plain single-capture row sits beside
+a `noBefore` row, the intro sentence is qualified ("…, salvo donde la fila dice por qué no hay antes").
+
+**A row carries its "decidido, corrígeme si no" text in `decided_note`.** An optional row key, a
+non-empty string, rendered as the kit's `callout` after the row's variant line, under the captures and
+outside the "Qué mirar" line. It goes on a row still open: beside `decided` it is refused, because a
+decided row folds away and seals its notes and the correction offer would vanish. Blank or non-string
+values and a not-applicable row (no captures to sit under) are refused naming the cell; a dropped row
+does not read it.
+
+**A decided row answers the owner's note in `answer`.** An optional row key (BL-629), a non-empty
+string on a row that also carries `decided`: the reply to the note the owner left on it. The row
+still folds, takes no verdict radios and keeps the id of a plain review row of that cell, so
+`consult-ids` passes against the previous round; the fold's summary shows the answer, so it is read
+without opening the fold. Without `decided` it is refused (an open row carries its own text), as are
+blank or non-string values and dropped, not-applicable or alternatives rows, naming the cell.
+
 **The answer is compact by default.** A row shows verdict and note; the third verdict (on an
 alternatives row every alternative stays visible and only "none of them" folds) and the composer's own extras (Other, Not now, the
 ask chips) sit in closed `<details>` inside the same option group. A mark made in one opens
@@ -1818,7 +1882,10 @@ on a page nobody is editing is noise no one can clear.
 | `consult-independent` | a checkbox group whose option labels each name a distinct tracked id (`BL-NNN`, a dated plan slug) — several decisions drawn as one item. Each is its own two-option radio item (BL-375). Cleared by the rewrite |
 | `consult-rec` | a `data-label` spells "(recommended)" / "(recomendada)" — the marker then travels in the pasted reply and is invisible on the page. Use `data-recommended` |
 | `consult-facts` | a paragraph in a block context or an item body carries four or more `<code>` tokens or semicolon-separated clauses — facts written as prose (§8.4, BL-269/BL-270). Cleared by the rewrite, never by a waiver |
-| `consult-lead-id` | the first sentence of an item's lead paragraph cites a BL-/M095-style id, a backticked path, an HTTP verb, "fila N" or "gate N" (§8.4, BL-503). The lead is the product situation; ids go on a `Fuente:` line. Cleared by the rewrite, never by a waiver |
+| `consult-lead-id` | the first sentence of an item's lead paragraph cites a BL-/M095-style id, a backticked path, an HTTP verb, "fila N" or "gate N" (§8.4, BL-503); a product name with a number ("Los Simpson T8") is not an id. The lead is the product situation; ids go on a `Fuente:` line. Cleared by the rewrite, never by a waiver |
+| `consult-fuente-unreadable` | on a Spanish page, an item's `Fuente:` line is made only of short codes (d4, M4, P11) and/or a few untranslated English words (phase, empty, notes …) (§8.4, BL-623). A real word beside the code keeps it clean, and so does a line of backlog ids alone (BL-617). Gallery rows and `data-decided` items are exempt from the heading check. Cleared by the rewrite, never by a waiver |
+| `consult-heading-statement` | an item with radio/checkbox options whose `<h3>` has no "?" — a statement instead of the decision question; gallery rows and `data-decided` items are exempt (§8.4, BL-623). In a spec, end the question paragraph with "?". Cleared by the rewrite, never by a waiver |
+| `consult-raw-label` | on a Spanish page, an item's visible prose (outside `Fuente:` lines, `<code>`/`<pre>`, svg and attributes) shows one of the page's own gallery-row ids (matched against the page's `data-id`s, not a hyphen-chain regex, which also hits tool and package names), or an element whose whole text is the English label `notes` (the kit's `consult-id` badge is exempt; gallery ids with fewer than three hyphen segments are not matched) (§8.4, BL-650). Cleared by the rewrite, never by a waiver |
 | `consult-order` | a block's last item is followed, before the block ends, by a figure, img, svg, video, table, canvas or a `<p>@@VIDEO …@@</p>` marker (a project post-build step turns those into `<video>`) — the answer box renders above the material it asks about (§8.4, BL-463). Cleared by moving the evidence above its item |
 | `svg-text` | two inline-SVG labels whose estimated boxes intersect, a label that leaves its `viewBox`, or a label wider than the rect it is centred in (BL-310). A static estimate, ±5 %; see § Figures below for the browser check that settles it. Runs on every page, read or consultation |
 | `svg-scope` | a bare element selector inside an embedded `<style>` — it is a stylesheet in the page, so it paints every matching node in the document (BL-330). Cleared by scoping it to the figure's id, never by a waiver |
