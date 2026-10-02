@@ -110,14 +110,37 @@ seven_lines() {
   # figure is carried or waived by name in the census (a waived figure is one
   # the census records as not carried) and no page newly fails (corpus and
   # escapes held).
-  local waived fc ft
-  waived=$(grep -cE '^page=.* waived=[a-z-]+$' "$dir/figure-census.md" 2>/dev/null)
+  local fc ft cc ec fl_c fl_e floor_ok
   fc=$(printf '%s\n' "$full" | sed -n 's/^figures: \([0-9]*\)\/[0-9]*$/\1/p')
   ft=$(printf '%s\n' "$full" | sed -n 's/^figures: [0-9]*\/\([0-9]*\)$/\1/p')
-  if [ -n "$fc" ] && [ -n "$ft" ] && [ $((fc + ${waived:-0})) -eq "$ft" ] \
+  # `short` comes from the gate's own figure_count: every uncarried record not
+  # excused by a waiver that still holds. A stale waiver (original changed)
+  # keeps `figures:` at N/45 and still makes the run exit 1, so it is counted
+  # here, not by a regex over the census (BL-653).
+  fig_short=$(AIDEX_SPEC_CORPUS="$dir" python3 - "$HERE" <<'PY' 2>/dev/null
+import json, sys
+sys.path.insert(0, sys.argv[1])
+import goal_gate as g
+s = json.load(open(g.SAMPLE))
+print(g.figure_count(s["pages"], s["root"])[4])
+PY
+)
+  # `corpus:` regresses from GATE-FLOOR.json (its N/N cell is the caller's and
+  # the "gate floor" cell below); `escapes:` gets its own cell so a regression
+  # is not reported as a wrong exit.
+  cc=$(printf '%s\n' "$full" | sed -n 's/^corpus: \([0-9]*\)\/[0-9]*$/\1/p')
+  ec=$(printf '%s\n' "$full" | sed -n 's/^escapes: \([0-9]*\)$/\1/p')
+  fl_c=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["corpus"])' "$dir/corpus-specs/GATE-FLOOR.json")
+  fl_e=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["escapes"])' "$dir/corpus-specs/GATE-FLOOR.json")
+  check "[$label] escapes hold their floor ($fl_e)" \
+    "$([ -n "$ec" ] && [ "$ec" -le "$fl_e" ] && echo 1 || echo 0)" "escapes ${ec:-?}, floor $fl_e: $full"
+  floor_ok=0
+  [ -n "$cc" ] && [ -n "$ec" ] && [ "$cc" -ge "$fl_c" ] && [ "$ec" -le "$fl_e" ] && floor_ok=1
+  if [ "$fig_short" = 0 ] && [ -n "$fc" ] && [ -n "$ft" ] && [ "$floor_ok" = 1 ] \
      && printf '%s\n' "$full" | grep >/dev/null -x 'newly-fail: 0'; then want_rc=0; else want_rc=1; fi
-  check "[$label] the contract run exits $want_rc, as its figures/newly-fail lines say" \
+  check "[$label] the contract run exits $want_rc, as its corpus/escapes/figures/newly-fail lines say" \
     "$([ $rcf -eq $want_rc ] && echo 1 || echo 0)" "exit $rcf: $full"
+  fig_have="$fc"; fig_total="$ft"
   out_full="$full"
 }
 
@@ -134,8 +157,11 @@ if [ -n "$REAL" ]; then
   # 30/30, not the N/30 shape: the shape held at 25/30 (BL-552).
   check "[corpus] every page of the frozen 30 builds back to itself" \
     "$(printf '%s\n' "$out" | grep >/dev/null -x 'corpus: 30/30' && echo 1 || echo 0)" "$out"
-  check "[corpus] figures counts against the census's 45" \
-    "$(printf '%s\n' "$out" | grep >/dev/null -E '^figures: [0-9]+/45$' && echo 1 || echo 0)" "$out"
+  # Exactly 45, none short: the gate's own `short` is 0, so every figure is
+  # carried or waived by a waiver that still holds (37 + 8 today). The N/45
+  # shape held at any count (BL-653).
+  check "[corpus] figures: all 45 carried or waived, exactly (none short)" \
+    "$([ "$fig_total" = 45 ] && [ "$fig_short" = 0 ] && echo 1 || echo 0)" "total $fig_total, short $fig_short: $out"
 else
   skip "the seven lines on the real corpus"
 fi
