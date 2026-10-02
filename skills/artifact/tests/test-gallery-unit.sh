@@ -215,6 +215,35 @@ smp="$(item audit-empty-light-desktop-sample "$TMP/sample.html")"
   && ok "a sample row shows the pair and carries no verdict radios" \
   || fail "the sample row is missing or carries radios: $smp $(cat "$TMP/sample.err")"
 
+# -- untitled rows of one cell in two variants (BL-577) -------------------------
+# A FOLDED row (decided or dropped) shows only its heading, so two untitled rows of
+# one cell need the variant in it. An OPEN row already says the variant once, under
+# the capture (BL-594): its heading stays plain. A one-variant cell keeps the plain one.
+png actual/dark-desktop/audit-new-state.png 160 90
+python3 - "$TMP/rows.json" "$TMP/rows-var.json" "$TMP/rows-var-open.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1])); d["variants"] = ["light-desktop", "dark-desktop"]
+json.dump(d | {"rows": d["rows"] + [{"cell": "new-state", "variant": "dark-desktop", "kind": "review",
+                  "after": "actual/dark-desktop/audit-new-state.png"}]}, open(sys.argv[3], "w"))
+for r in d["rows"][:2]: r["decided"] = "Aprobado"
+d["rows"].append({"cell": "new-state", "variant": "dark-desktop", "kind": "review",
+                  "after": "actual/dark-desktop/audit-new-state.png", "decided": "Aprobado"})
+json.dump(d, open(sys.argv[2], "w"))
+PY
+bash "$GEN" "$TMP/rows-var.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/var.html" 2>"$TMP/var.err"
+bash "$GEN" "$TMP/rows-var-open.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/varo.html" 2>>"$TMP/var.err"
+hl() { item "$1" "$2" | grep -o 'data-heading="[^"]*"' | head -1; }
+[[ -n "$(hl audit-new-state-light-desktop "$TMP/var.html")" \
+   && "$(hl audit-new-state-light-desktop "$TMP/var.html")" != "$(hl audit-new-state-dark-desktop "$TMP/var.html")" ]] \
+  && [[ "$(hl audit-empty-light-desktop "$TMP/var.html")" == 'data-heading="Empty"' ]] \
+  && ok "two untitled decided rows of one cell in two variants get different headings; a one-variant cell keeps the plain one" \
+  || fail "headings: $(hl audit-new-state-light-desktop "$TMP/var.html") / $(hl audit-new-state-dark-desktop "$TMP/var.html") / $(hl audit-empty-light-desktop "$TMP/var.html") $(cat "$TMP/var.err")"
+open_dark="$(item audit-new-state-dark-desktop "$TMP/varo.html")"
+[[ "$(hl audit-new-state-dark-desktop "$TMP/varo.html")" == 'data-heading="New state"' \
+   && "$(grep -c 'gal-variant' <<<"$open_dark")" == 1 && "$(grep -o 'escritorio, tema oscuro' <<<"$open_dark" | wc -l | tr -d ' ')" == 1 ]] \
+  && ok "an open untitled row in a two-variant cell says its variant once (the line under the capture), heading plain" \
+  || fail "open row repeats or lacks the variant: $(grep -n 'data-heading\|gal-variant\|<h3' <<<"$open_dark")"
+
 # -- a declared cell the screen cannot reach ---------------------------------
 # The emitter sends `{"cell", "notApplicable": reason}` for a changed cell the
 # harness skips: no variant, no captures. The reason replaces the pair.

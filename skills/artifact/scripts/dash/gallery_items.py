@@ -170,15 +170,19 @@ def variant_line(variant, lang):
     return VARIANT_LINE[lang] % variant_label(variant, lang)
 
 
-def row_heading(row_title, cell):
+def row_heading(row_title, cell, variant=None, lang="es"):
     """What the reader sees as the row's heading and in the rail: the row's own
     `title`, else the cell's name read as words (`users-list-menu` -> `Users
     list menu`) — never the `<gallery> · <cell> · <variant>` key, which stays
-    the reply's `data-title` (gallery_reply.py reads rows by it)."""
+    the reply's `data-title` (gallery_reply.py reads rows by it). A `variant`
+    is passed only when the cell has several in the block and the row is folded
+    (decided or dropped; an open row says its variant under the capture): it is then added, so
+    two untitled rows of one cell do not fold to the same label."""
     if row_title:
         return row_title
     words = cell.replace("-", " ")
-    return words[:1].upper() + words[1:]
+    words = words[:1].upper() + words[1:]
+    return words + " · " + variant_label(variant, lang) if variant else words
 
 
 def row_id(gallery, cell, variant, kind):
@@ -663,6 +667,10 @@ def render(doc, root, group_id, group_title, lang, page=None,
     if intro:
         add('  <p class="gal-intro">%s</p>' % e(intro))
     seen, unrequested, ids = {}, {}, {}
+    cell_variants = {}
+    for row in doc["rows"]:
+        if isinstance(row, dict) and row.get("variant"):
+            cell_variants.setdefault(row.get("cell"), set()).add(row["variant"])
     for n, row in enumerate(doc["rows"], 1):
         r = check_row(row, variants, n, alts, require_look)
         cell, variant, kind = r["cell"], r.get("variant"), r["kind"]
@@ -703,7 +711,10 @@ def render(doc, root, group_id, group_title, lang, page=None,
                 % (ids[ident], n, ident))
         ids[ident] = n
         title = "%s · %s · %s" % (gallery, cell, variant)
-        heading = row_heading(r.get("title"), cell)
+        heading = row_heading(
+            r.get("title"), cell,
+            variant if len(cell_variants.get(cell, ())) > 1
+            and ("dropped" in r or "decided" in r) else None, lang)
         # A dropped row is out of the question set: same id, title and kind as
         # when it was asked, the reason where the tiles were, and a decided
         # mark so the composer folds it and counts it nowhere.

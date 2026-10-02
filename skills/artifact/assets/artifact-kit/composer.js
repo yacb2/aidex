@@ -450,14 +450,15 @@
         k.textContent = u.node.dataset.id || u.node.id || '';
         v.textContent = (u.node.dataset.title || '') + ' \u2014 ' +
           inner.map(function (el) {
-            return el.dataset.id + (isDropped(el) ? L.droppedMark : '');
+            return (el.dataset.heading || el.dataset.id) + (isDropped(el) ? L.droppedMark : '');
           }).join(', ');
       } else {
-        k.textContent = u.node.dataset.id || '';
+        /* A row with a heading is labelled by it (BL-577); the slug stays on data-id. */
+        k.textContent = u.node.dataset.heading ? '' : (u.node.dataset.id || '');
         var line = decidedSummary(u.node);
         v.textContent = (u.node.dataset.heading || u.node.dataset.title || '') + (line ? ' \u2014 ' + line : '');
       }
-      sum.appendChild(k);
+      if (k.textContent) sum.appendChild(k);
       sum.appendChild(v);
       d.appendChild(sum);
       return d;
