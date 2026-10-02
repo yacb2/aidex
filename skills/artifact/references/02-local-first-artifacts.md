@@ -1748,6 +1748,16 @@ strings, printed as a `<ul>` (one `<li>` each) directly under the look line. Use
 element is removed, a worked example. Its items are not held to the one-line look limits.
 A non-list, an empty list or an empty entry is refused naming the cell.
 
+**A single capture says why it has no before with `noBefore`.** An optional row key, a non-empty
+string (the reason), valid only on a row with an `after` and no `before`. It replaces the
+"pantalla nueva" / "new screen" caption and alt with `sin antes: <reason>` / `no before: <reason>`, so the
+reason is shown in the row; use it for a row approved in an earlier round whose before was lost, or a
+state the old screen cannot reach. The intro sentence "Donde hay una sola captura, la pantalla es nueva"
+is emitted only while at least one single-capture row has no `noBefore`. `noBefore` with a `before`, a
+blank or non-string value, or on a not-applicable or alternatives row (it would be dropped silently)
+is refused naming the cell; a dropped row does not read it. When a plain single-capture row sits beside
+a `noBefore` row, the intro sentence is qualified ("…, salvo donde la fila dice por qué no hay antes").
+
 **The answer is compact by default.** A row shows verdict and note; the third verdict (on an
 alternatives row every alternative stays visible and only "none of them" folds) and the composer's own extras (Other, Not now, the
 ask chips) sit in closed `<details>` inside the same option group. A mark made in one opens
