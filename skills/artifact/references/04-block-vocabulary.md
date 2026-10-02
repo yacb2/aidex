@@ -358,7 +358,9 @@ block's single instruction ("Marca tu respuesta en cada fila…", plus a sentenc
 screens, samples, alternatives or not-applicable rows when the block holds any) is one
 `<p class="gal-intro">` under the block's heading, never repeated per row. The Spanish
 approve option reads "Aprobada: lo propuesto queda como referencia". The "Ampliar" word of a
-tile sits on its own line below the caption, never over the capture.
+tile sits on its own line below the caption, never over the capture. The intro ends with a
+`<span class="gal-intro-narrow">` ("En el móvil, toca Ampliar para leer cada captura." / "On a
+phone, tap Enlarge to read each capture."), hidden by default and shown only under 700 px.
 
 Every row but a sample carries one answer (two verdicts visible, the third and the composer's extras collapsed) and a notes box. The row id is
 `<gallery>-<cell>-<variant>`, with `-<kind>` appended for a non-review row, so it stays

@@ -742,6 +742,8 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 /* The one instruction of a gallery, under its heading (BL-595), and the variant
    said once under a row's captures, in words (BL-594). */
 .gal-intro:where(:not(svg *)) { font-family: var(--sans); font-size: 0.9rem; margin: 0.2rem 0 0.6rem; }
+.gal-intro-narrow { display: none; }
+@media (max-width: 700px) { .gal-intro-narrow { display: inline; } }
 .gal-variant:where(:not(svg *)) { font-family: var(--sans); font-size: 0.82rem; color: var(--muted); margin: 0.1rem 0 0.5rem; }
 /* A before/after pair on top of each other, each at the column's full width
    (BL-589): a capture is never cropped to fit a half-width cell. */

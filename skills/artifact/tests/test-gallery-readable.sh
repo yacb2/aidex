@@ -189,6 +189,9 @@ r = json.load(sys.stdin)["rows"]
 sys.exit(0 if len(r) == 1 and r[0]["cell"] == "users-list-menu" and r[0]["verdict"] == "Necesita cambios" else 1)' \
   && ok "the row id, cell and verdict come back" || fail "the reply did not round-trip"
 
+gen "$TMP/rows.json" --lang en 2>/dev/null | grep -qF '<span class="gal-intro-narrow">On a phone, tap Enlarge to read each capture.</span>' \
+  && ok "BL-615: an English page carries the English hint" || fail "BL-615: the English hint is missing"
+
 echo "== the browser: rail, label, outline, overflow =="
 module=""
 if [[ -n "${AIDEX_PLAYWRIGHT_DIR:-}" && -f "$AIDEX_PLAYWRIGHT_DIR/node_modules/playwright/package.json" ]]; then
@@ -222,6 +225,8 @@ PY
     "Ampliar sits in the flow below the capture, covering none of it"
   check 'd["zoom"]["open"] and d["zoom"]["boxes"] == 1 and d["zoom"]["frac"] == [10, 10, 20, 20]' \
     "the zoom view draws the same outline over the enlarged capture"
+  check 'd["desktop"]["introHint"] == "none"' "BL-615: the narrow-screen hint is display:none at 1280 px"
+  check '"toca Ampliar" in d["phone"]["introText"]' "BL-615: at 390 px the visible intro tells the reader to tap Ampliar"
   check 'd["phone"]["overflow"] <= 0 and not d["phone"]["imgPastEdge"]' "at 390 px nothing overflows the page"
 fi
 
