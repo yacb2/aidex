@@ -124,6 +124,7 @@ li::marker { color: var(--muted); }
 
 .note:where(:not(svg *)) { font-family: var(--sans); font-size: 0.82rem; line-height: 1.55; color: var(--ink-soft);
         background: var(--paper-sunk); border-left: 2px solid var(--accent-dim); padding: 0.75rem 0.95rem; }
+.note.kit-stale:where(:not(svg *)) { position: sticky; top: 0; z-index: 20; background: var(--paper-sunk); box-shadow: 0 1px 0 var(--rule); }
 .note.warn { border-left-color: var(--flag); }
 .ex:where(:not(svg *)) { font-family: var(--sans); font-size: 0.8rem; line-height: 1.55; color: var(--ink-soft);
       border-left: 2px solid var(--rule); padding-left: 0.8rem; }
@@ -742,8 +743,8 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 /* The one instruction of a gallery, under its heading (BL-595), and the variant
    said once under a row's captures, in words (BL-594). */
 .gal-intro:where(:not(svg *)) { font-family: var(--sans); font-size: 0.9rem; margin: 0.2rem 0 0.6rem; }
-.gal-intro-narrow { display: none; }
-@media (max-width: 700px) { .gal-intro-narrow { display: inline; } }
+.gal-intro-narrow:where(:not(svg *)) { display: none; }
+@media (max-width: 700px) { .gal-intro-narrow:where(:not(svg *)) { display: inline; } }
 .gal-variant:where(:not(svg *)) { font-family: var(--sans); font-size: 0.82rem; color: var(--muted); margin: 0.1rem 0 0.5rem; }
 /* A before/after pair on top of each other, each at the column's full width
    (BL-589): a capture is never cropped to fit a half-width cell. */

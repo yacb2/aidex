@@ -282,6 +282,40 @@ window.addEventListener('load', function () {
     Object.keys(d).forEach(function (k) { delete d[k].r; delete d[k].x; });
     localStorage.setItem(K, JSON.stringify(d));
     document.title = 'DOWNGRADED=' + JSON.stringify(d).replace(/[|<>]/g, ' ');
+  } else if (q.indexOf('phase=stale') !== -1) {
+    /* BL-635: another tab writing a NEWER built stamp for this path marks this tab
+     * stale; an equal or older stamp, or this tab's own load, shows nothing. No
+     * backticks in this branch (the heredoc is unquoted). */
+    var bm = document.querySelector('meta[name="artifact-built"]');
+    var mine = bm ? bm.getAttribute('content') : '';
+    var SK = 'aidex-kit-built:' + location.pathname;
+    var nb = function () { return document.getElementById('consult-stale') ? '1' : '0'; };
+    var send = function (b, r, m, k) {
+      window.dispatchEvent(new StorageEvent('storage', { key: k || SK,
+        newValue: JSON.stringify({ b: b, r: r === undefined ? '1' : r, m: m || 0 }) }));
+      return nb();
+    };
+    var R = parseInt(document.querySelector('meta[name="consult-round"]').getAttribute('content'), 10) || 0;
+    var LM = Date.parse(document.lastModified) || 0;
+    var own = nb(), eq = send(mine, String(R), LM), old = send('2000-01-01 00:00'),
+        xkey = send('9999-01-01 00:00', '1', 0, 'aidex-kit-built:/elsewhere.html');
+    /* Same minute: an equal stamp and round with an OLDER mtime shows nothing, a
+     * later round shows the banner (tie-break on the round as a number), and
+     * where the round ties a later mtime does (tie-break on the file). */
+    var eqold = send(mine, String(R), LM - 1000);
+    var sb0 = document.getElementById('consult-stale');
+    var other = send(mine, String(R + 1), 0);
+    if (sb0 = document.getElementById('consult-stale')) sb0.remove();
+    var eqm = send(mine, String(R), LM + 1000);
+    if (sb0 = document.getElementById('consult-stale')) sb0.remove();
+    var big = send('9999-01-01 00:00');
+    var sb = document.getElementById('consult-stale');
+    document.title = 'STALE|OWN=' + own + '|EQ=' + eq + '|OLD=' + old + '|XKEY=' + xkey + '|EQOLD=' + eqold + '|NEWR=' + other + '|NEWM=' + eqm + '|NEW=' + big
+      + '|N=' + document.querySelectorAll('#consult-stale').length
+      + '|BTN=' + (sb && sb.querySelector('a,button') ? '1' : '0')
+      + '|TXT=' + (sb ? sb.textContent : '').replace(/[|<>]/g, ' ')
+      + '|SHOWN=' + (sb && sb.getBoundingClientRect().height > 0 ? '1' : '0')
+      + '|STORED=' + (localStorage.getItem(SK) || '').replace(/[|<>]/g, ' ');
   } else if (q.indexOf('phase=clear') !== -1) {
     var btn = document.querySelector('[data-id="Q1"] .consult-clear');
     if (btn) btn.click();
@@ -3721,6 +3755,24 @@ tsl="$(grep -oE '<title>[^<]*</title>' "$TMP/slugdom.html" | sed -n 1p)"
   || fail "BL-577: a headed fold carries an empty .consult-id span (margin, misalignment): $tsl"
 [[ "$tsl" == *"plain-row-id"* ]] \
   || fail "BL-577: a decided row with no heading must keep its id as the label: $tsl"
+
+# ---- BL-635: a tab that another tab outdated says so ------------------------
+# Layer: browser (the storage event and the banner node are the engine's).
+t="$(run 'phase=stale')"
+[[ "$t" == *"OWN=0"* ]] || fail "BL-635: a tab marked itself stale on load: $t"
+[[ "$t" == *"EQ=0"* ]] || fail "BL-635: an EQUAL built stamp from another tab showed the stale banner: $t"
+[[ "$t" == *"OLD=0"* ]] || fail "BL-635: an OLDER built stamp from another tab showed the stale banner: $t"
+[[ "$t" == *"XKEY=0"* ]] || fail "BL-635: a newer stamp under ANOTHER path's key showed the banner: $t"
+[[ "$t" == *"EQOLD=0"* ]] || fail "BL-635: equal built and round with an older file mtime showed the banner: $t"
+[[ "$t" == *"NEWR=1"* ]] || fail "BL-635: equal built with a later round (same-minute re-wrap) did not show the banner: $t"
+[[ "$t" == *"NEWM=1"* ]] || fail "BL-635: equal built and round with a later file mtime did not show the banner: $t"
+[[ "$t" == *"NEW=1"* ]] || fail "BL-635: a NEWER built stamp for this path did not show the stale banner: $t"
+[[ "$t" == *"N=1"* ]] || fail "BL-635: the stale banner is not a single node: $t"
+[[ "$t" == *"BTN=1"* && "$t" == *"recárgala"* ]] || fail "BL-635: the stale banner has no reload action or is not in the page language (es): $t"
+[[ "$t" == *"SHOWN=1"* ]] || fail "BL-635: the stale banner has no box on screen: $t"
+[[ "$t" == *'STORED={"b":"2'* && "$t" == *'"m":1'* ]] || fail "BL-635: the load did not record this page's built stamp under its path: $t"
+t="$(CHROME_WINDOW=390,800 run 'phase=stale')"
+[[ "$t" == *"|NEW=1"* && "$t" == *"SHOWN=1"* ]] || fail "BL-635: the stale banner is not visible at 390: $t"
 
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other, the not-now choice, the multi-select item built from a spec, the ask row and the provisional state, the explicit theme, v4 answer sets, the all-decided page, the half-answered block, the gallery zoom dialog with its keyboard walk, the block filters that never reach the paste, the light/dark compare with its slider kept out of the paste, and the localised chrome included"
