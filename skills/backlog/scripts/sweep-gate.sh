@@ -111,8 +111,10 @@ PROFILE_ALT="$ROOT/testing-profile.md"
 #      dir, or the worktree itself): the same path inside the worktree;
 #   3. ROOT is outside the repo, the main checkout is not under ROOT and the worktree is
 #      (a worktree.sh DEST mirroring the workspace): ROOT, whose `cd <repo>` lands in it;
-#   4. anything else — the aidex_ws layout, main nested under ROOT and reached as
-#      `cd aidex` — refused: the worktree has no such path.
+#   4. anything else — a bare repo worktree of the aidex_ws layout (main nested under
+#      ROOT and reached as `cd aidex`) — refused: the worktree has no such path. That
+#      layout gates from a DEST with `WT_PARTICIPANTS=". aidex"` instead: the DEST owns
+#      its .context/, so ROOT is the DEST and row 2 or 3 applies (BL-555).
 # --from-log runs nothing, but maps the same way: the log must name the checkout and HEAD a
 # run here would have tested (BL-557; from any checkout, not only a linked worktree, BL-590).
 RUN_IN="$ROOT" LINKED=0
