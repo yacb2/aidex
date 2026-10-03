@@ -16,7 +16,7 @@ El mensaje final debe:
    mandarlo a E2E que el usuario planteó).
 
 No cuentan en contra: decir que no pudo ejecutar pytest ni los scripts, mencionar
-que el perfil (`.context/testing-profile.md`) no nombra un stack pack instalado,
+que el perfil (`.context/profiles/testing.md`) no nombra un stack pack instalado,
 ni una oferta o pregunta de cierre, siempre que el archivo ya esté escrito y
 nombrado.
 

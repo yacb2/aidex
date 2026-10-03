@@ -190,7 +190,7 @@ you get it wrong:
   - Nothing at all — only on a READ page, one with no reply surface at all (no
     `item`, no `notes`). The consultation rules, this one included, do not look at it.
 - **`lang="es"` on the masthead is the PAGE's language** and wins over `--lang`. Set it
-  to the project profile's language (`## Language` in `.context/artifact-style.md`): a
+  to the project profile's language (`## Language` in `.context/profiles/artifact.md`): a
   masthead or `--lang` that contradicts the profile fails `lang-follows-profile`. Only a
   `human-verification.*` page is English against the profile (D-04). An English page
   without `lang=` builds into `<html lang="es">` and fails the contract.
@@ -961,7 +961,7 @@ hand-roll an unstyled page.
 
 ### 3. Apply the project style profile
 
-`<project>/.context/artifact-style.md`. Since the kit shipped, this file is a **delta
+`<project>/.context/profiles/artifact.md`. Since the kit shipped, this file is a **delta
 over the kit**, not a design system of its own, and the wrapper reads exactly three
 things from it:
 
@@ -996,7 +996,7 @@ user corrects styling or asks for consistent branding.
 
 On a first artifact there is no "signal" by construction, yet that is precisely when the
 palette is invented and then lost — this single offer is the only moment it can be
-captured. Seed from `artifact/assets/templates/artifact-style.md.template`, prefilled
+captured. Seed from `artifact/assets/templates/artifact.md.template`, prefilled
 with the choices just made. Never repeat the offer, never nag.
 
 **"Exactly once" is kept by a marker, not by memory.** `wrap-report.sh --out` prints the

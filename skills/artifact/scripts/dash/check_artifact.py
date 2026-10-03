@@ -2668,7 +2668,7 @@ def check_file(path):
                        f"({es} Spanish vs {en} English stopwords) — the composer "
                        f"and the kit's chrome key off lang, so the reader gets two "
                        f"languages on one page. Write the body in the profile's "
-                       f"language (artifact-style.md `language:`) or pass --lang "
+                       f"language (artifact profile `language:`) or pass --lang "
                        f"(BL-279)")
 
     # --- raw-link: markdown link syntax shipped to the reader as text ----------

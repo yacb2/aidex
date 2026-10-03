@@ -21,6 +21,9 @@ import sys
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import profiles  # noqa: E402  the one profile resolver
 from typing import Iterable
 
 # Sibling-skill scripts this validator names in its advice. Resolved from this
@@ -39,7 +42,7 @@ TYPES_WITH_INDEX = {"plans": True, "references": True, "research": True, "backlo
 # the rest are project-local. The validator neither requires nor flags them — listed here
 # so the canonical model is explicit (auditors must not propose deleting these even when
 # empty). Keep in lockstep with 00-global.md §9 (guarded by test_registry_lockstep.py).
-OPTIONAL_TYPES = {"data", "diagrams", "drafts", "experiments", "worklists", "workflows"}
+OPTIONAL_TYPES = {"data", "diagrams", "drafts", "experiments", "profiles", "worklists", "workflows"}
 # Communications front-matter vocab (artifacts are EXEMPT from English-only; body is native).
 COMM_CHANNELS = {"email", "whatsapp", "call", "meeting", "other"}
 COMM_DIRECTIONS = {"received", "sent"}          # async, directional (from/to)
@@ -357,10 +360,10 @@ def declared_artifact_language(context_dir: Path) -> str | None:
     Scope is artifacts. `.context/` markdown stays English (D-04) whatever this
     says — see check_body_language, which is where the scoping is enforced.
     """
-    profile = context_dir / "artifact-style.md"
+    profile = profiles.resolve_profile(str(context_dir), "artifact")
     try:
-        text = profile.read_text(encoding="utf-8", errors="replace")
-    except OSError:
+        text = Path(profile).read_text(encoding="utf-8", errors="replace")
+    except (OSError, TypeError):
         # The profile is an optimisation, not a contract: an unreadable one falls
         # back to "nothing declared" rather than aborting the run.
         return None
@@ -1049,7 +1052,7 @@ def check_body_language(type_name: str, path: Path, text: str,
     audited and none is a D-04 violation parked out of sight:
 
       - 31 were rendered .html artifacts the project writes in Spanish ON PURPOSE, by
-        the `language:` field of its own `.context/artifact-style.md`. Reading the
+        the `language:` field of its own `.context/profiles/artifact.md`. Reading the
         profile was named there as the fix for those rather than a harsher severity,
         and it SHIPPED as BL-231 (2026-08-25): those artifacts are now silent at the
         source and their 32 waiver lines are gone (waived 52 -> 20). The severity

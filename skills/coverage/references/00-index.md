@@ -31,7 +31,7 @@ left this skill for the stack packs in `myskills` (`testing-django` 07 + items 2
 `decision/2026-08-27-aidex-is-stack-agnostic-stack-packs.md`. What follows is the record
 of how they got here first.
 
-Files 07–14, `assets/templates/test-e2e.sh.template`, `assets/templates/testing-profile.md.template`
+Files 07–14, `assets/templates/test-e2e.sh.template`, `assets/templates/testing.md.template`
 and `scripts/gen-test-e2e.sh` were folded in on 2026-08-26 under
 `decision/2026-08-26-coverage-canon-consolidation-and-targeted-runs.md` from five personal
 skills (`test-backend-django`, `test-frontend-vue`, `test-e2e`, `test-e2e-setup`,
@@ -45,5 +45,5 @@ content, with every project-specific value replaced by a `{{key}}` of the testin
 - 11 — `test-e2e-setup` (`01`–`05`, `08`) + `test-e2e/e2e-testing-guide.md`; the "no dev-mode config" rule from `04-playwright-configs.md`.
 - 12 — `test-e2e-setup/07-seed-data-pattern.md` + `test-e2e/adding-tests.md` generator rules.
 - 13 — `test-runner` (SKILL.md, `confidence-framework.md`, `inference-algorithm.md`, `output-format.md`), rewritten so escalation widens the selection instead of running the full suite.
-- 14 + `testing-profile.md.template` — new, no prior source; the fact/rule boundary is the ADR's.
+- 14 + `testing.md.template` — new, no prior source; the fact/rule boundary is the ADR's.
 - `test-e2e.sh.template` + `gen-test-e2e.sh` — `test-e2e-setup/03-shell-script.md`, with the `worktree` `.env` precondition applied.

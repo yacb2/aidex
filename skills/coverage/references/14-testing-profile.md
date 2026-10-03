@@ -1,11 +1,11 @@
 # The testing profile
 
-`<project>/.context/testing-profile.md` is the one file where a project records the
+`<project>/.context/profiles/testing.md` is the one file where a project records the
 **facts** the canon in this skill needs to be applied to it. Template:
-`assets/templates/testing-profile.md.template`. It is a delta over `coverage`:
+`assets/templates/testing.md.template`. It is a delta over `coverage`:
 everything in it is specific to that project, and nothing in it is a rule.
 
-**Where it may live.** `.context/testing-profile.md` normally, and a repo-level
+**Where it may live.** `.context/profiles/testing.md` normally, and a repo-level
 `<project>/testing-profile.md` as a **tracked fallback** for a project that gitignores
 `.context/`, where a profile could never travel with a checkout and the boundary gate
 would be unrunnable on a fresh clone. `.context/` wins when both exist; `sweep-gate.sh`'s

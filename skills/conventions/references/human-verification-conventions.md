@@ -78,7 +78,7 @@ anything is written — and it doubles as the fallback `<h1>`, since a
 `human-verification.md` carries no `# ` line and the page would otherwise have no heading
 and an empty rail. `--lang en` is needed because this artifact is a `.context/` document
 and those are English by D-04, while `--lang` defaults to the project's
-`artifact-style.md`: in a project whose profile declares another language the wrap writes
+`profiles/artifact.md`: in a project whose profile declares another language the wrap writes
 `<html lang="es">` over an English body and `check-artifact.sh` fails it (`lang`, BL-279).
 Measured in aidex on 2026-09-08 — the same command minus `--lang` failed with
 `<html lang="es"> but the body reads en (17 Spanish vs 1329 English stopwords)`.

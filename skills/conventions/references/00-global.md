@@ -111,7 +111,7 @@ The assistant continues to *reply* in the user's spoken language; only the writt
 
 - **Override:** the project's `CLAUDE.md` may explicitly direct another language for knowledge artifacts (e.g., "Generate `.context/` artifacts in Spanish"). A local skill edit is the second supported override path. The communications exemption needs no override — it is the default.
 - **Per-artifact override:** the user asking, in the moment, for *this* artifact in another language also wins — their explicit instruction outranks a default. It is scoped to that artifact, never standing, and the deviation is recorded as a waiver (§10) so the next validate run reports it as accepted rather than new. A **global** `CLAUDE.md` must not claim this scope: language scope belongs to this ADR, and a second always-on file asserting it is what produced the live contradiction resolved on 2026-08-03.
-- **Enforcement:** `validate.py` flags Spanish-dominant body text in knowledge artifacts as a WARNING (`body-language-not-english`). The heuristic is a conservative stopword-density test — it flags clearly-Spanish bodies only, never borderline bilingual quotes. Front-matter values, fenced code blocks, and `communications/` are exempt — and so is a **rendered** artifact (`.html`) in a project whose `.context/artifact-style.md` declares that language, since the profile is what authorises it. That exemption is scoped to rendered artifacts: `.context/` markdown stays English whatever the profile says, so a style profile can never become a way to opt out of D-04. Accepted exceptions (e.g., a project running the CLAUDE.md language override) are recorded as waivers — see §10.
+- **Enforcement:** `validate.py` flags Spanish-dominant body text in knowledge artifacts as a WARNING (`body-language-not-english`). The heuristic is a conservative stopword-density test — it flags clearly-Spanish bodies only, never borderline bilingual quotes. Front-matter values, fenced code blocks, and `communications/` are exempt — and so is a **rendered** artifact (`.html`) in a project whose `.context/profiles/artifact.md` declares that language, since the profile is what authorises it. That exemption is scoped to rendered artifacts: `.context/` markdown stays English whatever the profile says, so a style profile can never become a way to opt out of D-04. Accepted exceptions (e.g., a project running the CLAUDE.md language override) are recorded as waivers — see §10.
 
 ---
 
@@ -303,7 +303,7 @@ them in the project `CLAUDE.md`. Auditors treat them as INFO-at-most and never
 propose deleting them — but they are never *required* either:
 
 ```
-data · diagrams · drafts · experiments · worklists · workflows
+data · diagrams · drafts · experiments · profiles · worklists · workflows
 ```
 
 ### Deletion rule
@@ -421,3 +421,31 @@ D-07`, colliding with `2026-05-14-front-matter-minimum-fields.md`. It had taken 
 free number without checking, and the rest of the suite cites D-07 meaning *minimum
 front-matter*, so the front-matter ADR kept the number and the topology ADR moved to D-12.
 Anything written before 2026-07-27 citing "D-07" for the *topology* decision means D-12.
+
+## 12. Profiles (`.context/profiles/`)
+
+A project's per-project profiles live together in `.context/profiles/`. The folder name
+says what the files are, so the old `-style` / `-profile` suffix is gone. Skills read
+these names and no others:
+
+| File in `.context/profiles/` | Was (at the `.context/` root) | Read by |
+|---|---|---|
+| `artifact.md` | `artifact-style.md` | artifact, validate.py (language) |
+| `communication.md` | `communication-style.md` | comm |
+| `testing.md` | `testing-profile.md` | coverage, testing, backlog sweep gate, audit |
+| `deploy.md` | `deploy-profile.md` | the dashboard boilerplate's bp-ops (listed for completeness; aidex skills do not read it) |
+| `ui-contract.md` | `ui-contract.md` | ui-contract, plan |
+
+A project may keep its own extra profiles in the folder (for example a `glitchtip.md`);
+the canon fixes only the names skills read. The folder is whitelisted in `.gitignore` as
+one entry (`!.context/profiles/` and `!.context/profiles/**`), not per file.
+
+**Resolution.** Every reader takes `.context/profiles/<name>.md` first and falls back to
+the old root path while projects migrate; the fallback is read-only, nothing writes the
+old path. Scripts share one resolver: `resolve_profile <context-dir> <name>` in
+`skills/conventions/scripts/_lib.sh`, with its Python twin `profiles.py` beside it
+(`resolve_profile(context_dir, name)`, `profile_write_path(context_dir, name)`).
+`testing.md` keeps its second fallback, a tracked repo-root `testing-profile.md` for a
+project that gitignores `.context/`. `skills/conventions/scripts/migrate-profiles.sh
+<project-root>` moves a project's profiles (dry-run by default). The fallback goes when a
+fleet census finds no root copy left (BL-674).

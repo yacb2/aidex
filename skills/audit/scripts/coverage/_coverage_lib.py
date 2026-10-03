@@ -4,6 +4,9 @@ import datetime
 import functools
 import json, os, re, subprocess, sys
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "conventions", "scripts"))
+import profiles  # noqa: E402  the one profile resolver
+
 
 def profile_module_map(root):
     """The profile's `module_map`, resolved against root, or None.
@@ -16,9 +19,9 @@ def profile_module_map(root):
     profile-init.py --check resolve it: .context/ first, the repo root as the tracked
     fallback (BL-289).
     """
-    for prof in (os.path.join(root, ".context", "testing-profile.md"),
+    for prof in (profiles.resolve_profile(os.path.join(root, ".context"), "testing"),
                  os.path.join(root, "testing-profile.md")):
-        if not os.path.isfile(prof):
+        if not prof or not os.path.isfile(prof):
             continue
         with open(prof) as f:
             in_fm, delims = False, 0

@@ -246,7 +246,7 @@ grep -q '<p class="railhead">Contents</p>' "$OUT" \
 # phase-7 regeneration cannot catch it either.
 PROJ="$TMP/proj"
 mkdir -p "$PROJ/.context/reports"
-cat > "$PROJ/.context/artifact-style.md" <<'MD'
+mkdir -p "$PROJ/.context/profiles"; cat > "$PROJ/.context/profiles/artifact.md" <<'MD'
 # Artifact style profile — fixture
 
 ## Identity
@@ -298,7 +298,7 @@ fi
 # into EVERY artifact generated in it — the kit's whole value is that it runs
 # across every project, which is also the blast radius.
 mkdir -p "$TMP/evil/.context/reports"
-cat > "$TMP/evil/.context/artifact-style.md" <<'MD'
+mkdir -p "$TMP/evil/.context/profiles"; cat > "$TMP/evil/.context/profiles/artifact.md" <<'MD'
 # Artifact style profile — hostile fixture
 
 ## Delta
@@ -337,9 +337,9 @@ bash "$WRAP" --title "Delta" --favicon "🔬" --in "$TMP/delta-body.html" \
 # It was documented in neither: the only prose explaining it lived in aidex's own
 # .context/, which is gitignored and never travels. A project seeded from the
 # template filled in its palette table in good faith and nothing happened.
-TPL="$SKILL/assets/templates/artifact-style.md.template"
+TPL="$SKILL/assets/templates/artifact.md.template"
 grep -qE '^#{2,6}[ \t]*Delta\b' "$TPL" \
-  || fail "artifact-style.md.template has no ## Delta section — the one section the wrapper reads as CSS is missing from the file every new project copies"
+  || fail "artifact.md.template has no ## Delta section — the one section the wrapper reads as CSS is missing from the file every new project copies"
 
 # ...and that section must not carry a worked example. Scoping the rule to a
 # section stops an example placed ELSEWHERE from being injected; it does nothing
@@ -360,7 +360,7 @@ TPLCHK
 # End to end: a project seeded from the unedited template inherits the kit and
 # adds nothing of its own.
 mkdir -p "$TMP/tpl/.context/reports"
-cp "$TPL" "$TMP/tpl/.context/artifact-style.md"
+mkdir -p "$TMP/tpl/.context/profiles"; cp "$TPL" "$TMP/tpl/.context/profiles/artifact.md"
 bash "$WRAP" --title "From the template" --in "$TMP/delta-body.html" \
      --out "$TMP/tpl/.context/reports/t.html" >/dev/null 2>&1 \
   || fail "wrapping in a project seeded from the unedited template failed"

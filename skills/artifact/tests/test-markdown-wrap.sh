@@ -121,13 +121,13 @@ fi
 # fails lang-follows-profile.
 mkdir -p "$TMP/proj/.context/worklists/_archive"
 : > "$TMP/proj/.context/.aidex-root"
-printf -- '- language: es\n' > "$TMP/proj/.context/artifact-style.md"
+mkdir -p "$TMP/proj/.context/profiles"; printf -- '- language: es\n' > "$TMP/proj/.context/profiles/artifact.md"
 cp "$TMP/report.md" "$TMP/proj/report.md"
 HV="$TMP/proj/.context/human-verification.html"
 bash "$WRAP" --title "Lang probe" --lang en --in "$TMP/proj/report.md" \
      --out "$HV" >/dev/null 2>&1
 grep -q '<html lang="en"' "$HV" \
-  && ok "--lang en overrides an artifact-style.md that says es on human-verification" \
+  && ok "--lang en overrides a profiles/artifact.md that says es on human-verification" \
   || fail "--lang did not override the profile language on human-verification: $(grep -o '<html lang="[a-z]*"' "$HV" | sed -n 1p)"
 REC="$TMP/proj/.context/worklists/_archive/report.html"
 bash "$WRAP" --title "Lang probe" --lang en --in "$TMP/proj/report.md" \

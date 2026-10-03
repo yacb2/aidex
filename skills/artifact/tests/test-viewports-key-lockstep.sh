@@ -15,7 +15,7 @@ MARK='n/a (desktop-only profile)'
 check() { # file needle label
   grep -qF -- "$2" "$1" || { printf 'FAIL: %s lacks "%s"\n' "$3" "$2"; failures=$((failures + 1)); }
 }
-check "$SKILL/assets/templates/artifact-style.md.template" "$KEY" template
+check "$SKILL/assets/templates/artifact.md.template" "$KEY" template
 check "$SKILL/references/05-visual-review.md" "$KEY" rubric
 check "$SKILL/references/05-visual-review.md" "$MARK" rubric
 check "$SKILL/../../agents/artifact-grader.md" "$KEY" grader

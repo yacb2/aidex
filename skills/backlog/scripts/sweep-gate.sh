@@ -29,7 +29,7 @@
 #                                                 # refusal prints (BL-557, BL-590)
 #                                       # score a log a DETACHED run wrote (see below)
 #
-# Reads from .context/testing-profile.md: backend_suite_cmd, frontend_suite_cmd,
+# Reads from .context/profiles/testing.md: backend_suite_cmd, frontend_suite_cmd,
 # build_cmd, e2e_suite_cmd, e2e_detached. A missing key for a leg that is about to run
 # is exit 2, naming the key — a gate over an unbound leg is the one we already have.
 # Optional per leg: `<leg>_pre_cmd`, run immediately before the leg and into the same
@@ -94,10 +94,9 @@ ROOT="$(find_project_root)"
 # never let the profile travel with a checkout, so its boundary gate was unrunnable on a
 # fresh clone and the refusal named the one path it could not have. A repo-level testing-profile.md is the tracked fallback; .context/
 # still wins when both exist, so nothing changes for a project that has one (BL-289).
-PROFILE="$ROOT/.context/testing-profile.md"
 PROFILE_ALT="$ROOT/testing-profile.md"
-[[ -f "$PROFILE" ]] || PROFILE="$PROFILE_ALT"
-[[ -f "$PROFILE" ]] || die "no testing profile at $ROOT/.context/testing-profile.md nor $PROFILE_ALT — the gate reads its commands from it (coverage/references/14-testing-profile.md)"
+PROFILE="$(resolve_profile "$ROOT/.context" testing)" || PROFILE="$PROFILE_ALT"
+[[ -f "$PROFILE" ]] || die "no testing profile at $ROOT/.context/profiles/testing.md nor $PROFILE_ALT — the gate reads its commands from it (coverage/references/14-testing-profile.md)"
 
 # ROOT owns the profile, _tmp/ and the history; it does NOT own the checkout under test
 # (BL-548). From a linked worktree, find_project_root answers the MAIN project on purpose
@@ -217,7 +216,7 @@ cmd_of() { local v="CMD_$1"; printf '%s' "${!v}"; }
 for leg in "${LEGS[@]}"; do
   k="$(key_for "$leg")"
   v="$(profile_key "$k")"
-  [[ -n "$v" ]] || die "testing-profile.md has no \`$k\` — the $leg leg is unbound (fill the key, or --only the legs that are bound)"
+  [[ -n "$v" ]] || die "the testing profile has no \`$k\` — the $leg leg is unbound (fill the key, or --only the legs that are bound)"
   printf -v "CMD_$leg" '%s' "$v"
 done
 # An OPTIONAL per-leg command run immediately before the leg, in the same working

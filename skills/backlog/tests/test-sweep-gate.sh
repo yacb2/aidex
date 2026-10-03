@@ -17,13 +17,13 @@ ok()  { printf '  ok: %s\n' "$1"; PASS=$((PASS+1)); }
 bad() { printf '  FAIL: %s\n' "$1" >&2; FAIL=$((FAIL+1)); }
 
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
-P="$TMP/proj"; mkdir -p "$P/.context" "$P/bin"
+P="$TMP/proj"; mkdir -p "$P/.context/profiles" "$P/bin"
 stub() {  # stub <name> <exit> <stdout>
   printf '#!/usr/bin/env bash\nprintf "%%s\\n" %q\nexit %s\n' "$3" "$2" > "$P/bin/$1"; chmod +x "$P/bin/$1"
 }
 profile() {  # profile <extra front-matter lines...>
   { echo '---'; echo 'title: Testing profile'; echo 'status: open'; echo 'created: 2026-08-27'; echo 'updated: 2026-08-27'
-    for l in "$@"; do echo "$l"; done; echo '---'; } > "$P/.context/testing-profile.md"
+    for l in "$@"; do echo "$l"; done; echo '---'; } > "$P/.context/profiles/testing.md"
 }
 run() { ( cd "${RUN_DIR:-$P}" && NO_COLOR=1 bash "$GATE" "$@" 2>"$TMP/err" ); }  # RUN_DIR: run from a subdirectory
 # a hand-written log's first line: the header a run of <leg> in $P writes ($P is no checkout, so
@@ -258,7 +258,7 @@ OUT="$(run --only suite)"; RC=$?
 # a checkout and its own boundary gate was unrunnable. A repo-level testing-profile.md
 # is the tracked fallback; .context/ still wins when both exist (BL-289).
 stub sh 0 "133/133 passed"
-rm -f "$P/.context/testing-profile.md"
+rm -f "$P/.context/profiles/testing.md"
 { echo '---'; echo 'title: Testing profile'; echo 'status: open'
   echo 'created: 2026-09-01'; echo 'updated: 2026-09-01'
   echo 'suite_cmd: bin/sh'; echo '---'; } > "$P/testing-profile.md"
@@ -271,9 +271,9 @@ OUT="$(run --only suite)" || true
 [[ "$OUT" == *"count=133"* ]] || ok "10 .context/ wins when both exist"
 [[ "$OUT" == *"count=133"* ]] && bad "10 the tracked file shadowed .context/"
 
-rm -f "$P/.context/testing-profile.md" "$P/testing-profile.md"
+rm -f "$P/.context/profiles/testing.md" "$P/testing-profile.md"
 run --only suite >/dev/null 2>&1
-grep -q "testing-profile.md" "$TMP/err" && grep -q "$P/testing-profile.md" "$TMP/err" \
+grep -q "profiles/testing.md" "$TMP/err" && grep -q "$P/testing-profile.md" "$TMP/err" \
   && ok "10 the refusal names BOTH paths it looked in" \
   || bad "10 refusal message: $(cat "$TMP/err")"
 
@@ -410,8 +410,8 @@ score_follow "12 C" && [[ "$(verdict)" == "PASS" && "$(stamp)" == "2026-09-30-on
 # project, whose `notwl` is a worklists/ directory, would make a path outside worklists/ stamp the
 # run. Pins the CDPATH handling for this call site; it is a guard, not a regression
 # test for a change of its own (it passes on the code before it was added).
-Q="$TMP/qproj"; Q2="$TMP/qother"; mkdir -p "$Q/.context/worklists" "$Q/notwl" "$Q2/.context/worklists"
-printf -- '---\nsuite_cmd: true\n---\n' > "$Q/.context/testing-profile.md"
+Q="$TMP/qproj"; Q2="$TMP/qother"; mkdir -p "$Q/.context/profiles" "$Q/.context/worklists" "$Q/notwl" "$Q2/.context/worklists"
+printf -- '---\nsuite_cmd: true\n---\n' > "$Q/.context/profiles/testing.md"
 printf -- '---\nstatus: doing\n---\n' > "$Q/notwl/b.md"; ln -s "$Q2/.context/worklists" "$Q2/notwl"
 OUT="$(CDPATH="$Q2" RUN_DIR="$Q" run --only suite --worklist notwl/b.md)"; RC=$?
 [[ $RC -eq 2 && ! -e "$Q/.context/proofs/sweep-gate/gate-history.jsonl" ]] && grep -q 'not under .*/worklists: notwl/b.md' "$TMP/err" \
@@ -454,8 +454,8 @@ git -C "$G" init -q -b main
 printf '.context/\n_tmp/\n_wt/\n' > "$G/.gitignore"
 printf 'echo "1 passed"\n' > "$G/t.sh"
 git -C "$G" add -A; gcommit "$G" main
-mkdir -p "$G/.context"
-{ echo '---'; echo 'suite_cmd: bash t.sh'; echo 'e2e_suite_cmd: bash t.sh'; echo 'e2e_detached: true'; echo '---'; } > "$G/.context/testing-profile.md"
+mkdir -p "$G/.context/profiles"
+{ echo '---'; echo 'suite_cmd: bash t.sh'; echo 'e2e_suite_cmd: bash t.sh'; echo 'e2e_detached: true'; echo '---'; } > "$G/.context/profiles/testing.md"
 GW="$G/_wt/w"; git -C "$G" worktree add -q -b br "$GW" 2>/dev/null
 printf 'echo "2 passed"\n' > "$GW/t.sh"; gcommit "$GW" branch-only
 GS="$TMP/gsib"; git -C "$G" worktree add -q -b br2 "$GS" 2>/dev/null; GS="$(cd "$GS" && pwd -P)"
@@ -511,9 +511,9 @@ OUT="$(RUN_DIR="$GW" run --only e2e --from-log "$G/_tmp/sweep-gate/suite.log" --
   && ok "13 another leg's log is refused" || bad "13 suite log scored as e2e: rc=$RC $OUT $(cat "$TMP/err")"
 # nested: the profile lives in a workspace and reaches the repo as `cd repo`, a path the
 # worktree does not have — refused loudly instead of testing main
-N="$TMP/ws"; mkdir -p "$N/.context" "$N/repo"; N="$(cd "$N" && pwd -P)"
+N="$TMP/ws"; mkdir -p "$N/.context/profiles" "$N/repo"; N="$(cd "$N" && pwd -P)"
 git -C "$N/repo" init -q -b main; printf 'echo "1 passed"\n' > "$N/repo/t.sh"; git -C "$N/repo" add -A; gcommit "$N/repo" main
-{ echo '---'; echo 'suite_cmd: cd repo && bash t.sh'; echo '---'; } > "$N/.context/testing-profile.md"
+{ echo '---'; echo 'suite_cmd: cd repo && bash t.sh'; echo '---'; } > "$N/.context/profiles/testing.md"
 NW="$N/_wt/w"; git -C "$N/repo" worktree add -q -b br "$NW" 2>/dev/null
 OUT="$(RUN_DIR="$NW" run --only suite)"; RC=$?
 [[ $RC -eq 2 ]] && grep -q "$NW" "$TMP/err" && ok "13 a worktree of a repo nested under the profile's root is refused, naming it" || bad "13 nested: rc=$RC $OUT $(cat "$TMP/err")"
@@ -527,7 +527,7 @@ OUT="$(RUN_DIR="$N/repo" run --only suite)"; RC=$?
 MR="$TMP/mono"; mkdir -p "$MR/pkg"; MR="$(cd "$MR" && pwd -P)"
 git -C "$MR" init -q -b main; printf '.context/\n_tmp/\n_wt/\n' > "$MR/.gitignore"
 printf 'echo "1 passed"\n' > "$MR/pkg/t.sh"; git -C "$MR" add -A; gcommit "$MR" main
-mkdir -p "$MR/pkg/.context"; { echo '---'; echo 'suite_cmd: bash t.sh'; echo '---'; } > "$MR/pkg/.context/testing-profile.md"
+mkdir -p "$MR/pkg/.context/profiles"; { echo '---'; echo 'suite_cmd: bash t.sh'; echo '---'; } > "$MR/pkg/.context/profiles/testing.md"
 MW="$MR/pkg/_wt/w"; git -C "$MR" worktree add -q -b br "$MW" 2>/dev/null
 printf 'echo "2 passed"\n' > "$MW/pkg/t.sh"; gcommit "$MW" branch-only
 OUT="$(RUN_DIR="$MW/pkg" run --only suite)"; RC=$?
@@ -539,7 +539,7 @@ IFS= read -r HDR < "$MR/pkg/_tmp/sweep-gate/suite.log"
 WS="$TMP/gws"; mkdir -p "$WS/repo"; WS="$(cd "$WS" && pwd -P)"
 git -C "$WS" init -q -b main; printf 'repo/\n.context/\n_tmp/\n' > "$WS/.gitignore"; git -C "$WS" add -A; gcommit "$WS" ws
 git -C "$WS/repo" init -q -b main; printf 'echo "1 passed"\n' > "$WS/repo/t.sh"; git -C "$WS/repo" add -A; gcommit "$WS/repo" repo
-mkdir -p "$WS/.context"; { echo '---'; echo 'suite_cmd: cd repo && bash t.sh'; echo '---'; } > "$WS/.context/testing-profile.md"
+mkdir -p "$WS/.context/profiles"; { echo '---'; echo 'suite_cmd: cd repo && bash t.sh'; echo '---'; } > "$WS/.context/profiles/testing.md"
 OUT="$(RUN_DIR="$WS" run --only suite)"; RC=$?
 IFS= read -r HDR < "$WS/_tmp/sweep-gate/suite.log"
 [[ $RC -eq 0 && "$HDR" == *"$(git -C "$WS/repo" rev-parse HEAD)"* && "$HDR" != *"$(git -C "$WS" rev-parse HEAD)"* ]] \
@@ -551,7 +551,7 @@ SP="$TMP/super"; mkdir -p "$SP"; SP="$(cd "$SP" && pwd -P)"; git -C "$SP" init -
 printf '.context/\n_tmp/\n' > "$SP/.gitignore"; printf 'echo "1 passed"\n' > "$SP/t.sh"
 git -C "$SP" -c protocol.file.allow=always submodule add -q "$SS" sub >/dev/null 2>&1
 git -C "$SP" add -A; gcommit "$SP" super
-mkdir -p "$SP/.context"; { echo '---'; echo 'suite_cmd: bash t.sh'; echo '---'; } > "$SP/.context/testing-profile.md"
+mkdir -p "$SP/.context/profiles"; { echo '---'; echo 'suite_cmd: bash t.sh'; echo '---'; } > "$SP/.context/profiles/testing.md"
 OUT="$(RUN_DIR="$SP/sub" run --only suite)"; RC=$?
 [[ -f "$SP/sub/t.sh" && $RC -eq 0 && "$OUT" == *"count=1 "* ]] \
   && ok "13 run from inside a submodule, the gate runs the project root's suite as before" || bad "13 submodule: rc=$RC $OUT $(cat "$TMP/err")"
@@ -571,7 +571,7 @@ OUT="$(RUN_DIR="$GW/sub" run --only suite)"; RC=$?
 B="$TMP/gdb"; mkdir -p "$B"; B="$(cd "$B" && pwd -P)"
 git init -q -b main --separate-git-dir="$TMP/gdb.git" "$B"; printf '.context/\n_tmp/\n_wt/\n' > "$B/.gitignore"
 printf 'echo "1 passed"\n' > "$B/t.sh"; git -C "$B" add -A; gcommit "$B" main
-mkdir -p "$B/.context"; { echo '---'; echo 'suite_cmd: bash t.sh'; echo '---'; } > "$B/.context/testing-profile.md"
+mkdir -p "$B/.context/profiles"; { echo '---'; echo 'suite_cmd: bash t.sh'; echo '---'; } > "$B/.context/profiles/testing.md"
 BW="$B/_wt/w"; git -C "$B" worktree add -q -b br "$BW" 2>/dev/null
 printf 'echo "2 passed"\n' > "$BW/t.sh"; gcommit "$BW" branch-only
 OUT="$(RUN_DIR="$BW" run --only suite)"; RC=$?; HDR=""; [[ -f "$B/_tmp/sweep-gate/suite.log" ]] && hdr "$B"
@@ -581,7 +581,7 @@ OUT="$(RUN_DIR="$BW" run --only suite)"; RC=$?; HDR=""; [[ -f "$B/_tmp/sweep-gat
 A="$TMP/agd"; mkdir -p "$A"; A="$(cd "$A" && pwd -P)"
 git init -q -b main --separate-git-dir="$A/.gd" "$A"; printf '.gd/\n.context/\n_tmp/\n' > "$A/.gitignore"
 printf 'echo "1 passed"\n' > "$A/t.sh"; git -C "$A" add -A; gcommit "$A" main
-mkdir -p "$A/.context"; { echo '---'; echo 'suite_cmd: bash t.sh'; echo '---'; } > "$A/.context/testing-profile.md"
+mkdir -p "$A/.context/profiles"; { echo '---'; echo 'suite_cmd: bash t.sh'; echo '---'; } > "$A/.context/profiles/testing.md"
 AW="$TMP/agd-sib"; git -C "$A" worktree add -q -b br "$AW" 2>/dev/null
 printf 'echo "2 passed"\n' > "$AW/t.sh"; gcommit "$AW" branch-only
 OUT="$(RUN_DIR="$AW" run --only suite)"; RC=$?
@@ -589,8 +589,8 @@ OUT="$(RUN_DIR="$AW" run --only suite)"; RC=$?
 # worktree.sh DEST: the profile's root mirrors the workspace and holds the worktree as `repo`
 R="$TMP/rmain"; mkdir -p "$R"; git -C "$R" init -q -b main
 printf 'echo "1 passed"\n' > "$R/t.sh"; git -C "$R" add -A; gcommit "$R" main
-D="$TMP/dest"; mkdir -p "$D/.context"; D="$(cd "$D" && pwd -P)"
-{ echo '---'; echo 'suite_cmd: cd repo && bash t.sh'; echo '---'; } > "$D/.context/testing-profile.md"
+D="$TMP/dest"; mkdir -p "$D/.context/profiles"; D="$(cd "$D" && pwd -P)"
+{ echo '---'; echo 'suite_cmd: cd repo && bash t.sh'; echo '---'; } > "$D/.context/profiles/testing.md"
 git -C "$R" worktree add -q -b br "$D/repo" 2>/dev/null
 printf 'echo "2 passed"\n' > "$D/repo/t.sh"; gcommit "$D/repo" branch-only
 OUT="$(RUN_DIR="$D/repo" run --only suite)"; RC=$?
@@ -606,8 +606,8 @@ refused() {  # refused <label> <W> <run dir> <gate args...>
     && ok "13 $label is refused, nothing written" || bad "13 $label: rc=$RC $OUT $(cat "$TMP/err")"
 }
 wprofile() {  # wprofile <W> <front-matter lines...>
-  local w="$1"; shift; mkdir -p "$w/.context"
-  { echo '---'; for l in "$@"; do echo "$l"; done; echo '---'; } > "$w/.context/testing-profile.md"
+  local w="$1"; shift; mkdir -p "$w/.context/profiles"
+  { echo '---'; for l in "$@"; do echo "$l"; done; echo '---'; } > "$w/.context/profiles/testing.md"
 }
 sgd_layout() {  # sgd_layout <W>: W/repo is main with its git dir elsewhere, W/_wt/feat its worktree
   local w="$1"; mkdir -p "$w"
@@ -656,7 +656,7 @@ OUT="$(RUN_DIR="$W6/_wt/feat" run --only e2e)"; RC=$?
 # backend repo's worktree inside it; a no-cd detached leg from the DEST root was refused
 # outright by the round-2 print-time refusal (review of BL-557)
 WR="$TMP/r2ws"; mkdir -p "$WR"; WR="$(cd "$WR" && pwd -P)"; git -C "$WR" init -q -b main
-printf '_tmp/\nbackend/\n' > "$WR/.gitignore"; mkdir -p "$WR/.context"; printf 'x\n' > "$WR/.context/keep"
+printf '_tmp/\nbackend/\n' > "$WR/.gitignore"; mkdir -p "$WR/.context/profiles"; printf 'x\n' > "$WR/.context/keep"
 printf '#!/usr/bin/env bash\necho "4 passed"\n' > "$WR/test-e2e.sh"; chmod +x "$WR/test-e2e.sh"; git -C "$WR" add -A; gcommit "$WR" main
 BR="$WR/backend"; mkdir -p "$BR"; git -C "$BR" init -q -b main; printf 'x\n' > "$BR/f"; git -C "$BR" add -A; gcommit "$BR" main
 DT="$TMP/r2dest"; git -C "$WR" worktree add -q -b feat "$DT" 2>/dev/null; DT="$(cd "$DT" && pwd -P)"
@@ -673,7 +673,7 @@ OUT="$(RUN_DIR="$DT" run --only e2e --from-log "$DT/_tmp/sweep-gate/e2e.log")"; 
 # checkout (the `.` participant) and a leg with no cd lands in that root, not the repo worktree.
 # The refusal names the cause and the fix.
 WS="$TMP/r4ws"; mkdir -p "$WS"; WS="$(cd "$WS" && pwd -P)"; git -C "$WS" init -q -b main
-printf '_tmp/\nrepo/\n' > "$WS/.gitignore"; mkdir -p "$WS/.context"; printf 'x\n' > "$WS/.context/keep"; git -C "$WS" add -A; gcommit "$WS" main
+printf '_tmp/\nrepo/\n' > "$WS/.gitignore"; mkdir -p "$WS/.context/profiles"; printf 'x\n' > "$WS/.context/keep"; git -C "$WS" add -A; gcommit "$WS" main
 DR="$TMP/r4dest"; git -C "$WS" worktree add -q -b feat "$DR" 2>/dev/null; DR="$(cd "$DR" && pwd -P)"
 RR="$TMP/r4repo"; mkdir -p "$RR"; git -C "$RR" init -q -b main; printf 'echo "1 passed"\n' > "$RR/t.sh"; git -C "$RR" add -A; gcommit "$RR" main
 git -C "$RR" worktree add -q -b feat "$DR/repo" 2>/dev/null
@@ -730,7 +730,7 @@ grep -q 'branch fails' "$C/_tmp/sweep-gate/e2e.log" && ! grep -q '1 passed' "$C/
 # BL-590: the provenance check fired only from a linked worktree. From a worktree.sh DEST root
 # (not a git repo: where the fleet's detached e2e logs are scored) and from the main checkout,
 # a hand-written log scored PASS and wrote a history row.
-DN="$TMP/r6dest"; mkdir -p "$DN/.context"; DN="$(cd "$DN" && pwd -P)"
+DN="$TMP/r6dest"; mkdir -p "$DN/.context/profiles"; DN="$(cd "$DN" && pwd -P)"
 printf '#!/usr/bin/env bash\necho "4 passed"\n' > "$DN/test-e2e.sh"; chmod +x "$DN/test-e2e.sh"
 wprofile "$DN" 'e2e_suite_cmd: ./test-e2e.sh' 'e2e_detached: true'
 printf '1 passed\nsweep-gate-exit=0\n' > "$TMP/forged.log"

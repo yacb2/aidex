@@ -39,7 +39,8 @@ def test_monthly_total_adds_tax():
     assert quote_total(100.0, "monthly") == 121.0
 PY
 
-cat > .context/testing-profile.md <<'MD'
+mkdir -p .context/profiles
+cat > .context/profiles/testing.md <<'MD'
 ---
 title: Testing profile
 status: open

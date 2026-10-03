@@ -1483,8 +1483,8 @@ try:
     # profile, the same reader the wrap and lang-follows-profile use: a hard
     # "es" default built an en-profile page as lang="es" and failed --check.
     enproj = os.path.join(tmp, "enproj")
-    os.makedirs(os.path.join(enproj, ".context"))
-    with open(os.path.join(enproj, ".context", "artifact-style.md"), "w",
+    os.makedirs(os.path.join(enproj, ".context", "profiles"))
+    with open(os.path.join(enproj, ".context", "profiles", "artifact.md"), "w",
               encoding="utf-8") as fh:
         fh.write("# Style\n\n## Language\n\n- language: en\n")
     silent_spec = os.path.join(enproj, "silent.spec.md")

@@ -17,7 +17,7 @@ A corpus page is judged as its spec BUILDS on the current kit, never as the
 original page sits on disk (old-kit pages stay red by construction; LOOP-006
 ruling, STATE :71): each `corpus-specs/<project>__<page>.spec.md` (goal-gate's
 naming rule) goes through `spec_build.py -o` into a fresh temp tree that mirrors
-the sampled project's context (its `.context/artifact-style.md` copied in, the
+the sampled project's context (its `.context/profiles/artifact.md` copied in, the
 page under `.context/reports/`), so the project's profile judges the page as it
 judges the original while nothing is written into the project; the landed page
 is judged there and the whole tree removed. A spec the builder refuses — the wrap's contract
@@ -65,7 +65,9 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), "scripts", "dash"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "conventions", "scripts"))
 
+import profiles  # noqa: E402
 import contract_defects                                     # noqa: E402
 import goal_gate                                            # noqa: E402
 
@@ -144,7 +146,7 @@ def corpus_specs():
 
 def build_dir(project):
     """(temp tree, reports dir) for one build: a fresh tree that MIRRORS the
-    project's context — `<tmp>/<project>/.context/artifact-style.md` copied from
+    project's context — `<tmp>/<project>/.context/profiles/artifact.md` copied from
     the sampled project when it has one, the page landing in
     `<tmp>/<project>/.context/reports/` — so the wrap and check-artifact read the
     page's own profile (lang-follows-profile, the wrap's --lang refusal) while
@@ -153,9 +155,10 @@ def build_dir(project):
     ctx = os.path.join(tree, os.path.basename(project), ".context")
     reports = os.path.join(ctx, "reports")
     os.makedirs(reports)
-    style = os.path.join(project, ".context", "artifact-style.md")
-    if os.path.isfile(style):
-        shutil.copyfile(style, os.path.join(ctx, "artifact-style.md"))
+    style = profiles.resolve_profile(os.path.join(project, ".context"), "artifact")
+    if style:
+        os.makedirs(os.path.join(ctx, "profiles"))
+        shutil.copyfile(style, profiles.profile_write_path(ctx, "artifact"))
     return tree, reports
 
 

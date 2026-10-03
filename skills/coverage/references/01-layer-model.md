@@ -8,7 +8,7 @@ defines its scope, and the question it is suited to answer.
 The tool column is illustrative — it names one example stack (Django + Vue), so the
 layers are concrete. The layer definitions and the rubric below are the doctrine; what a test
 at a given layer looks like in a given framework is the stack pack named by the project's
-`testing-profile.md` (`references/14-testing-profile.md`).
+`profiles/testing.md` (`references/14-testing-profile.md`).
 
 | # | Layer | Tool | Answers |
 |---|---|---|---|
@@ -36,7 +36,7 @@ at a given layer looks like in a given framework is the stack pack named by the 
   "Vitest 4.1". `vitest.dev/guide/`, checked 2026-08-23.
 - **Layer 5.** MSW (Mock Service Worker) documentation, `setupServer().listen()` —
   `onUnhandledRequest` accepts `"warn"` (default), `"bypass"` and `"error"`. The quote, URL
-  and check date live in the Vue stack pack named by `testing-profile.md` `testing_packs` (its `02-msw-traps.md`); not
+  and check date live in the Vue stack pack named by `profiles/testing.md` `testing_packs` (its `02-msw-traps.md`); not
   duplicated here. Version not printed on the fetched page; carried as **unverified**
   against a specific MSW release.
 - **Layer 6.** Playwright documentation, *Getting started* — "Playwright Test is an

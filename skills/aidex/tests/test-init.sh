@@ -10,7 +10,7 @@
 #      scaffolds the directories, notes the skipped seeding, exits 0.
 #   5. The suggested CLAUDE.md block is printed to stdout but no CLAUDE.md
 #      file is ever created.
-#   8. The artifact-style.md question (BL-337): skipped and SAID to be skipped
+#   8. The profiles/artifact.md question (BL-337): skipped and SAID to be skipped
 #      without a TTY, answered by flag, answered at a real pty, and never asked
 #      twice once the shared marker exists.
 #
@@ -242,7 +242,7 @@ fi
 
 rm -rf "$d7" "$d7b"
 
-# --- Scenario 8: the artifact-style.md question (BL-337) ---
+# --- Scenario 8: the profiles/artifact.md question (BL-337) ---
 #
 # Three criteria, and the third is an ABSENCE: without a TTY no profile must
 # appear. An absence assertion that samples nothing passes vacuously, so each
@@ -301,13 +301,13 @@ PYEOF
 d8a="$(mktemp -d)"
 out8a="$(AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d8a" </dev/null)"
 
-if printf '%s\n' "$out8a" | grep >/dev/null 'no TTY — skipped the artifact-style.md question'; then
+if printf '%s\n' "$out8a" | grep >/dev/null 'no TTY — skipped the profiles/artifact.md question'; then
   pass "scenario8a: no TTY -> the skipped question is reported"
 else
   fail "scenario8a: no TTY -> nothing reported the skipped question"
 fi
 
-[[ ! -f "$d8a/.context/artifact-style.md" ]] \
+[[ ! -f "$d8a/.context/profiles/artifact.md" ]] \
   && pass "scenario8a: no TTY -> no profile created" \
   || fail "scenario8a: a profile was created without an explicit yes"
 
@@ -318,19 +318,19 @@ fi
 # 8b — MUTATION of 8a, via the flag: the denied file must now appear.
 out8b="$(AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d8a" --artifact-style es </dev/null)"
 
-if [[ -f "$d8a/.context/artifact-style.md" ]]; then
+if [[ -f "$d8a/.context/profiles/artifact.md" ]]; then
   pass "scenario8b: --artifact-style es creates the profile"
 else
   fail "scenario8b: --artifact-style es did not create the profile"
 fi
 
-if grep -qx -- '- language: es' "$d8a/.context/artifact-style.md"; then
+if grep -qx -- '- language: es' "$d8a/.context/profiles/artifact.md"; then
   pass "scenario8b: the language answer is written as the field wrap-report.sh reads"
 else
   fail "scenario8b: the profile does not carry '- language: es'"
 fi
 
-if grep -q '{{PROJECT_NAME}}' "$d8a/.context/artifact-style.md"; then
+if grep -q '{{PROJECT_NAME}}' "$d8a/.context/profiles/artifact.md"; then
   fail "scenario8b: {{PROJECT_NAME}} left unsubstituted"
 else
   pass "scenario8b: {{PROJECT_NAME}} substituted"
@@ -340,19 +340,19 @@ fi
   && pass "scenario8b: an answered question records itself in the shared marker" \
   || fail "scenario8b: the answered question left no record"
 
-printf '%s\n' "$out8b" | grep >/dev/null '^created: \.context/artifact-style\.md$' \
+printf '%s\n' "$out8b" | grep >/dev/null '^created: \.context/profiles/artifact\.md$' \
   && pass "scenario8b: the creation is reported" \
   || fail "scenario8b: the creation was not reported"
 
 # Re-running must not overwrite an answered profile.
-printf 'hand-edited\n' >> "$d8a/.context/artifact-style.md"
+printf 'hand-edited\n' >> "$d8a/.context/profiles/artifact.md"
 out8b2="$(AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d8a" --artifact-style fr </dev/null)"
-if grep -q 'hand-edited' "$d8a/.context/artifact-style.md"; then
+if grep -q 'hand-edited' "$d8a/.context/profiles/artifact.md"; then
   pass "scenario8b: an existing profile is never overwritten"
 else
   fail "scenario8b: a re-run overwrote the existing profile"
 fi
-printf '%s\n' "$out8b2" | grep >/dev/null '^exists: \.context/artifact-style\.md$' \
+printf '%s\n' "$out8b2" | grep >/dev/null '^exists: \.context/profiles/artifact\.md$' \
   && pass "scenario8b: the existing profile is reported as existing" \
   || fail "scenario8b: the existing profile was not reported"
 
@@ -372,7 +372,7 @@ else
   fail "scenario8c: no question was asked at a TTY: $out8c"
 fi
 
-if [[ -f "$d8c/.context/artifact-style.md" ]] && grep -qx -- '- language: es' "$d8c/.context/artifact-style.md"; then
+if [[ -f "$d8c/.context/profiles/artifact.md" ]] && grep -qx -- '- language: es' "$d8c/.context/profiles/artifact.md"; then
   pass "scenario8c: a typed answer creates the profile in that language"
 else
   fail "scenario8c: the typed answer did not produce the profile"
@@ -384,7 +384,7 @@ rm -rf "$d8c"
 d8d="$(mktemp -d)"
 out8d="$(AIDEX_DIR="$REPO_ROOT" python3 "$PTY_DRIVER" "" bash "$INIT" "$d8d")"
 
-[[ ! -f "$d8d/.context/artifact-style.md" ]] \
+[[ ! -f "$d8d/.context/profiles/artifact.md" ]] \
   && pass "scenario8d: an empty answer creates nothing" \
   || fail "scenario8d: an empty answer created the profile anyway"
 
@@ -399,7 +399,7 @@ if printf '%s\n' "$out8d2" | grep >/dev/null 'empty declines'; then
 else
   pass "scenario8d: a declined question is not asked again"
 fi
-[[ ! -f "$d8d/.context/artifact-style.md" ]] \
+[[ ! -f "$d8d/.context/profiles/artifact.md" ]] \
   && pass "scenario8d: the re-run still created nothing" \
   || fail "scenario8d: the re-run created a profile nobody asked for"
 
@@ -427,7 +427,7 @@ rm -rf "$d8d"
 d8e="$(mktemp -d)"
 out8e="$(AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d8e" --no-artifact-style </dev/null)"
 
-[[ ! -f "$d8e/.context/artifact-style.md" ]] \
+[[ ! -f "$d8e/.context/profiles/artifact.md" ]] \
   && pass "scenario8e: --no-artifact-style creates nothing" \
   || fail "scenario8e: --no-artifact-style created a profile"
 
@@ -442,7 +442,7 @@ printf '%s\n' "$out8e" | grep >/dev/null 'declined' \
 # An explicit flag is an explicit yes even after a decline: the marker gates the
 # QUESTION, never an answer the caller just gave.
 AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d8e" --artifact-style es </dev/null >/dev/null
-[[ -f "$d8e/.context/artifact-style.md" ]] \
+[[ -f "$d8e/.context/profiles/artifact.md" ]] \
   && pass "scenario8e: an explicit flag still creates the profile after a decline" \
   || fail "scenario8e: the marker blocked an explicit yes"
 
@@ -454,7 +454,7 @@ d8f="$(mktemp -d)"
 empty8f="$(mktemp -d)"
 out8f="$(AIDEX_DIR="$empty8f" bash "$INIT" "$d8f" --artifact-style es </dev/null)"
 
-[[ ! -f "$d8f/.context/artifact-style.md" ]] \
+[[ ! -f "$d8f/.context/profiles/artifact.md" ]] \
   && pass "scenario8f: no template -> no profile" \
   || fail "scenario8f: a profile was written without a template"
 
@@ -481,7 +481,7 @@ s|x|x" </dev/null 2>&1)"; rc8g=$?
   && pass "scenario8g: a malformed language code is refused" \
   || fail "scenario8g: a malformed language code was accepted (rc=$rc8g)"
 
-[[ ! -f "$d8g/.context/artifact-style.md" ]] \
+[[ ! -f "$d8g/.context/profiles/artifact.md" ]] \
   && pass "scenario8g: no profile is written from a malformed code" \
   || fail "scenario8g: a profile was written from a malformed code"
 
@@ -489,7 +489,7 @@ s|x|x" </dev/null 2>&1)"; rc8g=$?
 # 8g would pass by refusing everything.
 d8g2="$(mktemp -d)"
 AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d8g2" --artifact-style pt-BR </dev/null >/dev/null 2>&1
-grep -q '^- language: pt-BR$' "$d8g2/.context/artifact-style.md" 2>/dev/null \
+grep -q '^- language: pt-BR$' "$d8g2/.context/profiles/artifact.md" 2>/dev/null \
   && pass "scenario8g: a well-formed code is still accepted (mutation)" \
   || fail "scenario8g: the guard also rejects a valid code"
 
@@ -503,7 +503,8 @@ d8h="$(mktemp -d)"
 AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d8h" --no-artifact-style </dev/null >/dev/null 2>&1
 target8h="$(mktemp -d)/planted.md"
 rm -f "$d8h/.context/.aidex-artifact-style-offered"
-ln -s "$target8h" "$d8h/.context/artifact-style.md"
+mkdir -p "$d8h/.context/profiles"
+ln -s "$target8h" "$d8h/.context/profiles/artifact.md"
 out8h="$(AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d8h" --artifact-style es </dev/null 2>&1)"
 
 [[ ! -e "$target8h" ]] \
@@ -515,6 +516,19 @@ printf '%s\n' "$out8h" | grep >/dev/null 'symlink' \
   || fail "scenario8h: the symlink was skipped silently"
 
 rm -rf "$d8h" "$(dirname "$target8h")"
+
+# scenario8i: a legacy-root profile counts as existing; init reports it and creates no profiles/
+d8i="$(mktemp -d)"
+AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d8i" --no-artifact-style </dev/null >/dev/null 2>&1
+printf -- '- language: en\n' > "$d8i/.context/artifact-style.md"
+out8i="$(AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d8i" --artifact-style es </dev/null 2>&1)"
+printf '%s\n' "$out8i" | grep >/dev/null '^exists: \.context/artifact-style\.md$' \
+  && pass "scenario8i: a legacy profile is reported as existing" \
+  || fail "scenario8i: legacy profile not reported: $out8i"
+[[ ! -e "$d8i/.context/profiles" ]] \
+  && pass "scenario8i: no profiles/ is created next to a legacy profile" \
+  || fail "scenario8i: profiles/ was created"
+rm -rf "$d8i"
 
 # --- Summary ---
 

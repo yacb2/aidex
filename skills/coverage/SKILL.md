@@ -12,7 +12,7 @@ The testing canon, independent of stack: which layer a piece of behaviour belong
 which tests to run for a change, when shared setup becomes a fixture, what an isolated
 E2E environment must guarantee, and how the per-project profile and its stack packs are
 resolved. What a test *looks like* in a given framework is not here: the project's
-`.context/testing-profile.md` names its **stack packs** (`testing_packs`), and this skill
+`.context/profiles/testing.md` names its **stack packs** (`testing_packs`), and this skill
 reads them — see [Resolving the stack packs](#resolving-the-stack-packs). Per-project
 facts (ports, database names, commands, personas) live in that profile, never here — see
 [references/14-testing-profile.md](references/14-testing-profile.md).
@@ -66,7 +66,7 @@ records which plan phase produced each file.
 
 ## Resolving the stack packs
 
-1. Read `<project>/.context/testing-profile.md`. If it does not exist, seed it:
+1. Read `<project>/.context/profiles/testing.md`. If it does not exist, seed it:
    `python3 ${CLAUDE_PLUGIN_ROOT}/skills/coverage/scripts/profile-init.py <project>` (never
    `--force` over an existing one; blank keys are unanswered, not zero).
 2. Take `testing_packs` — a space-separated list of skill names — and read each pack's
@@ -107,7 +107,7 @@ This skill writes into two places in a project, and each has one shape
 
 | Place | Holds | Never holds |
 |---|---|---|
-| `.context/testing-profile.md` | **facts only** — the keys in [references/14-testing-profile.md](references/14-testing-profile.md) and the template's one note | a `## ` section, a rule, an explanation of a rule |
+| `.context/profiles/testing.md` | **facts only** — the keys in [references/14-testing-profile.md](references/14-testing-profile.md) and the template's one note | a `## ` section, a rule, an explanation of a rule |
 | `.context/references/testing/00-index.md` | the **single entry**: what each module is for, and the rule → owner table | a rule's body |
 | `.context/references/testing/NN-<slug>.md` | **one workflow per module**, under the ~2,500-word tripwire | a second workflow; a rule another module already states |
 

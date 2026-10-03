@@ -1,6 +1,6 @@
 # The aidex test surface
 
-Why this file is here: `.context/testing-profile.md` is the FACTS the scripts
+Why this file is here: `.context/profiles/testing.md` is the FACTS the scripts
 read — keys, commands, expansions — and `profile-init.py --check` holds it to a 250-word
 body so facts and explanation do not mix in the one file every gate parses. The
 explanation is this document. It is TRACKED, unlike `.context/references/testing/`, which

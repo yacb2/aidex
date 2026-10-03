@@ -10,7 +10,7 @@
  * one is the author's choice.
  *
  * Display strings are keyed off `<html lang>`, which wrap-report.sh already sets
- * from the project's `.context/artifact-style.md`. They are NOT hard-coded in
+ * from the project's `.context/profiles/artifact.md`. They are NOT hard-coded in
  * one language: the kit ships to every project and only the project carries a
  * language. Adding a language is one entry in STRINGS; an unknown lang falls
  * back to English rather than showing keys.

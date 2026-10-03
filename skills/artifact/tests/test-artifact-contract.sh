@@ -1094,16 +1094,16 @@ GOODB='<style>body{color:#111}@media (prefers-color-scheme: dark){body{color:#ee
 # The one-time offer: it fires when the project has no profile, and records itself
 # so it cannot become the 14-offers-across-7-projects nag the usage-retro measured.
 err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --out "$LANGP/.context/reports/a.html" 2>&1 >/dev/null)"
-[[ "$err" == *"artifact-style.md"* ]] && ok "a first artifact offers the style profile" \
+[[ "$err" == *"profiles/artifact.md"* ]] && ok "a first artifact offers the style profile" \
                                       || bad "the one-time style-profile offer never fired: $err"
 [[ -f "$LANGP/.context/.aidex-artifact-style-offered" ]] \
   && ok "the offer records itself" || bad "the offer left no record, so it will repeat"
-[[ ! -f "$LANGP/.context/artifact-style.md" ]] \
+[[ ! -f "$LANGP/.context/profiles/artifact.md" ]] \
   && ok "the profile itself is never auto-created (e87bbd3)" \
   || bad "the offer created the profile unasked"
 err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --out "$LANGP/.context/reports/b.html" 2>&1 >/dev/null)"
 # The offer is identified by ITS OWN words, not by the filename. Every note about
-# the profile names that file, so a bare `artifact-style.md` substring cannot tell
+# the profile names that file, so a bare `profiles/artifact.md` substring cannot tell
 # the one-time offer apart from the language NOTE asserted below — it only ever
 # discriminated because nothing else spoke here. BL-322 makes something else speak.
 [[ "$err" != *"Offer the profile to the reader ONCE"* ]] \
@@ -1143,7 +1143,7 @@ err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --lang es \
 # English body under lang="en" is self-consistent. That is how a kickoff
 # consultation arrived in English in a project that asked for Spanish.
 CONTRAP="$TMP/contraproj"; mkdir -p "$CONTRAP/.context/reports"
-printf -- '- language: es\n' > "$CONTRAP/.context/artifact-style.md"
+mkdir -p "$CONTRAP/.context/profiles"; printf -- '- language: es\n' > "$CONTRAP/.context/profiles/artifact.md"
 err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --lang en \
         --out "$CONTRAP/.context/reports/a.html" 2>&1 >/dev/null)"
 [[ "$err" == *"NOTE:"* && "$err" == *"language: es"* && "$err" == *"--lang en"* ]] \
@@ -1169,14 +1169,14 @@ err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --lang en \
   && ok "a close-out record under worklists/_archive/ with --lang en is noted and refused" \
   || bad "a close-out record kept --lang en against the profile: $err"
 
-grep -q 'language:' "$(cd "$(dirname "${BASH_SOURCE[0]}")/../assets/templates" && pwd -P)/artifact-style.md.template" \
+grep -q 'language:' "$(cd "$(dirname "${BASH_SOURCE[0]}")/../assets/templates" && pwd -P)/artifact.md.template" \
   && ok "the style template carries a parseable language: field" \
-  || bad "artifact-style.md.template has no language: field"
+  || bad "artifact.md.template has no language: field"
 
 grep -o '<html lang="[a-z]*"' "$LANGP/.context/reports/a.html" | grep >/dev/null 'lang="en"' \
   && ok "no profile falls back to en (D-04)" || bad "wrong default language"
 
-printf '## Language\n\n- language: es\n' > "$LANGP/.context/artifact-style.md"
+mkdir -p "$LANGP/.context/profiles"; printf '## Language\n\n- language: es\n' > "$LANGP/.context/profiles/artifact.md"
 printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --out "$LANGP/.context/reports/c.html" >/dev/null 2>&1
 grep -q '<html lang="es"' "$LANGP/.context/reports/c.html" \
   && ok "the profile's language: is applied without --lang" \
@@ -1185,7 +1185,7 @@ grep -q '<html lang="es"' "$LANGP/.context/reports/c.html" \
 # The profile's `## Language` section is its last one: an earlier line shaped like
 # the field (a worked example in another section) is not the declaration (LOOP-006).
 printf '## Layout\n\n- language: en (the code blocks)\n\n## Language\n\n- language: es\n' \
-  > "$LANGP/.context/artifact-style.md"
+  > "$LANGP/.context/profiles/artifact.md"
 printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --out "$LANGP/.context/reports/c2.html" >/dev/null 2>&1
 grep -q '<html lang="es"' "$LANGP/.context/reports/c2.html" \
   && ok "the language: field inside ## Language wins over an earlier field-shaped line" \
@@ -1194,7 +1194,7 @@ grep -q '<html lang="es"' "$LANGP/.context/reports/c2.html" \
 grep -q '<p class="railhead">Contenido</p>' "$LANGP/.context/reports/c2.html" \
   && ok "the injected rail is headed in the page's language" \
   || bad "the injected rail is not headed Contenido on an es page: $(grep -o '<p class="railhead">[^<]*' "$LANGP/.context/reports/c2.html")"
-printf '## Language\n\n- language: es\n' > "$LANGP/.context/artifact-style.md"
+mkdir -p "$LANGP/.context/profiles"; printf '## Language\n\n- language: es\n' > "$LANGP/.context/profiles/artifact.md"
 
 printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --lang fr --out "$LANGP/.context/reports/d.html" >/dev/null 2>&1
 [[ ! -f "$LANGP/.context/reports/d.html" ]] \
@@ -1209,7 +1209,7 @@ printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --lang fr --out "$LANGP/.conte
 # prose and had been shipping English artifacts silently. The wrap still resolves
 # to "en" — that is the honest answer to an undeclared field — but it must SAY so.
 printf '## Language\n\n- Default for this project: **Spanish** (neutral LATAM).\n' \
-  > "$LANGP/.context/artifact-style.md"
+  > "$LANGP/.context/profiles/artifact.md"
 err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" \
         --out "$LANGP/.context/reports/e.html" 2>&1 >/dev/null)"
 [[ "$err" == *"declares no \`language:\` field"* ]] \
@@ -1221,7 +1221,7 @@ grep -q '<html lang="en"' "$LANGP/.context/reports/e.html" \
 
 # and the complement, so the warning cannot become a nag: a profile that simply
 # has nothing to say about language is not a misconfiguration.
-printf '## Palette\n\n- accent: teal\n' > "$LANGP/.context/artifact-style.md"
+mkdir -p "$LANGP/.context/profiles"; printf '## Palette\n\n- accent: teal\n' > "$LANGP/.context/profiles/artifact.md"
 err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" \
         --out "$LANGP/.context/reports/f.html" 2>&1 >/dev/null)"
 [[ "$err" != *"declares no \`language:\` field"* ]] \
@@ -1233,7 +1233,7 @@ err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" \
 # 2026-07-25): the artifact would take a neighbour's language and drop this
 # project's one-time offer marker in the home directory.
 FAKEHOME="$TMP/home"; mkdir -p "$FAKEHOME/.context" "$FAKEHOME/proj"
-printf '## Language\n\n- language: de\n' > "$FAKEHOME/.context/artifact-style.md"
+mkdir -p "$FAKEHOME/.context/profiles"; printf '## Language\n\n- language: de\n' > "$FAKEHOME/.context/profiles/artifact.md"
 printf '%s\n' "$GOODB" | HOME="$FAKEHOME" bash "$WRAP" --title "T" \
   --out "$FAKEHOME/proj/r.html" >/dev/null 2>&1
 grep -q '<html lang="en"' "$FAKEHOME/proj/r.html" \
@@ -1244,15 +1244,15 @@ grep -q '<html lang="en"' "$FAKEHOME/proj/r.html" \
 
 # An unreadable profile must not take the artifact down with it. `isfile` only
 # stats — it does not imply readability — and the read was a bare open(), so a
-# mode-000 artifact-style.md aborted the whole wrap with a PermissionError
+# mode-000 profiles/artifact.md aborted the whole wrap with a PermissionError
 # traceback and NO file was written. The profile is an optimisation, not a
 # contract: an unreadable one degrades to the D-04 default and says so.
 NOREAD="$TMP/noread"; mkdir -p "$NOREAD/.context/reports"
-printf '## Language\n\n- language: es\n' > "$NOREAD/.context/artifact-style.md"
-chmod 000 "$NOREAD/.context/artifact-style.md"
+mkdir -p "$NOREAD/.context/profiles"; printf '## Language\n\n- language: es\n' > "$NOREAD/.context/profiles/artifact.md"
+chmod 000 "$NOREAD/.context/profiles/artifact.md"
 err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" \
         --out "$NOREAD/.context/reports/a.html" 2>&1 >/dev/null)"; rc=$?
-chmod 644 "$NOREAD/.context/artifact-style.md"
+chmod 644 "$NOREAD/.context/profiles/artifact.md"
 [[ "$err" != *"Traceback"* ]] && ok "an unreadable style profile does not raise" \
                              || bad "the wrap died on an unreadable profile: $err"
 [[ -f "$NOREAD/.context/reports/a.html" ]] \
@@ -1262,8 +1262,8 @@ grep -q '<html lang="en"' "$NOREAD/.context/reports/a.html" 2>/dev/null \
   && ok "an unreadable profile falls back to en (D-04)" \
   || bad "the fallback language was not applied"
 # Require the NOTE, not just the filename: a traceback also contains the path, so
-# a substring check on `artifact-style.md` passes on the unfixed code.
-[[ "$err" == *"NOTE:"*"artifact-style.md"* ]] \
+# a substring check on `profiles/artifact.md` passes on the unfixed code.
+[[ "$err" == *"NOTE:"*"profiles/artifact.md"* ]] \
   && ok "and the unreadable profile is reported as a NOTE, not silently ignored" \
   || bad "the profile read failed without a readable warning: $err"
 
@@ -1286,7 +1286,7 @@ if command -v git >/dev/null 2>&1; then
   ( cd "$WT/main" && git init -q . && git config user.email t@t && git config user.name t \
     && printf '.context/\n' > .gitignore && git add -A && git commit -qm init ) >/dev/null 2>&1
   mkdir -p "$WT/main/.context/reports"
-  printf '## Language\n\n- language: es\n' > "$WT/main/.context/artifact-style.md"
+  mkdir -p "$WT/main/.context/profiles"; printf '## Language\n\n- language: es\n' > "$WT/main/.context/profiles/artifact.md"
   ( cd "$WT/main" && git worktree add -q "$WT/main-wt-feature" -b feature ) >/dev/null 2>&1
 
   # Control first: from the main tree the profile is found, so a failure below is
@@ -1591,7 +1591,7 @@ bash "$CHECK" "$TMP/thin.html" >/dev/null 2>&1 && ok "a page too short to judge 
 # body) and [lang-follows-profile] (lang="" against es). Shape of the reported figure,
 # with its client data replaced.
 SVGP="$TMP/svgproj"; mkdir -p "$SVGP/.context/research/figs"; git -C "$SVGP" init -q . 2>/dev/null
-printf -- '- language: es\n' > "$SVGP/.context/artifact-style.md"
+mkdir -p "$SVGP/.context/profiles"; printf -- '- language: es\n' > "$SVGP/.context/profiles/artifact.md"
 cat > "$SVGP/.context/research/figs/fig-transfer.svg" <<'SVG'
 <svg xmlns="http://www.w3.org/2000/svg" id="fig-transfer" viewBox="0 0 880 420" role="img" aria-label="Barras apiladas de los GB descargados por mes, por la red de entrega y directo desde el almacén, con el costo de la descarga directa de cada mes.">
   <style>

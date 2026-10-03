@@ -249,14 +249,15 @@ print('OK')
 
 # .context/ wins over the repo root, the same precedence sweep-gate.sh and
 # profile-init.py --check use.
-printf -- '---\ntitle: p\nmodule_map: nowhere/module-map.json\n---\n' > "$WS/.context/testing-profile.md"
+mkdir -p "$WS/.context/profiles"
+printf -- '---\ntitle: p\nmodule_map: nowhere/module-map.json\n---\n' > "$WS/.context/profiles/testing.md"
 out="$(python3 -c "
 import sys; sys.path.insert(0, '$LIB_DIR')
 import _coverage_lib as lib
 lib.load_map('$WS')
 " 2>&1)"
 [[ "$out" == *"nowhere/module-map.json"* ]] || fail ".context/ profile must win over the root one: $out"
-rm -f "$WS/.context/testing-profile.md"
+rm -f "$WS/.context/profiles/testing.md"
 
 # An explicit coverage_dir still wins over the profile — the read-only mode (BL-204)
 # points the tooling outside the workspace on purpose.

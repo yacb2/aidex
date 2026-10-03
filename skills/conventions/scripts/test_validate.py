@@ -53,6 +53,11 @@ EXPECTED_BAD_RULES = {
     "artifact-anchor-target-missing",
 }
 
+def _profile_path(ctx, name):
+    (ctx / "profiles").mkdir(exist_ok=True)
+    return ctx / "profiles" / f"{name}.md"
+
+
 def _load_validator():
     """Import validate.py as a module to read its COMM_* constants."""
     spec = importlib.util.spec_from_file_location("validate", VALIDATOR)
@@ -638,7 +643,7 @@ def check_html_body_language(failures: list[str]) -> None:
 
 
 def check_artifact_style_language(failures: list[str]) -> None:
-    """BL-231: the project's own `artifact-style.md` decides what language its
+    """BL-231: the project's own `profiles/artifact.md` decides what language its
     RENDERED artifacts are written in, and the checker was blind to it — 31 of this
     repo's 43 `body-language-not-english` waivers were the same declared-Spanish
     .html, waived once each, forever. Nine of those lines literally read
@@ -662,40 +667,40 @@ def check_artifact_style_language(failures: list[str]) -> None:
 
         # (a) no profile at all — behaves exactly as before
         if v.declared_artifact_language(ctx) is not None:
-            failures.append("artifact-style language: a project with no profile must "
+            failures.append("artifact profile language: a project with no profile must "
                             "declare no language")
         if v.check_body_language("research", Path("r.html"), spanish,
                                  declared_language=v.declared_artifact_language(ctx)) is None:
-            failures.append("artifact-style language: no profile must leave the rule "
+            failures.append("artifact profile language: no profile must leave the rule "
                             "firing exactly as today")
 
         # (b) a profile that declares no language — also unchanged
-        (ctx / "artifact-style.md").write_text(
+        _profile_path(ctx, "artifact").write_text(
             "# Artifact style profile\n\nPalette, favicon, tone.\n", encoding="utf-8")
         if v.declared_artifact_language(ctx) is not None:
-            failures.append("artifact-style language: a profile with no `language:` "
+            failures.append("artifact profile language: a profile with no `language:` "
                             "field must declare no language")
 
         # (c) `- language: es` — the shape artifact writes and parses
-        (ctx / "artifact-style.md").write_text(
+        _profile_path(ctx, "artifact").write_text(
             "# Artifact style profile\n\n## Language\n\n- language: es\n",
             encoding="utf-8")
         declared = v.declared_artifact_language(ctx)
         if declared != "es":
-            failures.append(f"artifact-style language: `- language: es` parsed as "
+            failures.append(f"artifact profile language: `- language: es` parsed as "
                             f"{declared!r} — must match artifact's own LANG_FIELD")
 
         # the artifact the profile authorises: silent
         if v.check_body_language("reports", Path("r.html"), spanish,
                                  declared_language=declared) is not None:
-            failures.append("artifact-style language: a Spanish rendered artifact was "
+            failures.append("artifact profile language: a Spanish rendered artifact was "
                             "flagged in a project whose profile declares Spanish — that "
                             "is the checker disagreeing with the project's own style, "
                             "once per artifact, forever")
 
         # .context/ markdown: STILL flagged. The profile is not a D-04 opt-out.
         if v.check_body_language("research", Path("r.md"), spanish) is None:
-            failures.append("artifact-style language: Spanish .context/ markdown stopped "
+            failures.append("artifact profile language: Spanish .context/ markdown stopped "
                             "being flagged — a style profile must never become a way to "
                             "opt out of D-04")
 
@@ -705,7 +710,7 @@ def check_artifact_style_language(failures: list[str]) -> None:
         # too — which is exactly what a D-04 opt-out would look like, and it reads
         # like "the checker reads the profile" while being the bypass this item
         # promised not to build.
-        (ctx / "artifact-style.md").write_text(
+        _profile_path(ctx, "artifact").write_text(
             "# Artifact style profile\n\n- language: es\n", encoding="utf-8")
         (ctx / "research").mkdir(exist_ok=True)
         fm = ('---\ntitle: "t"\nstatus: open\ncreated: 2026-01-01\n'
@@ -717,19 +722,19 @@ def check_artifact_style_language(failures: list[str]) -> None:
         e2e, _ = v.validate(ctx, None)
         lang = [f for f in e2e if f.rule == "body-language-not-english"]
         if not any(f.file.endswith("2026-01-01-spanish-notes.md") for f in lang):
-            failures.append("artifact-style language (e2e): Spanish .context/ markdown was "
+            failures.append("artifact profile language (e2e): Spanish .context/ markdown was "
                             "not reported in a Spanish-declaring project — the profile "
                             "reached the markdown walker, which is a D-04 opt-out")
         if any(f.file.endswith("2026-01-01-spanish-report.html") for f in lang):
-            failures.append("artifact-style language (e2e): the declared-Spanish rendered "
+            failures.append("artifact profile language (e2e): the declared-Spanish rendered "
                             "artifact was still reported")
 
         # (d) a profile declaring English leaves the rule with its teeth
-        (ctx / "artifact-style.md").write_text(
+        _profile_path(ctx, "artifact").write_text(
             "# Artifact style profile\n\n- language: en\n", encoding="utf-8")
         if v.check_body_language("reports", Path("r.html"), spanish,
                                  declared_language=v.declared_artifact_language(ctx)) is None:
-            failures.append("artifact-style language: a Spanish artifact in an "
+            failures.append("artifact profile language: a Spanish artifact in an "
                             "English-declaring project was not flagged — the profile "
                             "silences only what it actually authorises")
 
@@ -1549,7 +1554,7 @@ def check_artifact_lang_lockstep(failures: list[str]) -> None:
         ctx = Path(td) / ".context"
         ctx.mkdir()
         for name, text in shapes.items():
-            (ctx / "artifact-style.md").write_text(text, encoding="utf-8")
+            _profile_path(ctx, "artifact").write_text(text, encoding="utf-8")
             got_v = v.declared_artifact_language(ctx)
             got_w = wrap_report.profile_language(str(ctx))
             if got_v != "es" or (got_w or "").lower() != got_v:

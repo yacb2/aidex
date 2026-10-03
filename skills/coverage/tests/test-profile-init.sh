@@ -37,8 +37,8 @@ printf '{"dependencies":{"vue":"^3"},"devDependencies":{"vitest":"^4","reka-ui":
 printf 'export default { server: { port: 3600 } }\n' > "$TMP/p/frontend/vite.config.ts"
 
 out="$(python3 "$SCRIPT" "$TMP/p")"
-[[ "$out" == *"wrote $TMP/p/.context/testing-profile.md"* ]] || fail "did not report the written path: $out"
-prof="$TMP/p/.context/testing-profile.md"
+[[ "$out" == *"wrote $TMP/p/.context/profiles/testing.md"* ]] || fail "did not report the written path: $out"
+prof="$TMP/p/.context/profiles/testing.md"
 for kv in "project_slug: demo_app" "project_kebab: demo-app" "db_port: 5600" "db_user: demo_user" \
           "dev_frontend_port: 3600" "dev_backend_port: 8600" "e2e_frontend_port: 3610" "e2e_backend_port: 8610" \
           "e2e_service: backend-test" "seed_e2e_bootstrap_cmd: bootstrap_e2e_data" \
@@ -72,7 +72,7 @@ mkdir -p "$TMP/p/.context/references/testing"
 printf '# Small\n\none workflow, under the tripwire.\n' > "$TMP/p/.context/references/testing/01-small.md"
 out="$(python3 "$SCRIPT" --check "$TMP/p")" || fail "--check on a clean profile + small module must exit 0: $out"
 [[ "$out" == *"profile check: ok"* ]] || fail "--check ok line: $out"
-printf '\n## Execution groups\n\nProse that belongs in a reference module.\n' >> "$TMP/p/.context/testing-profile.md"
+printf '\n## Execution groups\n\nProse that belongs in a reference module.\n' >> "$TMP/p/.context/profiles/testing.md"
 python3 - "$TMP/p/.context/references/testing/06-big.md" <<'PY'
 import sys; open(sys.argv[1], "w").write("# Big\n\n" + "word " * 2600)
 PY
@@ -80,7 +80,7 @@ if out="$(python3 "$SCRIPT" --check "$TMP/p")"; then fail "--check must exit 1 w
 [[ "$out" == *"prose section '## Execution groups'"* ]] || fail "--check must name the prose section: $out"
 [[ "$out" == *"06-big.md is 2,602 words, over the 2,500-word tripwire"* ]] || fail "--check must name the module over the tripwire: $out"
 [[ "$out" == *"01-small.md"* ]] && fail "--check must not report a module under the tripwire: $out"
-[[ -e "$TMP/p/.context/testing-profile.md.bak" ]] && fail "--check must not write"
+[[ -e "$TMP/p/.context/profiles/testing.md.bak" ]] && fail "--check must not write"
 
 # --check resolves the profile the way sweep-gate.sh does (BL-365): .context/ normally,
 # a tracked repo-root testing-profile.md as the fallback for a project that gitignores
@@ -92,14 +92,14 @@ if out="$(python3 "$SCRIPT" --check "$TMP/r")"; then fail "--check must read the
 [[ "$out" == *"prose section '## Execution groups'"* ]] || fail "--check must report on the root profile, not call it missing: $out"
 [[ "$out" == *"no profile at"* ]] && fail "--check must not call a root profile missing: $out"
 # .context/ still wins when both exist: the root copy's prose must NOT be reported.
-mkdir -p "$TMP/r/.context"
-printf -- '---\nproject_slug: rooted\n---\n\nfacts only.\n' > "$TMP/r/.context/testing-profile.md"
+mkdir -p "$TMP/r/.context/profiles"
+printf -- '---\nproject_slug: rooted\n---\n\nfacts only.\n' > "$TMP/r/.context/profiles/testing.md"
 out="$(python3 "$SCRIPT" --check "$TMP/r")" || fail "--check must prefer the clean .context/ profile: $out"
 [[ "$out" == *"profile check: ok"* ]] || fail ".context/ must win over the root fallback: $out"
 # Neither present: the refusal names both paths, like the gate's die.
 mkdir -p "$TMP/n"
 if out="$(python3 "$SCRIPT" --check "$TMP/n")"; then fail "--check with no profile must exit 1: $out"; fi
-[[ "$out" == *"$TMP/n/.context/testing-profile.md"* && "$out" == *"$TMP/n/testing-profile.md"* ]] \
+[[ "$out" == *"$TMP/n/.context/profiles/testing.md"* && "$out" == *"$TMP/n/testing-profile.md"* ]] \
   || fail "the no-profile refusal must name both paths: $out"
 
 # BL-364: the profile is composed from a stack-neutral core plus the keys each detected
@@ -116,7 +116,7 @@ grep -qE "^(db_port|dev_frontend_port|e2e_service|helpers_dir|ui_stack|backend_s
   && fail "a project with no pack must carry no port, database, Vite or E2E key: $bare"
 sed -n '/^---$/,/^---$/p' <<<"$bare" | grep >/dev/null "n/a" && fail "n/a is retired — an inapplicable key is omitted, never answered"
 # The template and the script name the same keys, or one of them is lying.
-TEMPLATE="$HERE/../assets/templates/testing-profile.md.template"
+TEMPLATE="$HERE/../assets/templates/testing.md.template"
 # Python, not sed|grep: under LC_ALL=C (the suite's locale) grep treated the template's
 # non-ASCII group header as binary and stopped listing keys, so this passed in a shell
 # and failed in the gate.
@@ -131,5 +131,11 @@ skeys="$(python3 -c "import sys; sys.path.insert(0,'$HERE/../scripts'); import i
 [[ "$tkeys" == "$skeys" ]] || fail "template keys and profile-init KEYS differ:
 $(diff <(echo "$tkeys") <(echo "$skeys"))"
 grep -qE 'answered `n/a`, never left blank|answers `n/a` to every' "$TEMPLATE" && fail "the template still documents the n/a convention"
+
+# A legacy-root profile counts as existing: the seed refuses, names it, writes nothing new.
+mkdir -p "$TMP/lg/.context"; printf 'legacy\n' > "$TMP/lg/.context/testing-profile.md"
+if out="$(python3 "$SCRIPT" "$TMP/lg" 2>&1)"; then fail "seeding over a legacy-root profile must refuse: $out"; fi
+[[ "$out" == *"$TMP/lg/.context/testing-profile.md"* ]] || fail "the refusal must name the legacy file: $out"
+[[ ! -e "$TMP/lg/.context/profiles" ]] || fail "the refusal still wrote profiles/"
 
 echo "OK — profile-init: facts read, blanks stay blank, overwrite refused, --print is read-only, --check finds prose and tripwire"

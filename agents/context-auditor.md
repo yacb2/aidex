@@ -107,7 +107,7 @@ Fast implementation hint: shell out to `${CLAUDE_PLUGIN_ROOT}/skills/audit/scrip
   - `README.md` inside `references/` or `docs/` → WARNING. Convention: each module has `00-index.md`, CLAUDE.md is the top-level entry point. The README is a maintenance burden that desynchronizes.
   - Empty directories — apply this decision matrix (per `${CLAUDE_PLUGIN_ROOT}/skills/conventions/references/claudemd-conventions.md` § Project Context Directory):
     - Empty + canonical (`audits, decisions, plans, requests, issues, references, research, backlog, roadmap, docs, loops, communications, worktrees`) → **no finding** (empty canonical is healthy).
-    - Empty + acceptable non-canonical (`data, diagrams, drafts, experiments, worklists, workflows`) → INFO if undocumented in CLAUDE.md, no finding if documented or gitignored.
+    - Empty + acceptable non-canonical (`data, diagrams, drafts, experiments, profiles, worklists, workflows`) → INFO if undocumented in CLAUDE.md, no finding if documented or gitignored.
     - Empty + unrecognized → WARNING, suggest removal.
   - Pluralized directory names (`backlogs/` instead of `backlog/`) → WARNING.
   - `00-overview.md` outside `research/` → WARNING (only `00-index.md` allowed). Inside `research/<topic>/` → INFO (accepted alias).

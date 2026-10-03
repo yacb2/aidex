@@ -206,7 +206,7 @@ grep -q "^awaiting: owner$" "$K" && grep -q "^commits: \"$SHA1\"$" "$K" && ok "p
 # question is a consult item. The script wraps nothing (BL-345's wrap showed the owner
 # rows as text, never asked) and leaves no translate source (BL-382's step): it writes
 # the English markdown and names the next step on stderr.
-printf -- '- language: es\n' > .context/artifact-style.md
+mkdir -p ".context/profiles"; printf -- '- language: es\n' > .context/profiles/artifact.md
 MD="$(bash "$SCRIPTS/sweep-report.sh" report-run 2>"$TMP/rep.err")"
 ERR="$(cat "$TMP/rep.err")"
 [[ "$MD" == *.md && -s "$MD" && "$(wc -l <<<"$MD")" -eq 1 ]] && ok "stdout is still exactly one path, the markdown canon" || bad "stdout: $MD"
@@ -215,7 +215,7 @@ ERR="$(cat "$TMP/rep.err")"
 grep -qF "page: build with /aidex:artifact (Route S) -> ${MD%.md}.spec.md -> ${MD%.md}.html" <<<"$ERR" \
   && ok "stderr names the page step: Route S, the .spec.md and .html beside the report" || bad "no page next-step line: [$ERR]"
 grep -q '^## Owner rows — what only the owner can judge' "$MD" && ok "language: es — the .md keeps its English headings (D-04)" || bad "the .md drifted from English: $(grep '^## ' "$MD" | sed -n 1,3p)"
-rm -f .context/artifact-style.md
+rm -f .context/profiles/artifact.md
 
 # a non-.md --out still writes the report, and nothing beside it
 TXT="$TMP/report-run.txt"

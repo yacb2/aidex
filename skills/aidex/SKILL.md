@@ -13,7 +13,7 @@ Single entry point for auditing, diagnosing, and fixing the AI assistant ecosyst
 
 | Domain | Location | What it checks |
 |--------|----------|---------------|
-| **Context structure** | `.context/` | References, docs, plans, backlog (incl. `_deferred/`), issues, roadmap, requests, decisions, research, audits, loops, communications, worktrees — numbering, metadata, index coverage, reorganization suggestions. Optional tier (`data`, `diagrams`, `drafts`, `experiments`, `worklists`, `workflows`) reported at INFO only |
+| **Context structure** | `.context/` | References, docs, plans, backlog (incl. `_deferred/`), issues, roadmap, requests, decisions, research, audits, loops, communications, worktrees — numbering, metadata, index coverage, reorganization suggestions. Optional tier (`data`, `diagrams`, `drafts`, `experiments`, `profiles`, `worklists`, `workflows`) reported at INFO only |
 | **Skills** | `.claude/skills/`, `${CLAUDE_PLUGIN_ROOT}/skills/` | Frontmatter, size, structure, scope placement |
 | **Symlinks** | `.claude/skills/*`, `.claude/commands/*` | Targets exist, no broken/orphan links |
 | **Memory** | `~/.claude/projects/<slug>/memory/` + its `MEMORY.md` index | Session logs saved as memories, secrets, closed subjects, duplicates, content in the always-on index. See `/aidex:aidex memory` |
@@ -70,8 +70,8 @@ SessionStart nudge until the directory changes again. Budgets are words, never l
 Bootstrap `.context/` in a project that doesn't have one. Runs [`scripts/init-context.sh`](scripts/init-context.sh) `[project-dir]` — idempotent, creates only the directories/files that are missing, seeds the backlog/plans indexes via the installed reindexers when present, writes `.context/references/01-project-commands.md` (skip-if-exists), then prints (never writes) a suggested CLAUDE.md block for the user to add themselves.
 
 **It has one question, and you ask it** — in the Bash tool stdin is never a terminal, so
-the script prints `no TTY — skipped the artifact-style.md question` instead of prompting.
-On that line ask the user whether this project wants a `.context/artifact-style.md`, and
+the script prints `no TTY — skipped the profiles/artifact.md question` instead of prompting.
+On that line ask the user whether this project wants a `.context/profiles/artifact.md`, and
 in which language its HTML artifacts are written; re-run (idempotent) with
 `--artifact-style <lang>` or `--no-artifact-style`. Never created unasked; either answer
 is recorded in the marker artifact's mid-artifact offer reads, so neither asks twice.
@@ -132,7 +132,7 @@ Before launching any subagent, scan what exists in the project:
 ```
 Check for:
 - .context/ (references/, docs/, plans/, backlog/ [incl. _deferred/], issues/, roadmap/, requests/, decisions/, research/, audits/, loops/, communications/, worktrees/)
-- .context/ optional tier (data/, diagrams/, drafts/, experiments/, worklists/, workflows/) — project-local, INFO-at-most, never deletion candidates
+- .context/ optional tier (data/, diagrams/, drafts/, experiments/, profiles/, worklists/, workflows/) — project-local, INFO-at-most, never deletion candidates
 - .claude/ (skills/, CLAUDE.md)
 - ~/.claude/projects/<slug>/memory/ (memory files + MEMORY.md; slug = the project path
   with `/` and `_` turned into `-`)
@@ -192,7 +192,7 @@ is `references/08-report-shapes.md` § Phase 2.
 Before emitting any finding that proposes deleting a file/directory, uninstalling a plugin, or removing a skill from disk, verify the four gates below. Failing **any** gate downgrades the proposal to a softer alternative or suppresses it.
 
 1. **Canonical type?** If the target is an empty directory, is it in the canonical list (`audits, decisions, plans, requests, issues, references, research, backlog, roadmap, docs, loops, communications, worktrees`)? If yes → do not propose deletion (empty canonical = healthy). The `backlog/_deferred/` and `<type>/_archive/` subdirs are part of their parent's canonical lifecycle — treat as healthy, never orphan/delete candidates.
-   **Acceptable-optional tier?** If the target is `data`, `diagrams`, `drafts`, `experiments`, `worklists`, or `workflows`, it is never required (some are scaffolded on demand — `worklists` by the worklist scripts, `workflows` by `workflow`; the rest are project-local, may be gitignored): INFO-at-most, never a deletion proposal. Only `.context/` dirs in NEITHER tier qualify as deletion candidates.
+   **Acceptable-optional tier?** If the target is `data`, `diagrams`, `drafts`, `experiments`, `profiles`, `worklists`, or `workflows`, it is never required (some are scaffolded on demand — `worklists` by the worklist scripts, `workflows` by `workflow`; the rest are project-local, may be gitignored): INFO-at-most, never a deletion proposal. Only `.context/` dirs in NEITHER tier qualify as deletion candidates.
 2. **Protected marketplace?** If the target is a plugin, is its marketplace in `PROTECTED_MARKETPLACES` (`claude-plugins-official`, `anthropics`)? If yes → downgrade to INFO, never propose disable/uninstall.
 3. **Reversible local override exists?** Is there a softer alternative (`enabledPlugins: false`, `skillOverrides: name-only/off`, archive-instead-of-delete)? (`skillOverrides` is not available for plugin skills — `references/09-plugin-skill-naming.md`) If yes → prefer it over the destructive action.
 4. **`.git` ancestor present?** For any `.gitignore` suggestion in `.context/`, walk up to find `.git`. If absent (typical of `*_ws/` workspace roots) → suppress the finding.

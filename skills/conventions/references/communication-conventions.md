@@ -227,7 +227,7 @@ is the only `.context/` type with such an exemption — everywhere else, English
 
 A generated draft that gets the same six corrections applied by hand every time is a
 draft the tool wrote in the wrong voice. Those corrections are recorded once, per
-workspace, in `.context/communication-style.md`, and `new-communication.sh` renders them
+workspace, in `.context/profiles/communication.md`, and `new-communication.sh` renders them
 into every scaffolded `body.md` — at the point of writing, not as a later review step.
 
 The file is documentation first: prose explaining the choices, with one machine-readable
@@ -250,7 +250,7 @@ stripped.
 **A workspace with no profile is the normal case, not an error.** Each axis falls back on
 its own to the shipped default (`STYLE_DEFAULTS` in `new-communication.sh`), so a partial
 profile declaring only `tone` still gets the documented voice. The shape mirrors
-`.context/artifact-style.md`: a delta over a shipped system, never a second copy of it.
+`.context/profiles/artifact.md`: a delta over a shipped system, never a second copy of it.
 
 Two things do **not** belong in a profile. **Language** — D-04 keeps every communication in
 its own native language, and pinning one would translate a supplier's thread. And

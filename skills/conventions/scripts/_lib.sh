@@ -384,3 +384,24 @@ proof_is_placeholder() {
   shopt -u nocasematch
   return $rc
 }
+
+# resolve_profile <context-dir> <name> — path of a per-project profile, or empty + return 1.
+# New path .context/profiles/<name>.md first, the legacy root file second (canon:
+# 00-global.md "Profiles"). Names: artifact communication testing deploy ui-contract.
+# Python twin: profiles.py. Writers never use the legacy path: profile_write_path.
+profile_write_path() { printf '%s/profiles/%s.md\n' "$1" "$2"; }
+resolve_profile() {
+  local ctx="$1" name="$2" legacy new
+  case "$name" in
+    artifact)      legacy="artifact-style.md" ;;
+    communication) legacy="communication-style.md" ;;
+    testing)       legacy="testing-profile.md" ;;
+    deploy)        legacy="deploy-profile.md" ;;
+    ui-contract)   legacy="ui-contract.md" ;;
+    *) return 1 ;;
+  esac
+  new="$(profile_write_path "$ctx" "$name")"
+  if [[ -f "$new" ]]; then printf '%s\n' "$new"; return 0; fi
+  if [[ -f "$ctx/$legacy" ]]; then printf '%s\n' "$ctx/$legacy"; return 0; fi
+  return 1
+}

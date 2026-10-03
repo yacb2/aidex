@@ -6,7 +6,7 @@
 #   <slug>: kebab-case identifier, e.g. "client-pricing-question"
 #   --channel: async only; defaults to email. Ignored for meeting/call (the kind is the channel).
 #
-# Reads the workspace communications style profile (.context/communication-style.md) and
+# Reads the workspace communications style profile (.context/profiles/communication.md) and
 # renders it into the scaffolded body, so voice/sign-off/tone/address/date format/paste
 # font are in front of whoever writes the body instead of being corrected afterwards
 # (BL-216, BL-415). A project with no profile gets the documented defaults, never an error.
@@ -62,10 +62,10 @@ render_template() {
 }
 
 # --- Communications style profile (BL-216) ---------------------------------------
-# Same shape as .context/artifact-style.md: a human-readable markdown file whose
+# Same shape as .context/profiles/artifact.md: a human-readable markdown file whose
 # machine-readable part is the first fenced block under `## Profile`. Six axes, each
 # with a shipped default, because a workspace with no profile must still scaffold.
-STYLE_PROFILE_REL=".context/communication-style.md"
+STYLE_PROFILE_REL=".context/profiles/communication.md"
 STYLE_AXES="voice sign_off tone address date_format paste_font"
 
 # Shipped defaults, one per axis. A case statement rather than an associative array:
@@ -86,7 +86,7 @@ style_default() {
 }
 
 # Echo the profile's machine-readable part: the first fenced block under `## Profile`.
-# Same shape as .context/artifact-style.md — human-readable file, one parsed section.
+# Same shape as .context/profiles/artifact.md — human-readable file, one parsed section.
 read_style_profile() {
   local file="$1"
   [[ -f "$file" ]] || return 0
@@ -129,7 +129,7 @@ style_value() {
 style_block() {
   local file="$1" axis
   if [[ -f "$file" ]]; then
-    printf '     HOUSE STYLE (from %s — edit it there, not here):\n' "$STYLE_PROFILE_REL"
+    printf '     HOUSE STYLE (from %s — edit it there, not here):\n' "${file#"$ROOT"/}"
   else
     printf '     HOUSE STYLE (defaults — no %s in this workspace):\n' "$STYLE_PROFILE_REL"
   fi
@@ -219,7 +219,7 @@ else
   render_template "$TEMPLATES_DIR/$TEMPLATE" "$OUT" \
     CHANNEL="$CHANNEL" DIRECTION="$KIND" STATUS="$STATUS" SLUG="$SLUG" DATE="$DATE_ISO"
   STYLE_TMP="$(mktemp)"
-  style_block "$ROOT/$STYLE_PROFILE_REL" > "$STYLE_TMP"
+  style_block "$(resolve_profile "$ROOT/.context" communication || true)" > "$STYLE_TMP"
   inject_style "$OUT" "$STYLE_TMP"
   rm -f "$STYLE_TMP"
 fi

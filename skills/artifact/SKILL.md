@@ -79,8 +79,8 @@ options stated as what that person sees or can do, ids only on a trailing `Fuent
 no" block for reversible decisions that carry a recommendation. `artifact-sonnet` lays
 that out; the contract is `references/02-local-first-artifacts.md` § 8 (BL-503).
 
-Per-project design tokens live in `.context/artifact-style.md` (template:
-`assets/templates/artifact-style.md.template`), including a `language:` field
+Per-project design tokens live in `.context/profiles/artifact.md` (template:
+`assets/templates/artifact.md.template`), including a `language:` field
 in its `## Language` section that `wrap-report.sh` reads as the artifact's
 `<html lang>` — artifacts only; `.context/` stays English (D-04). Every page
 follows it, close-outs included; only a `human-verification.*` page takes
@@ -148,7 +148,7 @@ on the HTML route) has passed `check-artifact`:
    (`<name>-shots.json`, which lists the viewport-height tiles and the item ids each
    holds) instead of the two full-page shots, the list of files the probe printed as
    written this run (`SHOT <path>` lines, one run stamp), the path of
-   `references/05-visual-review.md`, the profile's `viewports: desktop` line when `.context/artifact-style.md` declares it, and — for a consultation round built over a reply —
+   `references/05-visual-review.md`, the profile's `viewports: desktop` line when `.context/profiles/artifact.md` declares it, and — for a consultation round built over a reply —
    the DUTIES list `save-reply.sh` printed (it includes gallery rows with a non-approved verdict and region-mark rows): the grader maps each duty to its item by id and
    scores it met/not-met alongside the rubric. A delegate builds, probes and returns the
    shot paths and the manifest; the main session launches the grader (a subagent cannot

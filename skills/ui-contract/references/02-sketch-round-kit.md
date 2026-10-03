@@ -8,7 +8,7 @@ from 11.1 / $1.53 to 8.9 / $1.39. Gate checks stayed green on every variant.
 
 | Round | Agent | Reads | Does |
 |---|---|---|---|
-| Re-capture (the screen's gallery spec exists) | the sketch round's impl agent | the screen's `gallery-kit.md` + the project `.context/ui-contract.md` | the app change, the spec edit, the one capture, the rows JSON, the kit rewrite |
+| Re-capture (the screen's gallery spec exists) | the sketch round's impl agent | the screen's `gallery-kit.md` + the project `.context/profiles/ui-contract.md` | the app change, the spec edit, the one capture, the rows JSON, the kit rewrite |
 | First build | `aidex:gallery-builder` | the project file + the pattern spec (kit if one exists) | the spec, fixtures, the one capture, rows JSON, the kit |
 
 No gallery-builder hop on a re-capture: a second agent re-reads the kit, and the

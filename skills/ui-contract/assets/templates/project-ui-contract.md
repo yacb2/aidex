@@ -1,4 +1,4 @@
-# UI contract — <project> (`.context/ui-contract.md`)
+# UI contract — <project> (`.context/profiles/ui-contract.md`)
 
 Read this instead of the testing profile and the harness contract. It is the project's
 standing answer to "how do galleries work here"; a screen's own `gallery-kit.md` adds only

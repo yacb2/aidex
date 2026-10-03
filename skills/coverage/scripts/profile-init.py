@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""profile-init.py — seed <project>/.context/testing-profile.md from what is on disk.
+"""profile-init.py — seed <project>/.context/profiles/testing.md from what is on disk.
 
 Reads test-e2e.sh (ports, database, e2e service), docker-compose.yml (service names),
 backend/pyproject.toml (pytest vs manage.py test) and frontend/package.json (vitest).
@@ -16,6 +16,9 @@ tripwire `reference/references/03-shaping.md` sets — a doc extended past it is
 split into a new module, never appended. Exit 1 on any finding.
 """
 import json, os, re, sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "conventions", "scripts"))
+import profiles  # noqa: E402  the one profile resolver
 
 # BL-364: the profile is COMPOSED — a stack-neutral core plus the keys each pack
 # declares. A key belongs to exactly one group; a project sees the core and the groups
@@ -81,13 +84,13 @@ def resolve_profile(root):
     checkout, so a tracked repo-root testing-profile.md is the fallback (BL-289). .context/ still wins when both exist. This reader and the gate
     share one contract; they disagreed about where the file lives until BL-365.
     """
-    prof = os.path.join(root, ".context", "testing-profile.md")
-    if os.path.isfile(prof):
+    prof = profiles.resolve_profile(os.path.join(root, ".context"), "testing")
+    if prof:
         return prof, None
     alt = os.path.join(root, "testing-profile.md")
     if os.path.isfile(alt):
         return alt, None
-    return None, f"no profile at {prof} nor {alt}"
+    return None, f"no profile at {profiles.profile_write_path(os.path.join(root, '.context'), 'testing')} nor {alt}"
 
 
 def check(root):
@@ -124,15 +127,16 @@ def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     force, show = "--force" in sys.argv, "--print" in sys.argv
     root = os.path.abspath(args[0] if args else ".")
-    out = os.path.join(root, ".context", "testing-profile.md")
+    out = profiles.profile_write_path(os.path.join(root, ".context"), "testing")
     if "--check" in sys.argv:
         findings = check(root)
         for f in findings:
             print(f"WARN {f}")
         print("profile check: " + (f"{len(findings)} finding(s)" if findings else "ok — facts only, every testing module under the tripwire"))
         sys.exit(1 if findings else 0)
-    if os.path.exists(out) and not force and not show:
-        sys.exit(f"refusing to overwrite {out} (use --force)")
+    existing = profiles.resolve_profile(os.path.join(root, ".context"), "testing")
+    if existing and not force and not show:
+        sys.exit(f"refusing to overwrite {existing} (use --force)")
     e2e = read(os.path.join(root, "test-e2e.sh"))
     compose = read(os.path.join(root, "docker-compose.yml"))
     pyproject = read(os.path.join(root, "backend", "pyproject.toml"))

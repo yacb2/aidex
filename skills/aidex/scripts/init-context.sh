@@ -21,7 +21,7 @@
 #   3. Run $AIDEX_DIR/skills/conventions/scripts/detect-project-commands.sh
 #      when present, writing its output to .context/references/01-project-commands.md
 #      (skip-if-exists). Skipped (with a note) if not installed.
-#   4. Offer .context/artifact-style.md — the ONE question init asks. Created
+#   4. Offer .context/profiles/artifact.md — the ONE question init asks. Created
 #      only on an explicit yes (the --artifact-style flag, or a non-empty answer
 #      at a TTY); a decline is recorded in .context/.aidex-artifact-style-offered,
 #      the same marker artifact's wrap-time offer uses, so neither surface asks
@@ -180,7 +180,7 @@ else
   note "conventions not installed at $AIDEX_DIR — skipped 01-project-commands.md"
 fi
 
-# --- Step 4: the one question — .context/artifact-style.md ---
+# --- Step 4: the one question — .context/profiles/artifact.md ---
 #
 # Why it lives here and not only in artifact's wrap-time offer: the wrap fires
 # MID-TASK, when the user is being handed an artifact and not being set up. A
@@ -195,9 +195,12 @@ fi
 # (wrap_report.py OFFER_MARKER), not a second one, so a decline here silences the
 # wrap-time offer and vice versa — neither surface asks twice.
 
-STYLE_PROFILE="$CONTEXT_DIR/artifact-style.md"
+STYLE_PROFILE="$CONTEXT_DIR/profiles/artifact.md"
+# A profile still at the legacy root counts as existing (resolver: conventions/scripts/profiles.py);
+# only the new path is ever written.
+STYLE_EXISTING="$(python3 "$AIDEX_DIR/skills/conventions/scripts/profiles.py" "$CONTEXT_DIR" artifact 2>/dev/null || true)"
 STYLE_MARKER="$CONTEXT_DIR/.aidex-artifact-style-offered"
-STYLE_TEMPLATE="$AIDEX_DIR/skills/artifact/assets/templates/artifact-style.md.template"
+STYLE_TEMPLATE="$AIDEX_DIR/skills/artifact/assets/templates/artifact.md.template"
 
 record_style_offer() {
   # Same filename, same meaning, same closing sentence as wrap_report.py's, so
@@ -213,6 +216,7 @@ write_style_profile() {
   # substituting it is the whole point of asking. Every other {{...}} placeholder
   # is left for the human — inventing a palette here is what the profile exists
   # to stop.
+  mkdir -p "$CONTEXT_DIR/profiles"
   sed -e "s|{{PROJECT_NAME}}|$(sed_escape "$(basename "$PROJECT_DIR")")|g" \
       -e "s|^- language: en$|- language: ${lang}|" \
       "$STYLE_TEMPLATE" > "$STYLE_PROFILE"
@@ -223,10 +227,10 @@ if [[ -L "$STYLE_PROFILE" || -L "$STYLE_MARKER" ]]; then
   # does NOT exist is not `-f`, and the write would go through it to a path the
   # caller never named. Neither is ours to follow.
   note "refusing to write through a symlink under ${CONTEXT_DIR#"$PROJECT_DIR"/} — remove it and re-run"
-elif [[ -f "$STYLE_PROFILE" ]]; then
-  printf 'exists: %s\n' "${STYLE_PROFILE#"$PROJECT_DIR"/}"
+elif [[ -n "$STYLE_EXISTING" ]]; then
+  printf 'exists: %s\n' "${STYLE_EXISTING#"$PROJECT_DIR"/}"
 elif [[ ! -f "$STYLE_TEMPLATE" ]]; then
-  note "artifact not installed at $AIDEX_DIR — skipped the artifact-style.md question"
+  note "artifact not installed at $AIDEX_DIR — skipped the profiles/artifact.md question"
 elif [[ -n "$STYLE_LANG" ]]; then
   # An explicit flag is an explicit yes, marker or not: the marker gates the
   # QUESTION, never an answer the caller already gave.
@@ -236,11 +240,11 @@ elif [[ -n "$STYLE_LANG" ]]; then
   note "artifact language set to '$STYLE_LANG' — .context/ itself stays English (D-04)"
 elif [[ "$STYLE_DECLINED" -eq 1 ]]; then
   record_style_offer
-  note "artifact-style.md declined — recorded in ${STYLE_MARKER#"$PROJECT_DIR"/}, so the wrap-time offer will not ask again"
+  note "profiles/artifact.md declined — recorded in ${STYLE_MARKER#"$PROJECT_DIR"/}, so the wrap-time offer will not ask again"
 elif [[ -f "$STYLE_MARKER" ]]; then
-  note "artifact-style.md was offered before (${STYLE_MARKER#"$PROJECT_DIR"/}) — not asking again"
+  note "profiles/artifact.md was offered before (${STYLE_MARKER#"$PROJECT_DIR"/}) — not asking again"
 elif [[ -t 0 ]]; then
-  printf '\nArtifacts (HTML reports, dashboards) render from .context/artifact-style.md.\n' >&2
+  printf '\nArtifacts (HTML reports, dashboards) render from .context/profiles/artifact.md.\n' >&2
   printf 'Create it? Enter the artifact language code (e.g. en, es) — empty declines: ' >&2
   read -r STYLE_REPLY
   if [[ -n "$STYLE_REPLY" ]] && ! valid_lang "$STYLE_REPLY"; then
@@ -256,7 +260,7 @@ elif [[ -t 0 ]]; then
     printf 'created: %s\n' "${STYLE_PROFILE#"$PROJECT_DIR"/}"
     note "artifact language set to '$STYLE_REPLY' — .context/ itself stays English (D-04)"
   else
-    note "artifact-style.md declined — recorded in ${STYLE_MARKER#"$PROJECT_DIR"/}, so the wrap-time offer will not ask again"
+    note "profiles/artifact.md declined — recorded in ${STYLE_MARKER#"$PROJECT_DIR"/}, so the wrap-time offer will not ask again"
   fi
 else
   # No flag and no TTY — which is every run through Claude Code's Bash tool, so
@@ -265,7 +269,7 @@ else
   # No marker is written: skipped is not asked, and writing one here would
   # silence artifact's wrap-time offer for every headlessly bootstrapped
   # project — losing the question at both surfaces instead of moving it.
-  note "no TTY — skipped the artifact-style.md question; no profile created. Ask the user for the artifact language, then re-run with --artifact-style <lang> (or --no-artifact-style to record a decline)"
+  note "no TTY — skipped the profiles/artifact.md question; no profile created. Ask the user for the artifact language, then re-run with --artifact-style <lang> (or --no-artifact-style to record a decline)"
 fi
 
 # --- Step 5: print (never write) a suggested CLAUDE.md block ---

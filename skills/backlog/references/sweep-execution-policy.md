@@ -43,7 +43,7 @@ Enforced by `scripts/sweep-kickoff.sh` (with `sweep-eligible.py`, `sweep-order.p
    recommendation. `AskUserQuestion` is for parameters only (gate policy, scope toggles);
    a decision list belongs in the artifact where the answers stay. A consultation that
    lands mid-sweep stalls the chain for as long as the answer takes. **Its language is
-   the profile's** (`artifact-style.md` `language:`, no `--lang`): it is addressed to the
+   the profile's** (`profiles/artifact.md` `language:`, no `--lang`): it is addressed to the
    reader, not a record of work done. The English rule for backlog ENTRIES in
    `backlog/SKILL.md` does not reach this page. Every `--exclude` is recorded in the
    work-list's Needs decision block (repeatable or a comma list, `BL-NNN:<reason>` per
@@ -107,7 +107,7 @@ suite, paying the boundary gate once per item (BL-363).
    the item's Notes before any edit — premises go stale between filing and the sweep.
 3. The targeted test — RED→GREEN for a bug, **plus the mutation** (below) — is the item's
    verification. Selection via `audit/scripts/affected-tests.sh --command`, **widened by the profile's
-   `blindspot_expansions`** (`testing-profile.md`): a migration ⇒ every app referencing
+   `blindspot_expansions`** (`profiles/testing.md`): a migration ⇒ every app referencing
    the model; a touched `*.test.ts` ⇒ `vue-tsc -b`; a removed UI surface ⇒ grep
    `tests/e2e/` for its endpoints and testids. Most of what the boundary gate catches is
    one of these three.
@@ -155,7 +155,7 @@ deferral goes in the report as well as the seed.
 Enforced by `scripts/sweep-gate.sh` (not `sweep.sh`, the D-10 archiver). Run it as `sweep-gate.sh --worklist <the work-list path>`: several work-lists are often `doing` at once, and only the flag lets the report claim its own runs. Run it from inside the branch's worktree: the legs run in the worktree the gate is invoked in, at the path the profile's root has there (the profile, `_tmp/` and the history stay at the project root), each leg log's first line names the leg, the checkout the leg's command lands in and its commit, and from a linked worktree every leg must land in a checkout inside that worktree (a leading literal `cd <dir> &&` is the only directory change read), otherwise the gate refuses before running or printing anything, rather than gating on main — a bare repo worktree of the aidex_ws layout (`suite_cmd: cd aidex && ...`) and a worktree.sh DEST leg with no `cd` are refused (BL-548; that layout gates from a worktree.sh DEST with `WT_PARTICIPANTS=". aidex"`, whose own `.context/` makes it the root, BL-555; from a repo worktree inside a DEST, a leg landing in the DEST root is refused with the fix: make the leg cd into the repo worktree it tests, owner 2026-10-01, BL-556). That check is on the leg's working directory, not on the code under test: a `docker compose exec` leg tests what the container mounts, chosen by `COMPOSE_PROJECT_NAME`, and a leg that runs main's code by absolute path with no `cd` both still pass from the worktree while testing main (BL-560). From any checkout (a linked worktree, the main checkout, a worktree.sh DEST root that is not a git repo), `--from-log` (with or without `--exit`) scores a log only when its first line is the header a run of that leg there at its current HEAD writes (BL-590); the printed detached invocation writes it; when the gate cannot name the commit (a leg with no `cd` over nested repos, as in the DEST layout below) the header carries `commit unknown` in place of the checkout-and-HEAD half and ties the log to the leg and its `run in` directory only. A log written by hand must start with the line the refusal prints (BL-557).
 
 Merge the trunk **into** the branch first (routine class-4 work, ungated), then run the
-gate: every leg from `testing-profile.md`'s full-suite commands, raw exit code and spec
+gate: every leg from `profiles/testing.md`'s full-suite commands, raw exit code and spec
 count per leg, a countless leg is FAIL, a detached E2E leg is printed and scored from its
 log. Every run is appended to `.context/proofs/sweep-gate/gate-history.jsonl`, stamped with its work-list (`--worklist`; without it the sole `doing` one, else no stamp; the report counts only its own stamped runs, BL-489) (durable; the leg logs stay in `_tmp/sweep-gate/`). In a worktree of a project that tracks `.context/`, the work-list, its report, the proofs and this history live in the worktree's copy and vanish at teardown. Do not prescribe a copy-before-teardown step: put the root repo in `WT_PARTICIPANTS` as `.` and `$DEST` is a checkout of it, so the worktree owns the `.context/` it writes to and `find_project_root` stops there. A project that does NOT track `.context/` has nothing to carry. The `.` token is real support, not a convention: `worktree-multi.sh` reorders it first whatever position the config lists it in, and a `WT_LINKS`/`WT_COPIES` entry the root checkout already carries is skipped with a notice instead of failing creation (BL-259, guarded by `skills/worktree/tests/test-root-participant.sh`).
 
@@ -184,7 +184,7 @@ spelled out in Stage 3 (BL-363).
    It writes only that markdown and prints the page step on stderr (`page: build with
    /aidex:artifact (Route S) -> <report>.spec.md -> <report>.html`).
 2. **Build the page from it, right away, through `/aidex:artifact` Route S** — beside the
-   markdown, in the profile's `language:` (`artifact-style.md`). **The page is the
+   markdown, in the profile's `language:` (`profiles/artifact.md`). **The page is the
    model's:** every NEEDS-DECISION line and every unanswered owner row becomes a consult
    `item` that explains before it asks, each option with its consequence and exactly one
    `{recommended}`; closed items, gate rows and metrics are plain sections. The page

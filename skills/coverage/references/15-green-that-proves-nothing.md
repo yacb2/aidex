@@ -5,7 +5,7 @@ from inside the test — reviewing the assertion harder does not find any of the
 finds them is comparing the test against what production actually does.
 
 Stack-agnostic. The concrete harness shapes live in the stack pack named by
-`.context/testing-profile.md`.
+`.context/profiles/testing.md`.
 
 ## 1. Mutation is the only evidence a behaviour is guarded
 

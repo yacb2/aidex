@@ -83,7 +83,7 @@ item-title-repeats-id
     are different tokens and pass.
 
 lang-follows-profile
-    A page under a project whose `.context/artifact-style.md` declares
+    A page under a project whose `.context/profiles/artifact.md` declares
     `language: X` carries `<html lang>` whose primary subtag is X; a missing
     lang fails too. The project and the field are read by wrap_report's own
     find_context_dir/profile_language, so the verdict depends on WHERE the page
@@ -693,7 +693,7 @@ def check_lang_follows_profile(path, html_text):
         return []
     got = ((html.attrs.get("lang") if html else "") or "").strip()
     return [("lang-follows-profile", html.line if html else 1,
-             "<html lang=\"%s\"> but %s/artifact-style.md declares language: %s"
+             "<html lang=\"%s\"> but the artifact profile of %s declares language: %s"
              % (got, ctx, want))]
 
 

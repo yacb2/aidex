@@ -156,7 +156,7 @@ English. Borrow the shape, never the language.
 
 ### The house style is already in the scaffolded body
 
-`new-communication.sh` reads `.context/communication-style.md` and renders its six axes —
+`new-communication.sh` reads `.context/profiles/communication.md` and renders its six axes —
 voice, sign-off, tone, address, date format, paste font — into the `body.md` it creates, so
 the draft starts in this workspace's voice instead of being corrected into it. A workspace
 with no profile gets the documented defaults; that is the normal case, not an error. Read

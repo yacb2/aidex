@@ -276,7 +276,7 @@ echo "== lang-follows-profile =="
 C=lang-follows-profile
 PROJ="$TMP/proj"
 mkdir -p "$PROJ/.context/reports" "$PROJ/.context/worklists/_archive" "$PROJ/.context/proofs"
-printf '# Artifact style\n\nProse naming language: en in passing.\n\n## Language\n\n- language: es\n' > "$PROJ/.context/artifact-style.md"
+mkdir -p "$PROJ/.context/profiles"; printf '# Artifact style\n\nProse naming language: en in passing.\n\n## Language\n\n- language: es\n' > "$PROJ/.context/profiles/artifact.md"
 page proj/.context/reports/en en '<main><p>Report.</p></main>'
 fails $C proj/.context/reports/en "lang=en under a language: es profile fails"
 page proj/.context/reports/nolang - '<main><p>Informe.</p></main>'
@@ -568,7 +568,7 @@ echo "== lang-follows-profile at build time: only human-verification.* keeps --l
 # worklists/_archive/ follows the profile (BL-382, BL-482): no flag switches the
 # check off at wrap time.
 LP="$TMP/langproj"; mkdir -p "$LP/.context/reports" "$LP/.context/worklists/_archive"
-printf -- '- language: es\n' > "$LP/.context/artifact-style.md"
+mkdir -p "$LP/.context/profiles"; printf -- '- language: es\n' > "$LP/.context/profiles/artifact.md"
 EN_BODY='<div class="page"><main class="main"><h1>Report</h1><p>An English report on purpose, with enough words to read as English prose for the checker.</p></main></div>'
 printf '%s\n' "$EN_BODY" | bash "$HERE/../scripts/wrap-report.sh" --title "English" --lang en \
   --out "$LP/.context/reports/en.html" >"$TMP/wrap.out" 2>&1; wrc=$?
@@ -590,7 +590,7 @@ printf '%s\n' "$EN_BODY" | bash "$HERE/../scripts/wrap-report.sh" --title "Engli
 # A silent spec follows the profile; an explicit --lang es that contradicts it
 # must still meet lang-follows-profile on the spec route.
 SP="$TMP/specproj"; mkdir -p "$SP/.context/reports"
-printf -- '- language: en\n' > "$SP/.context/artifact-style.md"
+mkdir -p "$SP/.context/profiles"; printf -- '- language: en\n' > "$SP/.context/profiles/artifact.md"
 printf '::: masthead {eyebrow="Prueba" byline="aidex"}\n# Una página\n\nUna página escrita en español, con suficientes palabras para leerse como prosa.\n:::\n\nEl cuerpo sigue en español.\n' > "$SP/p.spec.md"
 python3 "$HERE/../scripts/spec_build.py" "$SP/p.spec.md" --lang es -o "$SP/.context/reports/p.html" >"$TMP/sb.out" 2>&1; src=$?
 [[ $src -ne 0 ]] && grep -q 'FAIL \[lang-follows-profile\]' "$TMP/sb.out" \
@@ -671,14 +671,14 @@ grep -q "^corpus: 0/1$" <<<"$err" && grep -q "cproj__clean.spec.md: render-probe
   || bad "slow probe: $(printf '%q' "$err")"
 # The page is built in a tree mirroring its project's profile, so that profile judges it: an
 # en page in an es-profile project is refused by the wrap (lang-follows-profile).
-mkdir -p "$TMP/esproj/.context"; printf -- '- language: es\n' > "$TMP/esproj/.context/artifact-style.md"
+mkdir -p "$TMP/esproj/.context/profiles"; printf -- '- language: es\n' > "$TMP/esproj/.context/profiles/artifact.md"
 corpus esproj/clean
 err="$(AIDEX_RENDER_PROBE="$TMP/probe-ok.sh" AIDEX_DEFECT_REGISTRY= AIDEX_SPEC_CORPUS="$CORP" \
   bash "$HERE/defect-gate.sh" --verbose 2>&1)"
 grep -q "^corpus: 0/1$" <<<"$err" && grep -q "esproj__clean.spec.md: build refused: FAIL \[lang-follows-profile\]" <<<"$err" \
   && ok "a spec is built under a copy of its project's profile: that profile judges its lang" \
   || bad "profile not seen: $(printf '%q' "$err")"
-[[ "$(ls -A "$TMP/esproj/.context")" == "artifact-style.md" ]] \
+[[ "$(ls -A "$TMP/esproj/.context" "$TMP/esproj/.context/profiles" | tr "\n" " ")" == *"profiles"*"artifact.md"* && "$(find "$TMP/esproj/.context" -type f | wc -l | tr -d " ")" == 1 ]] \
   && ok "a run writes nothing into the project's .context/" || bad "project written: $(ls -A "$TMP/esproj/.context")"
 corpus clean
 corpus refused
@@ -727,7 +727,7 @@ want=$'classes: 2/17\nred: 1/17\ngreen: 1/17\ncorpus: 2/3'
 # page by where it sits): every source class red on a mini-page, every render
 # class red by the fake probe, every class green on the kit-built clean page.
 EN="$TMP/enproj"; mkdir -p "$EN/.context"
-printf '## Language\n\n- language: en\n' > "$EN/.context/artifact-style.md"
+mkdir -p "$EN/.context/profiles"; printf '## Language\n\n- language: en\n' > "$EN/.context/profiles/artifact.md"
 FULL="$EN/registry"
 for pair in "decision-item-without-options c1-free" "decision-page-not-interactive c2-empty" \
             "mixed-content-types c3-codes" "copy-control-placement c4-main" "ui-string-language c5-en-on-es" \

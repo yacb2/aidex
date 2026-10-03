@@ -69,8 +69,8 @@ rm -rf "$ROOT"
 
 # --- Cell 2: a full profile overrides every axis ------------------------------------
 ROOT="$(mk_project)"
-mkdir -p "$ROOT/.context"
-cat > "$ROOT/.context/communication-style.md" <<EOF
+mkdir -p "$ROOT/.context/profiles"
+cat > "$ROOT/.context/profiles/communication.md" <<EOF
 # Style
 
 Prose the parser must ignore, including a decoy line: voice: NOT-THIS-ONE
@@ -92,7 +92,7 @@ voice: ALSO-NOT-THIS-ONE
 EOF
 BODY="$(scaffold "$ROOT" full-profile)"; RC=$?
 [[ $RC -eq 0 ]] || fail "cell 2: expected exit 0, got $RC"
-grep -q 'HOUSE STYLE (from .context/communication-style.md' "$BODY" \
+grep -q 'HOUSE STYLE (from .context/profiles/communication.md' "$BODY" \
   || fail "cell 2: the block does not say where the values came from"
 for v in PRIMERA-PERSONA FIRMA-FIJA TONO-X TRATAMIENTO-X FECHA-X; do
   grep -q "$v" "$BODY" || fail "cell 2: profile value '$v' did not reach the body"
@@ -110,8 +110,8 @@ rm -rf "$ROOT"
 
 # --- Cell 3: a partial profile falls back per axis, not wholesale -------------------
 ROOT="$(mk_project)"
-mkdir -p "$ROOT/.context"
-cat > "$ROOT/.context/communication-style.md" <<'EOF'
+mkdir -p "$ROOT/.context/profiles"
+cat > "$ROOT/.context/profiles/communication.md" <<'EOF'
 ## Profile
 
 ```
@@ -132,9 +132,9 @@ rm -rf "$ROOT"
 
 # --- Cell 3b: declaring only paste_font leaves the other five axes at their defaults ---
 ROOT="$(mk_project)"
-mkdir -p "$ROOT/.context"
+mkdir -p "$ROOT/.context/profiles"
 printf '## Profile\n\n```\npaste_font: %s\n```\n' "$OVERRIDE_PASTE_FONT" \
-  > "$ROOT/.context/communication-style.md"
+  > "$ROOT/.context/profiles/communication.md"
 BODY="$(scaffold "$ROOT" font-only-profile)"; RC=$?
 [[ $RC -eq 0 ]] || fail "cell 3b: expected exit 0, got $RC"
 grep -qF -- "$OVERRIDE_PASTE_FONT" "$BODY" || fail "cell 3b: the paste_font override was not applied"
@@ -147,8 +147,8 @@ rm -rf "$ROOT"
 
 # --- Cell 4: a profile with no ## Profile section is documentation, not an error ----
 ROOT="$(mk_project)"
-mkdir -p "$ROOT/.context"
-printf '# Style notes\n\nWe write plainly.\n' > "$ROOT/.context/communication-style.md"
+mkdir -p "$ROOT/.context/profiles"
+printf '# Style notes\n\nWe write plainly.\n' > "$ROOT/.context/profiles/communication.md"
 BODY="$(scaffold "$ROOT" prose-only)"; RC=$?
 [[ $RC -eq 0 ]] || fail "cell 4: a profile with no parsable section must still exit 0, got $RC"
 grep -q 'first-person singular' "$BODY" \
@@ -161,7 +161,7 @@ rm -rf "$ROOT"
 # whose first (or last) family is quoted silently lost that quote and rendered CSS that
 # still looked plausible. Every assertion here is byte-exact for that reason.
 ROOT="$(mk_project)"
-mkdir -p "$ROOT/.context"
+mkdir -p "$ROOT/.context/profiles"
 # Written with printf, not a heredoc: the date_format cell needs a REAL trailing space
 # after the closing quote, and an editor that trims trailing whitespace would delete it.
 TRAILING_WS_VALUE='"Fecha X" '
@@ -174,7 +174,7 @@ TRAILING_WS_VALUE='"Fecha X" '
   printf 'sign_off: "\n'
   printf 'date_format: %s\n' "$TRAILING_WS_VALUE"
   printf '```\n'
-} > "$ROOT/.context/communication-style.md"
+} > "$ROOT/.context/profiles/communication.md"
 BODY="$(scaffold "$ROOT" wrapping-quote)"; RC=$?
 [[ $RC -eq 0 ]] || fail "cell 5: expected exit 0, got $RC"
 grep -qF -- 'paste_font:  "Segoe UI",Arial,sans-serif' "$BODY" \
@@ -197,8 +197,8 @@ rm -rf "$ROOT"
 
 # --- Cell 5g: an empty wrapped value falls back to the axis default ------------------
 ROOT="$(mk_project)"
-mkdir -p "$ROOT/.context"
-printf '## Profile\n\n```\nvoice: ""\n```\n' > "$ROOT/.context/communication-style.md"
+mkdir -p "$ROOT/.context/profiles"
+printf '## Profile\n\n```\nvoice: ""\n```\n' > "$ROOT/.context/profiles/communication.md"
 BODY="$(scaffold "$ROOT" empty-quoted)"; RC=$?
 [[ $RC -eq 0 ]] || fail "cell 5g: expected exit 0, got $RC"
 grep -qF -- "${DEFAULTS[0]}" "$BODY" \

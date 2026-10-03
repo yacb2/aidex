@@ -113,13 +113,13 @@ if [ -f "$CANON_FILE" ]; then
   if ! grep -q ".context/reports/" "$CANON_FILE"; then
     fail "canon missing anchor-less fallback (.context/reports/)"
   fi
-  if ! grep -q "artifact-style.md" "$CANON_FILE"; then
+  if ! grep -q "profiles/artifact.md" "$CANON_FILE"; then
     fail "canon missing project style-profile step"
   fi
 fi
 
-if [ ! -f "$REPO_ROOT/skills/artifact/assets/templates/artifact-style.md.template" ]; then
-  fail "artifact-style.md.template missing in artifact assets"
+if [ ! -f "$REPO_ROOT/skills/artifact/assets/templates/artifact.md.template" ]; then
+  fail "artifact.md.template missing in artifact assets"
 fi
 # Plugin migration 2026-09-12: the skill is no longer deployed user-invocable-only —
 # its own `description:` is the natural-language entry for every artifact ask, so the

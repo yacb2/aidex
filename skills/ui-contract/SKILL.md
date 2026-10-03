@@ -93,7 +93,7 @@ see below). Every round before that approval is a sketch round:
 - **On the hand-back:** the next consultation page. No `review-diff-opus`, no E2E, no commit.
   A re-capture round has no gallery-builder hop: `aidex:gallery-builder` is launched only for
   a first build. Every sketch round hands the capturing agent the screen's `gallery-kit.md`
-  and the project's `.context/ui-contract.md` (template `assets/templates/project-ui-contract.md`,
+  and the project's `.context/profiles/ui-contract.md` (template `assets/templates/project-ui-contract.md`,
   created at the first gallery build; each round appends the pitfalls it hit). That agent reads
   those two, never the harness contract or sibling specs, runs ONE `--update-snapshots`
   capture (no run before it, no confirmation run; that is the hardening gate), copies the
@@ -232,7 +232,7 @@ sentence.
 
 **A re-capture is not a first build.** After a code round on a screen whose gallery
 exists, the sketch round's implementer re-captures from the screen kit (Step 0); the
-builder is for a first build, and a project without `.context/ui-contract.md` creates it then.
+builder is for a first build, and a project without `.context/profiles/ui-contract.md` creates it then.
 
 **Run the gate once, iterate cheaply.** One `--demo` call carries every gallery of the
 change, so the meta-suite runs once; while iterating, skip it (harness contract § 2b) and

@@ -24,6 +24,8 @@ import tempfile
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import md_body  # noqa: E402
+sys.path.insert(0, os.path.join(__file__.rsplit("/", 1)[0], "..", "..", "..", "conventions", "scripts"))
+import profiles  # noqa: E402  the one profile resolver
 from _shell import document, esc  # noqa: E402
 
 LEADING_STYLE = re.compile(r"\A\s*((?:<style\b[^>]*>.*?</style>\s*)+)", re.S | re.I)
@@ -394,7 +396,7 @@ def profile_delta(ctx):
         # a refused delta look like a project that simply has none.
         print("ERROR: the project's CSS delta closes the <style> element, so it is "
               "markup rather than CSS. It has NOT been injected. Remove the "
-              "</style> from the `## Delta` section of .context/artifact-style.md.",
+              "</style> from the `## Delta` section of .context/profiles/artifact.md.",
               file=sys.stderr)
         return ""
     return f"<style>\n{css}</style>"
@@ -418,11 +420,11 @@ def profile_favicon(ctx):
 
 
 def _profile_text(ctx):
-    """artifact-style.md as text, or None. Shared by every profile reader."""
+    """The artifact profile as text, or None. Shared by every profile reader."""
     if not ctx:
         return None
-    path = os.path.join(ctx, "artifact-style.md")
-    if not os.path.isfile(path):
+    path = profiles.resolve_profile(ctx, "artifact")
+    if not path:
         return None
     # `isfile` only stats; it does not imply readable, and `errors="replace"`
     # covers decode failures but not OSError. A mode-000 profile used to abort the
@@ -474,7 +476,7 @@ def style_profile_offer(ctx):
     that memory. The PROFILE is still never auto-created (e87bbd3) — only the
     record that the offer was made is.
     """
-    if not ctx or os.path.isfile(os.path.join(ctx, "artifact-style.md")):
+    if not ctx or profiles.resolve_profile(ctx, "artifact"):
         return None
     marker = os.path.join(ctx, OFFER_MARKER)
     if os.path.exists(marker):
@@ -485,10 +487,10 @@ def style_profile_offer(ctx):
                      "first artifact was wrapped. Delete this file to offer it again.\n")
     except OSError:
         return None  # read-only tree: skip the offer rather than nag on every run
-    return ("NOTE: this project has no .context/artifact-style.md, so this artifact's "
+    return ("NOTE: this project has no .context/profiles/artifact.md, so this artifact's "
             "palette, fonts, favicon and language are being invented here and lost. "
             "Offer the profile to the reader ONCE, now — seed it from "
-            "artifact/assets/templates/artifact-style.md.template, prefilled with the "
+            "artifact/assets/templates/artifact.md.template, prefilled with the "
             "choices just made. Do not create it unasked. This offer is now recorded in "
             f"{marker} and will not fire again.")
 
@@ -515,15 +517,15 @@ def _warn_prose_only_language(ctx):
         # because this runs BEFORE style_profile_offer() creates it: present means
         # the offer was made on an earlier run, not that it is about to fire now.
         if ctx and os.path.exists(os.path.join(ctx, OFFER_MARKER)):
-            print(f'NOTE: no language is declared for {ctx} -- no artifact-style.md '
+            print(f'NOTE: no language is declared for {ctx} -- no artifact profile '
                   f'`language:` field and no --lang -- so this artifact is being '
                   f'wrapped as lang="en". Add a `- language: <code>` line to '
-                  f'{ctx}/artifact-style.md, or pass --lang.', file=sys.stderr)
+                  f'{ctx}/profiles/artifact.md, or pass --lang.', file=sys.stderr)
         return
     m = PROSE_LANG.search(text)
     if not m:
         return          # profile present and silent on language: "en" is the real answer
-    print(f"NOTE: {ctx}/artifact-style.md mentions {m.group(1)!r} in prose but declares no "
+    print(f"NOTE: the artifact profile of {ctx} mentions {m.group(1)!r} in prose but declares no "
           f"`language:` field, so this artifact is being wrapped as lang=\"en\". Add a "
           f"`- language: <code>` line to the profile, or pass --lang.", file=sys.stderr)
 
@@ -885,7 +887,7 @@ def main():
     p.add_argument("--title", required=True, help="document title (browser tab)")
     p.add_argument("--lang", default=None,
                    help="BCP-47 language of the content. Default: the `language:` field of "
-                        "<project>/.context/artifact-style.md, else en")
+                        "<project>/.context/profiles/artifact.md, else en")
     p.add_argument("--favicon", default="", help="one or two emoji for the tab icon")
     p.add_argument("--in", dest="infile", help="read content from this file instead of stdin")
     p.add_argument("--out", dest="outfile",
@@ -944,7 +946,7 @@ def main():
         # BL-371: an explicit --lang that contradicts the profile. The check that
         # runs on --out refuses it (lang-follows-profile); this names why first,
         # and says so on stdout wraps too, which that check never sees.
-        print(f'NOTE: --lang {args.lang} contradicts {ctx}/artifact-style.md, which '
+        print(f'NOTE: --lang {args.lang} contradicts the artifact profile of {ctx}, which '
               f'declares `language: {profile_lang}`. Every page follows the '
               f'profile; only a human-verification.* page takes --lang en by D-04. '
               f'Wrapping as lang="{args.lang}", which check-artifact refuses.',

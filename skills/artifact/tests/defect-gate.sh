@@ -9,7 +9,7 @@
 # render-probe.sh --contract SLUG. The corpus is goal-gate's private sample, read
 # from AIDEX_SPEC_CORPUS (unset: `corpus: 0/unknown`): each page's SPEC is built
 # with spec_build.py on the current kit into a temp tree that mirrors its
-# project's .context/artifact-style.md (the project is never written) and the
+# project's .context/profiles/artifact.md (the project is never written) and the
 # built page is
 # judged; a spec the builder refuses is a failing page. Read defect_gate.py for
 # each count.
