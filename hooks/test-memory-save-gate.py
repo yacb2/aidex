@@ -145,9 +145,10 @@ check("the fixture repo has a commit for the mirror to cite", FIXTURE_OK,
       _git("log", "--oneline").stderr or FIX_HEAD)
 
 rc, out, _ = run(fix_ev("u.md", UNREACHABLE), project_root=TREES)
-live = decision(out) == "deny"
-check("an unreachable commit SHA is denied", live, out)
-check("named as unpushed-is-not-a-fact", "unpushed-is-not-a-fact" in reason(out), reason(out))
+# Since 2026-10-04 (R3) the check is advisory: it still speaks (a nudge naming it) but never denies.
+live = "unpushed-is-not-a-fact" in reason(out)
+check("an unreachable commit SHA is NOT denied", decision(out) != "deny", out)
+check("but it is nudged as unpushed-is-not-a-fact", live, reason(out))
 
 # The other half of that check: a SHA that IS reachable must pass, or the check is just
 # "mentions a hex string" and every honest commit citation becomes a block.
@@ -158,10 +159,11 @@ check("named as unpushed-is-not-a-fact", "unpushed-is-not-a-fact" in reason(out)
 # of a silent one. A mirror that cannot run reports itself; it never passes quietly.
 rc, out, _ = run(fix_ev("uok.md", REACHABLE), project_root=TREES)
 if live and FIXTURE_OK:
-    check("a reachable commit SHA is not denied (%s)" % FIX_HEAD, decision(out) != "deny", reason(out))
+    check("a reachable commit SHA draws no unpushed nudge (%s)" % FIX_HEAD,
+          "unpushed-is-not-a-fact" not in reason(out), reason(out))
 else:
-    check("a reachable commit SHA is not denied — NOT ASSERTED", False,
-          "the deny above was silent, or the fixture carries no SHA to cite, so this case "
+    check("a reachable commit SHA draws no unpushed nudge — NOT ASSERTED", False,
+          "the nudge above was silent, or the fixture carries no SHA to cite, so this case "
           "proves nothing and is reported as unasserted")
 
 # The mutation that makes the gating above necessary rather than decorative: point the
@@ -170,7 +172,8 @@ else:
 rc, out_dead_bad, _ = run(fix_ev("u2.md", UNREACHABLE), project_root=EMPTY_TREES)
 rc, out_dead_ok, _ = run(fix_ev("uok2.md", REACHABLE), project_root=EMPTY_TREES)
 check("with the project tree unresolvable both SHA cases go silent, so the mirror alone proves nothing",
-      decision(out_dead_bad) != "deny" and decision(out_dead_ok) != "deny",
+      "unpushed-is-not-a-fact" not in reason(out_dead_bad)
+      and "unpushed-is-not-a-fact" not in reason(out_dead_ok),
       (out_dead_bad, out_dead_ok))
 
 # And the resolver's own filesystem walk — the greedy slug decode that resolved
@@ -182,12 +185,12 @@ if os.path.isdir(os.path.join(REPO, ".git")):
     head = subprocess.run(["git", "-C", REPO, "rev-parse", "--short=8", "HEAD"],
                           capture_output=True, text=True).stdout.strip()
     rc, out, _ = run(git_ev("u.md", UNREACHABLE))
-    walk_live = decision(out) == "deny"
+    walk_live = "unpushed-is-not-a-fact" in reason(out)
     check("the real slug round-trip reaches this checkout, so the check speaks", walk_live, out)
     rc, out, _ = run(git_ev("uok.md", TYPED % ("The fix landed in commit `%s`." % head)))
     if walk_live:
-        check("and a reachable SHA of this checkout is not denied (%s)" % head,
-              decision(out) != "deny", reason(out))
+        check("and a reachable SHA of this checkout draws no unpushed nudge (%s)" % head,
+              "unpushed-is-not-a-fact" not in reason(out), reason(out))
     else:
         check("a reachable SHA of this checkout is not denied — NOT ASSERTED", False,
               "the round-trip did not resolve, so this case proves nothing")
@@ -198,7 +201,7 @@ else:
 
 # With no resolvable project the check must stay silent rather than accuse.
 rc, out, _ = run(write_ev("u2.md", TYPED % "I just fixed it in commit `deadbee`."))
-check("no resolvable repo means no accusation", decision(out) != "deny", out)
+check("no resolvable repo means no accusation", "unpushed-is-not-a-fact" not in reason(out), out)
 
 print("== allows: everything the checks only advise on ==")
 
@@ -220,8 +223,8 @@ print("== the waiver downgrades blocks, except no-secrets ==")
 
 waived = TYPED % ("memory-gate: waived — the SHA is quoted from an upstream changelog\n\n"
                   "Upstream fixed it in commit `deadbee`.")
-rc, out, _ = run(write_ev("w.md", waived))
-check("a waived block is allowed", decision(out) != "deny", out)
+rc, out, _ = run(fix_ev("w.md", waived), project_root=TREES)
+check("a waived advisory finding is silenced", out is None, out)
 
 waived_secret = TYPED % ('memory-gate: waived — I promise it is fine\n\n'
                          'api_key = "Ab3xQ7zL9mNp2Rt5"')
@@ -286,8 +289,8 @@ check("at least one known-good index was actually tested", idx_seen > 0, idx_see
 # And the index check has teeth — otherwise the line above proves nothing.
 fat = "\n".join("- [Item %d](f%d.md) — %s" % (i, i, "word " * 60) for i in range(40))
 rc, out, _ = run(write_ev("MEMORY.md", fat))
-check("an index carrying its content IS denied", decision(out) == "deny", out)
-check("named as index-is-an-index", "index-is-an-index" in reason(out), reason(out))
+check("an index carrying its content is NOT denied (advisory since 2026-10-04)", decision(out) != "deny", out)
+check("but it is nudged as index-is-an-index", "index-is-an-index" in reason(out), reason(out))
 
 print("== fails open on every internal error ==")
 

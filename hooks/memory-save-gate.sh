@@ -3,10 +3,22 @@
 #
 # Matches Write/Edit/MultiEdit on ~/.claude/projects/*/memory/*.md, MEMORY.md included.
 # Anything else is an immediate allow. It does not implement a single check of its own:
-# it imports CHECKS and BLOCKING from the installed memory-sweep.py, so the gate and the
-# sweep can never disagree about what a memory is. If that module moves, breaks, or
+# it imports CHECKS from the installed memory-sweep.py, so the gate and the sweep can
+# never disagree about what a memory is. If that module moves, breaks, or
 # raises, this hook exits 0 and the write proceeds — there is no input on which it can
 # prevent work by failing.
+#
+# ---------------------------------------------------------------------------
+# DECISION 2026-10-04 (round 3, R3): the gate BLOCKS only on no-secrets
+# ---------------------------------------------------------------------------
+# `unpushed-is-not-a-fact` and `index-is-an-index` are advisory here: they still run,
+# log ("nudge") and report, and the write proceeds. Why: the 2026-10-04 review found
+# 6 blocks since 2026-08-31, all of them the author's own probes, none a real write
+# a later audit would have deleted (aidex_ws/.context/research/2026-10-04-memory-save-gate-review.md).
+# The sweep (memory-sweep.py) keeps its own BLOCKING tuple for its audit reports; the
+# gate's set is GATE_BLOCKING below, deliberately not imported.
+# NEXT REVIEW: 2026-11-30 (the sunset review below); if no-secrets alone shows no
+# justified block by then, the hook is unwired.
 #
 # ---------------------------------------------------------------------------
 # SUNSET CRITERION — review 2026-11-30, three months from 2026-08-31
@@ -25,7 +37,7 @@
 #   contain the secret the hook just blocked.
 #
 #   RETIREMENT RULE: if justified blocks are under half of all blocks at review, the
-#   hard checks demote to NUDGE. Under a tenth, the hook is unwired entirely.
+#   hard checks demote to NUDGE (as of 2026-10-04 only no-secrets is still hard). Under a tenth, the hook is unwired entirely.
 #
 # ---------------------------------------------------------------------------
 # Protocol, established empirically 2026-08-31 (probe, throwaway project, then deleted)
@@ -70,6 +82,9 @@ try:
     path = ti.get("file_path") or ""
 except Exception:
     allow()
+
+# Decision 2026-10-04 (R3): the only check that refuses a write. See the header.
+GATE_BLOCKING = ("no-secrets",)
 
 if tool not in ("Write", "Edit", "MultiEdit"):
     allow()
@@ -134,8 +149,8 @@ try:
         except Exception:
             pass                         # one broken check never decides the write
 
-    hard = [f for f in findings if f.get("rule") in ms.BLOCKING]
-    soft = [f for f in findings if f.get("rule") not in ms.BLOCKING]
+    hard = [f for f in findings if f.get("rule") in GATE_BLOCKING]
+    soft = [f for f in findings if f.get("rule") not in GATE_BLOCKING]
 except Exception:
     allow()
 

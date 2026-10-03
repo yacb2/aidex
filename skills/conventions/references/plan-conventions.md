@@ -424,7 +424,7 @@ Use one carrier per plan consistently; the derivation reads whichever the plan u
   | tier | model | effort | status |
   |---|---|---|---|
   | `mechanical` | `fable` | `low` | measured 2026-09-07; `tools:` restricted, measured 2026-09-13 |
-  | `standard` | `fable` | `low` | measured 2026-09-07 |
+  | `standard` | `opus` | `low` | measured 2026-10-04 (BL-470), N=3 per arm, opus/low 3/3 at 0.19x fable/low USD |
   | `hard` | `opus` | `high` | default |
   | `gate` — the verifier and arbiter of every batch shape | `sonnet` | `low` | default |
 
@@ -437,6 +437,12 @@ Use one carrier per plan consistently; the derivation reads whichever the plan u
   availability — and records the reason in the Execution log. That is the division of labour
   the tier exists for: the plan states how hard the work is, the run decides what to spend on
   it. Overriding is not a plan edit.
+
+  **`standard` moved from `fable/low` to `opus/low` on 2026-10-04 (BL-470).** Re-measured
+  with N=3 per arm: `opus/low` held the gate 3/3 at 0.19x the USD cost of `fable/low`.
+  Note: `aidex_ws/.context/research/2026-10-04-plan-standard-tier-opus-5-5-remeasure.md`.
+  `mechanical` stays `fable/low` (not re-measured). The BL-321 measurement below is the
+  history of the previous cell.
 
   **`standard` was measured on this suite's own phases (BL-321, 2026-09-07).** An archived
   `tier: standard` phase was replayed nine times from its base commit — three runs each at

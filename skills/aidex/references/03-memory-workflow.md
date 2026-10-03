@@ -7,6 +7,10 @@ outcomes are what you do about it.**
 ## The evidence: six checks
 
 Blocking checks are defects on their own; advisory ones say "go look" and the reading decides.
+The sweep reports the first three as blocking. The **save gate** (`hooks/memory-save-gate.sh`)
+refuses a write only on `no-secrets` since 2026-10-04 (round 3): the other two still run
+there but only advise, because every block in the first review window was the author's own
+probe (`.context/research/2026-10-04-memory-save-gate-review.md`). Next review 2026-11-30.
 
 | Check | | Fires on |
 |---|---|---|

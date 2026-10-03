@@ -59,10 +59,11 @@ its own; the six checks above are what decide.
 ## The save gate
 
 `hooks/memory-save-gate.sh` (PreToolUse) refuses a memory write carrying a
-credential, an unreachable commit SHA, or an index line that carries its content. It
-imports its checks from the sweep, and any internal error allows the write. To override
-a finding, put `memory-gate: waived — <reason>` in the file and write again; that
-downgrades every block except `no-secrets`, which is never waivable. The hook's header
+credential (`no-secrets`, since 2026-10-04 the only blocking check). An unreachable commit
+SHA or an index line that carries its content is reported as advice and the write
+proceeds. It imports its checks from the sweep, and any internal error allows the write.
+To override a finding, put `memory-gate: waived — <reason>` in the file and write again;
+that silences the advice, but `no-secrets` is never waivable. The hook's header
 carries its sunset criterion and review date.
 
 ## How to apply
