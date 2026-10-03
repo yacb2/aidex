@@ -1,0 +1,22 @@
+[
+  {"query": "I'm adding a new invoices list screen. What states does it need? Empty, error, loading, all of them.", "should_trigger": true, "expected_behavior": "EN new-screen state matrix, 'which states am I missing' shape."},
+  {"query": "Show me every state of the members list before we build it.", "should_trigger": true, "expected_behavior": "EN state gallery request for a list screen."},
+  {"query": "We want to redesign the existing home page. How do we go about it?", "should_trigger": true, "expected_behavior": "EN redesign of an existing screen: Step 0, level, reference screen."},
+  {"query": "The settings form overflows horizontally on mobile and the labels are misaligned. Fix it.", "should_trigger": true, "expected_behavior": "EN visual defect (overflow, misalignment): before/after contact sheet owed."},
+  {"query": "Dark mode is wrong on the billing page: the card text is unreadable.", "should_trigger": true, "expected_behavior": "EN dark-mode visual defect."},
+  {"query": "Prove the layout is fixed, I don't want to take your word for it.", "should_trigger": true, "expected_behavior": "EN 'prove the layout is fixed' claim needing an image."},
+  {"query": "I need a mockup of the new onboarding screen.", "should_trigger": true, "expected_behavior": "EN mockup request, answered with real-component skeleton, not a drawing."},
+  {"query": "What should the empty state of the projects page look like? Check it in light and dark too.", "should_trigger": true, "expected_behavior": "EN empty state plus light/dark check."},
+  {"query": "Estamos por agregar una pantalla nueva de facturas. ¿Qué estados le faltan? Vacío, error, cargando.", "should_trigger": true, "expected_behavior": "ES new-screen state matrix."},
+  {"query": "Quiero rediseñar la página de inicio que ya existe. ¿Cómo lo llevamos?", "should_trigger": true, "expected_behavior": "ES redesign of an existing screen (same shape as the native redesign case)."},
+  {"query": "La tabla se desborda en pantallas pequeñas y el modo oscuro se ve mal. Corrígelo y demuéstrame que quedó bien.", "should_trigger": true, "expected_behavior": "ES visual defect plus 'prove it' claim."},
+  {"query": "Necesito un mockup de la pantalla de configuración, enséñame cómo debería verse.", "should_trigger": true, "expected_behavior": "ES mockup request."},
+  {"query": "Do a usability and accessibility audit of the checkout flow and register the findings.", "should_trigger": false, "expected_behavior": "Usability/accessibility audit of a running product: audit, not ui-contract."},
+  {"query": "Haz una auditoría de accesibilidad del flujo de registro y registra los hallazgos.", "should_trigger": false, "expected_behavior": "ES accessibility audit: audit."},
+  {"query": "Should this validation rule be tested at unit level or in the browser? Which test layer fits?", "should_trigger": false, "expected_behavior": "Test-layer choice: coverage."},
+  {"query": "¿Qué pruebas debo correr para este cambio en lugar de toda la suite?", "should_trigger": false, "expected_behavior": "ES test selection: coverage."},
+  {"query": "Render the backlog as an HTML board so I can sort it.", "should_trigger": false, "expected_behavior": "Backlog board render: artifact."},
+  {"query": "Make me an HTML report summarizing last month's incidents.", "should_trigger": false, "expected_behavior": "Generic HTML report: artifact. 'Report page' is the distractor."},
+  {"query": "Write the implementation plan for the new notifications backend: phases, files, acceptance criteria.", "should_trigger": false, "expected_behavior": "Plan authoring with no screen: plan."},
+  {"query": "Escribe el plan de implementación para migrar la base de datos a Postgres 17.", "should_trigger": false, "expected_behavior": "ES plan authoring: plan."}
+]

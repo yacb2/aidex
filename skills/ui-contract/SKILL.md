@@ -41,7 +41,9 @@ saying the harness is missing is not evidence, since a project may have adopted 
 Present: continue. Absent (every marker checked, none found): say so in one line and name
 the checks; a boilerplate fork can adopt the ui-contract harness migration from its
 boilerplate. Without a harness the gallery and the gate stop; the design discussion and
-`ui-contract.md` still proceed. Nothing below is briefed on a harness that may not be there.
+`ui-contract.md` still proceed. A redesign round then shows the BEFORE captured from the
+running app and the contract in words; the skeleton waits for the harness, and no drawing
+stands in for it. Nothing below is briefed on a harness that may not be there.
 
 **The design discussion is a ui-contract step, not a free chat.** When the screen is not
 decided yet, hold it as a consultation (`/aidex:artifact`) in this skill's vocabulary:
