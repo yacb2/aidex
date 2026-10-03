@@ -105,7 +105,8 @@ the phase tier map, and what happens when a phase fails its gate.
    silently on an unreviewed phase.
 5. **Honor the plan's Isolation surface** if it declares one. If the plan already
    recorded an Isolation note (from `plan`'s Step 5, at plan-creation time), act
-   on it directly: run the recorded `worktree.sh new` command before phase 1
+   on it directly: run `check-overview.sh` on the project's existing worktree index and repair stale
+   script paths first, then run the recorded `worktree.sh new` command before phase 1
    (`--no-infra` only when the plan says code-only); if the project has no worktree
    setup, `EnterWorktree` and note it. If the plan predates this and has no Isolation
    note, run `worktree bootstrap` if `.context/worktrees/00-index.md` does not

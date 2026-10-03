@@ -50,6 +50,7 @@ forks off — must never be made silently. Before creating a worktree or feature
 This rule applies wherever a branch is created — this skill's Procedure commands, the
 `suggest` recommendation, and the sibling skills that create branches without going
 through here (`plan-exec` at its Isolation step, `bugfix` at branch creation).
+To fork from anything but the default branch, pass `worktree.sh new ... --base <commit-ish>`.
 
 ---
 
@@ -80,7 +81,7 @@ Dispatch by first argument:
 | `/aidex:worktree` (no args) | Status: config present? worktrees live? orphan sweep |
 | `/aidex:worktree status` | Same as no args (explicit alias) |
 | `/aidex:worktree bootstrap` | Investigate topology, verify the stack is isolatable, write `config.env` |
-| `/aidex:worktree new <slug> --branch <b>` | Create a fully isolated worktree (`scripts/worktree.sh new`) |
+| `/aidex:worktree new <slug> --branch <b> [--base <commit-ish>]` | Create a fully isolated worktree (`scripts/worktree.sh new`). The branch forks from `--base`, else the default branch's tip, never the ambient checkout; the report names it (`base feat/x (+1 over main)`). For per-repo SHAs, pre-create the branches (`git -C <repo> branch <b> <sha>`): an existing branch is used at its own tip, and `--base` with an existing branch is refused |
 | `/aidex:worktree down <slug>` | Tear it down completely and verify nothing remains. Add `--delete-branch` to also delete the branch `new` created (recorded in `.wt-branch`; a checkout that moved on is skipped, never deleted) in each participant repo — `git branch -d`, which refuses an unmerged branch, so it is its own gate. Off by default: the branch is the only trace a torn-down worktree leaves. It never merges anything. |
 | `/aidex:worktree list` | Every worktree of this project: slot, branch, stack state |
 | `bash scripts/test-db-preflight.sh --db <test-db> [--port P]` | **Read-only** check before starting a suite: is the test database `clear` (0), `BUSY` — another run holds it (1), `STALE` — an interrupted run left it behind (2), or `UNDETERMINED` (4). Never drops or terminates anything. Run it when a suite may already be in flight; the two failure states need opposite advice, and both otherwise surface as an opaque traceback |
