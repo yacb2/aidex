@@ -342,7 +342,13 @@ done
 # non-empty directory is reported as a FAILURE rather than shrugged off: the
 # previous version warned and still exited 0, so a caller printed "removed"
 # over a directory that was still there.
-find "$DEST" -type l -delete 2>/dev/null
+# When $DEST is itself a root checkout (below), a symlink it TRACKS is the repo's, not
+# a wrapper: deleting it made the checkout dirty and its removal refused.
+tracked_links=""
+[[ -f "$DEST/.git" ]] && tracked_links="$(git -C "$DEST" ls-files -s -z | tr "\0" "\n" | awk -F'\t' '$1 ~ /^120000 / {print $2}')"
+while IFS= read -r l; do
+  grep -qxF -- "${l#"$DEST"/}" <<<"$tracked_links" || rm -f "$l"
+done < <(find "$DEST" -type l 2>/dev/null)
 # .wt-slot: the slot number. .wt-branch: the branch `new` created, which
 # `down --delete-branch` needs and cannot re-derive (git answers with whatever
 # is checked out at teardown, not with what the worktree was made for).

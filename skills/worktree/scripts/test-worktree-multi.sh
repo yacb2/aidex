@@ -194,6 +194,21 @@ err="$( cd "$WS" && bash "$SCRIPT" create --slug v1 --branch bv --base t1 --repo
 grep -q 'base not found in pb' <<<"$err" || fail "base: expected 'base not found in pb' -- $err"
 [[ ! -e "$TMP/ws-wt-v1" ]] || fail "base: failed validation must not create the destination"
 
+# A root checkout's TRACKED symlink is the repo's, not a wrapper link: `down` deleted it
+# with the wrapper sweep, so the root checkout was dirty and its removal refused
+# (aidex_ws, 2026-10-03: .claude/skills/skill-trigger-eval).
+PS="$TMP/sproj"
+mkdir -p "$PS/.context/worktrees" "$PS/.claude/skills"
+git -C "$PS" init -q -b main
+ln -s /nonexistent/target "$PS/.claude/skills/ext-skill"
+echo 'WT_PARTICIPANTS="."' > "$PS/.context/worktrees/config.env"
+git -C "$PS" add -A
+git -C "$PS" -c user.email=t@t -c user.name=t commit -q -m init
+( cd "$PS" && bash "$WT_SH" new l1 --branch bl1 --no-infra >/dev/null 2>&1 ) || fail "tracked link: new failed"
+out="$( cd "$PS" && bash "$WT_SH" down l1 --delete-branch 2>&1 )" \
+  || fail "tracked link: down must remove a root checkout that tracks a symlink -- $out"
+[[ ! -e "$TMP/sproj-wt-l1" ]] || fail "tracked link: the root checkout must be gone"
+
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"
   exit 1
