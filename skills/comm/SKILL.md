@@ -194,6 +194,24 @@ contract: `conventions/references/communication-conventions.md` § Typography co
 
 ---
 
+## An email "in HTML" for Outlook: one spec, one command
+
+When the owner asks for an email or reply "in HTML", or a draft to paste into Outlook, do
+not build an artifact page. Write ONE spec file per email (front matter `subject`, `to`,
+`cc`, `language`; then the body in markdown: paragraphs, bold/italic, links, headings,
+lists, pipe tables, one fenced block), then run (keep the spec inside the communication's own folder, `sent/<YYYY-MM-DD>-<slug>/`, beside `body.md`, since attachments and `body.html` live there per communication-conventions.md; a single newline in a paragraph is a line break, so sign-offs keep their lines):
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/email-draft.py" <spec.md> [--out <dir>]
+```
+
+It writes `<spec>.html` and `<spec>.txt` and prints both paths; open the HTML once. The page
+shows subject and recipients on top with Copiar asunto / Copiar cuerpo; the body below is
+inline-styled HTML only (no classes, scripts, stylesheets, fixed width) and copying it
+brings no page chrome. Tables are allowed here, unlike in a `body.md` paste. No `.eml`.
+
+---
+
 ## Draft → sent flow
 
 An outgoing message is scaffolded under `sent/` with `status: draft`. When it actually
