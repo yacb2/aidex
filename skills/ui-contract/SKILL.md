@@ -91,19 +91,21 @@ see below). Every round before that approval is a sketch round:
 - **Where:** a throwaway branch in its own worktree (`sketch/<screen>`), named in the
   impl brief's worktree section. Nothing from it reaches main before the hardening round;
   a rejected direction is dropped with the branch.
-- **What the implementer runs:** the real components on the gallery's fixtures, and only
-  the tests of the files it touched plus the type check (vue-tsc in a Vue project). The
-  brief says so in "tests that must pass" and says outright: no E2E, no full suite.
-  When the screen's gallery spec exists, the implementer also runs that one spec (no
-  meta-suite) before handing back, so a broken cell reaches it, not the page.
-- **On the hand-back:** only the gallery re-capture (Step 4, "a re-capture is not a first
-  build"), a run labelled "not a gate run" (Step 4, "run the gate once"), then the next
-  consultation page. No `review-diff-opus`, no E2E, no commit. Every gallery-builder brief
-  of a sketch round, the first build included, carries the three-line harness summary,
-  the gallery spec and fixtures paths (or the sibling spec to copy) and the exact scoped
-  run command; the AFTER build never waits for the BEFORE capture. Measured on echo_lab
-  BL-750: gallery work was 30 of 48 round minutes, 4-6 of each launch spent rediscovering
-  the harness, and 5.4 waiting on the BEFORE.
+- **What the implementer runs:** the real components on the gallery's fixtures, only the
+  tests of the files it touched plus the type check, no E2E, no full suite (the brief says so
+  in "tests that must pass"). When the screen's gallery spec exists, the same agent also edits
+  the spec and does the round's ONE capture (below), so a broken cell reaches it, not the page.
+- **On the hand-back:** the next consultation page. No `review-diff-opus`, no E2E, no commit.
+  A re-capture round has no gallery-builder hop: `aidex:gallery-builder` is launched only for
+  a first build. Every sketch round hands the capturing agent the screen's `gallery-kit.md`
+  and the project's `.context/ui-contract.md` (template `assets/templates/project-ui-contract.md`,
+  created at the first gallery build; each round appends the pitfalls it hit). That agent reads
+  those two, never the harness contract or sibling specs, runs ONE `--update-snapshots`
+  capture (no run before it, no confirmation run; that is the hardening gate), copies the
+  baselines aside first as the round's BEFORE, and rewrites the kit at hand-back. In its rows JSON it marks `kind: "unrequested"`, with a `look`
+  line naming the cause, every row whose visible change the owner's answer did not ask for
+  (shared i18n key, shared component, layout knock-on). Detail and
+  measurements: `references/02-sketch-round-kit.md`.
 
 **One hardening round, when the owner approves the whole screen.** The approved branch
 is what gets hardened, not rebuilt. Launch together, in one message: `review-diff-opus` on
@@ -270,9 +272,8 @@ harness that may not be there, and the failure arrives as a confusing run instea
 sentence.
 
 **A re-capture is not a first build.** After a code round on a screen whose gallery
-exists, brief `aidex:gallery-builder` with the gallery spec path, its fixtures path and a
-three-line harness summary; it then skips rediscovering the harness (measured: 26 calls of
-read-only preparation per re-capture on echo_lab 11.3).
+exists, the sketch round's implementer re-captures from the screen kit (Step 0); the
+builder is for a first build, and a project without `.context/ui-contract.md` creates it then.
 
 **Run the gate once, iterate cheaply.** One `--demo` call carries every gallery of the
 change, so the meta-suite runs once; while iterating, skip it (harness contract § 2b) and
