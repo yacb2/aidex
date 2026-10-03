@@ -65,13 +65,18 @@ today's is written as an open question, not as a decision. The path through the 
 is the **user's path** (list, add, detail, dialog, edit), and that path is the order of the
 consultation rounds, never the plan's technical order (backend, shared component, page).
 
-**One drawn exception: the target-form question before its host exists.** When the
-owner must choose page, dialog or panel for a piece whose host screen does not exist yet,
-that one question may carry a figure from `figure-sonnet` (one per option, inline SVG in
-the consultation page). The figure is a question aid: it is never a round, never the
-contract, and it is dropped once the host's skeleton exists. A redesign of an existing
-screen never qualifies (the current screen is the host), nor does any question about
-layout, states or styling. The contract stays a gallery of real components.
+**One drawn exception: the target-form question for genuinely new content.** When the
+owner must choose page, dialog or panel for a piece whose host screen does not exist yet
+AND none of whose content renders anywhere today, that one question may carry a figure
+from `figure-sonnet` (one per option, inline SVG in the consultation page). The figure is
+a question aid: it is never a round, never the contract, and it is dropped once the host's
+skeleton exists. It never qualifies when the content exists today, even if its page is new
+(an extraction, a move, a split, a redesign): there the BEFORE exists, so build the host
+first, show the BEFORE beside the real AFTER, and put the form options as gallery
+alternatives built from real components. Nor does it cover any question about layout,
+placement, states or styling. The contract stays a gallery of real components.
+(2026-10-03, echo_lab BL-750: the figure was applied to an extraction, and the owner
+rejected a round of drawings with no BEFORE to compare against.)
 
 **What a round shows.** A redesign round shows a **real AFTER** — the proposed screen built
 from the project's own components and fixture data — beside the BEFORE (the screen as it
