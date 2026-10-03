@@ -294,7 +294,7 @@ This maps **1:1** to the canonical layout — `drafts/` is just the old name for
 identical.
 
 **The rename is manual and opt-in. Do NOT auto-migrate user projects.** These entries
-live in workspace-private, untracked `.context/`, and renaming a folder that someone
+live in the project's own `.context/`, outside the aidex repo, and renaming a folder that someone
 relies on by hand is the kind of surprise a tool should not spring. If a user explicitly
 asks to migrate, the one-liner is:
 

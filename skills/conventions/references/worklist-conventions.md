@@ -25,7 +25,7 @@ re-asked. A single-item task needs no work-list.
 ## File shape
 
 `.context/worklists/YYYY-MM-DD-<slug>.md` (kebab-case slug; date per `00-global.md`).
-`.context/worklists/` is workspace-private (gitignored), like all `.context/`.
+`.context/worklists/` is tracked like the rest of the project's `.context/`: a workspace root repo versions it, and only a project with no workspace repo leaves it untracked.
 
 **Referenceable, and archived on close.** `worklist/<filename>` is a cross-reference
 type (`00-global.md` §3; ADR `2026-08-27-worklists-are-durable-referenceable-artifacts`),

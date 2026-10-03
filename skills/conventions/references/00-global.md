@@ -391,8 +391,8 @@ One path prefix per line, relative to `.context/` (a leading `.context/` is tole
 
 ## 11. ADR map
 
-Filenames, **not links**: these ADRs live in the aidex repo's own `.context/decisions/`,
-which is gitignored, so a relative link resolves for nobody but the maintainer — from an
+Filenames, **not links**: these ADRs live in the aidex workspace's `.context/decisions/`,
+outside this public repo, so a relative link resolves for nobody but the maintainer — from an
 installed `${CLAUDE_PLUGIN_ROOT}/skills/…` it pointed at `${CLAUDE_PLUGIN_ROOT}/.context/`, which does not exist, and
 all seven links were dead for every installed user (deep audit 2026-07-25). Look these up
 by filename in the aidex repo. Every `D-NN` cited anywhere in this suite must appear here.

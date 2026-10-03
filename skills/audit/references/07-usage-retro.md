@@ -235,7 +235,7 @@ otherwise and was stale relative to the rebuilt script.
 
 `mine_askuserquestion.py`, `mine_autonomy.py` and `mine_stops.py` stay:
 closed-study artifacts, not instruments. They **import** `prompt_kinds` rather than
-restating the predicate — they live under `.context/`, which is gitignored in this
+restating the predicate — they live under the workspace `.context/`, outside this
 repo, so a copy kept there can never be pinned by a test. That is precisely how the
 predicate drifted.
 

@@ -1,7 +1,7 @@
 # Workflow CORE — the single-sourced durability invariant
 
 **Why this file exists / rationale:** see decision `2026-06-22-plan-exec-workflow-reusable-form`
-(workspace-local `.context/decisions/`, gitignored). The `Workflow` tool requires
+(workspace `.context/decisions/`, outside this public repo). The `Workflow` tool requires
 **self-contained scripts (no `import`)**, so a runtime CORE library is impossible. "Single
 source" therefore means: **one canonical CORE block here + mechanical re-embedding into
 each asset + a drift-lock test** — not a runtime import.

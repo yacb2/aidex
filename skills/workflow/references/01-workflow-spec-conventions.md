@@ -8,8 +8,8 @@ workflow-specific rules are declared here.
 > body sections, like the sibling loop-spec. It has **no dedicated validator** (the
 > work-list earned one because it carries a nested `gate-policy:` map as runtime state;
 > the workflow-spec keeps gate-policy in the **body**, so the minimal canon parser is
-> never asked to model it). `.context/workflows/` is workspace-private (gitignored),
-> like all `.context/`, and is registered as an `OPTIONAL_TYPE` in `validate.py` so
+> never asked to model it). `.context/workflows/` is tracked like the rest of
+> `.context/` (a workspace root repo versions it), and is registered as an `OPTIONAL_TYPE` in `validate.py` so
 > auditors never flag it.
 
 ---

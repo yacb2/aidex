@@ -27,7 +27,7 @@ findings, readouts and incident analyses are dated by nature and go where
 
 ### No archive folder (D-05)
 
-References and research are **versioned in place**. There is **no `_archive/`** in `references/` or `research/`. ADR: `decision/2026-05-14-archive-folder-convention` (named, not linked: these ADRs live in the aidex repo's own gitignored `.context/decisions/`, per `00-global.md` §11).
+References and research are **versioned in place**. There is **no `_archive/`** in `references/` or `research/`. ADR: `decision/2026-05-14-archive-folder-convention` (named, not linked: these ADRs live in the aidex workspace's `.context/decisions/`, outside this public repo, per `00-global.md` §11).
 
 ### Research shapes (ADR `decision/2026-07-02-research-artifact-shape`)
 

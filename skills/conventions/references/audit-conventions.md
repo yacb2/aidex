@@ -31,7 +31,7 @@ A finding escalated to work becomes a backlog entry or a plan via `escalated_to:
 
 ## Canonical structure (D-02)
 
-ADR: `decision/2026-05-14-audit-grouped-by-methodology` (named, not linked: these ADRs live in the aidex repo's own gitignored `.context/decisions/`, per `00-global.md` §11).
+ADR: `decision/2026-05-14-audit-grouped-by-methodology` (named, not linked: these ADRs live in the aidex workspace's `.context/decisions/`, outside this public repo, per `00-global.md` §11).
 
 Audits are grouped **by methodology**. There is no global `INVENTORY.md`, `METHODOLOGY.md`, or `CHANGELOG.md` at `.context/audits/`.
 
