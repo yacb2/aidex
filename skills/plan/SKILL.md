@@ -174,7 +174,7 @@ promotion threshold excludes from batch execution (a `hitl-align` phase, see bel
    does not, invoke `worktree bootstrap` once, up front, as part of this same
    planning session (the initial-phase front-loading moment); if it exists, run
    `check-overview.sh` on it and repair stale script paths (e.g. the retired
-   `~/.claude/skills/aidex-worktree/`) first, then record
+   `aidex-worktree` skill path) first, then record
    the worktree command (`worktree.sh new <slug> --branch <branch>`, `--no-infra` only
    when the plan runs no services and touches no DB) as the plan's **Isolation** note. It is a recommendation the **user / project CLAUDE.md
    authorizes** (native worktree entry is opt-in). If the plan is not parallel to
