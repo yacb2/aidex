@@ -61,7 +61,7 @@ for field in worktree_up worktree_down; do
 done
 
 # A front-matter command naming a script that does not resolve is a dead command
-# (BL-627: the retired ~/.claude/skills/aidex-worktree/ path survives in owner docs).
+# (BL-627: the retired aidex-worktree skill path survives in owner docs).
 # Resolved after SKILL_SCRIPTS is known, so bare `worktree.sh up <slug>` still passes.
 fm_scripts_check() {
   local field s cand

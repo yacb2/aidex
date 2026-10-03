@@ -104,12 +104,12 @@ the phase tier map, and what happens when a phase fails its gate.
    prior phase's diff, before starting the current phase; do not proceed
    silently on an unreviewed phase.
 5. **Honor the plan's Isolation surface** if it declares one. If the plan already
-   recorded an Isolation note (from `plan`'s Step 5, at plan-creation time), act
-   on it directly: run `check-overview.sh` on the project's existing worktree index and repair stale
-   script paths first, then run the recorded `worktree.sh new` command before phase 1
+   recorded an Isolation note (`plan`'s Step 5), act on it: repair what
+   `check-overview.sh` flags in the worktree index, then run the recorded
+   `worktree.sh new` command before phase 1
    (`--no-infra` only when the plan says code-only); if the project has no worktree
-   setup, `EnterWorktree` and note it. If the plan predates this and has no Isolation
-   note, run `worktree bootstrap` if `.context/worktrees/00-index.md` does not
+   setup, `EnterWorktree` and note it. With no Isolation note,
+   run `worktree bootstrap` if `.context/worktrees/00-index.md` does not
    exist yet, then `worktree.sh new` here at Orient, before phase 1. Enter the
    worktree **only if the plan/user authorized it** — do not auto-enter one that was
    not approved. **Before creating any worktree/branch, resolve and state its base branch
