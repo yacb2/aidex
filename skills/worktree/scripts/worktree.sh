@@ -15,12 +15,13 @@
 # is the explicit opt-out for the rare code-only case.
 #
 # Usage:
-#   worktree.sh new  <slug> --branch <branch> [--repo R]... [--no-infra] [--slot N]
+#   worktree.sh new  <slug> --branch <branch> [--base <commit-ish>] [--repo R]... [--no-infra] [--slot N]
 #   worktree.sh up   <slug>
 #   worktree.sh down <slug> [--keep-dir] [--force] [--reap] [--delete-branch]
 #   worktree.sh list [--porcelain]
 #
-#   new  : allocate a free port slot, create one git worktree per participant,
+#   new  : fork the branch from --base (default: the repo's default branch tip,
+#          never the ambient checkout), allocate a free port slot, create one git worktree per participant,
 #          link the unversioned wrapper files, bring the isolated stack up.
 #   up   : bring an EXISTING worktree's stack back on its recorded slot. Without
 #          it, a worktree whose stack is down has no way back and the directory
@@ -107,6 +108,10 @@ SNAP="$SELF_DIR/docker-snapshot.sh"
 MULTI="$SELF_DIR/worktree-multi.sh"
 
 cmd="${1:-}"; shift 2>/dev/null
+# Before config loading: reading the usage must work in any directory.
+for _a in "$cmd" "$@"; do
+  case "$_a" in -h|--help) sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;; esac
+done
 case "$cmd" in new|up|down|list) ;; *) sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 2 ;; esac
 
 ROOT="$(find_project_root)"
@@ -166,12 +171,13 @@ if [[ -n "$_unfilled" ]]; then
   exit 2
 fi
 
-SLUG=""; BRANCH=""; SLOT=""; NO_INFRA=false; KEEP_DIR=false; FORCE=false; PORCELAIN=false; REAP=false; DELETE_BRANCH=false
+SLUG=""; BRANCH=""; BASE=""; SLOT=""; NO_INFRA=false; KEEP_DIR=false; FORCE=false; PORCELAIN=false; REAP=false; DELETE_BRANCH=false
 REPOS=()
 [[ $# -gt 0 && "$1" != -* ]] && { SLUG="$1"; shift; }
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --branch) BRANCH="${2-}"; shift 2 ;;
+    --base)   BASE="${2-}"; shift 2 ;;
     --repo)   REPOS+=("${2-}"); shift 2 ;;
     --slot)   SLOT="${2-}"; shift 2 ;;
     --no-infra) NO_INFRA=true; shift ;;
@@ -814,8 +820,24 @@ if [[ "$cmd" == "new" ]]; then
   # --- base branch, stated not inherited ---
   first="${REPOS[0]}"
   default_branch="$(git -C "$ROOT/$first" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')"
+  if [[ -z "$default_branch" ]]; then
+    for _c in main master; do
+      git -C "$ROOT/$first" show-ref --verify --quiet "refs/heads/$_c" && { default_branch="$_c"; break; }
+    done
+  fi
   [[ -n "$default_branch" ]] || default_branch="$(git -C "$ROOT/$first" branch --show-current 2>/dev/null)"
-  info "base $default_branch -> worktree $CPROJ · branch $BRANCH · participants: ${REPOS[*]}"
+  if [[ -n "$BASE" ]]; then
+    for _r in "${REPOS[@]}"; do
+      ! git -C "$ROOT/$_r" show-ref --verify --quiet "refs/heads/$BRANCH" \
+        || die "--base given but branch $BRANCH already exists in $_r (it would be used at its own tip, ignoring the base)"
+    done
+  fi
+  # The base actually used: --base, else the branch's own tip when it already exists, else the default.
+  base_label="${BASE:-$default_branch}"
+  if [[ -z "$BASE" ]] && git -C "$ROOT/$first" show-ref --verify --quiet "refs/heads/$BRANCH"; then base_label="$BRANCH"; fi
+  _ahead="$(git -C "$ROOT/$first" rev-list --count "$default_branch..$base_label" 2>/dev/null || echo 0)"
+  [[ "$base_label" != "$default_branch" && "$_ahead" -gt 0 ]] && base_label="$base_label (+$_ahead over $default_branch)"
+  info "base $base_label -> worktree $CPROJ · branch $BRANCH · participants: ${REPOS[*]}"
 
   # --- slot RESERVATION -----------------------------------------------------
   #
@@ -913,6 +935,7 @@ if [[ "$cmd" == "new" ]]; then
 
   # --- git worktrees + wrapper links ---
   args=(create --slug "$SLUG" --branch "$BRANCH" --dest "$DEST")
+  [[ -n "$BASE" ]] && args+=(--base "$BASE")
   for r in "${REPOS[@]}"; do args+=(--repo "$r"); done
   for l in $WT_LINKS; do args+=(--link "$l"); done
   for c in $WT_COPIES; do args+=(--copy "$c"); done

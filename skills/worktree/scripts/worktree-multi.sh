@@ -23,7 +23,7 @@
 # don't need this script (native EnterWorktree / git worktree add covers them).
 #
 # Usage:
-#   worktree-multi.sh create --slug <slug> --branch <branch> \
+#   worktree-multi.sh create --slug <slug> --branch <branch> [--base <commit-ish>] \
 #       --repo <path> [--repo <path> ...] [--link <file> ...] [--copy <file> ...] [--dest <dir>]
 #   worktree-multi.sh remove --slug <slug> [--dest <dir>] [--skip-teardown]
 #
@@ -87,7 +87,7 @@ if [[ -z "${AIDEX_WT_INTERNAL:-}" ]]; then
   warn "  mechanism — check it with check-overview.sh."
 fi
 
-SLUG="" BRANCH="" DEST=""
+SLUG="" BRANCH="" BASE="" DEST=""
 SKIP_TEARDOWN=false
 FORCE_RM=false
 REPOS=()
@@ -97,6 +97,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --slug)   SLUG="$2"; shift 2 ;;
     --branch) BRANCH="$2"; shift 2 ;;
+    --base)   BASE="$2"; shift 2 ;;
     --repo)   REPOS+=("$2"); shift 2 ;;
     --link)   LINKS+=("$2"); shift 2 ;;
     --copy)   COPIES+=("$2"); shift 2 ;;
@@ -123,6 +124,11 @@ if [[ "$cmd" == "create" ]]; then
   for r in "${REPOS[@]}"; do
     [[ -d "$ROOT/$r" ]] || die "participant not found: $r (relative to $ROOT)"
     git -C "$ROOT/$r" rev-parse --git-dir >/dev/null 2>&1 || die "not a git repo: $r"
+    if [[ -n "$BASE" ]]; then
+      git -C "$ROOT/$r" rev-parse --verify --quiet "$BASE^{commit}" >/dev/null || die "base not found in $r: $BASE"
+      ! git -C "$ROOT/$r" show-ref --verify --quiet "refs/heads/$BRANCH" \
+        || die "--base given but branch $BRANCH already exists in $r (it would be used at its own tip, ignoring the base)"
+    fi
   done
   for l in "${LINKS[@]:-}"; do
     [[ -z "$l" ]] && continue
@@ -155,7 +161,21 @@ if [[ "$cmd" == "create" ]]; then
     if git -C "$ROOT/$r" show-ref --verify --quiet "refs/heads/$BRANCH"; then
       git -C "$ROOT/$r" worktree add "$DEST/$name" "$BRANCH" >/dev/null
     else
-      git -C "$ROOT/$r" worktree add -b "$BRANCH" "$DEST/$name" >/dev/null
+      # Fork from --base, else the repo's default branch: never the ambient HEAD,
+      # which welds the new branch to whatever feature branch happens to be checked out.
+      start="$BASE"
+      if [[ -z "$start" ]]; then
+        # Prefer the LOCAL branch of the default's name: owner repos run ahead of
+        # origin, and an origin/* start point would also set upstream tracking.
+        _oh="$(git -C "$ROOT/$r" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || true)"
+        for _c in $_oh main master; do
+          for _cand in "$_c" "origin/$_c"; do
+            if git -C "$ROOT/$r" rev-parse --verify --quiet "$_cand^{commit}" >/dev/null; then start="$_cand"; break 2; fi
+          done
+        done
+        [[ -n "$start" ]] || start="HEAD"
+      fi
+      git -C "$ROOT/$r" worktree add --no-track -b "$BRANCH" "$DEST/$name" "$start" >/dev/null
     fi
     if [[ "$name" == "." ]]; then
       # worktree.sh writes its own bookkeeping (.wt-slot, .wt-branch, a generated

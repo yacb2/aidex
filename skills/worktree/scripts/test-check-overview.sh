@@ -137,6 +137,15 @@ write_doc ""
 grep -q 'Tier 2, slot 3' "$DOC" || fail "fixture lost its historical tier mention — the next assertion proves nothing"
 bash "$SCRIPT" "$DOC" >/dev/null 2>&1 || fail "a usage-log entry naming a tier is HISTORY and must still pass"
 
+# --- front matter pointing at the RETIRED plugin-less path fails, with a hint
+#     (BL-627: owner projects kept ~/.claude/skills/aidex-worktree/... for weeks) ---
+write_doc 's|^worktree_up: .*|worktree_up: "bash ~/.claude/skills/aidex-worktree/scripts/worktree.sh up <slug>"|'
+out="$(HOME="$TMP/nohome" bash "$SCRIPT" "$DOC" 2>&1)" && fail "retired front-matter path: should fail"
+grep -q "front-matter: 'worktree_up' names a script that does not exist" <<<"$out" \
+  || fail "retired front-matter path: failed for some other reason -- $out"
+grep -q 'CLAUDE_PLUGIN_ROOT}/skills/worktree/scripts/' <<<"$out" \
+  || fail "retired front-matter path: missing the plugin-path hint -- $out"
+
 # --- a Procedure naming a nonexistent script fails; the usage log may name one ---
 write_doc 's|worktree.sh new <slug> --branch <b>|_scripts/worktree-up.sh <slug> <slot>|'
 bash "$SCRIPT" "$DOC" >/dev/null 2>&1 && fail "Procedure naming a nonexistent script: should fail"

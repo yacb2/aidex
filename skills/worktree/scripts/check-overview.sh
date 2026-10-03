@@ -60,6 +60,28 @@ for field in worktree_up worktree_down; do
   fi
 done
 
+# A front-matter command naming a script that does not resolve is a dead command
+# (BL-627: the retired ~/.claude/skills/aidex-worktree/ path survives in owner docs).
+# Resolved after SKILL_SCRIPTS is known, so bare `worktree.sh up <slug>` still passes.
+fm_scripts_check() {
+  local field s cand
+  for field in worktree_new worktree_up worktree_down worktree_list; do
+    while IFS= read -r s; do
+      [[ -z "$s" ]] && continue
+      cand="${s/#\~/$HOME}"
+      [[ -e "$cand" ]] && continue
+      if [[ "$cand" != /* ]]; then
+        [[ -e "$PROJECT_DIR/$cand" || -e "$SKILL_SCRIPTS/$(basename "$cand")" ]] && continue
+      fi
+      if [[ "$s" == *skills/aidex-worktree/* ]]; then
+        gaps+=("front-matter: '$field' names a script that does not exist: $s (retired path; use \${CLAUDE_PLUGIN_ROOT}/skills/worktree/scripts/$(basename "$s"))")
+      else
+        gaps+=("front-matter: '$field' names a script that does not exist: $s")
+      fi
+    done < <(grep -E "^${field}:" <<<"$fm" | sed -n 1p | grep -oE '(~|[A-Za-z0-9_.$-])[A-Za-z0-9_./$-]*\.sh' | grep -v '\$' | sort -u || true)
+  done
+}
+
 # --- required sections ---
 grep -qE '^## +Procedure *$' "$DOC" || gaps+=("section: missing '## Procedure'")
 grep -qE '^## +Usage log *$' "$DOC" || gaps+=("section: missing '## Usage log'")
@@ -80,12 +102,14 @@ if [[ -n "$tier_heads" ]]; then
   done <<<"$tier_heads"
 fi
 
+PROJECT_DIR="$(dirname "$(dirname "$DOC_DIR")")"
+SKILL_SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+fm_scripts_check
+
 # --- every script the Procedure names must exist ---
 # Scoped to the Procedure section: the usage log legitimately names scripts that
 # were removed years ago, and rewriting history is not the goal.
 proc="$(awk '/^## +Procedure *$/{p=1;next} /^## /{p=0} p' "$DOC")"
-PROJECT_DIR="$(dirname "$(dirname "$DOC_DIR")")"
-SKILL_SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 while IFS= read -r s; do
   [[ -z "$s" ]] && continue
   cand="${s/#\~/$HOME}"
