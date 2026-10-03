@@ -94,9 +94,16 @@ see below). Every round before that approval is a sketch round:
 - **What the implementer runs:** the real components on the gallery's fixtures, and only
   the tests of the files it touched plus the type check (vue-tsc in a Vue project). The
   brief says so in "tests that must pass" and says outright: no E2E, no full suite.
+  When the screen's gallery spec exists, the implementer also runs that one spec (no
+  meta-suite) before handing back, so a broken cell reaches it, not the page.
 - **On the hand-back:** only the gallery re-capture (Step 4, "a re-capture is not a first
   build"), a run labelled "not a gate run" (Step 4, "run the gate once"), then the next
-  consultation page. No `review-diff-opus`, no E2E, no commit.
+  consultation page. No `review-diff-opus`, no E2E, no commit. Every gallery-builder brief
+  of a sketch round, the first build included, carries the three-line harness summary,
+  the gallery spec and fixtures paths (or the sibling spec to copy) and the exact scoped
+  run command; the AFTER build never waits for the BEFORE capture. Measured on echo_lab
+  BL-750: gallery work was 30 of 48 round minutes, 4-6 of each launch spent rediscovering
+  the harness, and 5.4 waiting on the BEFORE.
 
 **One hardening round, when the owner approves the whole screen.** The approved branch
 is what gets hardened, not rebuilt. Launch together, in one message: `review-diff-opus` on
