@@ -206,9 +206,10 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/email-draft.py" <spec.md> [--out <dir>]
 ```
 
 It writes `<spec>.html` and `<spec>.txt` and prints both paths; open the HTML once. The page
-shows subject and recipients on top with Copiar asunto / Copiar cuerpo; the body below is
-inline-styled HTML only (no classes, scripts, stylesheets, fixed width) and copying it
-brings no page chrome. Tables are allowed here, unlike in a `body.md` paste. No `.eml`.
+shows Asunto / Para / CC on top, each with its own Copiar button, and the body below with one
+Copiar correo button at its top-right corner. The page is a centered column (max-width) but the
+body is inline-styled HTML only (no classes, scripts, stylesheets, width of any kind), so the
+copied email takes the mail window's width and brings no page chrome. Tables are allowed here, unlike in a `body.md` paste. No `.eml`.
 
 ---
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # test-email-draft.sh - email-draft.py output must survive Outlook (BL-669).
 # Layer: script contract (one spec in, two files out); no browser decides these properties.
-# Protects: inline-style-only HTML, no max width, tables kept as <table>, table rows kept in the .txt.
+# Protects: inline-style-only HTML, page max-width but no width in #body or clipboard HTML, per-field copy buttons, tables kept as <table>, table rows kept in the .txt.
 set -uo pipefail
 SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts" && pwd -P)/email-draft.py"
 FAILURES=0
@@ -44,7 +44,13 @@ no "no script tag" '<script'
 no "no link tag" '<link'
 no "no style tag" '<style'
 no "no class attribute" 'class='
-no "no max-width" 'max-width'
+
+# page width vs copied width: the cap lives on a wrapper outside #body, never inside it or in the clipboard HTML
+BODY="$(python3 -c 'import sys;t=open(sys.argv[1]).read();i=t.index("id=\"body\"");print(t[i:t.index("</div>",i)])' "$H")"
+grep -q 'max-width:720px' "$H" && pass "page has a max-width column" || fail "page max-width missing"
+grep -qi 'width' <<<"$BODY" && fail "width inside #body" || pass "no width inside #body"
+CLIP="$(grep -o 'onclick="[^"]*execCommand[^"]*"' "$H")"
+[[ -n "$CLIP" ]] && ! grep -qi 'width' <<<"$CLIP" && pass "copy-body clipboard html has no width" || fail "copy-body handler missing or carries width"
 
 # every element that carries presentation has an inline style
 bare="$(grep -oE '<(p|h[1-6]|ul|ol|li|table|th|td|pre|strong|em|a)[ >][^>]*>' "$H" | grep -v 'style=' || true)"
@@ -56,6 +62,12 @@ grep -q '<a href="https://example.com/x" style=' "$H" && pass "link" || fail "li
 grep -q '<li style=[^>]*>primero</li>' "$H" && pass "list" || fail "list missing"
 grep -q '<pre style=' "$H" && grep -q 'linea dos' "$H" && pass "fenced block" || fail "pre missing"
 grep -q 'id="subject">Re: Presupuesto<' "$H" && grep -q 'id="to">ana@example.com<' "$H" && pass "subject and recipients on top" || fail "header missing"
+
+# header: one Copiar button per present field, one Copiar correo button, labels by language
+[[ "$(grep -o 'writeText' "$H" | wc -l | tr -d ' ')" == 3 ]] && pass "es: copy buttons for subject, to, cc" || fail "es: expected 3 field copy buttons"
+[[ "$(grep -o 'execCommand' "$H" | wc -l | tr -d ' ')" == 1 ]] && pass "one copy-body button" || fail "copy-body button count"
+grep -q '>Copiar correo</button>' "$H" && grep -q '>Copiar</button>' "$H" && grep -q 'Asunto:' "$H" && grep -q '>CC:' "$H" && grep -q 'Para:' "$H" && pass "es labels" || fail "es labels"
+grep -qF 'textContent=&#x27;Copiado&#x27;' "$H" && pass "es confirmation" || fail "es confirmation"
 
 grep -qF 'Licencia | 100' "$T" && grep -qF 'Soporte | 50' "$T" && pass "txt carries table rows" || fail "txt lacks table rows"
 grep -q '^Subject: Re: Presupuesto' "$T" && pass "txt subject" || fail "txt subject missing"
@@ -96,6 +108,10 @@ conv href 'S' '[x](https://e.com/a"onmouseover="y)'
 grep -q 'href="[^"]*"[^>]*onmouseover' "$CH" && fail "href attribute injection (L1)" || pass "href escaped (L1)"
 conv both 'S' '***both***'
 expect "triple star nests (L3)" "$CH" '<strong style="font-weight:bold;"><em style="font-style:italic;">both</em></strong>'
+printf -- '---\nsubject: Hi\nto: bob@example.com\nlanguage: en\n---\nx\n' > "$D/en.md"
+python3 "$SCRIPT" "$D/en.md" >/dev/null; EH="$D/en.html"
+[[ "$(grep -o 'writeText' "$EH" | wc -l | tr -d ' ')" == 2 ]] && ! grep -q 'id="cc"' "$EH" && pass "en: no cc row when cc absent" || fail "en: cc row or button count"
+grep -q '>Copy email</button>' "$EH" && grep -q '>Copy</button>' "$EH" && grep -q 'Subject:' "$EH" && grep -q 'To:' "$EH" && grep -qF 'textContent=&#x27;Copied&#x27;' "$EH" && pass "en labels" || fail "en labels"
 python3 "$SCRIPT" "$D/hash.md" --out >/dev/null 2>"$D/out.err"; rc=$?
 { [[ $rc -ne 0 ]] && ! grep -q Traceback "$D/out.err"; } && pass "--out last arg: usage, no traceback (L10)" || fail "--out last arg (L10) rc=$rc"
 

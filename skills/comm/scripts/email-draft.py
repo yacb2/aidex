@@ -5,8 +5,9 @@ Usage: email-draft.py <spec.md> [--out DIR]
 
 Spec: front matter (subject, to, cc, language) then a markdown body. Subset supported:
 paragraphs, **bold**, *italic*, [links](https://...), # headings, - / 1. lists, pipe tables,
-one fenced block. Output: <name>.html (subject + recipients with copy buttons on top, the
-body below, inline styles only, no max width) and <name>.txt. Stdlib only.
+one fenced block. Output: <name>.html (subject + recipients, each with its own copy button, on top;
+the body below with one Copy email button; the page is a centered max-width column, the body and
+the clipboard HTML carry no width; inline styles only) and <name>.txt. Stdlib only.
 """
 import html
 import re
@@ -15,8 +16,8 @@ from pathlib import Path
 
 FONT = 'font-family:Aptos,\'Aptos Display\',Calibri,Carlito,\'Segoe UI\',Arial,sans-serif;font-size:12pt;color:#222;'
 TD = 'border:1px solid #bbb;padding:4px 8px;text-align:left;vertical-align:top;'
-LABELS = {'es': ('Copiar asunto', 'Copiar cuerpo', 'Para', 'Cc', 'Asunto'),
-          'en': ('Copy subject', 'Copy body', 'To', 'Cc', 'Subject')}
+LABELS = {'es': ('Copiar', 'Copiar correo', 'Copiado', 'Para', 'CC', 'Asunto'),
+          'en': ('Copy', 'Copy email', 'Copied', 'To', 'Cc', 'Subject')}
 # Copy handler: puts the body's own (inline-styled) html on the clipboard, never the page chrome.
 COPY_BODY = ("document.addEventListener('copy',function(e){var b=document.getElementById('body');"
              "e.clipboardData.setData('text/html','<div style=\"" + FONT.replace("'", "\\'") + "\">'+b.innerHTML+'</div>');"
@@ -152,20 +153,29 @@ def render(body):
 
 def page(meta, body_html):
     lang = meta.get('language', 'es')
-    b_subj, b_body, l_to, l_cc, l_subj = LABELS.get(lang, LABELS['en'])
+    b_copy, b_mail, b_done, l_to, l_cc, l_subj = LABELS.get(lang, LABELS['en'])
     e = lambda s: html.escape(s)
-    btn = 'style="font:14px sans-serif;padding:6px 12px;margin-right:8px;cursor:pointer;"'
-    rows = [f'<div style="margin:0 0 6px 0;"><strong style="font-weight:bold;">{l_subj}:</strong> <span id="subject">{e(meta["subject"])}</span></div>']
-    for key, label in (('to', l_to), ('cc', l_cc)):
-        if meta.get(key):
-            rows.append(f'<div style="margin:0 0 6px 0;"><strong style="font-weight:bold;">{label}:</strong> <span id="{key}">{e(meta[key])}</span></div>')
+    btn = ('font:13px sans-serif;padding:4px 12px;cursor:pointer;color:#1f5fbf;background:#fff;'
+           'border:1px solid #1f5fbf;border-radius:6px;')
+    # Confirmation shown on the pressed button for 1.5 s.
+    done = f"var b=this,t=b.textContent;b.textContent='{b_done}';setTimeout(function(){{b.textContent=t}},1500)"
+    rows = []
+    for key, label in (('subject', l_subj), ('to', l_to), ('cc', l_cc)):
+        val = meta.get(key)
+        if val:
+            rows.append(f'<div style="margin:0 0 8px 0;"><strong style="font-weight:bold;">{label}:</strong> '
+                        f'<span id="{key}">{e(val)}</span> '
+                        f'<button type="button" style="{btn}margin-left:8px;" '
+                        f'onclick="{html.escape(COPY_TEXT.format(id=key) + ";" + done, quote=True)}">{b_copy}</button></div>')
     return (f'<!DOCTYPE html>\n<html lang="{e(lang)}"><head><meta charset="utf-8"><title>{e(meta["subject"])}</title></head>\n'
             '<body style="margin:0;padding:16px;background:#ffffff;color:#222;">\n'
+            '<div style="max-width:720px;margin:0 auto;">\n'
             '<div style="padding:12px;margin:0 0 16px 0;background:#f3f4f6;border:1px solid #d0d4da;font:14px sans-serif;">\n'
-            f'<div style="margin:0 0 10px 0;"><button type="button" {btn} onclick="{COPY_TEXT.format(id="subject")}">{b_subj}</button>'
-            f'<button type="button" {btn} onclick="{html.escape(COPY_BODY, quote=True)}">{b_body}</button></div>\n'
             + '\n'.join(rows) + '\n</div>\n'
-            f'<div id="body" style="{FONT}">\n{body_html}\n</div>\n</body></html>\n')
+            '<div style="position:relative;padding:48px 16px 16px 16px;border:1px solid #d0d4da;">\n'
+            f'<button type="button" style="{btn}position:absolute;top:10px;right:10px;" '
+            f'onclick="{html.escape(COPY_BODY + ";" + done, quote=True)}">{b_mail}</button>\n'
+            f'<div id="body" style="{FONT}">\n{body_html}\n</div>\n</div>\n</div>\n</body></html>\n')
 
 
 def main():
