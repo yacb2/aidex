@@ -8,11 +8,8 @@ model-policy: per-stage
 
 # UI contract
 
-> **Experimental (1.3.0).** The mechanism has now run on three real features: the
-> user-invitations redesign, a game-style panel and
-> a harness adoption, each in a different project. Each run found mechanism defects as well as
-> product gaps, and all of them are fixed in this text. It has not run on a project whose
-> harness the owner did not shape. Say so to the user before relying on it.
+> **Experimental (1.3.0).** Proven on projects whose harness the owner shaped; say so to
+> the user before relying on it.
 > Sketch mode (Step 0) is a trial from 2026-10-02; its readout and revert are there.
 
 The contract for what "matches" means is a **state gallery rendered by the project's real
@@ -20,9 +17,7 @@ components** against fixture data — one entry per state-matrix cell — review
 contact sheet. Not a drawn mockup: a drawing cannot be checked against reality and shows
 things the real components cannot do.
 
-Canon: ADR `2026-09-21-ui-contract-state-galleries-and-evidence-gate` (as amended the
-same day: pattern galleries live only in the shared template a project's apps start from,
-where it has one; what propagates is the harness, the gate config and the style lint).
+Canon: ADR `2026-09-21-ui-contract-state-galleries-and-evidence-gate` (as amended).
 
 ## When this fires
 
@@ -156,13 +151,8 @@ owner sees what each variant looks like; asked before, the question is abstract 
 re-asked. Default: **one colour mode** (light-desktop), reviewed. Each other variant takes
 one of three explicit values, and each lands in one place: reviewed goes to the board's
 `--variants` list, out of scope means the run is not made for that variant (the reason stays in the plan), and
-captured-only needs nothing (the default capture):
-
-| Value | Meaning |
-|---|---|
-| reviewed | the owner looks at it |
-| captured-only | captured with the automatic verdicts (overflow, contrast, layout) and pixel baseline; the owner does not look |
-| out of scope | not run, with a reason in words |
+captured-only needs nothing (captured with the automatic verdicts and a pixel baseline,
+the owner does not look):
 
 | Variant | Reviewed when |
 |---|---|
@@ -172,9 +162,7 @@ captured-only needs nothing (the default capture):
 
 A cell in a variant nobody chose still reaches the owner if it changes without
 being part of the change — as a row marked unrequested, never as a gate summary.
-**Light and dark are the only two modes this contract renders**, also in a project that
-ships more themes (a shared template may allow several): the gate compares two modes per cell,
-and a third theme is reviewed by hand when it is introduced, never as extra baselines.
+Light and dark are the only two modes rendered (harness contract § 3).
 
 A not-applicable cell carries its reason in words ("this list has no permission gate —
 the route itself is unauthenticated"), and the harness refuses a blank one at run time.
@@ -208,46 +196,17 @@ another way), and to every level-3 change. A screen that follows its reference k
 plain order: build and wire, then gallery and gate. A screen with no reference at all is
 level 3: this step with the skeleton built from the project's primitives.
 
-The plan then carries these phases, in this order, each one closing on its own evidence.
-**The skeleton comes before any shared primitive**: a primitive added to a shared
-component is built for a layout, and an unapproved layout makes it rework.
+The plan then carries five phases, in this order, each closing on its own evidence:
+**1 skeleton of the real page** (fixtures, no API, geometry assertions before the first owner
+round), **2 review of the skeleton**, **3 shared primitives**, **4 gallery and gate**, **5 wire**.
+The skeleton comes before any shared primitive. **Read
+`${CLAUDE_PLUGIN_ROOT}/skills/ui-contract/references/03-skeleton-first.md` before writing
+those phases into a plan**: it owns what each phase does, how it closes and the
+`ui-surface: pending-owner` rule.
 
-1. **Skeleton of the real page** — the route and the page built from the real components
-   against fixture data, no API call behind it. No logic to correct yet, so every layout
-   correction is cheap. **Geometry assertions go in before the first owner round**: axis
-   alignment of repeated columns and controls, minimum widths, a height cap; a fixed pixel
-   width tied to the UI scale is the usual miss. The owner spends rounds on design, not on
-   alignment a browser assertion pins. Its Execution log records
-   `ui-evidence: phase <n> · skipped — skeleton only, owner review pending in phase <n+1>`,
-   because the owner's verdict is the next phase's evidence.
-2. **Review of the skeleton** — the skeleton is rendered as gallery cells and the owner
-   rules on them in a consultation page (part 1 of "verified") BEFORE anything is wired.
-   This review is where the UI is decided, and its rounds are sketch rounds (Step 0).
-   The shape of a round: **a budget of 2 rounds**;
-   **one decision per cell**, each cell shown alone, with a `look` line saying what to look
-   at in it; the previous round's decided cells collapsed. Skeleton **alternatives** (two
-   layouts for one cell) use the gallery's alternatives mode, one which-one choice with the
-   labels the spec writes, never before/after: a baseline-vs-proposed frame asks the owner
-   to approve one alternative against the other as if it were the old state
-   (`/aidex:artifact`, § Gallery rows). The owner's verdict on the layout closes this phase;
-   a rejected layout goes back to phase 1 and loses only composition, never logic.
-   A cross-screen placement question gets one gallery alternative per option inside its
-   own item, built from real components, never prose only (`/aidex:artifact`, § Gallery rows).
-3. **Shared primitives** — the new or changed components the approved skeleton needs.
-4. **Gallery and gate** — the full state matrix over the approved skeleton, with the gate's
-   closing line from a run with no snapshot update.
-5. **Wire** — the API behind the approved layout, with the gallery's baselines as the
-   regression guard for what the owner approved.
-
-The phase whose owner page is still open may log `ui-surface: pending-owner · <its page> ·
-cells: ...` so the next phase proceeds, if the next phase touches none of those cells;
-never the skeleton review (Step 3b.2) nor the final phase.
-The grammar is owned by `check-ui-evidence.sh` (see the closing paragraph of the next
-section), and plan-exec's summary lists the pending pages.
-
-Decided 2026-09-22 on the consultation `2026-09-21-ui-contract-consulta` (item B1): the
-alternatives — a throwaway page in the shared template, a drawn round, or the plain order —
-either rebuild a copy, are not verifiable, or make every layout correction touch logic.
+Phase 2 is where the UI is decided, and its rounds are sketch rounds (Step 0). The shape of
+a round: **a budget of 2 rounds**; **one decision per cell**, each cell shown alone, with a
+`look` line saying what to look at in it; the previous round's decided cells collapsed.
 
 ## Step 4 — Build the gallery, then run the gate
 
@@ -284,10 +243,9 @@ scroll-owning shell sets the window to the full content first (harness contract 
 **One component changing, no screen context needed:** capture just that component and put
 all its states in one item (harness contract § 6, component-scoped consultation).
 
-**Every cell must be a DISTINCT render.** Measured on the first real gallery: `initial`
-and `invalid` came out pixel-identical because nothing had been submitted yet, and
-`submitting` and `read-only` were indistinguishable without a marker. Two cells with the
-same picture are one cell and a false claim of coverage.
+**Every cell must be a DISTINCT render.** `initial` and `invalid` come out pixel-identical
+when nothing was submitted, `submitting` and `read-only` without a marker. Two cells with
+the same picture are one cell and a false claim of coverage.
 
 ## "Verified" is three things, all recorded in the Execution log
 
@@ -296,19 +254,12 @@ asserted "verified in light and dark" in this corpus and been disproved in three
 sessions. What each part is:
 
 1. **The review surface's path.** The owner reviews the gallery as gallery rows in a
-   consultation page (`/aidex:artifact`, § Gallery rows): the project emits its rows JSON
-   (`--rows-json` with item 5's variants and cells), the kit turns each row into a
-   before/proposed pair (one capture for a new screen) with zoom, compare, region marks
-   and one answer, plus a row per unrequested change, and the pasted reply parses back
-   with `gallery-reply.sh`, which takes `--rows <rows.json>` (once per gallery) whenever
-   the page has an alternatives row, or the reply is refused. Every shown row carries a
-   `look` line: the spec route (`::: gallery rows=`) refuses a shown row without it, while
-   `gallery-items.sh` alone only shows the gap. The page shows no gate output; an empty rows list (everything
-   matched) means no gallery block on the page.
-   That page's path is written down, with the owner's verdict per row. The generated
-   board (one HTML file over the committed baselines) or the composed image stays the
-   developer's lens while building, not the owner's review. The owner is the final
-   reviewer — never the model.
+   consultation page: the project emits its rows JSON (`--rows-json` with item 5's variants
+   and cells), every shown row carries a `look` line, and the reply parses back with
+   `gallery-reply.sh`. Read `/aidex:artifact` § Gallery rows before building that page; it
+   owns the row shapes and the reply rules. That page's path is written down, with the
+   owner's verdict per row. A generated board or composed image is the developer's lens
+   while building, never the owner's review. The owner is the final reviewer — never the model.
 2. **The gate's closing line, from a run with NO snapshot update**, including the
    meta-suite's count as a **bare `meta: N/N`**. `meta: 0/0` means the predicates were
    never proven in that run, and a count labelled filtered or skipped is not a gate run
@@ -319,14 +270,8 @@ sessions. What each part is:
    standing form of it: every predicate has a seeded defect it must catch, run before the
    galleries.
 
-Part 3 is this chain's own finding, not a formality. Phases 0, 4 and 5 of the plan
-that built this contract into a shared template each shipped a vacuous check under a
-fully green gate: known-defect entries left unscoped (a defect measured in one project
-excused in all 44 cells), a layout check that
-silently skipped landmarks it could not find (comparing a set with a hole in it and
-calling the page stable), an overflow check that fell back to an element that can never
-be too wide, and a some-per-glob rot guard that passed while nothing matched. Each was
-green. **A new guard needs a RED control shown** — make it fail on purpose once, and
+Part 3 exists because three phases of the plan that built this contract each shipped a
+vacuous check under a fully green gate. **A new guard needs a RED control shown** — make it fail on purpose once, and
 record that it did. In a harness with a meta-suite that control is a new meta row, kept:
 a RED shown once and thrown away proves the guard once, a row proves it on every run.
 

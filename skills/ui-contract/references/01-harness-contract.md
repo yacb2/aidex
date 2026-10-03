@@ -197,6 +197,10 @@ colour mode in its metadata and its own viewport. Properties that matter:
 - The four gallery projects **depend on the meta-suite's project** (§ 1b), so it runs
   first and a red predicate stops the galleries. The meta project in turn depends on a
   one-page `vite-warmup` project, so a cold Vite is paid before the first cell.
+- **Light and dark are the only two modes this contract renders**, also in a project that
+  ships more themes (a shared template may allow several): the gate compares two modes per
+  cell, and a third theme is reviewed by hand when it is introduced, never as extra
+  baselines.
 - In a project with no gallery spec yet, the four projects select nothing and the run is
   clean — adopting the config costs nothing before the first gallery exists. The
   meta-suite still runs whenever its path, or any gallery's, is passed.
