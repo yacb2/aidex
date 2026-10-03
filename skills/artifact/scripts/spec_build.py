@@ -607,6 +607,40 @@ def _option(text):
     return label.strip(), hint.strip(), rec, chosen
 
 
+_OPT_PAREN = re.compile(r"\([^)]*\)")
+# What the kit already adds under every item ("Otra — lo explico en las notas",
+# "Todavía no — lo dejo para otra ronda"): a spec option saying the same shows
+# the choice twice.
+_OPT_KIT_DUP = re.compile(
+    r"\bnotas?\b|\bnotes?\b|^(otra|otro|other)\b|^(todav[ií]a|aún|aun) no\b"
+    r"|^not (yet|now)\b", re.I)
+
+
+def _refuse_option_shape(node, opts):
+    """Refuse an option label that reads as a second question or repeats a kit
+    option (owner complaint, two consultation rounds running).
+
+    A parenthetical reason in the label turns the option into a question of its
+    own; the reason belongs in the item body. The kit adds Otra and Todavía no
+    to every item, so a spec option for either (or one pointing at the notes
+    box) is shown twice. `{recommended}` is not a parenthesis, and code spans
+    are the author quoting, so both are set aside before the read.
+    """
+    for text in opts:
+        label = _option(text)[0]
+        bare = re.sub(r"`[^`]*`", "", label).strip()
+        why = None
+        if _OPT_PAREN.search(bare):
+            why = "carries a parenthetical"
+        elif _OPT_KIT_DUP.search(bare):
+            why = "duplicates an option the kit already adds"
+        if why:
+            raise SpecBuildError(
+                node.line, "item %s option %r %s: use a short verb, put the "
+                "reason in the item body, and leave Otra / Todavía no (and the "
+                "notes box) to the kit" % (node.id, label, why))
+
+
 # The framed aside: what `item`, `masthead` and `note` may carry BESIDES their
 # own prose. Three of the 30 sampled pages put one inside a decision (11 in
 # all), one puts two inside its MASTHEAD, one nests a note inside a note — and
@@ -753,6 +787,7 @@ def emit_item(node, ctx):
                 tail.append(("prose", after))
         else:
             head.append(("prose", payload))
+    _refuse_option_shape(node, opts)
     if select == "many" and not opts:
         raise SpecBuildError(
             node.line, "`item` select=many has no options to tick: list them "

@@ -206,6 +206,8 @@ La revisión tocó solo etiquetas y el orden de los campos.
 :::
 ```
 
+**Option labels are short verbs, never a parenthetical or a kit option (the build refuses them).** `- Cambiar (explícalo en las notas)` reads as a second question: put the reason in the item body. The kit already adds Otra and Todavía no to every item, so an option for either, or one that points at the notes box, is shown twice.
+
 An item may also carry a nested `note` or `callout`. 3 of the
 30 sampled pages do it, 11 asides in all, and each one qualifies **that** decision:
 moving it out of the item — the only other way to write it — detaches it from what

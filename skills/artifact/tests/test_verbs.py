@@ -966,7 +966,7 @@ Contexto dos.
 ¿Cuál marcador?
 
 - Este {recommended}
-- Otro
+- Ninguno
 :::
 :::
 
