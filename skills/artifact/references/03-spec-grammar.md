@@ -217,6 +217,7 @@ builder, not tokenizer.
 Two of those refusals moved during the corpus conversion, and both moved because a
 real page said something the grammar could not:
 
+- **A decided-but-correctable point is an `item decided=yes` in its consult group** (BL-687), with the other items of its round: not a top-level `callout`, not a `ledger` row (the ledger holds what EARLIER rounds settled). `04-block-vocabulary.md` § `item` has the shape; `tests/fixtures/decided-items.spec.md` is a built example.
 - **`item` at the document's top level now BUILDS.** It used to be refused with
   "`item` may only appear in `group`". 4 of the 30 sampled pages (13%) write a
   decision outside any block, and a grammar that cannot say what a real page says
