@@ -10,7 +10,8 @@ model-policy: per-stage
 
 > **Experimental (1.3.0).** Proven on projects whose harness the owner shaped; say so to
 > the user before relying on it.
-> Sketch mode (Step 0) is a trial from 2026-10-02; its readout and revert are there.
+> Sketch mode (Step 0) was kept after readout 2026-10-04
+> (`research/2026-10-04-ui-contract-sketch-mode-readout.md`).
 
 The contract for what "matches" means is a **state gallery rendered by the project's real
 components** against fixture data — one entry per state-matrix cell — reviewed through a
@@ -34,16 +35,14 @@ line and stop.
 ## Step 0 — At fire time: the harness, then the design discussion
 
 **Check the harness first, before any plan or discussion.** Read the testing profile's
-`gallery_gate_cmd` and `gallery_scripts` first (optional keys), then check the
-"Presence check" markers of `references/01-harness-contract.md` in the repo itself. Never
-say "absent" before those checks ran: a research note, a memory or an earlier session
-saying the harness is missing is not evidence, since a project may have adopted it since.
-Present: continue. Absent (every marker checked, none found): say so in one line and name
-the checks; a boilerplate fork can adopt the ui-contract harness migration from its
-boilerplate. Without a harness the gallery and the gate stop; the design discussion and
-`ui-contract.md` still proceed. A redesign round then shows the BEFORE captured from the
-running app and the contract in words; the skeleton waits for the harness, and no drawing
-stands in for it. Nothing below is briefed on a harness that may not be there.
+`gallery_gate_cmd` and `gallery_scripts` (optional keys), then check the "Presence check"
+markers of `references/01-harness-contract.md` in the repo itself. Never say "absent"
+before those checks ran: a note, a memory or an earlier session is not evidence, a project
+may have adopted the harness since. Present: continue. Absent (every marker checked, none
+found): say so in one line and name the checks; a boilerplate fork can adopt the harness
+migration from its boilerplate. Without a harness the gallery and the gate stop; the design
+discussion and `ui-contract.md` still proceed, a redesign round shows the BEFORE captured
+from the running app and the contract in words, and no drawing stands in for the skeleton.
 
 **The design discussion is a ui-contract step, not a free chat.** When the screen is not
 decided yet, hold it as a consultation (`/aidex:artifact`) in this skill's vocabulary:
@@ -66,14 +65,14 @@ consultation rounds, never the plan's technical order (backend, shared component
 owner must choose page, dialog or panel for a piece whose host screen does not exist yet
 AND none of whose content renders anywhere today, that one question may carry a figure
 from `figure-sonnet` (one per option, inline SVG in the consultation page). The figure is
-a question aid: it is never a round, never the contract, and it is dropped once the host's
-skeleton exists. It never qualifies when the content exists today, even if its page is new
-(an extraction, a move, a split, a redesign): there the BEFORE exists, so build the host
-first, show the BEFORE beside the real AFTER, and put the form options as gallery
-alternatives built from real components. Nor does it cover any question about layout,
-placement, states or styling. The contract stays a gallery of real components.
-(2026-10-03, echo_lab BL-750: the figure was applied to an extraction, and the owner
-rejected a round of drawings with no BEFORE to compare against.)
+a question aid, never a round or the contract, dropped once the host's skeleton exists. It
+never qualifies when the content exists today (an extraction, a move, a split, a redesign):
+there build the host first, show the BEFORE beside the real AFTER, and put the form options
+as gallery alternatives of real components. Nor does it cover layout, placement, states or
+styling questions. The contract stays a gallery of real components.
+A cross-screen placement question at round 0 (entry point, nav) with no host yet is asked in
+prose with a recommendation and flagged unchecked; it becomes gallery alternatives in the first
+round that has a host.
 
 **What a round shows.** A redesign round shows a **real AFTER** — the proposed screen built
 from the project's own components and fixture data — beside the BEFORE (the screen as it
@@ -82,27 +81,35 @@ a change does not exist yet (a dialog whose page is new), build that host first;
 capture the new piece on the old host. Never show the BEFORE alone as if it were the
 proposal.
 
-**Sketch mode: how a round is built until the owner approves the whole screen** (trial,
-see below). Every round before that approval is a sketch round:
+**Sketch mode: how a round is built until the owner approves the whole screen** (kept after
+readout 2026-10-04, `research/2026-10-04-ui-contract-sketch-mode-readout.md`). Every round
+before that approval is a sketch round:
 
 - **Where:** a throwaway branch in its own worktree (`sketch/<screen>`), named in the
   impl brief's worktree section. Nothing from it reaches main before the hardening round;
-  a rejected direction is dropped with the branch.
+  a rejected direction is dropped with the branch. The worktree has what the capture needs
+  (E2E stack, DB template, a second dev-server port in a split repo); a stale branch rebases
+  before hardening.
 - **What the implementer runs:** the real components on the gallery's fixtures, only the
   tests of the files it touched plus the type check, no E2E, no full suite (the brief says so
-  in "tests that must pass"). When the screen's gallery spec exists, the same agent also edits
-  the spec and does the round's ONE capture (below), so a broken cell reaches it, not the page.
+  in "tests that must pass"). With a gallery spec in place, the same agent edits the spec and
+  does the round's ONE capture, so a broken cell reaches it, not the page.
+- **First build:** a screen with no gallery spec gets `aidex:gallery-builder` once, in the
+  first sketch round, never throwaway capture scripts; every later round re-captures. For an
+  extraction, capture the BEFORE from main's code before the branch moves it.
 - **On the hand-back:** the next consultation page. No `review-diff-opus`, no E2E, no commit.
-  A re-capture round has no gallery-builder hop: `aidex:gallery-builder` is launched only for
-  a first build. Every sketch round hands the capturing agent the screen's `gallery-kit.md`
-  and the project's `.context/profiles/ui-contract.md` (template `assets/templates/project-ui-contract.md`,
-  created at the first gallery build; each round appends the pitfalls it hit). That agent reads
-  those two, never the harness contract or sibling specs, runs ONE `--update-snapshots`
-  capture (no run before it, no confirmation run; that is the hardening gate), copies the
-  baselines aside first as the round's BEFORE, and rewrites the kit at hand-back. In its rows JSON it marks `kind: "unrequested"`, with a `look`
-  line naming the cause, every row whose visible change the owner's answer did not ask for
-  (shared i18n key, shared component, layout knock-on). Detail and
-  measurements: `references/02-sketch-round-kit.md`.
+  The capturing agent gets the screen's `gallery-kit.md` and the project's
+  `.context/profiles/ui-contract.md` (template `assets/templates/project-ui-contract.md`),
+  reads only those two, runs ONE `--update-snapshots` capture (no run before or after it;
+  that is the hardening gate) and rewrites the kit. Rows whose visible change the owner's
+  answer did not ask for are marked `kind: "unrequested"` with a `look` line naming the cause.
+- **What the page shows:** the open decision first, page rows after. A full-page row whose
+  content depends on an undecided consult item shows context only (labelled with the item id)
+  or waits for the round after the decision; a row whose only change is the pending option, or
+  a change already shown in another row, is not shown.
+
+Read `${CLAUDE_PLUGIN_ROOT}/skills/ui-contract/references/02-sketch-round-kit.md` before
+briefing the capturing agent.
 
 **One hardening round, when the owner approves the whole screen.** The approved branch
 is what gets hardened, not rebuilt. Launch together, in one message: `review-diff-opus` on
@@ -110,15 +117,17 @@ the branch's whole diff (its review-yield row carries `hardening` in the phrase)
 specs the screen touches on `gate-runner`, and the gallery with the gate and a bare
 `meta: N/N` (Step 4, "verified" part 2). A DO NOT SHIP goes back to the same impl agent
 through `SendMessage`; only what that fix touches re-runs. Then the commit to main, and
-the branch is deleted. Wiring the API (Step 3b.5) comes after, on main, through the normal
-impl loop with its own review: hardening covers the approved screen, not the feature.
+the branch is deleted. A conditional approval ("approved, and add Edit") hardens the
+approved screen only; the added work is a follow-up on main. A dev-only mock merges as the
+kit's "Merging a dev-only mock" says. Wiring the API (Step 3b.5) comes after, on main,
+through the normal impl loop with its own review: hardening covers the screen, not the feature.
 
-**Trial readout** (from 2026-10-02): right after opening each next consultation page, the
-main session appends one line to `<consultation dir>/rounds.tsv`:
-`<round> <owner answer time> <next page open time>`. After 3
-screens, compare minutes from answer to next page (baseline 21-24, echo_lab 11.3) and
-count the hardening rows of review-yield. A behaviour defect that escapes hardening to
-the owner reverts sketch mode.
+**Round log:** right after opening each next consultation page, the main session appends a
+line to `<consultation dir>/rounds.tsv`, header `round`, `owner_answer_utc`, `page_open_utc`
+(ISO times with `Z`; the answer time is the owner's own message time from the session that
+received it, not a relay). Round 0 (inventory, no components) is logged as `0` and left out of
+latency comparisons. A behaviour defect that escapes hardening to the owner reverts sketch mode.
+
 
 ## Step 1 — Propose the level
 
@@ -132,8 +141,8 @@ it.** Never decide it silently.
 | 3 — New visual direction | a skeleton of real components on fixture data with gallery captures first (Step 3b), then the full level-2 flow | direction first, then the gallery |
 
 Nothing is drawn at any level, save the target-form figure of Step 0. Level 3 starts
-from the same skeleton of the project's real components as a departing layout; when the screen exists, the current page is the
-reference screen and the skeleton is built from its components.
+from a skeleton of the project's real components; when the screen exists, the current page
+is the reference screen and the skeleton is built from its components.
 
 ## Step 2 — Fix the state matrix
 
@@ -148,9 +157,8 @@ blank cell is a state nobody decided about.
 
 Cross each state with light/dark and desktop/mobile wherever the screen is responsive.
 
-**Variants are asked at the first gallery review, not here.** Once a gallery exists the
-owner sees what each variant looks like; asked before, the question is abstract and gets
-re-asked. Default: **one colour mode** (light-desktop), reviewed. Each other variant takes
+**Variants are asked at the first gallery review, not here:** asked before a gallery
+exists, the question is abstract and gets re-asked. Default: **one colour mode** (light-desktop), reviewed. Each other variant takes
 one of three explicit values, and each lands in one place: reviewed goes to the board's
 `--variants` list, out of scope means the run is not made for that variant (the reason stays in the plan), and
 captured-only needs nothing (captured with the automatic verdicts and a pixel baseline,
@@ -192,9 +200,9 @@ open question it is.
 
 ## Step 3b — A layout that departs from its reference: skeleton first
 
-Applies when item 2 of the section names a reference screen AND the new screen
-arranges the same components differently (typically a form that groups the same fields
-another way), and to every level-3 change. A screen that follows its reference keeps the
+Applies when item 2 names a reference screen AND the new screen arranges the same
+components differently (typically a form grouping the same fields another way), and to
+every level-3 change. A screen that follows its reference keeps the
 plain order: build and wire, then gallery and gate. A screen with no reference at all is
 level 3: this step with the skeleton built from the project's primitives.
 
@@ -206,9 +214,9 @@ The skeleton comes before any shared primitive. **Read
 those phases into a plan**: it owns what each phase does, how it closes and the
 `ui-surface: pending-owner` rule.
 
-Phase 2 is where the UI is decided, and its rounds are sketch rounds (Step 0). The shape of
-a round: **a budget of 2 rounds**; **one decision per cell**, each cell shown alone, with a
-`look` line saying what to look at in it; the previous round's decided cells collapsed.
+Phase 2 is where the UI is decided, and its rounds are sketch rounds (Step 0):
+**a budget of 2 rounds**; **one decision per cell**, each shown alone with a `look` line;
+the previous round's decided cells collapsed.
 
 ## Step 4 — Build the gallery, then run the gate
 
@@ -229,8 +237,7 @@ meta-suite that proves every predicate can fail, the runner invocation, the four
 light/dark x desktop/mobile projects, where baselines live,
 how a known defect is registered, the contact-sheet script, who owns the lint allowlist)
 and the limits the gate is known not to cover. Skipping it means briefing an agent on a
-harness that may not be there, and the failure arrives as a confusing run instead of a
-sentence.
+harness that may not be there.
 
 **A re-capture is not a first build.** After a code round on a screen whose gallery
 exists, the sketch round's implementer re-captures from the screen kit (Step 0); the
@@ -251,9 +258,8 @@ the same picture are one cell and a false claim of coverage.
 
 ## "Verified" is three things, all recorded in the Execution log
 
-The word on its own is not a claim. A model looking at its own screenshots has already
-asserted "verified in light and dark" in this corpus and been disproved in three
-sessions. What each part is:
+The word on its own is not a claim. A model looking at its own screenshots has asserted
+"verified in light and dark" and been disproved in three sessions. What each part is:
 
 1. **The review surface's path.** The owner reviews the gallery as gallery rows in a
    consultation page: the project emits its rows JSON (`--rows-json` with item 5's variants
@@ -273,7 +279,7 @@ sessions. What each part is:
    galleries.
 
 Part 3 exists because three phases of the plan that built this contract each shipped a
-vacuous check under a fully green gate. **A new guard needs a RED control shown** — make it fail on purpose once, and
+vacuous check under a green gate. **A new guard needs a RED control shown** — make it fail on purpose once, and
 record that it did. In a harness with a meta-suite that control is a new meta row, kept:
 a RED shown once and thrown away proves the guard once, a row proves it on every run.
 
@@ -287,8 +293,8 @@ header is the grammar to write (including `ui-surface: pending-owner`), and veri
 ## Gotchas
 
 - **A gallery page is not a demo page.** Demo/preview tooling lives only in the shared
-  template, where a project has one, and does not propagate; the harness does. An app
-  writes its own gallery against the shared harness rather than copying a pattern page.
+  template and does not propagate; the harness does. An app writes its own gallery
+  against the shared harness rather than copying a pattern page.
 - **Never run the gate with a snapshot update to make it green.** That is the one action
   that converts the whole mechanism into a rubber stamp. (It also skips the meta-suite's
   pixel rows, so its closing count is labelled "skipped" — not a gate run.)
