@@ -119,7 +119,9 @@ SKILL's § "Verified", part 3). So the harness ships with a **meta-suite**:
   gallery route.
 - **Its baselines are not shipped** (the fixture shot contains the project's own shell).
   The first run writes them and fails those rows once; look at them, then the next run is
-  the gate.
+  the gate. A project that commits its baselines moves them by deleting them and
+  re-running without a snapshot update, because the pixel rows skip under
+  `--update-snapshots` and cannot rewrite them.
 - **The pixel rows skip themselves under a snapshot update** (`--update-snapshots
   all|changed` in the shipped tree): a defect row would write its defect over the clean
   baseline, and the dependent galleries would then not run at all.

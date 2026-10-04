@@ -1,6 +1,7 @@
 # Sketch rounds: the screen kit and who captures
 
-Owned by SKILL.md Step 0 (sketch mode). Measured on echo_lab BL-750 (LOOP-007, n=2 per
+Owned by SKILL.md Step 0 (sketch mode, kept after readout 2026-10-04,
+`research/2026-10-04-ui-contract-sketch-mode-readout.md`). Measured on echo_lab BL-750 (LOOP-007, n=2 per
 variant): a re-capture round went from 11.2 min / $1.15 to 3.2 min / $0.40, a first build
 from 11.1 / $1.53 to 8.9 / $1.39. Gate checks stayed green on every variant.
 
@@ -53,3 +54,33 @@ asked. Measured: all 8 A reps renamed a shared label key that also changed a dia
 and button; with a separate re-capture agent the rows flagged those cells `unrequested`
 4/4, with the impl agent doing its own rows 0/4. So: every row whose visible change the
 owner's answer did not ask for gets `kind: "unrequested"` and a `look` line naming it.
+
+## The sketch worktree
+
+It needs what the capture needs, not only the code: the E2E stack and its DB template; in
+a split-repo workspace a second dev-server port (the main checkout's server keeps its own);
+the worktree's root symlinked as the project expects and its own `COMPOSE_PROJECT_NAME`.
+`--no-infra` does not capture. A sketch branch that is a release
+behind main rebases before the hardening round.
+
+## First build: never throwaway capture scripts
+
+A first sketch round on a screen with no gallery spec goes to `aidex:gallery-builder`. Throwaway
+capture scripts made rounds fast (7-10 min on asset_lab Actividades) but contradict Step 4:
+contact-sheet images are the gate's own baselines, never a separate capture script. For an extraction (a screen moved out of another), the BEFORE is captured from
+main's code before the branch moves it. Measured: the first gallery build on echo_lab
+BL-750 took 31.3 min from owner answer to next page (BEFORE capture 10.2, first build 15.6,
+implementation 5.0, page 1.7); re-capture rounds took 7-17 min against the 21-24 baseline.
+
+## Why the target-form figure never covers an extraction
+
+2026-10-03, echo_lab BL-750: the figure was applied to an extraction, and the owner
+rejected a round of drawings with no BEFORE to compare against.
+
+## Merging a dev-only mock
+
+When the approved screen is a dev-only mock, it merges to main behind the dev-only flag
+with the rejected alternatives pruned, and a production-bundle assertion proves the bundle
+contains neither the mock nor its fixtures (SKILL.md Gotchas owns the route-gone
+assertion; this adds the bundle). Found 2026-10-03: activities mock and fixtures shipped
+in the prod bundle through a static import under a DEV `v-if`.
