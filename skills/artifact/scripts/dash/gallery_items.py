@@ -657,6 +657,29 @@ def check_row(row, variants, n, alts=None, require_look=False):
     return out
 
 
+# BL-688: a capture this big is a whole-screen overview, not a locator-scoped
+# component shot. The rows JSON carries no scope key, so the size decides:
+# height separates the two (component crops are short, screens are tall); width
+# only excludes slivers.
+OVERVIEW_MIN = (320, 600)
+
+
+def changed_overview(root, r):
+    """True when a live open row shows an overview capture whose cell changed:
+    a before that differs from the after, or a new screen (no before)."""
+    if r["kind"] not in ("review", "unrequested") or "decided" in r:
+        return False
+    w, h = png_size(root, r["after"], r["cell"], "after")
+    if w < OVERVIEW_MIN[0] or h < OVERVIEW_MIN[1]:
+        return False
+    if r.get("before") is None:
+        return True
+    png_size(root, r["before"], r["cell"], "before")
+    with open(os.path.join(root or "/", r["before"]), "rb") as fb, \
+            open(os.path.join(root or "/", r["after"]), "rb") as fa:
+        return fb.read() != fa.read()
+
+
 def pct(v):
     return ("%.3f" % v).rstrip("0").rstrip(".") + "%"
 
@@ -939,6 +962,13 @@ def render(doc, root, group_id, group_title, lang, page=None,
             for item in r["note"]:
                 add('      <li>%s</li>' % e(item))
             add('    </ul>')
+        # BL-688: the owner must never hunt for the change on an overview.
+        if "highlight" not in r and changed_overview(root, r):
+            die("row '%s': a full-page capture (%dx%d or larger) whose cell "
+                "changed needs a 'highlight' that says where to look — write "
+                "<capture>.regions.json for the changed region and set "
+                "highlight: '@name' on the row (harness contract, named "
+                "highlights)" % (cell, OVERVIEW_MIN[0], OVERVIEW_MIN[1]))
         # A before/after pair sits side by side: captures scale to the cell and
         # are never cropped, and the owner enlarges them anyway (owner
         # 2026-10-01, reversing BL-589's stacked default); `"layout": "stacked"`

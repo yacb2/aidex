@@ -38,6 +38,14 @@ every brief of the round. It holds only what is specific to the screen:
 
 The AFTER never waits for the BEFORE capture.
 
+## Highlight the changed region on every full-page row
+
+The page build refuses a changed full-page row with no `highlight` (BL-688). So the
+capturing agent writes `<capture>.regions.json` for the changed region of every such
+cell (`locator.boundingBox()` scaled to the capture, plus the scroll offset on a
+full-page shot) and sets `"highlight": "@name"` on its row. Format and rule: the
+gallery-rows table of `skills/artifact/references/04-block-vocabulary.md`.
+
 ## Unrequested rows
 
 The agent that makes the change also writes the rows, and tends to list only what was

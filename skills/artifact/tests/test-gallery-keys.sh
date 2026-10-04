@@ -53,6 +53,7 @@ d["rows"].append({"cell": "btn", "variant": "light-desktop", "kind": "states",
                              for i in ("default", "hover", "loading")]})
 json.dump(d, open(sys.argv[2], "w"))
 PY
+echo '{"shown": {"x": 20, "y": 20, "w": 100, "h": 50}}' > "$GROOT/actual/light-desktop/audit-empty.regions.json"  # BL-688: rows.json highlights the new screen
 bash "$SCRIPTS/gallery-items.sh" "$TMP/rows.json" --root "$GROOT" --page "$TMP/page.html" --group-id E \
   --group-title "Galería audit" > "$TMP/group.html" || { echo "FAIL: gallery-items.sh refused the fixture"; exit 1; }
 python3 - "$FIX/frame.html" "$TMP/group.html" "$TMP/body.html" <<'PY'
