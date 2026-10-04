@@ -125,13 +125,31 @@ read_entry_id() {
   awk '/^---[[:space:]]*$/{c++; if(c==2) exit} c==1 && $1 ~ /^id:/ {print $2; exit}' "$1"
 }
 
+# read_entry_id for MANY files in one awk process (BL-686): "<path><TAB><id>" per
+# file read from stdin, id empty when absent. Same match rule as read_entry_id.
+read_entry_ids_batch() {
+  awk '
+    BEGIN {
+      while ((getline f) > 0) {
+        c = 0; id = ""
+        while ((getline s < f) > 0) {
+          if (s ~ /^---[[:space:]]*$/) { c++; if (c == 2) break }
+          if (c == 1) { split(s, a); if (a[1] ~ /^id:/) { id = a[2]; break } }
+        }
+        close(f)
+        print f "\t" id
+      }
+      exit
+    }'
+}
+
 # Emit every assigned id as "<number><TAB><path>", one per line.
 scan_backlog_ids() {
-  local f v
-  while IFS= read -r f; do
-    v="$(read_entry_id "$f")"; v="${v//[!0-9]/}"
-    [[ -n "$v" ]] && printf '%s\t%s\n' "$((10#$v))" "$f"
-  done < <(backlog_files "$1")
+  # Digit-strip and formatting happen inside awk, and nothing is written from a bash
+  # loop fed live by a pipe: on bash 3.2 that printf hit "Interrupted system call"
+  # when the batch children exited, and set -e then lost the rest of the stream.
+  backlog_files "$1" | read_entry_ids_batch | awk -F'\t' '
+    { v = $2; gsub(/[^0-9]/, "", v); if (v != "") { sub(/^0+/, "", v); if (v == "") v = "0"; print v "\t" $1 } }'
 }
 
 # Compute the next sequential backlog id (BL-NNN) — one above the highest assigned.
@@ -262,11 +280,7 @@ release_backlog_claim() {
 # scan_backlog_ids (which strips to the numeric part for max/next), this keeps the
 # id exactly as written so the shape can be checked.
 scan_backlog_raw_ids() {
-  local f v
-  while IFS= read -r f; do
-    v="$(read_entry_id "$f")"
-    [[ -n "$v" ]] && printf '%s\t%s\n' "$v" "$f"
-  done < <(backlog_files "$1")
+  backlog_files "$1" | read_entry_ids_batch | awk -F'\t' '$2 != "" { print $2 "\t" $1 }'
 }
 
 # Report id integrity problems. Two failure modes, both from hand-authored entries
@@ -597,96 +611,78 @@ regen_index() {
   local ctx_dir; ctx_dir="$(dirname "$dir")"
   local ANCHORS; ANCHORS="$(scan_artifact_anchors "$ctx_dir")"
 
-  # Sub-bullets naming an item's companions, or nothing. Links are relative to the
-  # index, which lives in the backlog dir.
-  #
-  # Rows are joined with \036, NOT with a newline, and expanded only at print time
-  # (emit_rows). The Closed and Deferred sections sort their rows through `sort`,
-  # which is line-oriented: a row carrying a real newline is torn apart and its
-  # companions surface as orphan bullets under an unrelated entry.
-  companion_lines() {
-    local ref="$1" comp out=""
-    while IFS= read -r comp; do
-      [[ -n "$comp" ]] || continue
-      out="${out}"$'\036'"  - companion: [$(basename "$comp")]($(relpath_from "$ctx_dir/$comp" "$index_file"))"
-    done < <(companions_of "$ANCHORS" "$ref")
-    printf '%s' "$out"
-  }
+  # Companion table, rendered ONCE (BL-686): "<anchor minus .md><TAB><rows>" per
+  # backlog anchor, rows joined with \036 NOT a newline, and expanded only at print
+  # time (emit_rows). The Closed and Deferred sections sort their rows through
+  # `sort`, which is line-oriented: a row carrying a real newline is torn apart and
+  # its companions surface as orphan bullets under an unrelated entry. Links are
+  # relative to the index, which lives in the backlog dir.
+  local COMP_TABLE; COMP_TABLE="$(mktemp)"
+  local anc comp
+  while IFS=$'\t' read -r anc comp; do
+    [[ -n "$comp" && "${anc%.md}" == backlog/* ]] || continue
+    printf '%s\t%s\n' "${anc%.md}" \
+      $'\036'"  - companion: [$(basename "$comp")]($(relpath_from "$ctx_dir/$comp" "$index_file"))" >>"$COMP_TABLE"
+  done <<<"$ANCHORS"
 
   # Print index rows, expanding the \036 companion separator back to newlines.
   emit_rows() { printf '%s\n' "$@" | tr '\036' '\n'; }
 
-  # Single awk pass per file: emit status, title, priority, estimate, blocked_by, id tab-separated.
-  read_fm_fields() {
-    awk '
-      BEGIN { FS=": " }
-      /^---[[:space:]]*$/ { fm++; if (fm==2) exit; next }
-      fm==1 {
-        key=$1
-        if (key!="status" && key!="title" && key!="priority" && key!="estimate" && key!="blocked_by" && key!="id" && key!="awaiting") next
-        sub(/^[^:]*: */, "")
-        gsub(/^"|"$/, "")
-        gsub(/^[[:space:]]+|[[:space:]]+$/, "")
-        vals[key]=$0
+  # ONE awk process for a whole directory (BL-686). Reads file paths from stdin;
+  # for each emits one line: path, then the requested front-matter values (in the
+  # order of $1, a comma list), then the item's companion rows, all \037-separated.
+  read_dir_fields() {
+    awk -v keys="$1" -v comps="$COMP_TABLE" '
+      BEGIN {
+        nk = split(keys, klist, ",")
+        for (i = 1; i <= nk; i++) want[klist[i]] = 1
+        while ((getline line < comps) > 0) {
+          t = index(line, "\t")
+          k = substr(line, 1, t - 1)
+          rows[k] = rows[k] substr(line, t + 1)
+        }
+        while ((getline f) > 0) {
+          fm = 0
+          delete vals
+          while ((getline s < f) > 0) {
+            if (s ~ /^---[[:space:]]*$/) { fm++; if (fm == 2) break; continue }
+            if (fm != 1) continue
+            split(s, a, ": ")
+            key = a[1]
+            if (!(key in want)) continue
+            sub(/^[^:]*: */, "", s)
+            gsub(/^"|"$/, "", s)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", s)
+            vals[key] = s
+          }
+          close(f)
+          out = f
+          for (i = 1; i <= nk; i++) out = out "\037" vals[klist[i]]
+          n = split(f, parts, "/")
+          b = parts[n]; sub(/\.md$/, "", b)
+          print out "\037" rows["backlog/" b]
+        }
+        exit
       }
-      END {
-        printf "%s\037%s\037%s\037%s\037%s\037%s\037%s",
-          vals["status"], vals["title"], vals["priority"], vals["estimate"], vals["blocked_by"], vals["id"], vals["awaiting"]
-      }
-    ' "$1"
+    '
   }
 
-  # Closed-section reader: status, title, id, updated, superseded_by, escalated_to.
-  read_closed_fields() {
-    awk '
-      BEGIN { FS=": " }
-      /^---[[:space:]]*$/ { fm++; if (fm==2) exit; next }
-      fm==1 {
-        key=$1
-        if (key!="status" && key!="title" && key!="id" && key!="updated" && key!="superseded_by" && key!="escalated_to") next
-        sub(/^[^:]*: */, "")
-        gsub(/^"|"$/, "")
-        gsub(/^[[:space:]]+|[[:space:]]+$/, "")
-        vals[key]=$0
-      }
-      END {
-        printf "%s\037%s\037%s\037%s\037%s\037%s",
-          vals["status"], vals["title"], vals["id"], vals["updated"], vals["superseded_by"], vals["escalated_to"]
-      }
-    ' "$1"
-  }
-
-  # Deferred-section reader: title, id, priority, updated, blocked_by.
-  read_deferred_fields() {
-    awk '
-      BEGIN { FS=": " }
-      /^---[[:space:]]*$/ { fm++; if (fm==2) exit; next }
-      fm==1 {
-        key=$1
-        if (key!="title" && key!="id" && key!="priority" && key!="updated" && key!="blocked_by") next
-        sub(/^[^:]*: */, "")
-        gsub(/^"|"$/, "")
-        gsub(/^[[:space:]]+|[[:space:]]+$/, "")
-        vals[key]=$0
-      }
-      END {
-        printf "%s\037%s\037%s\037%s\037%s",
-          vals["title"], vals["id"], vals["priority"], vals["updated"], vals["blocked_by"]
-      }
-    ' "$1"
+  # Candidate files of one directory, in glob order, minus the index itself.
+  list_items() {
+    local g
+    for g in "$1"/*.md; do
+      [[ -f "$g" ]] || continue
+      [[ "${g##*/}" == "00-index.md" ]] && continue
+      printf '%s\n' "$g"
+    done
   }
 
   local -a SEC_P0=() SEC_P1=() SEC_P2=() SEC_P3=() SEC_BLOCKED=() SEC_AWAITING=()
   local active_count=0 doing_count=0
 
-  local f base title status priority estimate blocked_by id awaiting idp line fields special
-  for f in "$dir"/*.md; do
-    [[ -f "$f" ]] || continue
-    base="$(basename "$f")"
-    [[ "$base" == "00-index.md" ]] && continue
-
-    fields="$(read_fm_fields "$f")"
-    IFS=$'\037' read -r status title priority estimate blocked_by id awaiting <<<"$fields"
+  local f base title status priority estimate blocked_by id awaiting idp line special comps
+  while IFS=$'\037' read -r f status title priority estimate blocked_by id awaiting comps; do
+    base="${f##*/}"
     [[ -z "$title" ]] && title="(untitled)"
     # The ID is the key every conversation uses; surface it, but degrade to the plain
     # title line when it is missing or malformed (BL-127).
@@ -707,7 +703,7 @@ regen_index() {
     # around by writing "ALSO awaiting owner" into the blocked_by prose, 2026-09-08).
     special=0
     if [[ -n "$blocked_by" ]]; then
-      line="- ${idp}**[${title}](${base})** — ${status} · ${priority:-P?} · blocked_by: \"${blocked_by}\"$(companion_lines "backlog/$base")"
+      line="- ${idp}**[${title}](${base})** — ${status} · ${priority:-P?} · blocked_by: \"${blocked_by}\"${comps}"
       SEC_BLOCKED+=("$line")
       special=1
     fi
@@ -715,7 +711,7 @@ regen_index() {
     # Parked by close-item.sh --sweep: mechanically proven, a judgement still owed.
     # Its own section so it never reads as active work, and never as closed (2026-08-27).
     if [[ -n "$awaiting" ]]; then
-      line="- ${idp}**[${title}](${base})** — awaiting ${awaiting} · ${priority:-P?}$(companion_lines "backlog/$base")"
+      line="- ${idp}**[${title}](${base})** — awaiting ${awaiting} · ${priority:-P?}${comps}"
       SEC_AWAITING+=("$line")
       special=1
     fi
@@ -725,7 +721,7 @@ regen_index() {
     [[ "$status" == "doing" ]] && doing_count=$((doing_count+1))
     [[ "$status" == "open" ]]  && active_count=$((active_count+1))
 
-    line="- ${idp}**[${title}](${base})** — ${status} · ${estimate:-?}$(companion_lines "backlog/$base")"
+    line="- ${idp}**[${title}](${base})** — ${status} · ${estimate:-?}${comps}"
     case "$priority" in
       P0) SEC_P0+=("$line") ;;
       P1) SEC_P1+=("$line") ;;
@@ -733,27 +729,23 @@ regen_index() {
       P3) SEC_P3+=("$line") ;;
       *)  SEC_P2+=("$line") ;;
     esac
-  done
+  done < <(list_items "$dir" | read_dir_fields "status,title,priority,estimate,blocked_by,id,awaiting")
 
   # Closed section: one-liner per archived item, newest-closed first (D-10).
   local -a CLOSED_SORTED=()
   local cid ctitle cstatus cupdated csuperseded cescalated clabel cline cbase
   if [[ -d "$dir/_archive" ]]; then
     local -a closed_tmp=()
-    for f in "$dir"/_archive/*.md; do
-      [[ -f "$f" ]] || continue
-      cbase="$(basename "$f")"
-      [[ "$cbase" == "00-index.md" ]] && continue
-      fields="$(read_closed_fields "$f")"
-      IFS=$'\037' read -r cstatus ctitle cid cupdated csuperseded cescalated <<<"$fields"
+    while IFS=$'\037' read -r f cstatus ctitle cid cupdated csuperseded cescalated comps; do
+      cbase="${f##*/}"
       [[ -z "$ctitle" ]] && ctitle="(untitled)"
       if [[ -n "$csuperseded" ]]; then clabel="superseded → ${csuperseded}"
       elif [[ -n "$cescalated" ]]; then clabel="${cstatus:-done} → ${cescalated}"
       else clabel="${cstatus:-done}"; fi
-      cline="- ${cid:+**${cid}** · }[${ctitle}](_archive/${cbase}) — ${clabel}${cupdated:+ · ${cupdated}}$(companion_lines "backlog/$cbase")"
+      cline="- ${cid:+**${cid}** · }[${ctitle}](_archive/${cbase}) — ${clabel}${cupdated:+ · ${cupdated}}${comps}"
       # prefix with sort key (updated date, fallback empty sorts last)
       closed_tmp+=("${cupdated:-0000-00-00}"$'\t'"$cline")
-    done
+    done < <(list_items "$dir/_archive" | read_dir_fields "status,title,id,updated,superseded_by,escalated_to")
     if [[ ${#closed_tmp[@]} -gt 0 ]]; then
       while IFS= read -r line; do
         CLOSED_SORTED+=("${line#*$'\t'}")
@@ -766,22 +758,19 @@ regen_index() {
   local did dtitle dpriority dupdated dblocked dline dbase
   if [[ -d "$dir/_deferred" ]]; then
     local -a deferred_tmp=()
-    for f in "$dir"/_deferred/*.md; do
-      [[ -f "$f" ]] || continue
-      dbase="$(basename "$f")"
-      [[ "$dbase" == "00-index.md" ]] && continue
-      fields="$(read_deferred_fields "$f")"
-      IFS=$'\037' read -r dtitle did dpriority dupdated dblocked <<<"$fields"
+    while IFS=$'\037' read -r f dtitle did dpriority dupdated dblocked comps; do
+      dbase="${f##*/}"
       [[ -z "$dtitle" ]] && dtitle="(untitled)"
-      dline="- ${did:+**${did}** · }[${dtitle}](_deferred/${dbase}) — ${dpriority:-P?} · blocked_by: \"${dblocked}\"${dupdated:+ · ${dupdated}}$(companion_lines "backlog/$dbase")"
+      dline="- ${did:+**${did}** · }[${dtitle}](_deferred/${dbase}) — ${dpriority:-P?} · blocked_by: \"${dblocked}\"${dupdated:+ · ${dupdated}}${comps}"
       deferred_tmp+=("${dupdated:-0000-00-00}"$'\t'"$dline")
-    done
+    done < <(list_items "$dir/_deferred" | read_dir_fields "title,id,priority,updated,blocked_by")
     if [[ ${#deferred_tmp[@]} -gt 0 ]]; then
       while IFS= read -r line; do
         DEFERRED_SORTED+=("${line#*$'\t'}")
       done < <(printf '%s\n' "${deferred_tmp[@]}" | sort -r)
     fi
   fi
+  rm -f "$COMP_TABLE"
 
   {
     printf '# Backlog\n\n'
