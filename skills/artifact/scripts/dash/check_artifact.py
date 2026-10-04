@@ -345,6 +345,8 @@ ITEM_NOTES = re.compile(r'<textarea\b|contenteditable\s*=', re.I | re.S)
 HIDDEN_TEXTAREA = re.compile(r'<textarea\b(?:[^>"\x27]|"[^"]*"|\x27[^\x27]*\x27)*?'
                              r'(?:\shidden(?=[\s=/>])|\bclass\s*=\s*["\x27][^"\x27]*\bkit-marks\b)'
                              r'.*?</textarea\s*>', re.I | re.S)
+# BL-693: a row that asks nothing is marked by the generator (data-asks-nothing).
+ITEM_ASKS_NOTHING = re.compile(r'\bdata-asks-nothing\b', re.I)
 # BL-359: the item's own declaration that it is settled. `02-local-first-
 # artifacts.md` § Update in place makes keeping the item and marking it the
 # DEFAULT for a decided one, and both the kit's CSS and composer.js already
@@ -392,12 +394,16 @@ def consult_items(text):
         tag = m.group(1)
         ident = next(g for g in m.groups()[1:] if g is not None)
         body = HIDDEN_TEXTAREA.sub(' ', _subtree(text, tag, m.end()))
+        # BL-693: a row that asks nothing (`data-asks-nothing`) has no surface
+        # and no notes box by design; contract_defects' sample-row-asks-nothing
+        # holds it to that and to its one no-answer line.
+        asks_nothing = bool(ITEM_ASKS_NOTHING.search(m.group(0)))
         # The open tag itself may BE the surface (an <input data-id=...>).
         items.append((
             ident,
             bool(ITEM_TITLE.search(m.group(0))),
-            bool(ITEM_SURFACE.search(body) or ITEM_SURFACE.search(m.group(0))),
-            bool(ITEM_NOTES.search(body) or ITEM_NOTES.search(m.group(0))),
+            asks_nothing or bool(ITEM_SURFACE.search(body) or ITEM_SURFACE.search(m.group(0))),
+            asks_nothing or bool(ITEM_NOTES.search(body) or ITEM_NOTES.search(m.group(0))),
             bool(ITEM_DECIDED.search(m.group(0))),
         ))
     return items

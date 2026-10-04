@@ -151,7 +151,39 @@ body-language-follows-lang
     wrong-language share 5.4%, and every judged page flipped to the other lang
     failed. Not frozen on a shipped page: no page in that census had the
     defect, so the registry has no original for it yet.
+one-decision-one-control
+    One open decision is asked through ONE answer control (BL-689). An
+    alternatives or states gallery row (id ending `-alternatives` / `-states`,
+    class `consult-gallery`) and another open item of a DIFFERENT kind (a plain
+    consult item, or the other of the two) fail, naming both ids, when their
+    options are the same set. The options of an item are the labels of its own
+    radios/checkboxes and <select> options; when every option starts with a
+    leading token (`B: tarjetas`, `B, tarjetas de la ronda anterior`: one
+    capital letter then `:` `,` `.` `)` `·` `—` or `–`) and there are at least TOKENS_MIN (3)
+    of them, the two sets match when the tokens are equal AND, token by token,
+    the two options share a content word (more than 3 letters, folded): a token
+    is only a letter, and two unrelated A/B/C questions share it. A consult
+    item that rewords the labels of the row it restates is still caught;
+    otherwise the sets are the labels folded (case, accents, whitespace). The
+    kit's generic extras (GENERIC: Ninguna / None of them, Todavía no,
+    Otra) are left out, and at least OPTIONS_MIN options must remain. Settled
+    (`data-decided`) items are not asked. Two plain items, two alternatives
+    rows or two states rows never fail each other: parallel questions with
+    equal options (a Sí/No/Después per backlog item) and one document of N cells
+    repeating its labels are legitimate (census of 494 workspace pages: 0 hits
+    anchored, many legitimate pairs hit by the unanchored rule). Matching is on
+    labels or tokens, not on meaning: a reworded item with no leading tokens is
+    not caught.
+
+sample-row-asks-nothing
+    A gallery row that asks nothing carries `data-asks-nothing` (the generator
+    writes it on a `kind: sample` row, BL-693). Such a row holds no answer
+    control at all (no input, select, textarea or button) and one
+    `.gal-asks-nothing` line with text, which says where the options would be
+    that it asks nothing. The composer's runtime chips (the page-defect flag
+    included) are not in the source and are not judged here.
 """
+
 
 import argparse
 import re
@@ -950,6 +982,121 @@ def check_body_language_follows_lang(path, html_text):
                                            hits[other], total, other, words))]
 
 
+# --- 14. one-decision-one-control -----------------------------------------------
+
+# The kit's own extra options, which every decision may carry: not part of what
+# the reader is deciding between. The WHOLE label is matched (folded): the word
+# alone, or followed by punctuation and the kit's wording ("Otra — lo explico en
+# las notas", "Ninguna me convence (...)"), never "Otra opción de menú".
+GENERIC = re.compile(
+    r"^(?:ninguna(?: me convence| de ellas)?|none of them(?: works)?|"
+    r"todavia no(?: lo se)?|not now|otra|other)\s*(?:$|[\u2014\u2013\-:,.(].*$)")
+TOKENS_MIN = 3
+LEAD_TOKEN = re.compile(r"^([A-Z])\s*[:,.)\u00b7\u2014\u2013]\s+(.*)$")
+STOP_MAX = 3          # words of this many letters or fewer are not content words
+
+
+def _content_words(text):
+    return {w for w in re.findall(r"[^\W\d_]+", _fold(text)) if len(w) > STOP_MAX}
+
+
+def _raw_labels(item):
+    """The labels of the item's own radios/checkboxes (data-label, else
+    value, else the label's text) and <select> options, in source order."""
+    out = []
+    for d in _own_walk(item):
+        if d.tag == "input" and (d.attrs.get("type") or "").lower() in OPTION_INPUT:
+            text = d.attrs.get("data-label") or d.attrs.get("value") or ""
+            if not text and d.parent is not None:
+                text = d.parent.text()
+            out.append(text)
+        elif d.tag == "option":
+            out.append(d.attrs.get("value") or d.text())
+    return out
+
+
+def _gallery_kind(item):
+    ident = item.attrs.get("data-id", "")
+    for kind in ("alternatives", "states"):
+        if "consult-gallery" in item.classes() and ident.endswith("-" + kind):
+            return kind
+    return None
+
+
+def _decision_key(item):
+    """What the item's options are, or None when fewer than OPTIONS_MIN remain
+    after the kit's generic extras (GENERIC). Returns (kind, key): ("tokens",
+    {token: content words of that option}) when every option starts with a
+    leading token and there are TOKENS_MIN or more, else ("labels", folded
+    labels)."""
+    raw = [_norm(x) for x in _raw_labels(item)]
+    raw = [x for x in raw if x and not GENERIC.match(_fold(x))]
+    tokens = [LEAD_TOKEN.match(x) for x in raw]
+    if raw and all(tokens) and len({t.group(1) for t in tokens}) >= TOKENS_MIN:
+        return "tokens", {t.group(1): _content_words(t.group(2)) for t in tokens}
+    labels = frozenset(_fold(x) for x in raw)
+    return ("labels", labels) if len(labels) >= OPTIONS_MIN else None
+
+
+def _same_decision(a, b):
+    """Equal label sets; or equal tokens whose options, token by token, share at
+    least one content word (a token alone is only a letter: A/B/C of two
+    unrelated questions match by it)."""
+    if a[0] != b[0]:
+        return False
+    if a[0] == "labels":
+        return a[1] == b[1]
+    return set(a[1]) == set(b[1]) and all(a[1][t] & b[1][t] for t in a[1])
+
+
+def check_one_decision_one_control(path, html_text):
+    seen, out = [], []
+    for n in parse(html_text).root.walk():
+        if not (_is_item(n) and "data-id" in n.attrs) or "data-decided" in n.attrs:
+            continue
+        key = _decision_key(n)
+        if key is None:
+            continue
+        kind = _gallery_kind(n)
+        for prior, pkind, pkey in seen:
+            if _same_decision(pkey, key) and (kind or pkind) and kind != pkind:
+                out.append(("one-decision-one-control", n.line,
+                            "items '%s' and '%s' offer the same %d options: one "
+                            "open decision gets one answer control. Keep the "
+                            "alternatives row (it IS the question) and drop the "
+                            "other, or make it the row's evidence with no pick of "
+                            "its own" % (prior.attrs["data-id"], n.attrs["data-id"],
+                                         len(key[1]))))
+        seen.append((n, kind, key))
+    return out
+
+
+# --- 15. sample-row-asks-nothing -------------------------------------------------
+
+ANSWER_TAGS = ("input", "select", "textarea", "button")
+
+
+def check_sample_row_asks_nothing(path, html_text):
+    out = []
+    for n in parse(html_text).root.walk():
+        if "data-asks-nothing" not in n.attrs:
+            continue
+        ident = n.attrs.get("data-id", "?")
+        for d in n.walk():
+            if d.tag in ANSWER_TAGS:
+                out.append(("sample-row-asks-nothing", d.line,
+                            "row '%s' asks nothing (data-asks-nothing) but renders a "
+                            "<%s>: an illustrative row carries no answer control, "
+                            "not even a notes box" % (ident, d.tag)))
+        if not any("gal-asks-nothing" in d.classes() and d.text().strip()
+                   for d in n.walk()):
+            out.append(("sample-row-asks-nothing", n.line,
+                        "row '%s' asks nothing but has no .gal-asks-nothing line: "
+                        "say where the options would be that it needs no answer"
+                        % ident))
+    return out
+
+
 CHECKS = {
     "decision-item-without-options": check_decision_item_without_options,
     "decision-page-not-interactive": check_decision_page_not_interactive,
@@ -964,6 +1111,8 @@ CHECKS = {
     "unique-dom-ids": check_unique_dom_ids,
     "group-item-id-collision": check_group_item_id_collision,
     "body-language-follows-lang": check_body_language_follows_lang,
+    "one-decision-one-control": check_one_decision_one_control,
+    "sample-row-asks-nothing": check_sample_row_asks_nothing,
 }
 
 

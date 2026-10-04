@@ -310,6 +310,9 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
    a statement rather than as a missing image. */
 .gal-na:where(:not(svg *)) { font-family: var(--sans); font-size: 0.88rem; color: var(--ink-soft);
           border-left: 2px solid var(--rule); padding-left: 0.8rem; margin: 0.2rem 0 0.3rem; }
+/* A sample row asks nothing (BL-693): its one line stands where the options would be. */
+.gal-asks-nothing:where(:not(svg *)) { font-family: var(--sans); font-size: 0.88rem; color: var(--ink-soft);
+          margin: 0.4rem 0 0.3rem; }
 /* One column below 700px: two tiles side by side on a phone are two thumbnails
    nobody can judge, and judging is the whole point of the row. */
 @media (max-width: 700px) { .gal { grid-template-columns: 1fr; } }
