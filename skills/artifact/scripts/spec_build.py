@@ -748,7 +748,7 @@ def _is_figure(node):
 @emitter("item")
 def emit_item(node, ctx):
     a = _attrs(node, {"title", "heading", "decided", "dropped", "free",
-                     "select"}, required=("title",), need_id=True)
+                     "select", "proposal"}, required=("title",), need_id=True)
     # `select=many` is a question whose answer is a SET (BL-454): checkboxes,
     # the kit's `.opts` without `one`. Anything else but `one` is a typo that
     # would otherwise ship radios silently.
@@ -903,6 +903,20 @@ def emit_item(node, ctx):
         flag += ' data-decided="%s"' % esc(decided)
     if a.get("free", "").strip() in ("yes", "true"):
         flag += " data-free"
+    # `proposal=yes` (BL-692): decided by the writer THIS round, awaiting the
+    # reader's correction. The composer keeps it in place with its notes box live
+    # instead of folding it away as an earlier round's settled answer.
+    if "proposal" in a and a["proposal"].strip() not in ("yes", "true"):
+        raise SpecBuildError(
+            node.line, "`item` proposal=%r is not a value (it takes: yes, true)"
+            % a["proposal"])
+    if a.get("proposal", "").strip() in ("yes", "true"):
+        if not decided:
+            raise SpecBuildError(
+                node.line, "`item` proposal=yes needs decided=: a proposal is a "
+                "decided point awaiting correction (decided=yes, or the verdict "
+                "itself)")
+        flag += " data-proposal"
     out = ['<section class="%s" data-id="%s" data-title="%s"%s>'
            % (_classes("consult-item", node), esc(node.id), esc(a["title"]),
               flag)]

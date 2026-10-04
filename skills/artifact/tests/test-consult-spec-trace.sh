@@ -533,6 +533,32 @@ build; rc=$?
   && ok "39b. a legacy duty separator still ends a round: Q1 from before it counts" \
   || fail "39b. rc=$rc out=$(cat "$TMP/build.out")"
 
+# 40. BL-692: a proposal (proposal=yes) is decided by the WRITER, so the reader's reply need not answer it.
+newpage proposal
+spec "" ""; build
+printf '### Q1 · x\n\n- Sí: cerrarlo ahora\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "40. save-reply.sh failed"
+spec "Sí" "No"; sed -i.bak 's/decided=No/decided=No proposal=yes/' "$SPEC"
+build; rc=$?
+[[ "$rc" == "0" ]] && ! grep -q 'consult-decided-trace' "$TMP/build.out" \
+  && ok "40. a proposal=yes item with no reply block does not trip consult-decided-trace" \
+  || fail "40. rc=$rc out=$(cat "$TMP/build.out")"
+
+# 41. BL-692: on a first-round page a decided item with no proposal=yes is probably a proposal the kit would fold away.
+newpage warn1
+spec "Sí" ""
+build; rc=$?
+out="$(bash "$CHECK" "$PAGE" 2>&1)"; crc=$?
+[[ "$crc" == "0" ]] && grep -q 'WARN \[consult-round1-decided\].*proposal=yes' <<<"$out" \
+  && ok "41. a round-1 page with a decided item and no proposal=yes WARNS (exit 0)" \
+  || fail "41. rc=$crc out=$out"
+newpage warn1b
+spec "Sí" "No"; sed -i.bak -e 's/decided=No/decided=No proposal=yes/' -e 's/decided=Sí/decided=Sí proposal=yes/' "$SPEC"
+build
+out="$(bash "$CHECK" "$PAGE" 2>&1)"
+grep -q 'consult-round1-decided' <<<"$out" \
+  && fail "41b. a round-1 page whose decided items are proposals still WARNS: $out" \
+  || ok "41b. proposal=yes on every decided item: no round-1 warning"
+
 if [[ "$failures" -eq 0 ]]; then
   echo "test-consult-spec-trace.sh: all checks passed"
 else

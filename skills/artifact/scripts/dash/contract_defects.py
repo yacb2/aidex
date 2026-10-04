@@ -703,15 +703,20 @@ def _group(n):
     return next((a for a in n.ancestors() if "consult-group" in a.classes()), None)
 
 
+def _settled(n):
+    """composer.js isSettled: decided and not a proposal (data-proposal, BL-692)."""
+    return "data-decided" in n.attrs and "data-proposal" not in n.attrs
+
+
 def check_decided_section_anchor(path, html_text):
     nodes = list(parse(html_text).root.walk())
     items = [n for n in nodes if "consult-item" in n.classes()]
     decided = []                       # composer.js collapseDecided's units
     for n in items:
-        if "data-decided" not in n.attrs:
-            continue
+        if "data-decided" not in n.attrs or "data-proposal" in n.attrs:
+            continue                   # a proposal (BL-692) stays in place
         g = _group(n)
-        if g is None or all("data-decided" in d.attrs for d in g.walk()
+        if g is None or all(_settled(d) for d in g.walk()
                             if "consult-item" in d.classes()):
             decided.append(n)
     if not decided or any(
@@ -779,7 +784,7 @@ def _moved_to_decided(group):
     """composer.js collapseDecided moves a group whose every consult item is
     decided into the decided section (same test as decided-section-anchor)."""
     its = [d for d in group.walk() if "consult-item" in d.classes()]
-    return bool(its) and all("data-decided" in d.attrs for d in its)
+    return bool(its) and all(_settled(d) for d in its)
 
 
 def _runtime_group_ids(nodes):
