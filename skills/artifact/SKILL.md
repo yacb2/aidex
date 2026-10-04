@@ -121,7 +121,7 @@ The boundary is exact:
 
 The HTML-body route is not removed and no existing page is converted as a side
 effect of touching it. `check-artifact` is the net either way — a page that fails
-it never lands, whichever route wrote it. Its thirteen page-contract classes
+it never lands, whichever route wrote it. Its fifteen page-contract classes
 (`scripts/dash/contract_defects.py`), each with its authoring fix, are tabled in
 `references/02-local-first-artifacts.md` § 5 Read what the contract check said.
 

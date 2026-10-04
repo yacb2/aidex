@@ -1005,5 +1005,237 @@ for f in na dr; do
   else fail "BL-629 A-2 $f+answer: exit $rc, stderr: $(cat "$TMP/an/$f.err")"; fi
 done
 
+# -- a sample row says it asks nothing and carries no control (BL-693) --------
+smp="$(item audit-empty-light-desktop-sample "$TMP/sample.html")"
+grep -q 'type="radio"\|<textarea\|<input\|<select' <<<"$smp" \
+  && fail "BL-693 a sample row carries an answer control: $smp" \
+  || ok "BL-693 a sample row has no radio, no notes box, no input"
+grep -q 'data-asks-nothing' <<<"$smp" && grep -q '<p class="gal-asks-nothing">Solo ilustra: no necesita respuesta</p>' <<<"$smp" \
+  && ok "BL-693 a sample row says, where the options would be, that it asks nothing (es)" \
+  || fail "BL-693 the sample row has no no-answer line: $smp"
+en_sample="$(bash "$GEN" "$TMP/rows-sample.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T --lang en 2>/dev/null)"
+grep -q 'Illustration only: no answer needed' <<<"$en_sample" \
+  && ok "BL-693 the no-answer line is localized (en)" || fail "BL-693 no en no-answer line"
+
+# -- a row whose highlighted region repeats another row's is refused (BL-693) --
+RR="$SKILL/tests/fixtures/redundant-region"
+RRD="$ROOT/shots/rr"; mkdir -p "$RRD"; cp "$RR"/* "$RRD/"
+cat > "$TMP/rr.json" <<'JSON'
+{"gallery": "dashboard", "variants": ["light-desktop"], "shots_dir": "shots/rr", "actual_dir": "shots/rr",
+ "rows": [
+  {"cell": "skeleton-todo-al-dia", "variant": "light-desktop", "kind": "review",
+   "look": "En calma las mismas tres tarjetas.", "highlight": "@avisos",
+   "after": "shots/rr/dashboard-skeleton-todo-al-dia-darwin.png"},
+  {"cell": "skeleton-sin-entregas", "variant": "light-desktop", "kind": "sample",
+   "look": "La misma seccion tranquila.", "highlight": "@avisos",
+   "after": "shots/rr/dashboard-skeleton-sin-entregas-darwin.png"}
+ ]}
+JSON
+bash "$GEN" "$TMP/rr.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/rr.out" 2> "$TMP/rr.err"; rc=$?
+if [[ $rc == 2 && ! -s "$TMP/rr.out" ]] && grep -q "skeleton-sin-entregas" "$TMP/rr.err" && grep -q "skeleton-todo-al-dia" "$TMP/rr.err" \
+   && grep -qi "identical\|same" "$TMP/rr.err"; then
+  ok "BL-693 round-5 replay: the sample row repeating todo-al-dia's highlighted region is refused naming both rows"
+else fail "BL-693 round-5 replay: exit $rc, stderr: $(cat "$TMP/rr.err")"; fi
+# Controls: the same two dimensions with different pixels pass; flat identical ones are refused.
+for g in 100 200; do mkdir -p "$ROOT/shots/flat$g"; python3 "$SKILL/tests/png_fixture.py" "$ROOT/shots/flat$g/a.png" 400 700 "$g"
+  python3 "$SKILL/tests/png_fixture.py" "$ROOT/shots/flat$g/b.png" 400 700 "$g"
+  printf '{"avisos":{"x":10,"y":20,"w":300,"h":100}}' > "$ROOT/shots/flat$g/a.regions.json"
+  printf '{"avisos":{"x":10,"y":20,"w":300,"h":100}}' > "$ROOT/shots/flat$g/b.regions.json"; done
+mkrr() {  # mkrr <dirA> <dirB> <out>
+  python3 - "$1" "$2" "$3" <<'PY'
+import json, sys
+rows = [{"cell": c, "variant": "light-desktop", "kind": "review", "look": "x", "highlight": "@avisos",
+         "after": "shots/%s/%s.png" % (d, f)} for c, d, f in (("uno", sys.argv[1], "a"), ("dos", sys.argv[2], "b"))]
+json.dump({"gallery": "g", "variants": ["light-desktop"], "rows": rows}, open(sys.argv[3], "w"))
+PY
+}
+mkrr flat100 flat200 "$TMP/rr-diff.json"
+bash "$GEN" "$TMP/rr-diff.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T >/dev/null 2>"$TMP/rr-diff.err" \
+  && ok "BL-693 rows whose same-sized regions differ in pixels are both kept" \
+  || fail "BL-693 a non-redundant pair was refused: $(cat "$TMP/rr-diff.err")"
+mkrr flat100 flat100 "$TMP/rr-same.json"
+bash "$GEN" "$TMP/rr-same.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T >/dev/null 2>"$TMP/rr-same.err"; rc=$?
+[[ $rc == 2 ]] && grep -q "uno" "$TMP/rr-same.err" && grep -q "dos" "$TMP/rr-same.err" \
+  && ok "BL-693 two review rows with identical highlighted crops are refused (any kind, not only sample)" \
+  || fail "BL-693 identical flat crops: exit $rc, $(cat "$TMP/rr-same.err")"
+
+# A prior row already DECIDED still counts as shown: the knock-on that follows it is refused too.
+python3 - "$TMP/rr.json" "$TMP/rr-decided.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1])); d["rows"][0]["decided"] = "Aprobada"
+json.dump(d, open(sys.argv[2], "w"))
+PY
+bash "$GEN" "$TMP/rr-decided.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T >/dev/null 2>"$TMP/rr-dec.err"; rc=$?
+[[ $rc == 2 ]] && grep -q "skeleton-sin-entregas" "$TMP/rr-dec.err" \
+  && ok "BL-693 a sample repeating the region of an already decided row is refused" \
+  || fail "BL-693 decided prior: exit $rc, $(cat "$TMP/rr-dec.err")"
+
+# -- the redundancy check: boundary, which row to drop, unreadable PNGs (BL-693) --
+mkdir -p "$ROOT/shots/big1" "$ROOT/shots/big2" "$ROOT/shots/mix1" "$ROOT/shots/mix2"
+python3 "$SKILL/tests/png_fixture.py" "$ROOT/shots/big1/a.png" 1400 900 100
+python3 "$SKILL/tests/png_fixture.py" "$ROOT/shots/big2/b.png" 1400 900 100 "300,400,6,10,200"
+for d in big1:a big2:b; do printf '{"avisos":{"x":10,"y":10,"w":1312,"h":800}}' > "$ROOT/shots/${d%%:*}/${d##*:}.regions.json"; done
+mkrr big1 big2 "$TMP/rr-glyph.json"
+bash "$GEN" "$TMP/rr-glyph.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T >/dev/null 2>"$TMP/rr-glyph.err" \
+  && ok "BL-693 a single 6x10 block changed by 100/255 inside a 1312x800 region keeps both rows" \
+  || fail "BL-693 a one-glyph change was called redundant: $(cat "$TMP/rr-glyph.err")"
+# The row named for dropping is chosen by kind, not by position.
+python3 - "$TMP/rr.json" "$TMP/rr-rev.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1])); d["rows"].reverse()
+json.dump(d, open(sys.argv[2], "w"))
+PY
+bash "$GEN" "$TMP/rr-rev.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T >/dev/null 2>"$TMP/rr-rev.err"; rc=$?
+[[ $rc == 2 ]] && grep -q "Drop the row 'skeleton-sin-entregas" "$TMP/rr-rev.err" \
+  && ok "BL-693 with the rows in the other order the sample is still the row to drop" \
+  || fail "BL-693 reversed rows: exit $rc, $(cat "$TMP/rr-rev.err")"
+# Two decided rows are settled: nothing live to refuse.
+python3 - "$TMP/rr.json" "$TMP/rr-d2.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1])); d["rows"][0]["decided"] = "Aprobada"; d["rows"][1]["decided"] = "Aprobada"
+json.dump(d, open(sys.argv[2], "w"))
+PY
+bash "$GEN" "$TMP/rr-d2.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T >/dev/null 2>"$TMP/rr-d2.err" \
+  && ok "BL-693 two decided rows with one region are not refused" \
+  || fail "BL-693 two decided rows were refused: $(cat "$TMP/rr-d2.err")"
+# Two identical RGBA captures are refused (the reader handles colour type 6).
+mkdir -p "$ROOT/shots/rgba1" "$ROOT/shots/rgba2"
+python3 "$SKILL/tests/png_fixture.py" "$ROOT/shots/rgba1/a.png" 400 700 100 "0,0,1,1,100" rgba
+python3 "$SKILL/tests/png_fixture.py" "$ROOT/shots/rgba2/b.png" 400 700 100 "0,0,1,1,100" rgba
+for d in rgba1:a rgba2:b; do printf '{"avisos":{"x":10,"y":20,"w":300,"h":100}}' > "$ROOT/shots/${d%%:*}/${d##*:}.regions.json"; done
+mkrr rgba1 rgba2 "$TMP/rr-rgba.json"
+bash "$GEN" "$TMP/rr-rgba.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T >/dev/null 2>"$TMP/rr-rgba.err"; rc=$?
+[[ $rc == 2 ]] && grep -q "uno" "$TMP/rr-rgba.err" \
+  && ok "BL-693 two identical RGBA captures are compared and refused" \
+  || fail "BL-693 RGBA pair: exit $rc, $(cat "$TMP/rr-rgba.err")"
+# Exactly one decided: the LIVE row is the one to drop, whatever the order or kind.
+python3 - "$TMP/rr.json" "$TMP/rr-live1.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+d["rows"][0]["kind"] = "sample"; d["rows"][1]["kind"] = "review"; d["rows"][1]["decided"] = "Aprobada"
+json.dump(d, open(sys.argv[2], "w"))
+PY
+bash "$GEN" "$TMP/rr-live1.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T >/dev/null 2>"$TMP/rr-live1.err"; rc=$?
+[[ $rc == 2 ]] && grep -q "Drop the row 'skeleton-todo-al-dia" "$TMP/rr-live1.err" \
+  && ok "BL-693 a live row beside a decided one is the row to drop, even when it comes first" \
+  || fail "BL-693 live-first: exit $rc, $(cat "$TMP/rr-live1.err")"
+# Two NAMED regions are the same place only by name.
+mkdir -p "$ROOT/shots/nm1" "$ROOT/shots/nm2"
+python3 "$SKILL/tests/png_fixture.py" "$ROOT/shots/nm1/a.png" 400 700 100
+python3 "$SKILL/tests/png_fixture.py" "$ROOT/shots/nm2/b.png" 400 700 100
+printf '{"banner":{"x":10,"y":20,"w":300,"h":100},"footer":{"x":10,"y":500,"w":300,"h":100}}' > "$ROOT/shots/nm1/a.regions.json"
+printf '{"banner":{"x":10,"y":20,"w":300,"h":100},"footer":{"x":10,"y":500,"w":300,"h":100}}' > "$ROOT/shots/nm2/b.regions.json"
+python3 - "$TMP/rr-names.json" <<'PY'
+import json, sys
+rows = [{"cell": c, "variant": "light-desktop", "kind": "review", "look": "x", "highlight": h,
+         "after": "shots/%s/%s.png" % (d, f)} for c, d, f, h in (("uno", "nm1", "a", "@banner"), ("dos", "nm2", "b", "@footer"))]
+json.dump({"gallery": "g", "variants": ["light-desktop"], "rows": rows}, open(sys.argv[1], "w"))
+PY
+bash "$GEN" "$TMP/rr-names.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T >/dev/null 2>"$TMP/rr-names.err" \
+  && ok "BL-693 @banner and @footer of one size, both blank, are two regions: both rows kept" \
+  || fail "BL-693 different named regions were compared by size: $(cat "$TMP/rr-names.err")"
+# Raw rectangles compare only when equal; a name and a raw rectangle only when it resolves to it.
+python3 - "$TMP/rr-raw.json" "$TMP/rr-nameraw.json" "$TMP/rr-nameraw-eq.json" <<'PY'
+import json, sys
+def doc(h1, h2):
+    return {"gallery": "g", "variants": ["light-desktop"], "rows": [
+        {"cell": c, "variant": "light-desktop", "kind": "review", "look": "x", "highlight": h,
+         "after": "shots/%s/%s.png" % (d, f)} for c, d, f, h in (("uno", "nm1", "a", h1), ("dos", "nm2", "b", h2))]}
+r1, r2 = {"x": 10, "y": 20, "w": 300, "h": 100}, {"x": 10, "y": 500, "w": 300, "h": 100}
+json.dump(doc(r1, r2), open(sys.argv[1], "w"))
+json.dump(doc("@banner", r2), open(sys.argv[2], "w"))
+json.dump(doc("@banner", r1), open(sys.argv[3], "w"))
+PY
+bash "$GEN" "$TMP/rr-raw.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T >/dev/null 2>"$TMP/rr-raw.err" \
+  && ok "BL-693 two raw rectangles of one size at y=20 and y=500 are two places: both rows kept" \
+  || fail "BL-693 raw rects at different places were compared: $(cat "$TMP/rr-raw.err")"
+bash "$GEN" "$TMP/rr-nameraw.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T >/dev/null 2>"$TMP/rr-nameraw.err" \
+  && ok "BL-693 @banner (y=20) beside a raw rectangle at y=500: both rows kept" \
+  || fail "BL-693 a name and a different raw rect were compared: $(cat "$TMP/rr-nameraw.err")"
+bash "$GEN" "$TMP/rr-nameraw-eq.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T >/dev/null 2>"$TMP/rr-ne.err"; rc=$?
+[[ $rc == 2 ]] && ok "BL-693 @banner beside the raw rectangle it resolves to is compared, and refused when blank" \
+  || fail "BL-693 name vs equal raw rect: exit $rc, $(cat "$TMP/rr-ne.err")"
+python3 - "$SKILL" <<'PY' && ok "BL-693 png_pixels.crop returns the exact bytes for PNG filter types 0-4, RGB and RGBA" || fail "BL-693 png_pixels.crop disagrees with the known pixels for a filter type"
+import struct, sys, zlib
+sys.path.insert(0, sys.argv[1] + "/scripts/dash")
+import png_pixels as P
+for BPP, CT in ((3, 2), (4, 6)):
+  W, H = 7, 5
+  pix = [bytes((x * 37 + y * 11 + c * 53) % 256 for x in range(W) for c in range(BPP)) for y in range(H)]
+  def paeth(a, b, c):
+      p = a + b - c; pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+      return a if pa <= pb and pa <= pc else (b if pb <= pc else c)
+  def enc(ft, cur, prev):
+      out = bytearray()
+      for i, v in enumerate(cur):
+          a = cur[i - BPP] if i >= BPP else 0
+          b = prev[i]
+          c = prev[i - BPP] if i >= BPP else 0
+          pr = (0, a, b, (a + b) >> 1, paeth(a, b, c))[ft]
+          out.append((v - pr) & 255)
+      return bytes([ft]) + bytes(out)
+  def chunk(k, d): return struct.pack(">I", len(d)) + k + d + struct.pack(">I", zlib.crc32(k + d) & 0xffffffff)
+  for ft in range(5):
+      raw = b"".join(enc(ft, pix[y], pix[y - 1] if y else bytes(W * BPP)) for y in range(H))
+      data = P.SIGNATURE + chunk(b"IHDR", struct.pack(">IIBBBBB", W, H, 8, CT, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b"")
+      got = P.crop(data, 2, 1, 4, 3)
+      want = [pix[y][2 * BPP:6 * BPP] for y in range(1, 4)]
+      assert got == want, (ft, got, want)
+PY
+# Two highlights on a row: one repeated, one changed by a 100/255 block is a different row.
+mkdir -p "$ROOT/shots/two1" "$ROOT/shots/two2"
+python3 "$SKILL/tests/png_fixture.py" "$ROOT/shots/two1/a.png" 400 700 100
+python3 "$SKILL/tests/png_fixture.py" "$ROOT/shots/two2/b.png" 400 700 100 "50,520,10,10,200"
+python3 - "$TMP/rr-two.json" <<'PY'
+import json, sys
+hl = [{"x": 10, "y": 20, "w": 300, "h": 100}, {"x": 10, "y": 500, "w": 300, "h": 100}]
+rows = [{"cell": c, "variant": "light-desktop", "kind": "review", "look": "x", "highlight": hl,
+         "after": "shots/%s/%s.png" % (d, f)} for c, d, f in (("uno", "two1", "a"), ("dos", "two2", "b"))]
+json.dump({"gallery": "g", "variants": ["light-desktop"], "rows": rows}, open(sys.argv[1], "w"))
+PY
+bash "$GEN" "$TMP/rr-two.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T >/dev/null 2>"$TMP/rr-two.err" \
+  && ok "BL-693 a row with two highlights, one identical and one changed, is kept" \
+  || fail "BL-693 two highlights, one changed: $(cat "$TMP/rr-two.err")"
+# A missing capture is the render loop's refusal, never a traceback.
+python3 - "$TMP/rr.json" "$TMP/rr-miss.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1])); d["rows"][1]["after"] = "shots/rr/not-there.png"
+json.dump(d, open(sys.argv[2], "w"))
+PY
+cp "$ROOT/shots/rr/dashboard-skeleton-sin-entregas-darwin.regions.json" "$ROOT/shots/rr/not-there.regions.json"
+bash "$GEN" "$TMP/rr-miss.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T >/dev/null 2>"$TMP/rr-miss.err"; rc=$?
+[[ $rc == 2 ]] && grep -q "skeleton-sin-entregas" "$TMP/rr-miss.err" && ! grep -q Traceback "$TMP/rr-miss.err" \
+  && ok "BL-693 a missing capture is refused naming its row, with no traceback" \
+  || fail "BL-693 missing capture: exit $rc, $(cat "$TMP/rr-miss.err")"
+# The tolerance is pinned: a block 4 off is the same pixels, 5 off is a change.
+tolcase() {  # tolcase <level> -> exit code of a build of two flats, one with a 10x10 block at <level>
+  mkdir -p "$ROOT/shots/tol1" "$ROOT/shots/tol2"
+  python3 "$SKILL/tests/png_fixture.py" "$ROOT/shots/tol1/a.png" 400 700 100
+  python3 "$SKILL/tests/png_fixture.py" "$ROOT/shots/tol2/b.png" 400 700 100 "50,50,10,10,$1"
+  for d in tol1:a tol2:b; do printf '{"avisos":{"x":10,"y":20,"w":300,"h":100}}' > "$ROOT/shots/${d%%:*}/${d##*:}.regions.json"; done
+  mkrr tol1 tol2 "$TMP/rr-tol.json"
+  bash "$GEN" "$TMP/rr-tol.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T >/dev/null 2>"$TMP/rr-tol.err"
+}
+tolcase 104; rc=$?
+[[ $rc == 2 ]] && grep -q "uno · light-desktop" "$TMP/rr-tol.err" && grep -q "dos · light-desktop" "$TMP/rr-tol.err" \
+  && ok "BL-693 a block 4/255 off is the same pixels: refused, and the message names cell · variant" \
+  || fail "BL-693 tolerance 4: exit $rc, $(cat "$TMP/rr-tol.err")"
+tolcase 105; rc=$?
+[[ $rc == 0 ]] && ok "BL-693 a block 5/255 off is a change: both rows kept" || fail "BL-693 tolerance 5: exit $rc, $(cat "$TMP/rr-tol.err")"
+python3 - "$SKILL" <<'PY' && ok "BL-693 png_pixels reads None for a palette PNG, a corrupt IDAT and a short IHDR" || fail "BL-693 png_pixels did not return None for an unreadable file"
+import struct, sys, zlib
+sys.path.insert(0, sys.argv[1] + "/scripts/dash")
+import png_pixels as P
+def chunk(k, d): return struct.pack(">I", len(d)) + k + d + struct.pack(">I", zlib.crc32(k + d) & 0xffffffff)
+def png(ctype, idat, ihdr=None):
+    ihdr = ihdr if ihdr is not None else struct.pack(">IIBBBBB", 4, 4, 8, ctype, 0, 0, 0)
+    return P.SIGNATURE + chunk(b"IHDR", ihdr) + chunk(b"IDAT", idat) + chunk(b"IEND", b"")
+raw = zlib.compress(b"".join(b"\0" + b"\1" * 4 for _ in range(4)))
+assert P.crop(png(3, raw), 0, 0, 2, 2) is None, "palette"
+assert P.crop(png(0, raw), 0, 0, 2, 2) is not None, "control: the same bytes as greyscale read"
+assert P.crop(png(0, b"not zlib at all"), 0, 0, 2, 2) is None, "corrupt idat"
+assert P.crop(png(0, raw, ihdr=b"\0\0"), 0, 0, 2, 2) is None, "short ihdr"
+PY
+
 if (( failures )); then echo "$failures failure(s)"; exit 1; fi
 echo "ok: the gallery unit — generator, refusals, wrapped page and every RED control"

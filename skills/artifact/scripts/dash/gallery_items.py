@@ -50,6 +50,7 @@ import sys
 import urllib.parse
 
 import md_body
+import png_pixels
 
 LANGS = ("es", "en")
 
@@ -129,6 +130,10 @@ INTRO = {
            "states": "Tick each state you approve and, for the rest, say what "
                      "to change in the notes."},
 }
+
+# What a sample row says where its answer options would be (BL-693).
+ASKS_NOTHING = {"es": "Solo ilustra: no necesita respuesta",
+                "en": "Illustration only: no answer needed"}
 
 # Verdicts past this many stay behind a <summary>: the row asks verdict + note.
 VISIBLE_VERDICTS = 2
@@ -680,6 +685,115 @@ def changed_overview(root, r):
         return fb.read() != fa.read()
 
 
+# BL-693: two rows whose highlighted regions hold the same pixels show the
+# reader the same thing twice. A channel value counts as different only past
+# REDUNDANT_TOLERANCE of 255 (two renders of one region differ by 1-3 in
+# gradients and anti-aliasing: the round-5 pair did); ONE value past it, a
+# changed glyph, makes the regions different.
+REDUNDANT_TOLERANCE = 4
+# Which row of a redundant pair is the one to drop: the one that illustrates
+# least, never decided by position.
+DROP_ORDER = {"sample": 0, "unrequested": 1, "review": 2}
+
+
+def row_regions(root, r):
+    """The AFTER-capture regions a row highlights, resolved to (x, y, w, h)."""
+    out = []
+    for reg in r["highlight"]:
+        out.append(named_region(root, r["after"].lstrip("/"), reg, r["cell"],
+                                "after") if isinstance(reg, str) else reg)
+    return out
+
+
+def region_pixels(root, r, regions):
+    try:
+        with open(os.path.join(root or "/", r["after"].lstrip("/")), "rb") as fh:
+            data = fh.read()
+    except OSError:
+        return None          # the render loop refuses the missing capture itself
+    crops = [png_pixels.crop(data, int(x), int(y), int(w), int(h))
+             for x, y, w, h in regions]
+    return None if any(c is None for c in crops) else crops
+
+
+def row_name(r):
+    """cell · variant · kind: two rows of one cell (a review and a sample) differ."""
+    return " · ".join(x for x in (r["cell"], r.get("variant"), r["kind"]) if x)
+
+
+def same_places(a, b, root):
+    """Whether each highlight of row a names the same place as the one of row b:
+    two names by name, a name and a raw rectangle by the rectangle the name
+    resolves to, two raw rectangles by their {x, y, w, h}."""
+    for ha, hb in zip(a["highlight"], b["highlight"]):
+        if isinstance(ha, str) and isinstance(hb, str):
+            if ha != hb:
+                return False
+            continue
+        ra = named_region(root, a["after"].lstrip("/"), ha, a["cell"], "after") \
+            if isinstance(ha, str) else ha
+        rb = named_region(root, b["after"].lstrip("/"), hb, b["cell"], "after") \
+            if isinstance(hb, str) else hb
+        if tuple(ra) != tuple(rb):
+            return False
+    return True
+
+
+def same_pixels(a, b):
+    """True when every channel value of the two crops is within the tolerance.
+    Crops of a different channel count (RGB beside RGBA) are not comparable."""
+    for ca, cb in zip(a, b):
+        for ra, rb in zip(ca, cb):
+            if len(ra) != len(rb):
+                return False
+            if ra != rb and any(abs(x - y) > REDUNDANT_TOLERANCE
+                                for x, y in zip(ra, rb)):
+                return False
+    return True
+
+
+def check_redundant_regions(root, doc, variants, alts, require_look):
+    """Refuse a row whose highlighted region repeats another row's (same size,
+    every channel value within REDUNDANT_TOLERANCE), naming both rows. The row
+    named for dropping is the least illustrative of the pair (DROP_ORDER, then
+    the later one); when exactly one of the pair is decided the live one is
+    named; two decided rows are never refused. A
+    capture this reader cannot decode keeps its row."""
+    seen = []
+    for n, row in enumerate(doc["rows"], 1):
+        r = check_row(row, variants, n, alts, require_look)
+        if r["kind"] not in DROP_ORDER or "dropped" in r \
+                or "highlight" not in r or not r.get("after"):
+            continue
+        regions = row_regions(root, r)
+        shape = [(w, h) for _, _, w, h in regions]
+        crops = None
+        for prior, pshape, pcrops in seen:
+            if pshape != shape or not same_places(prior, r, root):
+                continue
+            if crops is None:
+                crops = region_pixels(root, r, regions)
+            if pcrops[0] is None:
+                pcrops[0] = region_pixels(root, prior, row_regions(root, prior))
+            if crops is None or pcrops[0] is None \
+                    or not same_pixels(crops, pcrops[0]):
+                continue
+            if ("decided" in prior) == ("decided" in r):
+                if "decided" in r:
+                    continue      # both settled: nothing live to refuse
+                drop, keep = (prior, r) if DROP_ORDER[prior["kind"]] \
+                    < DROP_ORDER[r["kind"]] else (r, prior)
+            else:                 # exactly one decided: the live one goes
+                drop, keep = (r, prior) if "decided" in prior else (prior, r)
+            die("rows '%s' and '%s': the highlighted region of '%s' is "
+                "pixel-identical to the one of '%s', so it shows the "
+                "reader nothing new. Drop the row '%s' and say its "
+                "knock-on in one line of the look text of '%s'"
+                % (row_name(prior), row_name(r), row_name(drop),
+                   row_name(keep), row_name(drop), row_name(keep)))
+        seen.append((r, shape, [None]))
+
+
 def pct(v):
     return ("%.3f" % v).rstrip("0").rstrip(".") + "%"
 
@@ -869,6 +983,7 @@ def render(doc, root, group_id, group_title, lang, page=None,
     if intro:
         add('  <p class="gal-intro">%s <span class="gal-intro-narrow">%s</span></p>'
             % (e(intro), e(NARROW_HINT[lang])))
+    check_redundant_regions(root, doc, variants, alts, require_look)
     seen, unrequested, ids = {}, {}, {}
     cell_variants = {}
     for row in doc["rows"]:
@@ -944,6 +1059,8 @@ def render(doc, root, group_id, group_title, lang, page=None,
                 st["id"] for st in r["states"]))
         if "answer" in r:
             settled += ' data-answer="%s"' % e(r["answer"])
+        if kind == "sample":
+            settled += " data-asks-nothing"
         add('  <section class="consult-item consult-gallery" data-id="%s"'
             ' data-title="%s" data-heading="%s" data-variant="%s"%s%s>'
             % (e(ident), e(title), e(heading), e(variant), narrow, settled))
@@ -1018,7 +1135,13 @@ def render(doc, root, group_id, group_title, lang, page=None,
             choices.append(NONE_OF_THEM[lang])
             # Peer choices are all visible; only "none of them" collapses.
             out.extend(options(ident, lang, choices, visible=len(alts)))
-        elif kind != "sample" and "answer" not in r:
+        elif kind == "sample":
+            # BL-693: a row that asks nothing carries no answer control at all
+            # (no verdicts, no notes box) and says so where the options would be.
+            add('    <p class="gal-asks-nothing">%s</p>' % e(ASKS_NOTHING[lang]))
+            add('  </section>')
+            continue
+        elif "answer" not in r:
             out.extend(verdicts(ident, lang))
         out.extend(notes(lang))
         add('  </section>')

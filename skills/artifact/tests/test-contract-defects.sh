@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test-contract-defects.sh — unit cells for scripts/dash/contract_defects.py (the
-# thirteen source classes) and the shape of defect-gate.sh's output.
+# fifteen source classes) and the shape of defect-gate.sh's output.
 #
 # Layer: unit, on source. Each class is decided by the script reading markup, so a
 # mini-page per verdict is the lowest layer that sees the rule; no browser.
@@ -457,6 +457,70 @@ passes $C c13-es_ES-ok "Spanish prose under lang=es_ES passes"
 page c5-es_ES es_ES '<button id="consult-copy">Copy my answers</button>'
 fails ui-string-language c5-es_ES "ui-string-language reads lang=es_ES as es too"
 
+echo "== one-decision-one-control (BL-689) =="
+C=one-decision-one-control
+opts() {   # opts NAME LABEL... -> a radio group of those labels
+  local n="$1" out='<div class="opts one">'; shift
+  for l in "$@"; do out+="<label><input type=\"radio\" name=\"$n\" data-label=\"$l\"><span>$l</span></label>"; done
+  printf '%s</div>' "$out"
+}
+FIVE=("B: tarjetas" "C: severidad" "D: resumen" "E: por tema" "F: plazos")
+ALT="<section class=\"consult-item consult-gallery\" data-id=\"avisos-alt-franja-light-desktop-alternatives\">$(opts alt "${FIVE[@]}" "Ninguna")<textarea></textarea></section>"
+STATES="<section class=\"consult-item consult-gallery\" data-id=\"avisos-calma-franja-light-desktop-states\"><div class=\"opts\">$(for l in "${FIVE[@]}"; do printf '<label><input type="checkbox" name="s" data-label="%s"><span>%s</span></label>' "$l" "$l"; done)</div><textarea></textarea></section>"
+Q14="<section class=\"consult-item\" data-id=\"Q14\">$(opts Q14 "${FIVE[@]}")<textarea></textarea></section>"
+page o1-dup es "<section class=\"consult-group\" id=\"G7\">$ALT</section>$Q14"
+fails $C o1-dup "an alternatives row and a consult item offering the same five options fail"
+o1msg="$(python3 "$CD" --class $C "$TMP/o1-dup.html")"
+grep -q "avisos-alt-franja-light-desktop-alternatives" <<<"$o1msg" && grep -q "Q14" <<<"$o1msg" \
+  && ok "the finding names both ids" || bad "the finding does not name both ids"
+page o1-states es "<section class=\"consult-group\" id=\"G7\">$ALT</section><section class=\"consult-group\" id=\"G13\">$STATES</section>"
+fails $C o1-states "an alternatives row and a states row over the same options fail"
+page o1-alts es "<section class=\"consult-group\" id=\"G1\">$ALT</section><section class=\"consult-group\" id=\"G2\"><section class=\"consult-item consult-gallery\" data-id=\"costo-alt-tarjeta-light-desktop-alternatives\">$(opts alt2 "${FIVE[@]}" "Ninguna")<textarea></textarea></section></section>"
+passes $C o1-alts "two alternatives rows of different galleries with the same labels are two decisions"
+Q14R=("C, tarjetas con severidad" "B, tarjetas de la ronda anterior." "D, encabezado con resumen (6 avisos · 2 urgentes y una barra)" "E, agrupado por tema (Trabajos, Órdenes, GPU) con pequeños gráficos" "F, línea de plazos para las órdenes." "Todavía no lo sé")
+page o1-q14 es "<section class=\"consult-group\" id=\"G7\">$ALT</section><section class=\"consult-item\" data-id=\"Q14\">$(opts Q14 "${Q14R[@]}")<textarea></textarea></section>"
+fails $C o1-q14 "replay of the real round-4 Q14 (reworded labels with leading B-F tokens) beside the alternatives row fails"
+page o1-q14-decided es "<section class=\"consult-group\" id=\"G7\">$ALT</section><section class=\"consult-item\" data-id=\"Q14\" data-decided=\"E\">$(opts Q14 "${Q14R[@]}")<textarea></textarea></section>"
+passes $C o1-q14-decided "the same Q14 once settled (data-decided) is not asked, so it passes"
+AB="<section class=\"consult-item consult-gallery\" data-id=\"s-x-light-desktop-alternatives\">$(opts alt "A: publicar" "B: esperar" "Ninguna")<textarea></textarea></section>"
+page o1-ab es "$AB<section class=\"consult-item\" data-id=\"Q3\">$(opts Q3 "A) Sí, publicar ahora" "B) No, esperar")<textarea></textarea></section>"
+passes $C o1-ab "an unrelated Q3 whose two options happen to start A) and B) is not the alternatives row's question (tokens need 3+)"
+ECHO_ALT="<section class=\"consult-item consult-gallery\" data-id=\"s-x-light-desktop-alternatives\">$(opts ea "A: En la barra, tres controles" "B: Solo Accesos y la búsqueda" "C: Como A, con filtro de Tipo" "Ninguna de ellas")<textarea></textarea></section>"
+page o1-unrelated-abc es "$ECHO_ALT<section class=\"consult-item\" data-id=\"Q2\">$(opts Q2 "A: Escritorio claro revisado" "B: Modo oscuro solo en detalle" "C: Modo oscuro en todas las galerías")<textarea></textarea></section>"
+passes $C o1-unrelated-abc "the real echo_lab pair: same A/B/C tokens, different questions (no shared content word) passes"
+T3="<section class=\"consult-item consult-gallery\" data-id=\"s-y-light-desktop-alternatives\">$(opts t3 "A: publicar noticia" "B: esperar semana" "C: descartar borrador")<textarea></textarea></section>"
+page o1-three es "$T3<section class=\"consult-item\" data-id=\"Q9\">$(opts Q9 "A, publicar la noticia" "B, esperar una semana" "C, descartar el borrador")<textarea></textarea></section>"
+fails $C o1-three "an exactly-3-token restatement (same tokens, shared content words) fails: TOKENS_MIN is 3"
+page o1-other es "<section class=\"consult-item consult-gallery\" data-id=\"s-z-light-desktop-alternatives\">$(opts ot "Lista" "Tabla" "Otra vista")<textarea></textarea></section><section class=\"consult-item\" data-id=\"Q8\">$(opts Q8 "Lista" "Tabla")<textarea></textarea></section>"
+passes $C o1-other "an option merely starting with Otra (a real choice) is not the kit's generic Otra"
+page o1-generic es "<section class=\"consult-item consult-gallery\" data-id=\"s-z-light-desktop-alternatives\">$(opts ot "Lista" "Tabla" "Otra — lo explico en las notas" "Todavía no lo sé")<textarea></textarea></section><section class=\"consult-item\" data-id=\"Q8\">$(opts Q8 "Lista" "Tabla")<textarea></textarea></section>"
+fails $C o1-generic "the kit's own Otra / Todavía no extras are left out of the comparison"
+DOT_ALT="<section class=\"consult-item consult-gallery\" data-id=\"s-w-light-desktop-alternatives\">$(opts da "A · En la página" "B · Diálogo" "C · Panel lateral")<textarea></textarea></section>"
+page o1-dot es "$DOT_ALT<section class=\"consult-item\" data-id=\"Q5\">$(opts Q5 "A, en la página misma" "B, un diálogo" "C, panel lateral")<textarea></textarea></section>"
+fails $C o1-dot "options led by A · / B · / C · (middle dot) are read as tokens: the restatement fails"
+page o1-q14-sub es "<section class=\"consult-group\" id=\"G7\">$ALT</section><section class=\"consult-item\" data-id=\"Q14\">$(opts Q14 "B, tarjetas" "C, severidad")<textarea></textarea></section>"
+passes $C o1-q14-sub "an item over a strict subset of the tokens is a different question"
+page o1-plain es "<section class=\"consult-item\" data-id=\"BL-1\">$(opts a Ahora Después Nunca)</section><section class=\"consult-item\" data-id=\"BL-2\">$(opts b Ahora Después Nunca)</section>"
+passes $C o1-plain "two plain items that share three option labels are parallel questions, not one decision (census: 1,500 pages)"
+page o1-diff es "$Q14<section class=\"consult-item\" data-id=\"Q2\">$(opts Q2 "Adoptar el diseño" "Mantener el actual")</section>"
+passes $C o1-diff "items with different options pass"
+
+echo "== sample-row-asks-nothing (BL-693) =="
+C=sample-row-asks-nothing
+LINE='<p class="gal-asks-nothing">Solo ilustra: no necesita respuesta</p>'
+FIG='<div class="gal"><figure data-tile="after"><img src="a.png" alt="a"></figure></div>'
+page s1-ok es "<section class=\"consult-item consult-gallery\" data-id=\"g-x-sample\" data-asks-nothing>$FIG$LINE</section>"
+passes $C s1-ok "a sample row with its no-answer line and no control passes"
+page s1-radio es "<section class=\"consult-item consult-gallery\" data-id=\"g-x-sample\" data-asks-nothing>$FIG$LINE$(opts r Sí No)</section>"
+fails $C s1-radio "a sample row that renders an answer radio fails"
+page s1-notes es "<section class=\"consult-item consult-gallery\" data-id=\"g-x-sample\" data-asks-nothing>$FIG$LINE<textarea></textarea></section>"
+fails $C s1-notes "a sample row that renders a notes box fails"
+page s1-noline es "<section class=\"consult-item consult-gallery\" data-id=\"g-x-sample\" data-asks-nothing>$FIG</section>"
+fails $C s1-noline "a sample row without the no-answer line fails"
+s1msg="$(python3 "$CD" --class $C "$TMP/s1-noline.html")"
+grep -q "g-x-sample" <<<"$s1msg" \
+  && ok "the finding names the row" || bad "the finding does not name the row"
+
 echo "== KIT_STRINGS lockstep: every kit chrome string is in contract_defects =="
 # ui-string-language judges a page by KIT_STRINGS, a copy kept in the module on
 # purpose. A string added to the kit's chrome and not to that copy is a label the
@@ -717,8 +781,8 @@ cp "$TMP/c4-ok.html" "$REG/copy-control-placement/original.html"     # not red
 cp "$TMP/c4-ok.html" "$REG/no-such-class/original.html"              # no check
 corpus clean refused
 out="$(gate "$REG")"; rc=$?
-# N = 13 source checks + 3 render classes + 1 folder with no check
-want=$'classes: 2/17\nred: 1/17\ngreen: 1/17\ncorpus: 2/3'
+# N = 15 source checks + 3 render classes + 1 folder with no check
+want=$'classes: 2/19\nred: 1/19\ngreen: 1/19\ncorpus: 2/3'
 [[ "$out" == "$want" ]] && ok "N is the union of the source checks, the render classes and the registry folders" \
   || bad "gate output was: $(printf '%q' "$out")"
 [[ $rc -ne 0 ]] && ok "the gate exits non-zero while a count is short" || bad "gate exited 0 on short counts"
@@ -735,6 +799,7 @@ for pair in "decision-item-without-options c1-free" "decision-page-not-interacti
             "lang-follows-profile proj/.context/reports/es" "decided-section-anchor c9-bare" \
             "img-src-portable c10-bad" "unique-dom-ids c11-dup" "group-item-id-collision c12-id" \
             "body-language-follows-lang c13-es-on-en" \
+            "one-decision-one-control o1-dup" "sample-row-asks-nothing s1-noline" \
             "text-style-drift clean" "figure-text-contrast clean" "svg-label-outside-its-box clean"; do
   set -- $pair; mkdir -p "$FULL/$1"; cp "$TMP/$2.html" "$FULL/$1/original.html"
   cp "$TMP/clean.html" "$FULL/$1/rebuilt.html"
@@ -742,34 +807,34 @@ done
 cp "$TMP/c1-rec.html" "$FULL/decision-item-without-options/original-2.html"
 corpus clean
 out="$(gate "$FULL")"; rc=$?
-[[ "$out" == $'classes: 16/16\nred: 16/16\ngreen: 16/16\ncorpus: 17/17' && $rc -eq 0 ]] \
+[[ "$out" == $'classes: 18/18\nred: 18/18\ngreen: 18/18\ncorpus: 19/19' && $rc -eq 0 ]] \
   && ok "the gate exits 0 when every count is full" || bad "full registry: rc=$rc $(printf '%q' "$out")"
 
 out="$(gate "$FULL" probe-nomarker)"
-[[ "$(sed -n 2p <<<"$out")" == "red: 13/16" ]] \
+[[ "$(sed -n 2p <<<"$out")" == "red: 15/18" ]] \
   && ok "a probe exiting 1 without its CONTRACT line is not red" || bad "no marker: $(printf '%q' "$out")"
 out="$(gate "$FULL" probe-silent0)"
-[[ "$(sed -n 3p <<<"$out")" == "green: 13/16" ]] \
+[[ "$(sed -n 3p <<<"$out")" == "green: 15/18" ]] \
   && ok "a probe exiting 0 without its CONTRACT line is not green" || bad "silent 0: $(printf '%q' "$out")"
 
 cp "$TMP/c4-ok.html" "$FULL/decision-item-without-options/original-2.html"
 out="$(gate "$FULL" | sed -n 2p)"
-[[ "$out" == "red: 15/16" ]] && ok "a class is red only when every original fails" || bad "second original not red: $out"
+[[ "$out" == "red: 17/18" ]] && ok "a class is red only when every original fails" || bad "second original not red: $out"
 cp "$TMP/c1-rec.html" "$FULL/decision-item-without-options/original-2.html"
 
 : > "$FULL/mixed-content-types/rebuilt.html"
 out="$(gate "$FULL" | sed -n 3p)"
-[[ "$out" == "green: 15/16" ]] && ok "a 0-byte rebuilt.html is never green" || bad "empty rebuilt: $out"
+[[ "$out" == "green: 17/18" ]] && ok "a 0-byte rebuilt.html is never green" || bad "empty rebuilt: $out"
 page nomain es '<p>Sin estructura.</p>'
 cp "$TMP/nomain.html" "$FULL/mixed-content-types/rebuilt.html"
 out="$(gate "$FULL" | sed -n 3p)"
-[[ "$out" == "green: 15/16" ]] && ok "a rebuilt.html with no <main> is never green" || bad "no-main rebuilt: $out"
+[[ "$out" == "green: 17/18" ]] && ok "a rebuilt.html with no <main> is never green" || bad "no-main rebuilt: $out"
 cp "$TMP/clean.html" "$FULL/mixed-content-types/rebuilt.html"
 
 rm -rf "$FULL/ui-string-language"
 out="$(gate "$FULL")"; rc=$?
-[[ "$(printf '%s\n' "$out" | sed -n 1p)" == "classes: 15/16" && $rc -ne 0 ]] \
-  && ok "a registry missing a class reads 15/16 and fails" || bad "missing class: rc=$rc $(printf '%q' "$out")"
+[[ "$(printf '%s\n' "$out" | sed -n 1p)" == "classes: 17/18" && $rc -ne 0 ]] \
+  && ok "a registry missing a class reads 17/18 and fails" || bad "missing class: rc=$rc $(printf '%q' "$out")"
 
 echo "== SENTENCE stays linear on comma-dense text =="
 # A comma was both separator and token character in SENTENCE, so a run of commas

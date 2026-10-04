@@ -52,4 +52,6 @@ The agent that makes the change also writes the rows, and tends to list only wha
 asked. Measured: all 8 A reps renamed a shared label key that also changed a dialog title
 and button; with a separate re-capture agent the rows flagged those cells `unrequested`
 4/4, with the impl agent doing its own rows 0/4. So: every row whose visible change the
-owner's answer did not ask for gets `kind: "unrequested"` and a `look` line naming it.
+owner's answer did not ask for gets `kind: "unrequested"` and a `look` line naming it. The one exception: when the changed region repeats one already shown in another row of the round, no row is emitted and the knock-on goes in that row's look text.
+
+An alternatives gallery IS the question: no parallel text item restates its options. No row of ANY kind (sample, unrequested, review) whose highlighted region repeats one already shown in another row of the round: the build refuses it, and its knock-on goes in one line of that row's look text.
