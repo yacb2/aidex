@@ -4134,7 +4134,11 @@ done
 # settled and its correction box was hidden and sealed. Layer: browser, because where the item is
 # drawn, whether its notes box is live and what the copied reply carries are the composer's calls.
 PRP="$TMP/prp"; mkdir -p "$PRP"
-item692() {  # item692 <id> <title> <attrs>
+item692() {  # item692 <id> <title> <attrs>; an asks-nothing row is shaped like the generator's sample row: no controls, one .gal-asks-nothing line
+  if [[ "$3" == *data-asks-nothing* ]]; then
+    printf '<section class="consult-item" data-id="%s" data-title="%s" %s>\n<h3><span class="consult-id">%s</span>%s?</h3>\n<p class="gal-asks-nothing">Esta fila no pide respuesta.</p>\n</section>\n' "$1" "$2" "$3" "$1" "$2"
+    return
+  fi
   printf '<section class="consult-item" data-id="%s" data-title="%s" %s>\n<h3><span class="consult-id">%s</span>%s?</h3>\n<div class="opts one"><label><input type="radio" name="%s" data-label="Si" checked><span>Si</span></label><label><input type="radio" name="%s" data-label="No"><span>No</span></label></div>\n<p class="fieldlabel">Notas</p><textarea placeholder="Escribe aqui"></textarea>\n</section>\n' "$1" "$2" "$3" "$1" "$2" "$1" "$1"
 }
 {
@@ -4148,7 +4152,7 @@ item692() {  # item692 <id> <title> <attrs>
   item692 S1 "Primera resuelta" 'data-decided="Si"'
   item692 S2 "Segunda resuelta" 'data-decided="No"'
   printf '</section>\n<section class="consult-group" data-id="G3" data-title="Abiertas"><p>Contexto</p>\n'
-  item692 A1 "Fila de muestra" 'data-asks-nothing'
+  item692 A1 "Fila de muestra" 'data-asks-nothing data-free="yes"'
   item692 A2 "Pregunta normal" ''
   printf '</section>\n'
   printf '%s\n' '<div class="endbar"><button type="button" id="consult-copy-end">Copy</button><span class="consult-status" id="consult-status-end"></span></div>' \
@@ -4226,8 +4230,8 @@ tp="$(grep -oE '<title>[^<]*</title>' "$PRP/dom.html" | sed -n 1p)"
 [[ "$tp" == *"|ASKS=0/1|"* ]] \
   || fail "BL-693: an item marked data-asks-nothing must get no ask chips while a normal open item gets its row (want ASKS=0/1): $tp"
 # BL-693: a gallery sample row (data-asks-nothing) keeps no mark-mode box: it still has tiles to look at, but nothing to answer.
-gen629 "$TMP/g629/marks.html" "$(row629 empty '')" "$(row629 loaded '')"
-sed -i.bak 's/data-id="audit-loaded-light-desktop"/data-id="audit-loaded-light-desktop" data-asks-nothing/' "$TMP/g629/marks.html"
+# The sample row comes from the generator (kind: sample), so it has the real shape: tiles, no controls, the asks-nothing line.
+gen629 "$TMP/g629/marks.html" "$(row629 empty '')" "$(row629 loaded '' | sed 's/"kind": "review"/"kind": "sample"/')"
 MARKS_PROBE='<script>window.addEventListener("load", function () {
   var n = function (id) { return document.querySelectorAll("[data-id=" + id + "] textarea.kit-marks").length; };
   document.title = "MARKS|NORMAL=" + n("audit-empty-light-desktop") + "|SAMPLE=" + n("audit-loaded-light-desktop") + "|";
