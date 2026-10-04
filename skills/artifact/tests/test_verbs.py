@@ -245,6 +245,54 @@ check("new-round is idempotent — a key already in the ledger is not written "
 check("a spec with nothing decided comes back byte-identical",
       new_round(decide(PAGE, "Q2", V).replace(' decided="Fences"', ""))
       == PAGE.replace(" decided=yes", ""))
+# BL-692: a proposal lasts one round, and expires only if the reader SAW it: it carried
+# data-proposal on the saved answered snapshot. One written this turn (absent from it)
+# keeps proposal=yes whichever order the verbs run in; no snapshot expires nothing.
+two = PAGE.replace(" decided=yes", " decided=yes proposal=yes").replace(
+    'title="Fences o YAML"    }', 'title="Fences o YAML" decided=Fences proposal=yes}', 1)
+SNAP = ('<section class="consult-item" data-id="Q2" data-title="x" data-decided data-proposal>'
+        '</section><section class="consult-item" data-id="Q1" data-title="y"></section>')
+check("fixture: both Q1 and Q2 carry proposal=yes", two.count("proposal=yes") == 2, two)
+opened = new_round(two, answered_html=SNAP)
+check("a proposal on the answered snapshot (Q2, P_old) expires: it is settled in round 2",
+      "proposal=yes" in opened and opened.count("proposal=yes") == 1
+      and "- Q2 — Marcador de columna" in opened, opened)
+check("...and one absent from it (Q1, P_new, written this turn) keeps proposal=yes and gets no ledger row",
+      'title="Fences o YAML" decided=Fences proposal=yes}' in opened
+      and "- Q1" not in opened, opened)
+check("with no snapshot nothing expires (a mid-round --drop/--retitle)",
+      new_round(two) == new_round(two, answered_html=None)
+      and new_round(two).count("proposal=yes") == 2, new_round(two))
+check("...whether or not a retitle rides along",
+      new_round(two, retitled=["Q1"]).count("proposal=yes") == 2)
+# decide after new-round must move the ledger row's verdict as well.
+settled = new_round(decide(PAGE, "Q1", "Pandoc, cerrado"))
+redecided = decide(settled, "Q1", "Lista")
+check("decide updates the item's ledger row, not only its decided= attr",
+      "- Q1 — Fences o YAML (Lista)" in redecided
+      and "(Pandoc, cerrado)" not in redecided, redecided)
+# ...but a hand-written row is left byte-identical, and the caller is told.
+import contextlib
+import io
+hand = new_round(decide(PAGE, "Q1", "Pandoc, cerrado")).replace(
+    "- Q1 — Fences o YAML (Pandoc, cerrado)", "- Q1 — **Fences**, cerrado por el dueño")
+err = io.StringIO()
+with contextlib.redirect_stderr(err):
+    hand2 = decide(hand, "Q1", "Lista")
+check("decide leaves a hand-written ledger row byte-identical",
+      "- Q1 — **Fences**, cerrado por el dueño" in hand2 and "(Lista)" not in hand2.split("::: group")[0],
+      hand2)
+check("...and prints that the row is hand-written",
+      "ledger row for Q1 is hand-written; update it yourself" in err.getvalue(), err.getvalue())
+with tempfile.TemporaryDirectory() as _d:
+    _spec = os.path.join(_d, "pg.spec.md")
+    check("no .aidex-artifact-prev snapshot: the file wrapper reads None",
+          spec_verbs._answered_snapshot(_spec, None) is None)
+    os.makedirs(os.path.join(_d, ".aidex-artifact-prev"))
+    with open(os.path.join(_d, ".aidex-artifact-prev", "pg.answered.html"), "w") as _fh:
+        _fh.write(SNAP)
+    check("the snapshot save-reply.sh wrote beside the page is what the file wrapper reads",
+          spec_verbs._answered_snapshot(_spec, None) == SNAP)
 existing = new_round(LEDGERED)
 check("an existing ledger is APPENDED to, its own rows untouched",
       "- d1 — **Hecho.** La gramática vive en `03-spec-grammar.md`." in existing
@@ -479,8 +527,15 @@ try:
                            text=True)
         check("...and check-artifact.sh passes it with no exemption (%s)"
               % label, c.returncode == 0, c.stdout + c.stderr)
-        check("...and prints no WARN (%s)" % label,
-              "WARN" not in (c.stdout + c.stderr), c.stdout + c.stderr)
+        # The fixture's round-1 Q2 is "decided" without proposal=yes, so the BL-692 round-1
+        # advisory is expected on the add-item step only (pinned in test-consult-spec-trace.sh).
+        # decide and new-round run in round 2: their own output (the verb's trial build
+        # included) must carry no WARN at all.
+        mine = r.stdout + r.stderr + c.stdout + c.stderr
+        other = [ln for ln in mine.splitlines() if "WARN" in ln
+                 and (label != "add-item" or "consult-round1-decided" not in ln)]
+        check("...and prints no WARN%s (%s)" % (" other than the round-1 advisory"
+              if label == "add-item" else "", label), not other, "\n".join(other))
 
     # --- atomicity ----------------------------------------------------------
     print()

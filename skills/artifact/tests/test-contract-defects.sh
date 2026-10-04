@@ -316,6 +316,13 @@ passes $C c9-half "a decided item in a half-open group folds in place and needs 
 page c9-group es "<main class=\"main\"><h1>Ronda 2</h1><section class=\"consult-group\" id=\"G1\"><h2>Bloque</h2>
 $DECIDED<section class=\"consult-item\" data-id=\"Q2\" data-decided=\"No\"></section></section></main>"
 fails $C c9-group "a fully decided group with no anchor fails"
+# BL-692: a proposal stays in place, so a page of proposals needs no anchor; the same
+# page without data-proposal is a settled unit and does.
+PROP='<section class="consult-group" id="G1"><h2>Bloque</h2><section class="consult-item" data-id="Q1" data-decided="Sí" data-proposal><textarea></textarea></section></section>'
+page c9-prop es "<main class=\"main\"><h1>Ronda 1</h1>$PROP</main>"
+passes $C c9-prop "a page whose decided items are all proposals needs no anchor (BL-692)"
+page c9-noprop es "<main class=\"main\"><h1>Ronda 1</h1>${PROP/ data-proposal/}</main>"
+fails $C c9-noprop "the same page without data-proposal is a settled unit and fails (BL-692)"
 # BL-543: a dropped item carries data-decided too, but it was never decided; the
 # message names it dropped, the same split f49b36b made on the page.
 page c9-dropped es '<main class="main"><h1>Ronda 2</h1><section class="consult-item" data-id="Q1" data-decided="Descartada: ya no aplica" data-dropped="ya no aplica"></section></main>'

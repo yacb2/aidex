@@ -143,7 +143,7 @@ Tres preguntas abiertas y una decisión cerrada.
 ::: group {#G1 title="Formato del spec" eyebrow="Bloque G1"}
 La consulta de hoy: qué escribe el agente cuando la página cambia.
 
-::: item {#Q1 title="Fences o YAML" decided=yes}
+::: item {#Q1 title="Fences o YAML" decided=yes proposal=yes}
 ¿Fences de Pandoc o YAML anidado?
 
 - Fences de Pandoc — prosa con marcas mínimas {recommended}
@@ -376,6 +376,14 @@ try:
               "verdict" % (flag, flag), ITEM.replace("decided=yes", 'decided="%s"' % flag),
               'data-title="Short name" data-decided>',
               'data-recommended checked>')
+    # BL-692: a proposal is decided by the writer this round; the flag reaches the composer.
+    holds("item: proposal=yes marks a decided item as a proposal",
+          ITEM.replace("decided=yes", "decided=yes proposal=yes"),
+          'data-decided data-proposal>')
+    rejects("item: proposal=no is refused (one rule: yes or true)",
+            ITEM.replace("decided=yes", "decided=yes proposal=no"), 2, "is not a value")
+    rejects("item: proposal=yes without decided is refused",
+            ITEM.replace(" decided=yes", " proposal=yes"), 2, "needs decided=")
     rejects("item: decided=yes with no {recommended} option is refused",
             ITEM.replace(" {recommended}", ""), 2,
             "no option marked {recommended}")
@@ -520,6 +528,7 @@ try:
                 'data-label="En un archivo aparte" checked>')
     check("item: ...both points carry data-decided and sit inside the group",
           dec.count("data-decided") == 2
+          and dec.count("data-proposal") == 2
           and dec.index('data-id="Q1"') < dec.index('data-id="Q2"')
           and dec.index('id="G1"') < dec.index('data-id="Q1"'), dec)
     # BL-533: masthead dropped-ids records ids the page no longer carries.

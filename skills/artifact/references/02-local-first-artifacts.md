@@ -271,6 +271,15 @@ the contract baseline, and a second writer would only disagree with it.
 python3 "${CLAUDE_SKILL_DIR}/scripts/spec_verbs.py" new-round <name>.spec.md
 ```
 
+Proposals expire by themselves (BL-692): an `item decided=yes proposal=yes` loses `proposal=yes`
+and files its ledger row only if the saved answered page (`.aidex-artifact-prev/<stem>.answered.html`)
+carried `data-proposal` on it, i.e. the reader saw it. A NEW proposal written this turn is absent from
+that page and stays a proposal, in any order of verbs (an id that already expired and is marked
+`proposal=yes` again in the same round is expired again by the next `new-round`: write a fresh id); with no saved page nothing expires, so a
+mid-round `new-round --drop/--retitle` is safe. `decide` on an item the ledger already names also
+rewrites that row's verdict, but only a row `new-round` wrote (`- id — title` or `- id — title (verdict)`);
+a hand-written row is left byte-identical and the verb says so on stderr.
+
 Each verb prints the rebuilt page's path on stdout and the contract check's lines on
 stderr; a refusal prints `spec-verbs <verb>: <why>` and exits 1 with the spec untouched.
 
@@ -1424,7 +1433,11 @@ messages and the tests; § 8.4 is the block shape.
    **Triage before asking (BL-503).** Before the brief lists items, sort the open
    decisions: one that is reversible in minutes and carries a recommendation is
    DECIDED, not asked. It goes in a block titled "decidido, corrígeme si no" (one line
-   each: the situation, what was chosen, why) and the reader only corrects. Only the
+   each: the situation, what was chosen, why) and the reader only corrects. Each point is an
+   `item decided=yes proposal=yes` (BL-687, BL-692): without `proposal=yes` the kit reads it as an
+   earlier round's settled answer and folds it into the bottom "N preguntas ya resueltas" section,
+   hiding the correction box. `check-artifact` WARNS (`consult-round1-decided`) on a round-1 page that carries a
+   decided item with neither `proposal=yes` nor `dropped=`: nothing can be settled before the first reply. Only the
    rest become items. Inside a gallery, that
    block goes in the `decided_note` of a row still open (a callout under the captures), never in the
    row's Qué mirar line.
