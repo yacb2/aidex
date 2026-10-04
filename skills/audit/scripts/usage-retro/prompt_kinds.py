@@ -99,11 +99,12 @@ _SLASH_RX = re.compile(r"^/[a-z][\w:-]*\s*$", re.I)
 _SNAPSHOT_COMMANDS = ("/context", "/skill-doctor")
 
 # The kickoff positional `claude-session-handoff` passes to the session it
-# launches (scripts/claude-wrapper.sh: `run_claude "continue"`). It exists
+# launches (scripts/claude-wrapper.sh: `run_claude "continue"`, and since
+# wrapper v8 "Continúa desde el brief del handoff."). It exists
 # because SessionStart's `initialUserMessage` is accepted and silently ignored
 # by Claude Code — re-probed on 2.1.221/223/224. So this is correct behaviour
 # being excluded, not a bug being counted.
-_KICKOFF_RX = re.compile(r"^(continue|continua|contin[uú]a|adelante|sigue|sigamos)[\s.!,]*$", re.I)
+_KICKOFF_RX = re.compile(r"^(continue|continua|contin[uú]a|adelante|sigue|sigamos|contin[uú]a desde el brief del handoff)[\s.!,]*$", re.I)
 
 HANDOFF_MARKER = "=== HANDOFF FROM PREVIOUS SESSION ==="
 _HANDOFF_HEAD_RECORDS = 12   # the marker rides in the SessionStart hook attachments

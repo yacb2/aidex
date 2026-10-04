@@ -134,6 +134,9 @@ assert_eq "(i1) handoff-seeded 'continue' should be kickoff, and only the FIRST 
 got="$(session_kinds 0 continue)"
 assert_eq "(i2) 'continue' in a NON-seeded session is a human nudge" "real real" "$got"
 
+got="$(session_kinds 1 'Continúa desde el brief del handoff.')"
+assert_eq "(i4) the wrapper v8 kickoff sentence is kickoff" "kickoff real" "$got"
+
 got="$(session_kinds 1 'arranca por la fase 1')"
 assert_eq "(i3) a seeded session opened with a real instruction has no kickoff" "real real" "$got"
 
