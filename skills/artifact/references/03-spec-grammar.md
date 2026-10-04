@@ -771,7 +771,7 @@ the page here, still on the spec route. It has **no body** — the drawing is th
   y+h <= image height (touching the far edge is allowed). Four plain numbers only: no
   `@name`, no list. On an `.svg` it is refused: outline inside the drawing instead.
   The figure is wrapped in `.fig-hl` (kit class), its img at the width a plain figure's gets;
-  in an item's thumbnail grid a highlighted figure is shown whole, not cropped to 4:3, so the
+  in an item's thumbnail grid a highlighted figure keeps its own aspect ratio instead of the shared 4:3 frame (every thumbnail is fit whole, never cropped, BL-694), so the
   outline stays on its region.
 - An `.svg` is **never shown wider than its viewBox** (BL-511): the builder reads the
   root's viewBox width and writes `style="max-width:<width>px"` on the `<figure>`, so a

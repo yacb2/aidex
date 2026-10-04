@@ -290,11 +290,14 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .gal figure[data-tile$="-mobile"] img { max-width: 220px; margin: 0 auto; display: block; }
 /* An item's own screenshots (BL-493): the same grid, 2-4 columns by image
    count (`data-cols`, written by the builder), ONE column under 700 px. The
-   thumbnails are cropped to a common frame from the top; the viewer shows the
-   whole capture. Not a gallery row: no data-tile, no compare, no marks. */
+   thumbnails share a common 4:3 frame and the capture is FIT inside it, top
+   aligned, never cropped: `cover` cut the sides off wide before/after/diff
+   crops so the changed text was unreadable (BL-694, echo_lab 2026-10-04). The
+   viewer shows the capture at full size. Not a gallery row: no data-tile, no
+   compare, no marks. */
 .gal.shots { grid-template-columns: minmax(0, 1fr); }
 .gal.shots figure { position: relative; cursor: pointer; }
-.gal.shots img { aspect-ratio: 4 / 3; object-fit: cover; object-position: top; }
+.gal.shots img { aspect-ratio: 4 / 3; object-fit: contain; object-position: center top; }
 @media (min-width: 700px) {
   .gal.shots[data-cols="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .gal.shots[data-cols="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
