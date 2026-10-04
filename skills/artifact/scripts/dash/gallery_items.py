@@ -109,6 +109,8 @@ INTRO = {
                         "hay antes, salvo donde la fila dice por qué no hay "
                         "antes.",
            "sample": "Las muestras no piden respuesta.",
+           "waits": "Las filas que esperan una decisión abierta son solo "
+                    "contexto y no piden respuesta.",
            "alt": "Elige una variante en cada fila y, si quieres matizar, di "
                   "por qué en las notas de esa fila.",
            "na": "Un estado que no se puede mostrar explica el motivo en su "
@@ -123,6 +125,8 @@ INTRO = {
                         "and there is no before, except where the row says "
                         "why there is no before.",
            "sample": "Samples ask for no answer.",
+           "waits": "Rows that wait on an open decision are context only and "
+                    "ask for no answer.",
            "alt": "Pick a variant on each row and, if you want to qualify it, "
                   "say why in that row's notes.",
            "na": "A state that cannot be shown gives the reason on its row; "
@@ -134,6 +138,10 @@ INTRO = {
 # What a sample row says where its answer options would be (BL-693).
 ASKS_NOTHING = {"es": "Solo ilustra: no necesita respuesta",
                 "en": "Illustration only: no answer needed"}
+
+# What a row says while the consult item it depends on is still open (BL-690).
+WAITS_ON = {"es": "Solo contexto: espera la decisión de %s",
+            "en": "Context only: waits for the decision on %s"}
 
 # Verdicts past this many stay behind a <summary>: the row asks verdict + note.
 VISIBLE_VERDICTS = 2
@@ -413,6 +421,19 @@ def check_row(row, variants, n, alts=None, require_look=False):
     cell = row.get("cell")
     if not isinstance(cell, str) or not SLUG.match(cell):
         die("row %d: 'cell' must be a lowercase slug, not %r" % (n, cell))
+    # `depends_on` (BL-690): the id of the consult item this row's content is
+    # built on. While that item is open the row is context only (see
+    # `pending_on`); it is meaningless on a row that is its own question.
+    if "depends_on" in row:
+        dep = row["depends_on"]
+        if not isinstance(dep, str) or not GROUP_ID.match(dep):
+            die("row '%s': 'depends_on' must be a consult item id, not %r"
+                % (cell, dep))
+        if "notApplicable" in row or row.get("kind") in ("alternatives",
+                                                         "states"):
+            die("row '%s': 'depends_on' goes on a review, unrequested or "
+                "sample row — a notApplicable, alternatives or states row is "
+                "a question of its own" % cell)
     # `answer` (BL-629): the reply to the owner's note on a row that is decided.
     # The fold shows it in its summary; an open row carries its own text, and a
     # notApplicable or dropped row has no slot for it, so it is refused there.
@@ -504,6 +525,8 @@ def check_row(row, variants, n, alts=None, require_look=False):
             "the chosen variants (%s)" % (cell, variant, " ".join(variants)))
     out = {"cell": cell, "variant": variant, "kind": kind,
            "title": check_title(row, cell)}
+    if "depends_on" in row:
+        out["depends_on"] = row["depends_on"]
     if "highlight" in row:
         out["highlight"] = check_highlight(row["highlight"], cell, "highlight")
     if "highlight_before" in row:
@@ -914,7 +937,31 @@ def na_row(gallery, cell, reason, lang, alts=False, dropped=None,
         + options(ident, lang, choices) + notes(lang) + ['  </section>'])
 
 
-def group_intro(doc, variants, alts, require_look, lang):
+def pending_on(r, items):
+    """The consult item id a checked row `r` waits on, or None (BL-690).
+
+    `items` maps item id -> (settled, before_the_gallery) for every item of the
+    page; None (the CLI, which sees no page) reads every dependency as open. A
+    decided row and a sample never wait: the first is settled, the second asks
+    nothing already. A dependency on an item the page lacks, or one placed
+    after the gallery, is refused: the open decision goes first."""
+    dep = r.get("depends_on")
+    if dep is None or r["kind"] is None:
+        return None
+    settled, before = (False, True) if items is None else items.get(dep, (None, None))
+    if settled is None:
+        die("row '%s': depends_on '%s' is not an item of this page"
+            % (r["cell"], dep))
+    if settled or "decided" in r or r["kind"] == "sample":
+        return None
+    if not before:
+        die("row '%s' waits on item '%s', which comes after the gallery: the "
+            "open decision goes first, the rows that depend on it after"
+            % (r["cell"], dep))
+    return dep
+
+
+def group_intro(doc, variants, alts, require_look, lang, items=None):
     """The block's one instruction (BL-595): which sentences apply depends on
     the kinds of row the block holds. Rows are only classified here; `render`
     still checks every one."""
@@ -929,6 +976,8 @@ def group_intro(doc, variants, alts, require_look, lang):
             shapes.add("alt")
         elif r["kind"] == "sample":
             shapes.add("sample")
+        elif pending_on(r, items):
+            shapes.add("waits")
         elif r["kind"] == "states":
             shapes.add("states")
         else:
@@ -942,12 +991,12 @@ def group_intro(doc, variants, alts, require_look, lang):
         shapes.discard("new")
     return " ".join(INTRO[lang][k]
                     for k in ("ask", "new", "new_mixed", "alt", "states",
-                              "sample", "na")
+                              "sample", "waits", "na")
                     if k in shapes)
 
 
 def render(doc, root, group_id, group_title, lang, page=None,
-           require_look=False, lead=""):
+           require_look=False, lead="", items=None):
     """The block, or "" for an empty `rows`: when every capture matches its
     baseline (D2) the owner's page carries no gallery block and no text about
     it — not an empty heading, not a "nothing changed" line.
@@ -957,7 +1006,10 @@ def render(doc, root, group_id, group_title, lang, page=None,
     a capture linked where it is breaks on this page's next reader.
     `require_look` refuses a row with no "what to look at" line (the spec
     route sets it). `lead` is the author's own prose as ready HTML, placed
-    between the heading and the generated intro."""
+    between the heading and the generated intro. `items` is what the page
+    knows of its consult items (see `pending_on`): a row that depends on an
+    open one is context only, and an unrequested row that depends on it is
+    folded the way a dropped row is, asking nothing (BL-690)."""
     if not doc["rows"]:
         return ""
     assets, copies = None, {}
@@ -979,7 +1031,7 @@ def render(doc, root, group_id, group_title, lang, page=None,
     add('  </div>')
     if lead:
         add(lead)
-    intro = group_intro(doc, variants, alts, require_look, lang)
+    intro = group_intro(doc, variants, alts, require_look, lang, items)
     if intro:
         add('  <p class="gal-intro">%s <span class="gal-intro-narrow">%s</span></p>'
             % (e(intro), e(NARROW_HINT[lang])))
@@ -1032,7 +1084,8 @@ def render(doc, root, group_id, group_title, lang, page=None,
         heading = row_heading(
             r.get("title"), cell,
             variant if len(cell_variants.get(cell, ())) > 1
-            and ("dropped" in r or "decided" in r) else None, lang)
+            and ("dropped" in r or "decided" in r
+                 or pending_on(r, items)) else None, lang)
         # A dropped row is out of the question set: same id, title and kind as
         # when it was asked, the reason where the tiles were, and a decided
         # mark so the composer folds it and counts it nowhere.
@@ -1048,6 +1101,29 @@ def render(doc, root, group_id, group_title, lang, page=None,
             out.extend(notes(lang))
             add('  </section>')
             continue
+        # BL-690: an unrequested row whose only change is a still-open option is
+        # not asked this round, but its id stays (a round that loses an id fails
+        # the id-stability check). It asks nothing and is NOT decided: no
+        # data-decided, so the composer neither folds its block into the decided
+        # section nor counts it settled, and a reply duty owed on it stays open.
+        # A plain closed <details> keeps it small in place; the waiting line is
+        # its summary and doubles as the gal-na reason a figure-less row needs.
+        waits = pending_on(r, items)
+        if waits and kind == "unrequested":
+            line = WAITS_ON[lang] % waits
+            add('  <section class="consult-item consult-gallery" data-id="%s"'
+                ' data-title="%s" data-heading="%s" data-variant="%s"'
+                ' data-asks-nothing data-waits-on="%s">'
+                % (e(ident), e(title), e(heading), e(variant), e(waits)))
+            add('    <h3>%s</h3>' % e(heading))
+            add('    <details class="gal-waiting">')
+            add('      <summary class="gal-na gal-asks-nothing">%s</summary>' % e(line))
+            if "look" in r:
+                add('      <p class="gal-look"><strong>%s:</strong> %s</p>'
+                    % (e(LOOK_LABEL[lang]), e(r["look"])))
+            add('    </details>')
+            add('  </section>')
+            continue
         # A new screen shows one capture, so the row narrows the block's
         # matrix to that tile; the checker holds it to exactly that.
         narrow = '' if kind in ("alternatives", "states") \
@@ -1059,8 +1135,10 @@ def render(doc, root, group_id, group_title, lang, page=None,
                 st["id"] for st in r["states"]))
         if "answer" in r:
             settled += ' data-answer="%s"' % e(r["answer"])
-        if kind == "sample":
+        if kind == "sample" or waits:
             settled += " data-asks-nothing"
+        if waits:
+            settled += ' data-waits-on="%s"' % e(waits)
         add('  <section class="consult-item consult-gallery" data-id="%s"'
             ' data-title="%s" data-heading="%s" data-variant="%s"%s%s>'
             % (e(ident), e(title), e(heading), e(variant), narrow, settled))
@@ -1135,10 +1213,13 @@ def render(doc, root, group_id, group_title, lang, page=None,
             choices.append(NONE_OF_THEM[lang])
             # Peer choices are all visible; only "none of them" collapses.
             out.extend(options(ident, lang, choices, visible=len(alts)))
-        elif kind == "sample":
+        elif kind == "sample" or waits:
             # BL-693: a row that asks nothing carries no answer control at all
             # (no verdicts, no notes box) and says so where the options would be.
-            add('    <p class="gal-asks-nothing">%s</p>' % e(ASKS_NOTHING[lang]))
+            # BL-690: a row waiting on an open item is the same shape, and its
+            # line names the item.
+            add('    <p class="gal-asks-nothing">%s</p>'
+                % e(WAITS_ON[lang] % waits if waits else ASKS_NOTHING[lang]))
             add('  </section>')
             continue
         elif "answer" not in r:

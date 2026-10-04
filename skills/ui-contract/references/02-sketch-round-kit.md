@@ -57,6 +57,18 @@ owner's answer did not ask for gets `kind: "unrequested"` and a `look` line nami
 
 An alternatives gallery IS the question: no parallel text item restates its options. No row of ANY kind (sample, unrequested, review) whose highlighted region repeats one already shown in another row of the round: the build refuses it, and its knock-on goes in one line of that row's look text.
 
+## Rows that depend on an open question
+
+A full-page row built on the recommended option of a consult item the owner has not
+decided asks for approval of that option twice (BL-690). Mark the row
+`"depends_on": "<item id>"` in the rows file: while the item is open the page shows it
+as context only (no verdict, no notes, one line naming the item), and an `unrequested`
+row that exists only because of the pending option stays on the page folded, with the same
+one line and no captures (its id is kept: a round that loses an id fails the id-stability check). Put the
+open item before the gallery in the spec; the build refuses the other order. Once the
+item is decided in the spec the row renders normally. Fields: `skills/artifact/references/04-block-vocabulary.md`
+gallery-rows table.
+
 ## The sketch worktree
 
 It needs what the capture needs, not only the code: the E2E stack and its DB template; in

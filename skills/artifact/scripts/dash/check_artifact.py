@@ -3588,8 +3588,30 @@ def check_marker_duties(new_path):
                  f"the item-text scan did not run ({e})")], []
 
     fails, warns = [], []
+    # BL-690: a row that owes a duty from the reply cannot wait on an open
+    # item: the reader asked about THIS row, so it is not only the pending
+    # option. Computed once, used by both loops; no deferred state.
+    waiting = waiting_rows(text)
+    waits_failed = set()
+
+    def owes_while_waiting(ident, owed):
+        if ident not in waiting:
+            return False
+        if ident not in waits_failed:
+            waits_failed.add(ident)
+            fails.append(("consult-marker-duties", name,
+                f"row {ident} owes {owed} from the reply but waits on "
+                f"the open item {waiting[ident]}; meet it now or remove its "
+                f"depends_on — a row the reader asked about is not only the "
+                f"pending option"))
+        return True
+
     for ident, marks in marker_duties_of(paste):
         if ident in decided_now:
+            continue
+        # `not-now` defers the row: waiting is how that deferral is met.
+        owed = sorted(set(marks) - {"not-now"})
+        if owed and owes_while_waiting(ident, ", ".join(f"[{m}]" for m in owed)):
             continue
         if ident not in bodies or ident not in answered_bodies:
             where = "the new page" if ident not in bodies else "the answered snapshot"
@@ -3669,6 +3691,8 @@ def check_marker_duties(new_path):
                 "gallery rows in the saved reply could not be read, so their "
                 "duties are not checked — list them by hand"))
             continue
+        if owes_while_waiting(ident, ", ".join(f"[{t}]" for t in tags)):
+            continue
         if ident not in bodies or ident not in answered_bodies:
             where = "the new page" if ident not in bodies else "the answered snapshot"
             warns.append(("consult-marker-duties", name,
@@ -3681,6 +3705,20 @@ def check_marker_duties(new_path):
                 f"answers it with the identical row — rebuild what the "
                 f"reader's verdict, note or marks name"))
     return fails, warns
+
+
+def waiting_rows(text):
+    """{data-id: item id} of gallery rows marked `data-waits-on` (BL-690): rows
+    that depend on a consult item still open. They ask nothing and are not
+    decided."""
+    out = {}
+    for m in ITEM_OPEN.finditer(text):
+        w = re.search(r'\bdata-waits-on\s*=\s*(?:"([^"]*)"|\x27([^\x27]*)\x27|([^\s>]+))',
+                      m.group(0), re.I)
+        if w:
+            out[next(g for g in m.groups()[1:] if g is not None)] = \
+                next(g for g in w.groups() if g is not None)
+    return out
 
 
 def decided_ids(text):

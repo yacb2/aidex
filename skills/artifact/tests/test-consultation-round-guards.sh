@@ -439,6 +439,73 @@ build --new-round; rc3=$?
   && ok "D6b. the row rebuilt wraps, and the next --new-round builds round 3" \
   || fail "D6b: rc=$rc rc3=$rc3 $(cat "$TMP/fl.out")"
 
+# D6c. BL-690: a row that owes ANY duty from the last saved reply cannot wait on an
+# open item (the reader asked about THIS row, so it is not only the pending option):
+# the wrap FAILS naming the row and the item, never a silent skip and never a deferral.
+# A row with no duty may wait (control). Three rounds of one flow per case.
+wflow() {  # wflow <name> <reply> <rows.py mutation of d for round 2>; leaves rc in $wrc, output in $TMP/wt-<name>.out
+  local n="$1" W="$TMP/wait-$1"
+  mkdir -p "$W/shots" "$W/actual" "$W/pages"
+  (cd "$W" && git init -q .)
+  python3 "$SKILL/tests/png_fixture.py" "$W/shots/a.png" 16 9
+  python3 "$SKILL/tests/png_fixture.py" "$W/actual/a.png" 16 9
+  cat > "$W/pages/rows.json" <<'J'
+{"gallery": "audit", "variants": ["light-desktop"], "rows": [
+ {"cell": "with-data", "variant": "light-desktop", "kind": "review", "look": "The header", "before": "shots/a.png", "after": "actual/a.png"},
+ {"cell": "loaded", "variant": "light-desktop", "kind": "unrequested", "look": "The rows", "before": "shots/a.png", "after": "actual/a.png"}]}
+J
+  printf '::: masthead {eyebrow="Rev" byline="aidex" visual="none: a layout probe"}\n# Galeria prueba\n\nRevisa las capturas.\n:::\n\n::: group {#G1 title="Decision" eyebrow="Q"}\n::: item {#Q14 title="Forma de Inicio"}\n?\n\n- B\n- C {recommended}\n:::\n:::\n\n::: gallery {#E title="Galeria audit" rows="rows.json"}\n:::\n\n::: notes {title="Notas generales"}\n:::\n' > "$W/pages/p.spec.md"
+  (cd "$W" && python3 "$SKILL/scripts/spec_build.py" pages/p.spec.md -o pages/p.html) > "$TMP/wt-$n.out" 2>&1 || { wrc=99; return; }
+  printf '%s' "$2" | bash "$SAVE_REPLY" "$W/pages/p.html" >/dev/null
+  python3 - "$W/pages/rows.json" "$3" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+for i in sys.argv[2].split(","):
+    d["rows"][int(i)]["depends_on"] = "Q14"
+json.dump(d, open(sys.argv[1], "w"))
+PY
+  (cd "$W" && python3 "$SKILL/scripts/spec_build.py" pages/p.spec.md -o pages/p.html --new-round) > "$TMP/wt-$n.out" 2>&1; wrc=$?
+}
+UNREQ='### audit-loaded-light-desktop-unrequested · audit · loaded · light-desktop'
+REVIEW='### audit-with-data-light-desktop · audit · with-data · light-desktop'
+wflow a "$UNREQ
+
+- Necesita cambios
+
+no lo pedi" 1
+[[ "$wrc" != 0 && "$wrc" != 99 ]] && grep -q 'consult-marker-duties.*audit-loaded-light-desktop-unrequested.*Q14' "$TMP/wt-a.out" \
+  && ok "D6c-a. a gallery verdict duty on a row that now waits on Q14 FAILS the wrap, naming the row and Q14 (BL-690)" \
+  || fail "D6c-a: rc=$wrc $(grep -i 'fail\|error' "$TMP/wt-a.out" | cut -c1-300)"
+wflow b "$REVIEW
+
+- [explain-why]
+
+por que
+
+$UNREQ
+
+- [show-me]
+
+mostrar" 0,1
+[[ "$wrc" != 0 && "$wrc" != 99 ]] \
+  && grep -q 'consult-marker-duties.*audit-with-data-light-desktop.*explain-why.*Q14' "$TMP/wt-b.out" \
+  && grep -q 'consult-marker-duties.*audit-loaded-light-desktop-unrequested.*show-me.*Q14' "$TMP/wt-b.out" \
+  && ! grep -q 'no figure, image or diagram' "$TMP/wt-b.out" \
+  && ok "D6c-b. marker-chip duties (explain-why on a review row, show-me on an unrequested row) on rows that now wait FAIL naming row and Q14, not the no-figure message (BL-690)" \
+  || fail "D6c-b: rc=$wrc $(grep -i 'fail\|error' "$TMP/wt-b.out" | cut -c1-400)"
+wflow c "$UNREQ
+
+- Aprobada" 1
+[[ "$wrc" == 0 ]] \
+  && ok "D6c-c. control: depends_on on a row whose reply owes nothing builds (BL-690)" \
+  || fail "D6c-c: rc=$wrc $(grep -i 'fail\|error' "$TMP/wt-c.out" | cut -c1-300)"
+wflow d "$UNREQ
+
+- [not-now]" 1
+[[ "$wrc" == 0 ]] && grep -q 'data-waits-on="Q14"' "$TMP/wait-d/pages/p.html" \
+  && ok "D6c-d. [not-now] defers the row, so it may wait on Q14: no FAIL, the row waits (BL-690 review round 4)" \
+  || fail "D6c-d: rc=$wrc $(grep -i 'fail\|error' "$TMP/wt-d.out" | cut -c1-300)"
+
 # D7. the stale-snapshot shape outside the gate: a round-2 page saved with the
 # gallery row untouched appends (answered.html frozen at round 1, the BL-504
 # D2c policy), so a round 3 that still leaves the row untouched must FAIL the

@@ -528,6 +528,31 @@ s1msg="$(python3 "$CD" --class $C "$TMP/s1-noline.html")"
 grep -q "g-x-sample" <<<"$s1msg" \
   && ok "the finding names the row" || bad "the finding does not name the row"
 
+# BL-690: a row that waits on a still-open consult item.
+WLINE='<p class="gal-asks-nothing">Solo contexto: espera la decisión de Q14</p>'
+Q14_OPEN="<section class=\"consult-item\" data-id=\"Q14\">$(opts Q14 B C)<textarea></textarea></section>"
+Q14_DONE="<section class=\"consult-item\" data-id=\"Q14\" data-decided=\"B\">$(opts Q14 B C)<textarea></textarea></section>"
+WROW="<section class=\"consult-item consult-gallery\" data-id=\"g-x-inicio\" data-asks-nothing data-waits-on=\"Q14\">$FIG$WLINE</section>"
+page w1-ok es "$Q14_OPEN$WROW"
+passes $C w1-ok "a waiting row after its open item, no control and its line, passes"
+page w1-radio es "$Q14_OPEN<section class=\"consult-item consult-gallery\" data-id=\"g-x-inicio\" data-asks-nothing data-waits-on=\"Q14\">$FIG$WLINE$(opts r Sí No)</section>"
+fails $C w1-radio "a row waiting on an open item that renders a verdict radio fails"
+w1msg="$(python3 "$CD" --class $C "$TMP/w1-radio.html")"
+grep -q "g-x-inicio" <<<"$w1msg" && grep -q "Q14" <<<"$w1msg" \
+  && ok "the finding names the row and the item it waits on" || bad "w1 finding does not name row and item: $w1msg"
+page w1-unmarked es "$Q14_OPEN<section class=\"consult-item consult-gallery\" data-id=\"g-x-inicio\" data-waits-on=\"Q14\">$FIG$WLINE</section>"
+fails $C w1-unmarked "a waiting row without data-asks-nothing fails (the composer would still offer an answer)"
+page w1-before es "$WROW$Q14_OPEN"
+fails $C w1-before "a waiting row placed before the item it waits on fails: the decision goes first"
+page w1-missing es "$WROW"
+fails $C w1-missing "a row waiting on an item the page lacks fails"
+page w1-done es "$Q14_DONE$WROW"
+fails $C w1-done "a row still waiting on an item that is decided fails: the wait is out of date"
+grep -q "out of date" <(python3 "$CD" --class $C "$TMP/w1-done.html") \
+  && ok "the finding says the wait is out of date" || bad "w1-done finding does not say out of date"
+page w1-asks es "$Q14_DONE<section class=\"consult-item consult-gallery\" data-id=\"g-x-inicio\">$FIG$(opts r Sí No)<textarea></textarea></section>"
+passes $C w1-asks "a row with no wait mark may ask beside a decided item"
+
 echo "== KIT_STRINGS lockstep: every kit chrome string is in contract_defects =="
 # ui-string-language judges a page by KIT_STRINGS, a copy kept in the module on
 # purpose. A string added to the kit's chrome and not to that copy is a label the

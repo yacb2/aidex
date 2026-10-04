@@ -4353,5 +4353,76 @@ tr2c="$(grep -oE '<title>[^<]*</title>' "$R2/dom4.html" | sed -n 1p)"
 [[ "$tr2c" == *"|CHECKED=Si|"* ]] \
   || fail "BL-692: an open item rebuilt as a proposal in the SAME round restored the stored 'No' onto its sealed options (want only Si checked): $tr2c"
 
+# ---- BL-690: a row waiting on an open consult item is not settled ----
+# The waiting rows ask nothing and are NOT data-decided, so the composer must leave them in their block:
+# a block of only waiting rows used to move into the decided section above the open question it waits on.
+# The gallery block is written by gallery-items.sh (the CLI reads every depends_on as open), so a generator
+# regression (a data-decided on a waiting row) reaches the browser assertions below.
+# Layer: browser, because where the block is drawn and which controls are injected are the composer's calls.
+WTG="$TMP/wtg"; mkdir -p "$WTG/root/shots"
+python3 "$SKILL/tests/png_fixture.py" "$WTG/root/shots/a.png" 16 9
+wtg_page() {  # wtg_page <name> <rows json path>; Q14 open in G0, then the generated gallery E
+  local n="$1"
+  bash "$SKILL/scripts/gallery-items.sh" "$2" --root "$WTG/root" --page "$TMP/reports/$n.html" \
+    --group-id E --group-title Revision > "$WTG/$n.gal.html" 2> "$WTG/$n.gal.err" \
+    || fail "BL-690: gallery-items failed for $n: $(cat "$WTG/$n.gal.err")"
+  {
+    printf '%s\n' '<meta name="consult-visual" content="none: a layout probe, nothing to draw">' \
+      '<div class="page"><main class="main"><header><p class="eyebrow">PROBE</p><h1>Waiting</h1></header>' \
+      '<section id="sec-ask"><div class="sec-head"><h2>Questions</h2></div>'
+    printf '<section class="consult-group" data-id="G0" data-title="Decision"><p>Contexto</p>\n'
+    item692 Q14 "Forma de Inicio" ''
+    printf '</section>\n'
+    cat "$WTG/$n.gal.html"
+    printf '%s\n' '<div class="endbar"><button type="button" id="consult-copy-end">Copy</button><span class="consult-status" id="consult-status-end"></span></div>' \
+      '<section class="consult-item consult-notes" data-id="notes" data-title="Notas generales"><h3>Notas generales</h3><textarea></textarea></section>' \
+      '</section></main><aside class="rail"><p class="railhead">Contenido</p><nav class="raillist" id="raillist"></nav>' \
+      '<div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div></aside></div>'
+    cat <<'PROBE'
+<script>window.addEventListener("load", function () {
+  var q = document.querySelector('[data-id="Q14"]'), e = document.getElementById("E");
+  var sec = document.getElementById("sec-decided");
+  var w = document.querySelectorAll("[data-waits-on]");
+  var inFold = 0, clear = 0, closed = 0;
+  w.forEach(function (n) {
+    if (n.closest("details.decided-unit")) inFold++;
+    clear += n.querySelectorAll(".consult-clear").length;
+    var d = n.querySelector("details.gal-waiting"); if (d && !d.open) closed++;
+  });
+  document.title = "WTG|WAITING=" + w.length
+    + "|INSEC=" + (sec ? sec.querySelectorAll("[data-waits-on]").length : 0)
+    + "|INFOLD=" + inFold
+    + "|Q14FIRST=" + ((q.compareDocumentPosition(e) & Node.DOCUMENT_POSITION_FOLLOWING) ? 1 : 0)
+    + "|CLEAR=" + clear
+    + "|Q14CLEAR=" + q.querySelectorAll(".consult-clear").length
+    + "|CLOSED=" + closed + "|";
+});</script>
+PROBE
+  } > "$WTG/$n.body.html"
+  bash "$WRAP" --title "wtg" --lang es --out "$TMP/reports/$n.html" < "$WTG/$n.body.html" > "$WTG/$n.log" 2>&1 \
+    || fail "BL-690: the waiting-row probe $n failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$WTG/$n.log" | sed -n 1,4p)"
+  rm -rf "$TMP/profile"
+  CHROME_WINDOW=1280,900 chrome_dump "$WTG/$n.dom.html" "file://$TMP/reports/$n.html" 45 || true
+  grep -oE '<title>[^<]*</title>' "$WTG/$n.dom.html" | sed -n 1p
+}
+cat > "$WTG/rows1.json" <<'J'
+{"gallery": "audit", "variants": ["light-desktop"], "rows": [
+ {"cell": "inicio", "variant": "light-desktop", "kind": "review", "depends_on": "Q14", "look": "El inicio",
+  "before": "shots/a.png", "after": "shots/a.png"}]}
+J
+t1="$(wtg_page wtg1 "$WTG/rows1.json")"
+[[ "$t1" == *"|WAITING=1|INSEC=0|INFOLD=0|Q14FIRST=1|CLEAR=0|Q14CLEAR=1|"* ]] \
+  || fail "BL-690: a block whose only row waits on Q14 must stay in place after Q14, not move into the decided section, and carry no Limpiar button while Q14 keeps its own (want WAITING=1|INSEC=0|INFOLD=0|Q14FIRST=1|CLEAR=0|Q14CLEAR=1): $t1"
+cat > "$WTG/rows2.json" <<'J'
+{"gallery": "audit", "variants": ["light-desktop"], "rows": [
+ {"cell": "earlier", "variant": "light-desktop", "kind": "review", "decided": "Aprobada", "look": "Antes",
+  "before": "shots/a.png", "after": "shots/a.png"},
+ {"cell": "loaded", "variant": "light-desktop", "kind": "unrequested", "depends_on": "Q14", "look": "Las filas",
+  "before": "shots/a.png", "after": "shots/a.png"}]}
+J
+t2="$(wtg_page wtg2 "$WTG/rows2.json")"
+[[ "$t2" == *"|WAITING=1|INSEC=0|INFOLD=0|Q14FIRST=1|CLEAR=0|Q14CLEAR=1|CLOSED=1|"* ]] \
+  || fail "BL-690: beside a row decided in an earlier round, the waiting unrequested row must stay out of the decided section and its fold, as a closed details (want INSEC=0|INFOLD=0|CLOSED=1): $t2"
+
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other, the not-now choice, the multi-select item built from a spec, the ask row and the provisional state, the explicit theme, v4 answer sets, the all-decided page, the half-answered block, the gallery zoom dialog with its keyboard walk, the block filters that never reach the paste, the light/dark compare with its slider kept out of the paste, and the localised chrome included"

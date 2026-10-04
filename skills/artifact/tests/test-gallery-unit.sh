@@ -1017,6 +1017,113 @@ en_sample="$(bash "$GEN" "$TMP/rows-sample.json" --root "$ROOT" --page "$PAGE" -
 grep -q 'Illustration only: no answer needed' <<<"$en_sample" \
   && ok "BL-693 the no-answer line is localized (en)" || fail "BL-693 no en no-answer line"
 
+# -- a row that depends on an open consult item is context only (BL-690) -----
+# The CLI sees no page, so it reads every dependency as open.
+python3 - "$TMP/rows.json" "$TMP/rows-dep.json" "$TMP/rows-dep-bad.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+d["rows"][0]["depends_on"] = "Q14"       # the review row
+d["rows"][2]["depends_on"] = "Q14"       # the unrequested row
+json.dump(d, open(sys.argv[2], "w"))
+d["rows"] = [{"cell": "empty", "notApplicable": "no state", "depends_on": "Q14"}]
+json.dump(d, open(sys.argv[3], "w"))
+PY
+bash "$GEN" "$TMP/rows-dep.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/dep.html" 2>"$TMP/dep.err"
+dep="$(item audit-empty-light-desktop "$TMP/dep.html")"
+[[ -n "$dep" && "$(grep -c '<figure' <<<"$dep")" == 2 ]] \
+  && ! grep -q 'type="radio"\|<textarea\|<input\|<select' <<<"$dep" \
+  && grep -q 'data-asks-nothing data-waits-on="Q14"' <<<"$dep" \
+  && grep -q '<p class="gal-asks-nothing">Solo contexto: espera la decisión de Q14</p>' <<<"$dep" \
+  && ok "BL-690 a review row waiting on an open item shows its pair, no controls, and one line naming the item" \
+  || fail "BL-690 the waiting row is wrong: $dep $(cat "$TMP/dep.err")"
+unreq="$(item audit-loaded-dark-mobile-unrequested "$TMP/dep.html")"
+[[ -n "$unreq" ]] && ! grep -q 'data-decided' <<<"$unreq" && grep -q '<details class="gal-waiting">' <<<"$unreq" && grep -q 'data-waits-on="Q14"' <<<"$unreq" \
+  && ! grep -q '<textarea\|<input\|<img' <<<"$unreq" \
+  && grep -q 'Solo contexto: espera la decisión de Q14' <<<"$unreq" \
+  && ok "BL-690 an unrequested row whose only change is the pending option keeps its id as a closed details, not decided, with no capture and no control" \
+  || fail "BL-690 the waiting unrequested row is not the folded shape: $unreq"
+grep -q 'Las filas que esperan una decisión abierta son solo contexto' "$TMP/dep.html" \
+  && ok "BL-690 the block's intro says that waiting rows ask nothing" || fail "BL-690 no waiting-row intro"
+bash "$GEN" "$TMP/rows-dep.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T --lang en 2>/dev/null \
+  | grep -q 'Context only: waits for the decision on Q14' \
+  && ok "BL-690 the waiting line is localized (en)" || fail "BL-690 no en waiting line"
+bash "$GEN" "$TMP/rows-dep-bad.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T >/dev/null 2>"$TMP/dep-bad.err"; rc=$?
+[[ $rc == 2 ]] && grep -q "row 'empty'.*depends_on" "$TMP/dep-bad.err" \
+  && ok "BL-690 depends_on on a notApplicable row is refused naming the cell" \
+  || fail "BL-690 notApplicable+depends_on: exit $rc, $(cat "$TMP/dep-bad.err")"
+
+# depends_on on the kinds that are a question of their own is refused; a sample and
+# a decided row never wait (the CLI reads every dependency as open).
+python3 - "$TMP/rows.json" "$TMP/rows-dep-alt.json" "$TMP/rows-dep-st.json" "$TMP/rows-dep-ex.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+cap = "actual/light-desktop/audit-empty.png"
+alt = dict(d, alternatives=[{"id": "a", "label": "A"}, {"id": "b", "label": "B"}],
+           rows=[{"cell": "empty", "variant": "light-desktop", "kind": "alternatives",
+                  "depends_on": "Q14", "captures": {"a": cap, "b": cap}}])
+json.dump(alt, open(sys.argv[2], "w"))
+st = dict(d, rows=[{"cell": "empty", "variant": "light-desktop", "kind": "states",
+                    "depends_on": "Q14", "states": [{"id": "x", "label": "X", "capture": cap},
+                                                    {"id": "y", "label": "Y", "capture": cap}]}])
+json.dump(st, open(sys.argv[3], "w"))
+ex = dict(d, rows=[
+    {"cell": "empty", "variant": "light-desktop", "kind": "sample", "depends_on": "Q14",
+     "before": "shots/light-desktop/audit-empty.png", "after": cap},
+    {"cell": "new-state", "variant": "light-desktop", "kind": "review", "depends_on": "Q14",
+     "decided": "Bien", "after": "actual/light-desktop/audit-new-state.png"}])
+json.dump(ex, open(sys.argv[4], "w"))
+PY
+for f in alt st; do
+  bash "$GEN" "$TMP/rows-dep-$f.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T >/dev/null 2>"$TMP/dep-$f.err"; rc=$?
+  [[ $rc == 2 ]] && grep -q "row 'empty'.*depends_on" "$TMP/dep-$f.err" \
+    && ok "BL-690 depends_on on a $f row is refused naming the cell" \
+    || fail "BL-690 $f+depends_on: exit $rc, $(cat "$TMP/dep-$f.err")"
+done
+bash "$GEN" "$TMP/rows-dep-ex.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/dep-ex.html" 2>"$TMP/dep-ex.err"
+smpx="$(item audit-empty-light-desktop-sample "$TMP/dep-ex.html")"
+decx="$(item audit-new-state-light-desktop "$TMP/dep-ex.html")"
+grep -q 'Solo ilustra: no necesita respuesta' <<<"$smpx" && ! grep -q 'data-waits-on' <<<"$smpx" \
+  && grep -q 'data-decided="Bien"' <<<"$decx" && ! grep -q 'data-waits-on' <<<"$decx" \
+  && ok "BL-690 a sample and a decided row with depends_on never wait: sample line and decided fold are kept" \
+  || fail "BL-690 sample/decided with depends_on: $smpx $decx $(cat "$TMP/dep-ex.err")"
+# The built page with an open Q14 passes the whole gate, folded unrequested row included.
+mkdir -p "$TMP/dp"; cp -R "$ROOT/shots" "$ROOT/actual" "$TMP/dp/"
+cp "$TMP/rows-dep.json" "$TMP/dp/dp.json"
+python3 - "$TMP/dp/dp.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+for r in d["rows"]:
+    r.setdefault("look", "La cabecera")
+json.dump(d, open(sys.argv[1], "w"))
+PY
+cat > "$TMP/dp/dp.spec.md" <<MD
+::: masthead {eyebrow="Fixture" byline="Fuente: fixture" visual="none: fixture"}
+# Galería
+
+Una decisión abierta y filas que dependen de ella.
+:::
+
+::: group {#G1 title="Decisión" eyebrow="Q"}
+::: item {#Q14 title="Forma de Inicio"}
+¿Qué forma?
+
+- B
+- C {recommended}
+:::
+:::
+
+::: gallery {#G title="Revisión" rows="dp.json" root="$ROOT"}
+:::
+
+::: notes {title="Notas generales"}
+:::
+MD
+( cd "$TMP/dp" && python3 "$SKILL/scripts/spec_build.py" dp.spec.md -o dp.html > "$TMP/dp/b.out" 2>&1 ); rc=$?
+if [[ $rc == 0 ]] && bash "$CHECK" "$TMP/dp/dp.html" > "$TMP/dp/c.out" 2>&1 && grep -q 'data-waits-on="Q14"' "$TMP/dp/dp.html" \
+   && ! grep -q 'consult-round1-decided' "$TMP/dp/b.out" "$TMP/dp/c.out"; then
+  ok "BL-690 a round-1 page whose only candidate is a waiting row passes check-artifact with no consult-round1-decided warning"
+else fail "BL-690 built waiting page: $(grep -v '^$' "$TMP/dp/b.out" | sed -n 1,8p | cut -c1-300) $(grep -v '^$' "$TMP/dp/c.out" | sed -n 1,6p)"; fi
+
 # -- a row whose highlighted region repeats another row's is refused (BL-693) --
 RR="$SKILL/tests/fixtures/redundant-region"
 RRD="$ROOT/shots/rr"; mkdir -p "$RRD"; cp "$RR"/* "$RRD/"

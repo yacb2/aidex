@@ -879,6 +879,97 @@ try:
             '::: gallery {#E title="G" rows="rows.json" root="%s"}\nPara.\n\n'
             '::: note\nhi\n:::\n:::' % checkout, 4, "its body is prose",
             base_dir=tmp)
+    # BL-690: a full-page row built on an open consult item is context only,
+    # and an unrequested row that exists only for the pending option is a closed one-line <details>
+    # that asks nothing and is not decided.
+    dep_rows = {"gallery": "audit", "variants": ["light-desktop"],
+                "rows": [dict(rows["rows"][0], depends_on="Q14"),
+                         dict(rows["rows"][1], depends_on="Q14")]}
+    with open(os.path.join(tmp, "dep.json"), "w", encoding="utf-8") as fh:
+        json.dump(dep_rows, fh)
+    q14 = ('::: item {#Q14 title="Forma de Inicio"%s}\n¿Qué forma?\n\n'
+           '- B\n- C {recommended}\n:::\n\n')
+    gal_dep = ('::: gallery {#E title="Galería audit" rows="dep.json" '
+               'root="%s"}\n:::' % checkout)
+    open_html = holds("gallery depends_on: an open item first, the row is context only",
+                      q14 % "" + gal_dep,
+                      'data-asks-nothing data-waits-on="Q14"',
+                      "Solo contexto: espera la decisión de Q14",
+                      base_dir=tmp, page=galpage)
+    check("gallery depends_on: no verdict radio on either row while Q14 is open",
+          'name="audit-with-data-light-desktop"' not in open_html
+          and 'name="audit-loaded-dark-mobile-unrequested"' not in open_html)
+    done_html = holds("gallery depends_on: once Q14 is decided the row renders normally",
+                      q14 % " decided=yes" + gal_dep,
+                      'data-id="audit-with-data-light-desktop"',
+                      'data-id="audit-loaded-dark-mobile-unrequested"',
+                      base_dir=tmp, page=galpage)
+    check("gallery depends_on: a decided item leaves no waiting row",
+          "data-waits-on" not in done_html
+          and 'name="audit-with-data-light-desktop"' in done_html)
+    rejects("gallery depends_on: an item placed after the gallery is refused",
+            gal_dep + "\n\n" + q14 % "", 1, "comes after the gallery",
+            base_dir=tmp, page=galpage)
+    rejects("gallery depends_on: an id the page lacks is refused",
+            gal_dep, 1, "not an item of this page", base_dir=tmp, page=galpage)
+    # Id stability: the waiting unrequested row keeps its id, folded, so a round
+    # that starts waiting on Q14 does not fail check_prev with a dropped id.
+    import check_artifact
+    plain_rows = {"gallery": "audit", "variants": ["light-desktop"],
+                  "rows": [rows["rows"][1]]}
+    only_unreq = {"gallery": "audit", "variants": ["light-desktop"],
+                  "rows": [dict(rows["rows"][1], depends_on="Q14")]}
+    for name, doc in (("plain", plain_rows), ("only_unreq", only_unreq)):
+        with open(os.path.join(tmp, name + ".json"), "w", encoding="utf-8") as fh:
+            json.dump(doc, fh)
+
+    def page_file(name, spec):
+        path = os.path.join(tmp, name + ".html")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(build(spec, base_dir=tmp, page=galpage))
+        return path
+
+    def unrequested_section(html):
+        i = html.index('data-id="audit-loaded-dark-mobile-unrequested"')
+        return html[html.rindex("<section", 0, i):html.index("</section>", i)]
+    # The page without depends_on, and the same rows with it while Q14 is open.
+    prev = page_file("prev-a", q14 % "" + gal_dep.replace("dep.json", "plain.json"))
+    for label, rowsfile in (("a mixed rows file", "dep.json"),
+                            ("a rows file holding only the unrequested row",
+                             "only_unreq.json")):
+        new = page_file("new-b", q14 % "" + gal_dep.replace("dep.json", rowsfile))
+        fails_, _ = check_artifact.check_prev(new, prev)
+        check("gallery depends_on: %s keeps the unrequested id, check_prev finds no drop" % label,
+              fails_ == [], str(fails_))
+    unreq = open(new, encoding="utf-8").read()
+    check("gallery depends_on: the waiting unrequested row is a closed details that asks "
+          "nothing and is NOT decided, with no notes box and no capture",
+          'data-id="audit-loaded-dark-mobile-unrequested"' in unrequested_section(unreq)
+          and "data-decided" not in unrequested_section(unreq)
+          and '<details class="gal-waiting">' in unrequested_section(unreq)
+          and "<details class=\"gal-waiting\" open" not in unrequested_section(unreq)
+          and 'data-waits-on="Q14"' in unrequested_section(unreq)
+          and "<textarea" not in unrequested_section(unreq)
+          and "<img" not in unrequested_section(unreq),
+          unrequested_section(unreq))
+    # waiting_rows reads the attribute however a hand-written or re-serialised page quotes it.
+    for quoting, val in (('"Q14"', "Q14"), ("'Q14'", "Q14"), ("Q14", "Q14")):
+        got = check_artifact.waiting_rows(
+            '<section class="consult-item" data-id="r1" data-asks-nothing '
+            'data-waits-on=%s>x</section>' % quoting)
+        check("waiting_rows reads data-waits-on=%s" % quoting, got == {"r1": val}, str(got))
+    # What counts as settled: dropped and a writer-decided proposal do; a blank
+    # decided ("**") does not.
+    settled_cases = (
+        ("dropped", ' dropped="no aplica"', False),
+        ("decided with a proposal (BL-692: open only to correction)",
+         " decided=yes proposal=yes", False),
+        ("a blank decided", ' decided="**"', True))
+    for label, attrs, waits in settled_cases:
+        html = build(q14 % attrs + gal_dep, base_dir=tmp, page=galpage)
+        check("gallery depends_on: an item %s %s the row" % (
+            label, "still holds" if waits else "releases"),
+            ("data-waits-on" in html) == waits)
     outside = os.path.join(tmp, "outside")
     os.makedirs(outside)
 

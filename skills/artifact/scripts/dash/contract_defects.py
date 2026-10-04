@@ -180,7 +180,12 @@ sample-row-asks-nothing
     writes it on a `kind: sample` row, BL-693). Such a row holds no answer
     control at all (no input, select, textarea or button) and one
     `.gal-asks-nothing` line with text, which says where the options would be
-    that it asks nothing. The composer's runtime chips (the page-defect flag
+    that it asks nothing. A row that depends on a consult item (BL-690)
+    carries `data-waits-on="<item id>"`; while that item has no `data-decided`
+    the row is held to the same rule (and to carrying `data-asks-nothing`),
+    the finding names the item, a row placed before its item fails (the
+    open decision goes first), and so does a row still waiting on an item that
+    is decided (the wait is out of date). The composer's runtime chips (the page-defect flag
     included) are not in the source and are not judged here.
 """
 
@@ -1078,16 +1083,46 @@ ANSWER_TAGS = ("input", "select", "textarea", "button")
 
 def check_sample_row_asks_nothing(path, html_text):
     out = []
-    for n in parse(html_text).root.walk():
-        if "data-asks-nothing" not in n.attrs:
-            continue
+    root = parse(html_text).root
+    # BL-690: an item is open while it carries no `data-decided`; `order` is the
+    # document position, so a waiting row can be held to "the decision first".
+    nodes = list(root.walk())
+    pos = {id(n): i for i, n in enumerate(nodes)}
+    items = {n.attrs["data-id"]: n for n in nodes
+             if "data-id" in n.attrs and "data-waits-on" not in n.attrs}
+    for n in nodes:
+        waits = n.attrs.get("data-waits-on")
         ident = n.attrs.get("data-id", "?")
+        if waits is not None:
+            item = items.get(waits)
+            if item is None:
+                out.append(("sample-row-asks-nothing", n.line,
+                            "row '%s' waits on item '%s', which is not on the page"
+                            % (ident, waits)))
+            elif "data-decided" in item.attrs:
+                out.append(("sample-row-asks-nothing", n.line,
+                            "row '%s' still waits on item '%s', which is "
+                            "decided: the wait is out of date, rebuild the "
+                            "row" % (ident, waits)))
+                waits = None
+            elif pos[id(item)] > pos[id(n)]:
+                out.append(("sample-row-asks-nothing", n.line,
+                            "row '%s' comes before the open item '%s' it waits on: "
+                            "the decision goes first" % (ident, waits)))
+        if "data-asks-nothing" not in n.attrs and waits is None:
+            continue
+        why = (" waits on the open item '%s' and" % waits) if waits else ""
+        if waits and "data-asks-nothing" not in n.attrs:
+            out.append(("sample-row-asks-nothing", n.line,
+                        "row '%s' waits on the open item '%s' but lacks "
+                        "data-asks-nothing: the composer would still offer an "
+                        "answer on it" % (ident, waits)))
         for d in n.walk():
             if d.tag in ANSWER_TAGS:
                 out.append(("sample-row-asks-nothing", d.line,
-                            "row '%s' asks nothing (data-asks-nothing) but renders a "
+                            "row '%s'%s asks nothing (data-asks-nothing) but renders a "
                             "<%s>: an illustrative row carries no answer control, "
-                            "not even a notes box" % (ident, d.tag)))
+                            "not even a notes box" % (ident, why, d.tag)))
         if not any("gal-asks-nothing" in d.classes() and d.text().strip()
                    for d in n.walk()):
             out.append(("sample-row-asks-nothing", n.line,
