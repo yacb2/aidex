@@ -21,7 +21,7 @@
 # So this test asserts the two of them ARE runnable from a worktree, and — because a
 # "did it exit 0" check is satisfied by a test that does nothing — that each one
 # actually did its work: the spec gate must say how many specs it derived, and the gate
-# suite must show the unreachable-SHA pair asserted in BOTH directions.
+# suite must show the unreachable-SHA pair (nudged / not nudged) asserted in BOTH directions.
 #
 # It runs them against the WORKING TREE, not against HEAD: a fresh worktree checks out a
 # commit, so every uncommitted file is copied in before the two run. Without that the
@@ -111,9 +111,11 @@ fi
 # Both halves of the unreachable-SHA pair must be asserted, and asserted as PASSes. The
 # mirror alone is worthless: it passes whenever the check is inert, which is exactly how
 # this stayed hidden.
-grep -q 'PASS  an unreachable commit SHA is denied' <<<"$mem_out" \
-  || fail "the unreachable-SHA deny was not asserted in a worktree — the check that BL-338 found silent there"
-grep -q 'PASS  a reachable commit SHA is not denied' <<<"$mem_out" \
+# Since 2026-10-04 (owner R3) the unpushed check nudges instead of denying, so its
+# liveness signal is the nudge on the unreachable SHA, not a deny.
+grep -q 'PASS  but it is nudged as unpushed-is-not-a-fact' <<<"$mem_out" \
+  || fail "the unreachable-SHA nudge was not asserted in a worktree — the check that BL-338 found silent there"
+grep -q 'PASS  a reachable commit SHA draws no unpushed nudge' <<<"$mem_out" \
   || fail "the reachable-SHA mirror was not asserted in a worktree — a mirror that cannot run must report itself, never pass quietly"
 
 if [ "$failures" -eq 0 ]; then
