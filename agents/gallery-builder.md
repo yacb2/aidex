@@ -29,6 +29,12 @@ the brief says the harness module changed since the last build.
    is built from.
 4. One **existing gallery spec** in the project, if there is one. Mirror it.
 
+For every full-page cell whose picture changed or is new, also write the capture's
+`<capture>.regions.json` (the changed region, from `locator.boundingBox()`, scaled to the
+capture, plus the scroll offset) and set `"highlight": "@name"` on its row: the page build
+refuses a full-page changed row without one (BL-688; format in
+`skills/artifact/references/04-block-vocabulary.md`, gallery rows).
+
 ## What you build
 
 - **A gallery page** (dev-only route) rendering the feature's real components. Real

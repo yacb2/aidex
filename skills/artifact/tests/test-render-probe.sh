@@ -78,6 +78,8 @@ for d in shots actual; do for cell in with-data empty; do
     mkdir -p "$GROOT/$d/$t" && python3 "$HERE/png_fixture.py" "$GROOT/$d/$t/audit-$cell.png" 390 844
   done
 done; done
+# BL-688: the new 1600x900 screen is a full-page overview, so its row names the region to look at.
+echo '{"shown": {"x": 100, "y": 100, "w": 300, "h": 120}}' > "$GROOT/actual/light-desktop/audit-empty.regions.json"
 if bash "$SCRIPTS/gallery-items.sh" "$FIX/gallery/rows.json" --root "$GROOT" --page "$TMP/gallery.html" \
      --group-id E --group-title "Galería audit" > "$TMP/gallery-group.html" 2>"$TMP/gallery-gen.err"; then
   ok "generated the gallery block from rows.json"

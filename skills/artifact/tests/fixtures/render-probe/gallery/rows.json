@@ -5,7 +5,7 @@
   {"cell": "with-data", "variant": "light-desktop", "kind": "review",
    "before": "shots/light-desktop/audit-with-data.png", "after": "actual/light-desktop/audit-with-data.png"},
   {"cell": "empty", "variant": "light-desktop", "kind": "review",
-   "after": "actual/light-desktop/audit-empty.png"},
+   "after": "actual/light-desktop/audit-empty.png", "highlight": "@shown"},
   {"cell": "with-data", "variant": "light-mobile", "kind": "review",
    "before": "shots/light-mobile/audit-with-data.png", "after": "actual/light-mobile/audit-with-data.png"},
   {"cell": "empty", "variant": "dark-mobile", "kind": "unrequested",

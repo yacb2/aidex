@@ -20,6 +20,8 @@ agent appends the pitfalls it hit, with file:line, before it hands back.
 - One capture run per round. The confirmation run (no update) is the hardening gate.
 - Rows JSON: a row whose visible change the owner did not ask for (shared i18n key or
   component, layout knock-on) is `kind: "unrequested"` with a `look` line naming the cause.
+- Rows JSON: a changed full-page row (capture 320x600 or larger) needs `"highlight": "@name"`
+  and the capture's `<capture>.regions.json`; the build refuses it otherwise (BL-688).
 - A dropped cell's baseline is not deleted by `--update-snapshots`: copy it aside, then `rm` it.
 
 ## Pitfalls already paid for (do not rediscover)

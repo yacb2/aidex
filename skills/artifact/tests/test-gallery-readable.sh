@@ -21,7 +21,7 @@ fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 ok()   { printf '  ok: %s\n' "$*"; }
 
 ROOT="$TMP/root"
-png() { mkdir -p "$(dirname "$ROOT/$1")"; python3 "$HERE/png_fixture.py" "$ROOT/$1" "$2" "$3"; }
+png() { mkdir -p "$(dirname "$ROOT/$1")"; python3 "$HERE/png_fixture.py" "$ROOT/$1" "$2" "$3" "${4:-128}"; }
 for d in shots actual; do
   png $d/users-list-menu.png 400 200
   png $d/new-screen.png 400 200
@@ -167,6 +167,66 @@ refuse_named "a region outside the capture is refused" '"@wide"' "runs outside"
 refuse_named "a name that is not @name is refused" '"@a b"' "a named highlight is"
 rm "$ROOT/shots/named.regions.json"
 refuse_named "a missing sidecar is refused" '"@error"' "is missing"
+
+echo "== BL-688: a changed full-page row must carry a highlight that resolves =="
+png shots/ov-before.png 1600 1000
+png shots/ov-after.png 1600 1000 200
+cat > "$ROOT/shots/ov-after.regions.json" <<'JSON'
+{"changed": {"x": 100, "y": 300, "w": 400, "h": 120}}
+JSON
+overview() {  # overview <rows json fragment> -> rows file with one full-page row
+  python3 - "$TMP/ov.json" "$1" <<'PY'
+import json, sys
+row = {"cell": "ovrow", "variant": "light-desktop", "kind": "review",
+       "before": "shots/ov-before.png", "after": "shots/ov-after.png"}
+row.update(json.loads(sys.argv[2]))
+json.dump({"gallery": "audit", "variants": ["light-desktop"], "rows": [row]}, open(sys.argv[1], "w"))
+PY
+}
+overview '{}'
+msg="$(gen "$TMP/ov.json" 2>&1 >/dev/null)"; rc=$?
+[[ $rc == 2 && "$msg" == *"row 'ovrow'"* && "$msg" == *"regions.json"* && "$msg" == *"highlight"* ]] \
+  && ok "a changed full-page row with no highlight is refused, naming the cell and the fix" \
+  || fail "a changed full-page row with no highlight was not refused (rc=$rc): $msg"
+overview '{"highlight": "@changed"}'
+gen "$TMP/ov.json" > "$TMP/ov.html" 2> "$TMP/ov.err" \
+  && grep -q 'data-tile="after".*left:6.25%;top:30%;width:25%;height:12%' <<<"$(item audit-ovrow-light-desktop "$TMP/ov.html")" \
+  && ok "the same row with a resolving @name highlight builds and outlines the changed region" \
+  || fail "the highlighted full-page row did not build with its outline: $(cat "$TMP/ov.err")"
+overview '{"decided": "Aprobada"}'
+gen "$TMP/ov.json" >/dev/null 2>&1 && ok "a decided full-page row needs no highlight" || fail "a decided row was refused"
+overview '{"dropped": "ya no aplica"}'
+gen "$TMP/ov.json" >/dev/null 2>&1 && ok "a dropped full-page row needs no highlight" || fail "a dropped row was refused"
+overview '{"before": "shots/ov-before.png", "after": "shots/ov-before.png"}'
+gen "$TMP/ov.json" >/dev/null 2>&1 && ok "a full-page row whose capture did not change needs no highlight" || fail "an unchanged row was refused"
+# Size table: each after is a different grey, so every row really changed.
+size_cell() {  # size_cell <w> <h> <refused|builds> <extra row json>
+  png shots/sz-b.png "$1" "$2" 128; png shots/sz-a.png "$1" "$2" 90
+  overview '{"before": "shots/sz-b.png", "after": "shots/sz-a.png"'"${4:-}"'}'
+  gen "$TMP/ov.json" >/dev/null 2>"$TMP/sz.err"; rc=$?
+  if [[ "$3" == refused ]]; then
+    [[ $rc == 2 && "$(cat "$TMP/sz.err")" == *"row 'ovrow'"* ]] && ok "$1x$2 changed, no highlight: refused" || fail "$1x$2 not refused (rc=$rc)"
+  else
+    [[ $rc == 0 ]] && ok "$1x$2 changed, no highlight: builds" || fail "$1x$2 refused: $(cat "$TMP/sz.err")"
+  fi
+}
+size_cell 390 844 refused
+size_cell 1600 900 refused
+size_cell 1312 372 builds
+size_cell 1312 599 builds
+size_cell 319 900 builds
+size_cell 1600 900 refused ', "kind": "unrequested"'
+png shots/sz-a.png 1600 900 90
+overview '{"before": null, "after": "shots/sz-a.png"}'
+python3 - "$TMP/ov.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1])); del d["rows"][0]["before"]; json.dump(d, open(sys.argv[1], "w"))
+PY
+msg="$(gen "$TMP/ov.json" 2>&1 >/dev/null)"; rc=$?
+[[ $rc == 2 && "$msg" == *"row 'ovrow'"* ]] && ok "a new 1600x900 screen with no highlight is refused" || fail "a new overview screen was not refused (rc=$rc): $msg"
+overview '{"before": "shots/missing.png"}'
+msg="$(gen "$TMP/ov.json" 2>&1 >/dev/null)"; rc=$?
+[[ $rc == 2 && "$msg" == *"'before' has no file"* ]] && ok "a missing before is the plain refusal, not a traceback" || fail "a missing before (rc=$rc): $msg"
 
 echo "== layout: a pair sits side by side by default (owner 2026-10-01); stacked only on request =="
 ! grep -q 'gal stacked' <<<"$pair" && ! grep -q 'gal stacked' <<<"$(item audit-phone-dark-mobile "$TMP/g.html")" \
