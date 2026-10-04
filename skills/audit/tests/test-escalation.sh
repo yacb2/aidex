@@ -16,6 +16,7 @@ fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+export XDG_STATE_HOME="$TMP/state"  # the escalation log must not leak into the real home
 mkdir -p "$TMP/.context/audits/ux/2026-06-01-first-pass" "$TMP/.context/backlog" "$TMP/.context/loops"
 cd "$TMP"
 A=".context/audits"
