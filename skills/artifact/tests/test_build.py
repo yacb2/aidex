@@ -509,6 +509,19 @@ try:
           'data-label="Dos" checked>', "<code>{chosen}</code>")
     rejects("item: a backtick-quoted {chosen} in a LABEL is refused",
             CH.replace("Tres", "Tres `{chosen}`"), 2, "data-label")
+    # BL-687: the designated shape for "decided, correct me if not" is one
+    # `item decided=yes` per point, inside its consult group (04-block-vocabulary.md).
+    # The fixture is the documented example, so the doc cannot drift from the builder.
+    with open(os.path.join(HERE, "fixtures", "decided-items.spec.md"), encoding="utf-8") as fh:
+        DEC = fh.read()
+    dec = holds("item: the decided-items fixture builds, each point a decided item with its notes",
+                DEC, 'data-id="Q1"', 'data-id="Q2"',
+                'data-label="Tabla" data-recommended checked>',
+                'data-label="En un archivo aparte" checked>')
+    check("item: ...both points carry data-decided and sit inside the group",
+          dec.count("data-decided") == 2
+          and dec.index('data-id="Q1"') < dec.index('data-id="Q2"')
+          and dec.index('id="G1"') < dec.index('data-id="Q1"'), dec)
     # BL-533: masthead dropped-ids records ids the page no longer carries.
     MAST = '::: masthead {title="T" dropped-ids="Q7 Q8"}\n:::\n\n'
     holds("masthead: dropped-ids reaches the page as the consult-dropped meta",
