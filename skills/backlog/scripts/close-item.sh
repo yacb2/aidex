@@ -333,8 +333,20 @@ archive_companions "$ROOT/.context" "backlog/$(basename "$FILE")" "$BACKLOG_DIR/
 
 # --- rebuild index ---
 if [[ $NO_INDEX -eq 0 ]]; then
-  bash "$SCRIPT_DIR/register-item.sh" --reindex >/dev/null
-  ok "  index rebuilt"
+  INDEX_FILE="$BACKLOG_DIR/00-index.md"
+  INDEX_BEFORE="$(cksum <"$INDEX_FILE" 2>/dev/null || true)"
+  RC=0
+  bash "$SCRIPT_DIR/register-item.sh" --reindex >/dev/null || RC=$?
+  if [[ $RC -eq 0 ]]; then
+    ok "  index rebuilt"
+  else
+    # --reindex also exits non-zero AFTER writing the index when the id guard finds a
+    # problem; only an index that was NOT rewritten is stale. Exit code stays main's.
+    if [[ "$(cksum <"$INDEX_FILE" 2>/dev/null || true)" == "$INDEX_BEFORE" ]]; then
+      echo "close-item: $(basename "$DEST") was archived but the index is stale; rebuild it with: bash $SCRIPT_DIR/register-item.sh --reindex" >&2
+    fi
+    exit "$RC"
+  fi
 fi
 
 printf '%s\n' "$DEST"
