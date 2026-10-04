@@ -82,6 +82,10 @@
       toDark: 'Dark',
       themeTitle: 'Switch this page between light and dark',
       decided: 'Decided',
+      proposal: 'Decided, correct me if not',
+      proposalsLeft: 'Decided points left to confirm or correct',
+      proposalsNothingToCopy: 'Nothing to copy: if you agree with everything, say so in the general note',
+      fixes: function (n) { return n + (n === 1 ? ' correction ready to copy' : ' corrections ready to copy'); },
       decidedCount: function (n, w) {
         var word = w === 'row' ? 'row' : w === 'item' ? 'item' : 'question';
         return n + ' ' + word + (n === 1 ? ' already settled' : 's already settled');
@@ -194,6 +198,10 @@
       toDark: 'Oscuro',
       themeTitle: 'Cambia esta p\u00e1gina entre claro y oscuro',
       decided: 'Decidido',
+      proposal: 'Decidido, corr\u00edgeme si no',
+      proposalsLeft: 'Quedan puntos decididos por confirmar o corregir',
+      proposalsNothingToCopy: 'Nada que copiar: si est\u00e1s de acuerdo con todo, escr\u00edbelo en la nota general',
+      fixes: function (n) { return n + (n === 1 ? ' correcci\u00f3n lista para copiar' : ' correcciones listas para copiar'); },
       decidedCount: function (n, w) {
         var word = w === 'row' ? 'fila' : w === 'item' ? 'elemento' : 'pregunta';
         var done = w === 'item' ? 'resuelto' : 'resuelta';
@@ -424,7 +432,7 @@
    * and headed apart from them (BL-532). */
   function isDropped(el) { return el.hasAttribute('data-dropped'); }
   function collapseDecided() {
-    var decided = items.filter(isDecided);
+    var decided = items.filter(isSettled);
     if (!decided.length) return;
 
     /* A block collapses as ONE unit only when every question in it is settled.
@@ -444,7 +452,7 @@
     decided.forEach(function (el) {
       var g = el.closest('.consult-group');
       if (g) {
-        var all = [].slice.call(g.querySelectorAll('.consult-item')).every(isDecided);
+        var all = [].slice.call(g.querySelectorAll('.consult-item')).every(isSettled);
         if (all) {
           if (seen.indexOf(g) === -1) { seen.push(g); units.push({ node: g, group: true }); }
           return;
@@ -479,7 +487,8 @@
             var verdict = decidedSummary(el) || (isDropped(el) ? L.droppedMark.trim() : '');
             var ans = answerOf(el);
             return (el.dataset.heading || el.dataset.title || el.dataset.id) + (verdict ? ': ' + verdict : '') + (ans ? ' \u2014 ' + ans : '');
-          }).join('; ');
+          }).join('\n');
+        v.className += ' decided-lines';
       } else {
         /* A row with a heading is labelled by it (BL-577); the slug stays on data-id. */
         k.textContent = u.node.dataset.heading ? '' : (u.node.dataset.id || '');
@@ -749,12 +758,29 @@
    * Re-opening it means removing the attribute, which is a deliberate act. */
   function isDecided(el) { return el.hasAttribute('data-decided'); }
 
+  /* A PROPOSAL (data-proposal, BL-692) is a decided item the reader has not
+   * answered: the main session's "decidido, corrígeme si no". It is decided for
+   * the counts (no question, no blank), but it stays drawn in place with a label,
+   * its options sealed, and its notes box live: a correction typed there is the
+   * only thing it adds to the reply (see collect()). */
+  function isProposal(el) { return isDecided(el) && el.hasAttribute('data-proposal'); }
+  /* Settled by an earlier round's answer: what collapseDecided folds away. */
+  function isSettled(el) { return isDecided(el) && !isProposal(el); }
+
   function sealDecided() {
     items.forEach(function (el) {
       if (!isDecided(el)) return;
       el.querySelectorAll('input, select, textarea').forEach(function (i) {
-        i.disabled = true;
+        i.disabled = !(isProposal(el) && i.tagName === 'TEXTAREA');
       });
+      if (isProposal(el) && !el.querySelector('.consult-proposal')) {
+        var tag = document.createElement('p');
+        tag.className = 'consult-proposal';
+        tag.textContent = L.proposal;
+        var h3 = el.querySelector('h3');
+        if (h3) h3.parentNode.insertBefore(tag, h3.nextSibling);
+        else el.insertBefore(tag, el.firstChild);
+      }
     });
   }
 
@@ -842,7 +868,7 @@
    * per block, and reporting ITS length said "12 de 9" on a nine-item page —
    * every block touched was counted as an answer (BL-268). */
   function collect() {
-    var answered = [], blank = [], lastGroup = null, n = 0, total = 0;
+    var answered = [], blank = [], lastGroup = null, n = 0, total = 0, proposals = 0, fixed = 0;
     items.forEach(function (el, i) {
       /* The general-notes item is NOT one of the questions, and counting it as
        * one made the page ask for something it never asked for: a reader who
@@ -851,9 +877,26 @@
        * omission. It leaves the numerator, the denominator and the blank list;
        * its text still travels in the paste when it is filled. */
       if (isDecided(el)) {
-        /* Shown as settled in the rail, counted nowhere, pasted never. */
-        el.classList.add('has-answer');
-        if (links[i]) links[i].classList.add('done');
+        /* Shown as settled in the rail, counted nowhere, pasted never. A
+         * proposal pastes only what the reader typed to correct it, and is
+         * still counted nowhere (BL-692). */
+        /* A proposal with no correction typed is pending the reader's
+         * confirmation: it is not marked answered until something is typed
+         * (BL-692). A proposal inside a group has no rail link, so only the
+         * item's has-answer class moves; the rail has no "pending" state. */
+        var fix = isProposal(el) ? [].map.call(el.querySelectorAll('textarea'), function (t) { return t.value.trim(); }).filter(Boolean).join('\n\n') : '';
+        if (isProposal(el)) { proposals++; if (fix) fixed++; }
+        var shown = isProposal(el) ? !!fix : true;
+        el.classList.toggle('has-answer', shown);
+        if (links[i]) links[i].classList.toggle('done', shown);
+        if (fix) {
+          var pg = el.closest('.consult-group');
+          if (pg && pg !== lastGroup) {
+            answered.push('## ' + (pg.dataset.id || pg.id || '') + ' \u00b7 ' + (pg.dataset.title || ''));
+            lastGroup = pg;
+          }
+          answered.push('### ' + el.dataset.id + ' \u00b7 ' + (el.dataset.title || '') + '\n\n' + fix);
+        }
         return;
       }
       /* A gallery SAMPLE (a row with no verdict group, by design — BL-466)
@@ -882,7 +925,7 @@
       else if (!notes) blank.push(el.dataset.id);
     });
     return { markdown: answered.join('\n\n'), answered: n, blank: blank,
-             total: total };
+             total: total, proposals: proposals, fixed: fixed };
   }
 
   function say(text) { status.forEach(function (s) { s.textContent = text; }); }
@@ -1009,7 +1052,7 @@
      * the item, so leaving it in would change every fingerprint the moment the
      * kit gained these controls, and every answer stored by a reader mid-thread
      * would read as "the question changed" and be dropped on the upgrade. */
-    clone.querySelectorAll('.kit-tag, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-more, .kit-provisional, .kit-marks-tile').forEach(function (c) { c.remove(); });
+    clone.querySelectorAll('.kit-tag, .consult-proposal, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-more, .kit-provisional, .kit-marks-tile').forEach(function (c) { c.remove(); });
     /* The generator's own <details> keeps its radios in the question (a row
      * built before it existed hashed them flat), but its summary word is chrome:
      * left in, every stored gallery answer would read as a changed question. */
@@ -1046,8 +1089,10 @@
 
   function snapshotItem(el) {
     var s = { m: [] }, any = false;
-    if (isDecided(el)) return null;
-    el.querySelectorAll('input[type="radio"]:checked, input[type="checkbox"]:checked')
+    if (isDecided(el) && !isProposal(el)) return null;
+    /* A proposal keeps only what the reader typed: its checked option is the
+     * writer's, sealed, and must not make the item look answered (BL-692). */
+    el.querySelectorAll(isProposal(el) ? 'x-none' : 'input[type="radio"]:checked, input[type="checkbox"]:checked')
       .forEach(function (i) { s.m.push(i.dataset.label || i.value || ''); });
     if (s.m.length) any = true;
     FREE.forEach(function (kind) {
@@ -1087,7 +1132,11 @@
         if (!s) return;
         /* A decided row is not a question: its round-1 answer is settled, and its
          * text changed by design (BL-629), so it is neither restored nor "stale". */
-        if (isDecided(el)) return;
+        if (isDecided(el) && !isProposal(el)) return;
+        /* A proposal restores only a correction typed in THIS round: an earlier
+         * round's note was about the open question, not about the writer's
+         * proposal, and its sealed options are never the reader's (BL-692). */
+        if (isProposal(el) && s.r && ROUND && s.r !== ROUND) return;
         /* No `h` means an answer set saved before this existed. It is restored,
          * not discarded: upgrading the kit must not blank answers a reader
          * already typed, and the first input event re-saves the entry with a
@@ -1099,7 +1148,7 @@
          * upgrading the kit must never blank what a reader already typed. */
         if (s.x && s.r && ROUND && s.r !== ROUND) { spent++; return; }
         var hit = false;
-        el.querySelectorAll('input[type="radio"], input[type="checkbox"]')
+        el.querySelectorAll(isProposal(el) ? 'x-none' : 'input[type="radio"], input[type="checkbox"]')
           .forEach(function (i) {
             if ((s.m || []).indexOf(i.dataset.label || i.value || '') !== -1) { i.checked = true; hit = true; }
           });
@@ -1341,6 +1390,7 @@
   function addAskRows() {
     items.forEach(function (el) {
       if (isDecided(el) || el.classList.contains('consult-notes')) return;
+      if (el.hasAttribute('data-asks-nothing')) return;   /* a sample row asks nothing (BL-693) */
       if (el.querySelector('.kit-ask')) return;
       var row = document.createElement('div');
       row.className = 'kit-ask';
@@ -1601,11 +1651,19 @@
      * viewport (`.rail.settled`, components.css, BL-575). The bar stays in the page,
      * after the content, because the notes box is still sendable. */
     var railEl = document.querySelector('.rail');
-    if (railEl) railEl.classList.toggle('settled', !r.total);
-    if (!r.total) { say(L.allDecided); return; }
+    /* Proposals still to confirm or correct are work left: the page is not
+     * "all decided" and the bar stays pinned (BL-692). */
+    if (railEl) railEl.classList.toggle('settled', !r.total && !r.proposals);
+    /* Corrections typed on proposals count like answers (copy() counts them), but
+     * apart from the questions: they are not part of the denominator. */
+    var fx = r.fixed ? L.fixes(r.fixed) : '';
+    if (!r.total) {
+      say(r.proposals > r.fixed ? L.proposalsLeft + (fx ? ' \u00b7 ' + fx : '') : r.proposals ? fx : L.allDecided);
+      return;
+    }
     say(r.answered
-      ? L.progress(r.answered, r.total) + (r.blank.length ? L.missing(r.blank) : '')
-      : L.none);
+      ? L.progress(r.answered, r.total) + (r.blank.length ? L.missing(r.blank) : '') + (fx ? ' \u00b7 ' + fx : '')
+      : (fx || L.none));
   }
 
   function copy() {
@@ -1615,7 +1673,7 @@
      * that box. Refusing on the counter would make the notes unsendable. */
     if (!r.markdown) {
       /* BL-587: on an all-decided page the status line says nothing is left to answer. */
-      say(r.total ? L.nothingToCopy : L.allDecidedNothingToCopy);
+      say(r.total ? L.nothingToCopy : r.proposals ? L.proposalsNothingToCopy : L.allDecidedNothingToCopy);
       return;
     }
     /* Pressing the button IS sending: from here the session has the answers,
@@ -1627,7 +1685,7 @@
       if (body) copied[el.dataset.id] = fnv(body);
     });
     save();
-    var msg = L.copied(r.answered) + (r.blank.length ? L.blankList(r.blank) : L.noneBlank);
+    var msg = L.copied(r.answered + r.fixed) + (r.blank.length ? L.blankList(r.blank) : L.noneBlank);
 
     function fallback() {
       var ta = document.createElement('textarea');
@@ -2380,7 +2438,8 @@
     }
 
     rows.forEach(function (row) {
-      if (marksBox(row) || !row.querySelector('figure[data-tile] img')) return;
+      /* A sample row asks nothing (BL-693): no mark-mode box, so no way to answer on it. */
+      if (row.hasAttribute('data-asks-nothing') || marksBox(row) || !row.querySelector('figure[data-tile] img')) return;
       var ta = document.createElement('textarea');
       ta.className = 'kit-marks';
       ta.hidden = true;

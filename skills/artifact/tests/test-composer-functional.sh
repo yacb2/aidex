@@ -923,7 +923,7 @@ window.addEventListener('load', function () {
   var shown = function (el) {
     return !!el && getComputedStyle(el).display !== 'none' && el.getClientRects().length > 0;
   };
-  var txt = function (sel) { var e = document.querySelector(sel); return e ? e.textContent.replace(/[|]/g, '/') : 'none'; };
+  var txt = function (sel) { var e = document.querySelector(sel); return e ? e.textContent.replace(/[|]/g, '/').replace(/\n/g, '; ') : 'none'; };
   var w = function (sel) { var e = document.querySelector(sel); return e ? Math.round(e.getBoundingClientRect().width) : -1; };
   /* BL-567: 1 when the table needs no sideways scroll AND its last cell ends inside the
    * viewport; the 4-column table is the one that may keep scrolling. */
@@ -1001,7 +1001,7 @@ window.addEventListener('load', function () {
     + '|DRPH=' + txt('#sec-dropped h2')
     + '|DRPN=' + document.querySelectorAll('#sec-dropped .consult-item').length
     + '|DRPHINT=' + txt('#sec-dropped .decided-hint')
-    + '|MIX=' + [].map.call(document.querySelectorAll('#sec-decided summary'), function (d) { return d.textContent.replace(/[|]/g, '/'); }).join(';')
+    + '|MIX=' + [].map.call(document.querySelectorAll('#sec-decided summary'), function (d) { return d.textContent.replace(/[|]/g, '/').replace(/\n/g, '; '); }).join(';')
     + '|DRP_HAS_X1=' + (document.querySelector('#sec-dropped [data-id="X1"]') ? 1 : 0)
     + '|RAIL=' + [].map.call(document.querySelectorAll('#raillist .railitem.sec'), function (a) { return a.textContent.trim(); }).join(',')
     /* Last, because it mutates: answer the one open question WITHOUT deciding it. Nothing
@@ -1133,7 +1133,7 @@ rows_body() {  # rows_body <lang: es|en> <extra decided plain question: 0|1>
     '</section></main><aside class="rail"><p class="railhead">'"$head"'</p><nav class="raillist" id="raillist"></nav>' \
     '<div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div></aside></div>' \
     '<script>window.addEventListener("load", function () {' \
-    ' var t = function (q) { return ((document.querySelector(q) || {}).textContent || "").replace(/[|]/g, "/"); };' \
+    ' var t = function (q) { return ((document.querySelector(q) || {}).textContent || "").replace(/[|]/g, "/").replace(/\n/g, "; "); };' \
     ' document.title = "ROWS|EYEBROW=" + t("#sec-decided .eyebrow") + "|SUM=" + t("#sec-decided summary") + "|ENTRIES=" + document.querySelectorAll("#sec-decided .consult-item").length;' \
     '});</script>'
 }
@@ -3972,7 +3972,7 @@ cat > "$TMP/slugbody.html" <<HTML
 </div>
 <script>
 window.addEventListener('load', function () {
-  var sums = [].map.call(document.querySelectorAll('details.decided-unit > summary'), function (d) { return d.textContent.replace(/[|]/g, '/'); });
+  var sums = [].map.call(document.querySelectorAll('details.decided-unit > summary'), function (d) { return d.textContent.replace(/[|]/g, '/').replace(/\n/g, '; '); });
   var emptyId = [].filter.call(document.querySelectorAll('details.decided-unit > summary > .consult-id'), function (e) { return !e.textContent; }).length;
   document.title = 'SLUG|SUMS=' + sums.join(';;') + '|EMPTYID=' + emptyId;
 });
@@ -4127,6 +4127,231 @@ for vp in 1280,900 390,900; do
   [[ "${BASH_REMATCH[5]}" == 2 && "${BASH_REMATCH[6]}" == 0 ]] \
     || fail "BL-619 $vp: in a thumbnail grid an outline leaves its image (want in=2 out=0): $tf"
 done
+
+# ---- BL-692: a decided item the reader has not answered is a PROPOSAL, kept in place ----
+# "decidido, corrígeme si no" items (data-decided + data-proposal) were folded into the bottom
+# "N preguntas ya resueltas" section like an earlier round's settled answers, so a proposal read as
+# settled and its correction box was hidden and sealed. Layer: browser, because where the item is
+# drawn, whether its notes box is live and what the copied reply carries are the composer's calls.
+PRP="$TMP/prp"; mkdir -p "$PRP"
+item692() {  # item692 <id> <title> <attrs>; an asks-nothing row is shaped like the generator's sample row: no controls, one .gal-asks-nothing line
+  if [[ "$3" == *data-asks-nothing* ]]; then
+    printf '<section class="consult-item" data-id="%s" data-title="%s" %s>\n<h3><span class="consult-id">%s</span>%s?</h3>\n<p class="gal-asks-nothing">Esta fila no pide respuesta.</p>\n</section>\n' "$1" "$2" "$3" "$1" "$2"
+    return
+  fi
+  printf '<section class="consult-item" data-id="%s" data-title="%s" %s>\n<h3><span class="consult-id">%s</span>%s?</h3>\n<div class="opts one"><label><input type="radio" name="%s" data-label="Si" checked><span>Si</span></label><label><input type="radio" name="%s" data-label="No"><span>No</span></label></div>\n<p class="fieldlabel">Notas</p><textarea placeholder="Escribe aqui"></textarea>\n</section>\n' "$1" "$2" "$3" "$1" "$2" "$1" "$1"
+}
+{
+  printf '%s\n' '<meta name="consult-visual" content="none: a layout probe, nothing to draw">' \
+    '<div class="page"><main class="main"><header><p class="eyebrow">PROBE</p><h1>Proposal</h1></header>' \
+    '<section id="sec-ask"><div class="sec-head"><h2>Questions</h2></div>'
+  printf '<section class="consult-group" data-id="G1" data-title="Propuestas"><p>Contexto</p>\n'
+  item692 P1 "Primera propuesta" 'data-decided="Si" data-proposal'
+  item692 P2 "Segunda propuesta" 'data-decided="Si" data-proposal'
+  printf '</section>\n<section class="consult-group" data-id="G2" data-title="Ya resueltas"><p>Contexto</p>\n'
+  item692 S1 "Primera resuelta" 'data-decided="Si"'
+  item692 S2 "Segunda resuelta" 'data-decided="No"'
+  printf '</section>\n<section class="consult-group" data-id="G3" data-title="Abiertas"><p>Contexto</p>\n'
+  item692 A1 "Fila de muestra" 'data-asks-nothing data-free="yes"'
+  item692 A2 "Pregunta normal" ''
+  printf '</section>\n'
+  printf '%s\n' '<div class="endbar"><button type="button" id="consult-copy-end">Copy</button><span class="consult-status" id="consult-status-end"></span></div>' \
+    '<section class="consult-item consult-notes" data-id="notes" data-title="Notas generales"><h3>Notas generales</h3><textarea></textarea></section>' \
+    '</section></main><aside class="rail"><p class="railhead">Contenido</p><nav class="raillist" id="raillist"></nav>' \
+    '<div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div></aside></div>'
+  cat <<'PROBE'
+<script>window.addEventListener("load", function () {
+  var p1 = document.querySelector('[data-id="P1"]'), sec = document.getElementById("sec-decided");
+  var ta = p1.querySelector("textarea"), cap = "";
+  var i3 = document.querySelector('[data-id="P2"]'), p3 = i3.querySelector("textarea");
+  var has = function (n) { return n.classList.contains("has-answer") ? 1 : 0; };
+  if (location.search.indexOf("phase=reload") > -1) {
+    document.title = "PRPRELOAD|P1=" + ta.value + "|P3=" + p3.value + "|HAS3=" + has(i3) + "|STAT=" + document.getElementById("consult-status").textContent + "|";
+    return;
+  }
+  var done0 = has(i3);
+  /* Before anything is typed: the EMPTY box and its label must be drawn (the settled-item rule
+   * that hides an empty reply box must not reach a proposal). */
+  var lbl = ta.previousElementSibling;
+  var emptyVis = (ta.checkVisibility() && getComputedStyle(ta).display !== "none"
+    && lbl.checkVisibility() && getComputedStyle(lbl).display !== "none") ? 1 : 0;
+  p3.value = "zzzloose"; p3.dispatchEvent(new Event("input", { bubbles: true }));
+  var done1 = has(i3);
+  var statTyped = "";
+  Object.defineProperty(navigator, "clipboard", { configurable: true,
+    value: { writeText: function (s) { cap = s; return Promise.resolve(); } } });
+  ta.value = "zzzcorrection mejor No"; ta.dispatchEvent(new Event("input", { bubbles: true }));
+  statTyped = document.getElementById("consult-status").textContent;
+  document.getElementById("consult-copy").click();
+  var lab = p1.querySelector(".consult-proposal");
+  var sum = sec ? sec.querySelector("summary") : null;
+  document.title = "PRP|INSEC=" + (sec && sec.contains(p1) ? 1 : 0)
+    + "|INFOLD=" + (p1.closest("details.decided-unit") ? 1 : 0)
+    + "|VISIBLE=" + (p1.checkVisibility() ? 1 : 0)
+    + "|LABEL=" + (lab ? lab.textContent.trim() : "none")
+    + "|LIVE=" + (ta.disabled ? 0 : 1)
+    + "|SETTLED=" + (sec && sec.contains(document.querySelector('[data-id="S1"]')) ? 1 : 0)
+    + "|SECUNITS=" + (sec ? sec.querySelectorAll(".decided-unit").length : -1)
+    + "|SECHEAD=" + (sec ? sec.querySelector(".eyebrow").textContent : "none")
+    + "|LINES=" + (sum ? sum.textContent.trim().split("\n").length : -1)
+    + "|SEMI=" + (sum && sum.textContent.indexOf("; ") > -1 ? 1 : 0)
+ + "|ASKS=" + document.querySelectorAll('[data-id="A1"] .kit-ask').length + "/" + document.querySelectorAll('[data-id="A2"] .kit-ask').length
+    + "|STATTYPED=" + statTyped
+    + "|EMPTYVIS=" + emptyVis
+    + "|RADIOOFF=" + (p1.querySelectorAll("input[type=radio]:disabled").length === p1.querySelectorAll("input[type=radio]").length ? 1 : 0)
+    + "|DONE0=" + done0 + "|DONE1=" + done1
+    + "|REPLY=" + cap.replace(/[|<>\n]/g, " ") + "|";
+});</script>
+PROBE
+} > "$PRP/body.html"
+bash "$WRAP" --title "prp" --lang es --out "$TMP/reports/prp.html" < "$PRP/body.html" > "$PRP/wrap.log" 2>&1 \
+  || fail "BL-692: the proposal probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$PRP/wrap.log" | sed -n 1,4p)"
+rm -rf "$TMP/profile"
+CHROME_WINDOW=1280,900 chrome_dump "$PRP/dom.html" "file://$TMP/reports/prp.html" 45 || true
+tp="$(grep -oE '<title>[^<]*</title>' "$PRP/dom.html" | sed -n 1p)"
+[[ "$tp" == *"|INSEC=0|INFOLD=0|VISIBLE=1|"* ]] \
+  || fail "BL-692: a proposal (data-decided + data-proposal) was folded into the settled section instead of staying in place, visible: $tp"
+[[ "$tp" == *"|LABEL=Decidido, corrígeme si no|LIVE=1|"* ]] \
+  || fail "BL-692: the proposal carries no 'Decidido, corrígeme si no' label, or its correction box is sealed: $tp"
+[[ "$tp" == *"|SETTLED=1|SECUNITS=1|SECHEAD=2 preguntas ya resueltas|"* ]] \
+  || fail "BL-692: an earlier round's settled group must still fold alone into 'N preguntas ya resueltas' (want 2, not 4): $tp"
+[[ "$tp" == *"|LINES=2|SEMI=0|"* ]] \
+  || fail "BL-692: the folded group's summary is not one line per point (want 2 lines, no '; '): $tp"
+[[ "$tp" == *"|REPLY="*"P1"*"zzzcorrection mejor No"* ]] \
+  || fail "BL-692: the correction typed on the proposal did not land in the copied reply: $tp"
+[[ "$tp" == *"|STATTYPED="*"2 correcciones listas para copiar|"* ]] \
+  || fail "BL-692: the status must count the typed corrections beside the questions (want '2 correcciones listas para copiar'): $tp"
+[[ "$tp" == *"|DONE0=0|DONE1=1|"* ]] \
+  || fail "BL-692: a proposal with no correction must not read as answered (has-answer), and must once something is typed: $tp"
+[[ "$tp" == *"|EMPTYVIS=1|RADIOOFF=1|"* ]] \
+  || fail "BL-692: an EMPTY proposal must show its correction box and label (EMPTYVIS=1), with its options sealed (RADIOOFF=1): $tp"
+[[ "$tp" == *"|REPLY="*"### P2"*"zzzloose"* && "${tp%%## G3*}" != *"- Si"* && "$tp" != *"### S1"* && "$tp" != *"### S2"* ]] \
+  || fail "BL-692: the reply must carry P2's correction and neither the proposal's sealed '- Si' nor the settled S1/S2: $tp"
+[[ "$tp" == *"|ASKS=0/1|"* ]] \
+  || fail "BL-693: an item marked data-asks-nothing must get no ask chips while a normal open item gets its row (want ASKS=0/1): $tp"
+# BL-693: a gallery sample row (data-asks-nothing) keeps no mark-mode box: it still has tiles to look at, but nothing to answer.
+# The sample row comes from the generator (kind: sample), so it has the real shape: tiles, no controls, the asks-nothing line.
+gen629 "$TMP/g629/marks.html" "$(row629 empty '')" "$(row629 loaded '' | sed 's/"kind": "review"/"kind": "sample"/')"
+MARKS_PROBE='<script>window.addEventListener("load", function () {
+  var n = function (id) { return document.querySelectorAll("[data-id=" + id + "] textarea.kit-marks").length; };
+  document.title = "MARKS|NORMAL=" + n("audit-empty-light-desktop") + "|SAMPLE=" + n("audit-loaded-light-desktop") + "|";
+});</script>'
+PROBE629="$MARKS_PROBE"
+page629 "$TMP/g629/marks.html" "$TMP/reports/marks692.html"
+tmk="$(title629 "$TMP/reports/marks692.html")"
+[[ "$tmk" == *"|NORMAL=1|SAMPLE=0|"* ]] \
+  || fail "BL-693: a tiled gallery row marked data-asks-nothing must get no mark-mode box while a normal one does (want NORMAL=1|SAMPLE=0): $tmk"
+# A page whose only remaining items are proposals is not "all decided": status and copy count say so.
+{
+  printf '%s\n' '<meta name="consult-visual" content="none: a layout probe, nothing to draw">' \
+    '<div class="page"><main class="main"><header><p class="eyebrow">PROBE</p><h1>Only proposals</h1></header>' \
+    '<section id="sec-ask"><div class="sec-head"><h2>Questions</h2></div>'
+  printf '<section class="consult-group" data-id="G1" data-title="Propuestas"><p>Contexto</p>\n'
+  item692 P1 "Primera propuesta" 'data-decided="Si" data-proposal'
+  item692 P2 "Segunda propuesta" 'data-decided="Si" data-proposal'
+  printf '</section>\n'
+  printf '%s\n' '<div class="endbar"><button type="button" id="consult-copy-end">Copy</button><span class="consult-status" id="consult-status-end"></span></div>' \
+    '<section class="consult-item consult-notes" data-id="notes" data-title="Notas generales"><h3>Notas generales</h3><textarea></textarea></section>' \
+    '</section></main><aside class="rail"><p class="railhead">Contenido</p><nav class="raillist" id="raillist"></nav>' \
+    '<div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div></aside></div>'
+  cat <<'PROBE'
+<script>window.addEventListener("load", function () {
+  var st = document.getElementById("consult-status"), rail = document.querySelector(".rail");
+  var s0 = st.textContent, set0 = rail.classList.contains("settled") ? 1 : 0;
+  document.getElementById("consult-copy").click();
+  var s1 = st.textContent;
+  var ta = document.querySelector('[data-id="P1"] textarea');
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: function () { return { then: function (f) { f(); return { catch: function () {} }; } }; } } });
+  ta.value = "zzzfix"; ta.dispatchEvent(new Event("input", { bubbles: true }));
+  var sPart = st.textContent;
+  var tb = document.querySelector('[data-id="P2"] textarea');
+  tb.value = "zzzfix2"; tb.dispatchEvent(new Event("input", { bubbles: true }));
+  var sTyped = st.textContent;
+  document.getElementById("consult-copy").click();
+  document.title = "ONLYP|S0=" + s0 + "|SETTLED0=" + set0 + "|S1=" + s1 + "|SPART=" + sPart + "|STYPED=" + sTyped + "|S2=" + st.textContent + "|";
+});</script>
+PROBE
+} > "$PRP/body2.html"
+bash "$WRAP" --title "prp2" --lang es --out "$TMP/reports/prp2.html" < "$PRP/body2.html" > "$PRP/wrap2.log" 2>&1 \
+  || fail "BL-692: the proposals-only probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$PRP/wrap2.log" | sed -n 1,4p)"
+CHROME_WINDOW=1280,900 chrome_dump "$PRP/dom3.html" "file://$TMP/reports/prp2.html" 45 || true
+tp3="$(grep -oE '<title>[^<]*</title>' "$PRP/dom3.html" | sed -n 1p)"
+[[ "$tp3" == *"|S0=Quedan puntos decididos por confirmar o corregir|SETTLED0=0|S1=Nada que copiar: si estás de acuerdo con todo, escríbelo en la nota general|"* ]] \
+  || fail "BL-692: a page whose only items are proposals must say points are left to confirm (not 'Todas las preguntas están decididas'), keep the bar pinned (SETTLED0=0), and tell a copy with nothing typed to use the general note: $tp3"
+[[ "$tp3" == *"|SPART=Quedan puntos decididos por confirmar o corregir · 1 corrección lista para copiar|"* ]] \
+  || fail "BL-692: with some proposals corrected and others not, the status must show both the points left and the corrections count: $tp3"
+[[ "$tp3" == *"|STYPED=2 correcciones listas para copiar|"* ]] \
+  || fail "BL-692: once every proposal has a correction the status must not keep saying points are left (want '2 correcciones listas para copiar'): $tp3"
+[[ "$tp3" == *"|S2=2 copiada(s)"* ]] \
+  || fail "BL-692: after copying a correction the status must count it (2 copiada(s), not 0): $tp3"
+# Reload on the same profile (same path, so the same store): the typed corrections must come back.
+CHROME_WINDOW=1280,900 chrome_dump "$PRP/dom2.html" "file://$TMP/reports/prp.html?phase=reload" 45 || true
+tp2="$(grep -oE '<title>[^<]*</title>' "$PRP/dom2.html" | sed -n 1p)"
+[[ "$tp2" == *"|P1=zzzcorrection mejor No|P3=zzzloose|HAS3=1|STAT="*"2 correcciones listas para copiar|"* ]] \
+  || fail "BL-692: a correction typed on a proposal did not survive a reload (or its has-answer mark / the status line did not): $tp2"
+# BL-692: round 1 left an UNSENT answer ("No" + a note) on the open P1; in round 2 P1 is a proposal
+# written "Si". It must load with "Si" checked and the round-1 note NOT restored into the proposal.
+R2="$TMP/r2692"; mkdir -p "$R2"
+body692() {  # body692 <open|proposal>
+  local attr=""; [[ "$1" == proposal ]] && attr='data-decided="Si" data-proposal'
+  { printf '%s\n' '<meta name="consult-visual" content="none: a layout probe, nothing to draw">' \
+      '<div class="page"><main class="main"><header><p class="eyebrow">PROBE</p><h1>Two rounds</h1></header>' \
+      '<section id="sec-ask"><div class="sec-head"><h2>Questions</h2></div>'
+    printf '<section class="consult-group" data-id="G1" data-title="Uno"><p>Contexto</p>\n'
+    # Same markup either way (the question hash is whitespace-sensitive): the open item is
+    # the proposal's markup with no verdict and nothing pre-checked.
+    if [[ "$1" == open ]]; then
+      item692 P1 "Punto" "" | sed 's/ checked//'
+    else
+      item692 P1 "Punto" "$attr"
+    fi
+    printf '</section>\n'
+    printf '%s\n' '<div class="endbar"><button type="button" id="consult-copy-end">Copy</button><span class="consult-status" id="consult-status-end"></span></div>' \
+      '<section class="consult-item consult-notes" data-id="notes" data-title="Notas generales"><h3>Notas generales</h3><textarea></textarea></section>' \
+      '</section></main><aside class="rail"><p class="railhead">Contenido</p><nav class="raillist" id="raillist"></nav>' \
+      '<div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div></aside></div>'
+    cat <<'PROBE'
+<script>window.addEventListener("load", function () {
+  var p1 = document.querySelector('[data-id="P1"]'), ta = p1.querySelector("textarea");
+  if (location.search.indexOf("phase=fill") > -1) {
+    var no = p1.querySelector('input[data-label="No"]'); no.checked = true; no.dispatchEvent(new Event("change", { bubbles: true }));
+    ta.value = "zzznoteround1"; ta.dispatchEvent(new Event("input", { bubbles: true }));
+    document.title = "FILLED"; return;
+  }
+  var on = [].filter.call(p1.querySelectorAll("input[type=radio]:checked"), function () { return true; }).map(function (i) { return i.dataset.label; }).join("+");
+  document.title = "R2|CHECKED=" + on + "|NOTE=" + ta.value + "|REST=" + ((document.getElementById("consult-restored")||{}).textContent||"none").slice(0, 60) + "|";
+});</script>
+PROBE
+  } > "$R2/body.html"
+}
+body692 open
+bash "$WRAP" --title "r2" --lang es --out "$TMP/reports/r2692.html" < "$R2/body.html" > "$R2/wrap1.log" 2>&1 \
+  || fail "BL-692: the round-1 page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$R2/wrap1.log" | sed -n 1,4p)"
+rm -rf "$TMP/profile"
+CHROME_WINDOW=1280,900 chrome_dump "$R2/dom1.html" "file://$TMP/reports/r2692.html?phase=fill" 45 || true
+printf 'P1: ok\n' | bash "$SKILL/scripts/save-reply.sh" "$TMP/reports/r2692.html" - >/dev/null 2>&1 \
+  || fail "BL-692: save-reply.sh failed on the round-1 page"
+body692 proposal
+bash "$WRAP" --title "r2" --lang es --out "$TMP/reports/r2692.html" < "$R2/body.html" > "$R2/wrap2.log" 2>&1 \
+  || fail "BL-692: the round-2 page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$R2/wrap2.log" | sed -n 1,4p)"
+CHROME_WINDOW=1280,900 chrome_dump "$R2/dom2.html" "file://$TMP/reports/r2692.html" 45 || true
+tr2b="$(grep -oE '<title>[^<]*</title>' "$R2/dom2.html" | sed -n 1p)"
+[[ "$tr2b" == *"|CHECKED=Si|NOTE=|REST=none|"* ]] \
+  || fail "BL-692: a round-2 proposal restored round 1's unsent answer (want CHECKED=Si, empty NOTE, and no restored/stale banner about it): $tr2b"
+# Same round (no saved reply between the wraps): the open P1 with a stored "No" is rebuilt as a proposal "Si".
+# Its sealed options are the writer's: only Si may be checked, whatever the store holds.
+rm -rf "$TMP/profile"
+body692 open
+bash "$WRAP" --title "r2b" --lang es --out "$TMP/reports/r2b692.html" < "$R2/body.html" > "$R2/wrap3.log" 2>&1 \
+  || fail "BL-692: the same-round page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$R2/wrap3.log" | sed -n 1,4p)"
+CHROME_WINDOW=1280,900 chrome_dump "$R2/dom3.html" "file://$TMP/reports/r2b692.html?phase=fill" 45 || true
+body692 proposal
+bash "$WRAP" --title "r2b" --lang es --out "$TMP/reports/r2b692.html" < "$R2/body.html" > "$R2/wrap4.log" 2>&1 \
+  || fail "BL-692: the same-round proposal page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$R2/wrap4.log" | sed -n 1,4p)"
+CHROME_WINDOW=1280,900 chrome_dump "$R2/dom4.html" "file://$TMP/reports/r2b692.html" 45 || true
+tr2c="$(grep -oE '<title>[^<]*</title>' "$R2/dom4.html" | sed -n 1p)"
+[[ "$tr2c" == *"|CHECKED=Si|"* ]] \
+  || fail "BL-692: an open item rebuilt as a proposal in the SAME round restored the stored 'No' onto its sealed options (want only Si checked): $tr2c"
 
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other, the not-now choice, the multi-select item built from a spec, the ask row and the provisional state, the explicit theme, v4 answer sets, the all-decided page, the half-answered block, the gallery zoom dialog with its keyboard walk, the block filters that never reach the paste, the light/dark compare with its slider kept out of the paste, and the localised chrome included"

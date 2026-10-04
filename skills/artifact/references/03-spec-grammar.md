@@ -217,7 +217,7 @@ builder, not tokenizer.
 Two of those refusals moved during the corpus conversion, and both moved because a
 real page said something the grammar could not:
 
-- **A decided-but-correctable point is an `item decided=yes` in its consult group** (BL-687), with the other items of its round: not a top-level `callout`, not a `ledger` row (the ledger holds what EARLIER rounds settled). `04-block-vocabulary.md` § `item` has the shape; `tests/fixtures/decided-items.spec.md` is a built example.
+- **A decided-but-correctable point is an `item decided=yes proposal=yes` in its consult group** (BL-687, BL-692: `proposal=yes` keeps it in place instead of folding it as settled), with the other items of its round: not a top-level `callout`, not a `ledger` row (the ledger holds what EARLIER rounds settled). `04-block-vocabulary.md` § `item` has the shape; `tests/fixtures/decided-items.spec.md` is a built example.
 - **`item` at the document's top level now BUILDS.** It used to be refused with
   "`item` may only appear in `group`". 4 of the 30 sampled pages (13%) write a
   decision outside any block, and a grammar that cannot say what a real page says
@@ -938,7 +938,9 @@ instead of failing. The id never changes, and an id left out still fails. Unlike
 the declaration lasts ONE round: every `new-round` replaces `retitled-ids` with its own
 `--retitle` list and removes it when the call names none, so a later reword of the same id
 must be declared again. The id must still be in the spec. Start every round with
-`new-round`; a rebuild by other means keeps the previous declaration.
+`new-round`; a rebuild by other means keeps the previous declaration. (`new-round` also settles
+the `proposal=yes` items the reader saw on the saved answered page, BL-692; it changes nothing
+about ones written this turn.)
 
 ## An `item`'s heading: `heading=` over `title=` (BL-652)
 

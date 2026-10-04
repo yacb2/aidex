@@ -345,6 +345,8 @@ ITEM_NOTES = re.compile(r'<textarea\b|contenteditable\s*=', re.I | re.S)
 HIDDEN_TEXTAREA = re.compile(r'<textarea\b(?:[^>"\x27]|"[^"]*"|\x27[^\x27]*\x27)*?'
                              r'(?:\shidden(?=[\s=/>])|\bclass\s*=\s*["\x27][^"\x27]*\bkit-marks\b)'
                              r'.*?</textarea\s*>', re.I | re.S)
+# BL-693: a row that asks nothing is marked by the generator (data-asks-nothing).
+ITEM_ASKS_NOTHING = re.compile(r'\bdata-asks-nothing\b', re.I)
 # BL-359: the item's own declaration that it is settled. `02-local-first-
 # artifacts.md` § Update in place makes keeping the item and marking it the
 # DEFAULT for a decided one, and both the kit's CSS and composer.js already
@@ -392,12 +394,16 @@ def consult_items(text):
         tag = m.group(1)
         ident = next(g for g in m.groups()[1:] if g is not None)
         body = HIDDEN_TEXTAREA.sub(' ', _subtree(text, tag, m.end()))
+        # BL-693: a row that asks nothing (`data-asks-nothing`) has no surface
+        # and no notes box by design; contract_defects' sample-row-asks-nothing
+        # holds it to that and to its one no-answer line.
+        asks_nothing = bool(ITEM_ASKS_NOTHING.search(m.group(0)))
         # The open tag itself may BE the surface (an <input data-id=...>).
         items.append((
             ident,
             bool(ITEM_TITLE.search(m.group(0))),
-            bool(ITEM_SURFACE.search(body) or ITEM_SURFACE.search(m.group(0))),
-            bool(ITEM_NOTES.search(body) or ITEM_NOTES.search(m.group(0))),
+            asks_nothing or bool(ITEM_SURFACE.search(body) or ITEM_SURFACE.search(m.group(0))),
+            asks_nothing or bool(ITEM_NOTES.search(body) or ITEM_NOTES.search(m.group(0))),
             bool(ITEM_DECIDED.search(m.group(0))),
         ))
     return items
@@ -2478,6 +2484,20 @@ def warn_file(path):
                       f"the material it asks about. Evidence precedes its "
                       f"question and an item closes its unit (§8.4, BL-463): "
                       f"move the evidence above the item it belongs to"))
+    # BL-692: on a first-round page nothing has been settled by a reader yet, so a
+    # decided item there is the writer's proposal; without the mark the kit folds it
+    # away as already resolved and hides its correction box.
+    # (Not in a verb's trial build: its temp dir has no history, so it is always "round 1".)
+    if (not os.environ.get("AIDEX_TRIAL_BUILD")
+            and re.search(r'<meta\s+name="consult-round"\s+content="1"', text)):
+        unmarked = sorted(i for i in decided_ids(text)
+                          if i not in proposal_ids(text) and i not in dropped_ids(text))
+        if unmarked:
+            warns.append(("consult-round1-decided", name,
+                          f"round 1 has nothing settled: mark the decided points "
+                          f"proposal=yes ({', '.join(unmarked[:6])}"
+                          f"{'...' if len(unmarked) > 6 else ''}), or the page "
+                          f"folds them as already resolved"))
     return warns
 
 
@@ -3722,6 +3742,16 @@ def dropped_ids(text):
     return out
 
 
+def proposal_ids(text):
+    """The `data-id`s of items carrying `data-proposal` (a spec `proposal=yes`,
+    BL-692): decided by the writer this round, awaiting the reader's correction."""
+    out = set()
+    for m in ITEM_OPEN.finditer(text):
+        if re.search(r"\bdata-proposal\b(?!-)", m.group(0), re.I):
+            out.add(next(g for g in m.groups()[1:] if g is not None))
+    return out
+
+
 _SAVE_SEP = re.compile(r"^<!-- reply saved .*-->[ \t]*$", re.M)
 # A composer paste: a group heading, or the general-notes block (it sits
 # outside every group, so a notes-only paste carries no `##` line).
@@ -3761,7 +3791,8 @@ def check_decided_trace(path):
     reply starts with the id (`### Q1 · ...` or chat `Q1: ...`) and carries
     more than marker lines and no `[provisional]`. Exempt: items decided
     before that snapshot (earlier rounds), items absent from it (born
-    decided), and dropped items (`data-dropped`: they left the question set)."""
+    decided), and dropped items (`data-dropped`: they left the question set) and proposals
+    (`data-proposal`: the writer decided them, no reader answer exists)."""
     name = os.path.basename(path)
     prev_dir = os.path.join(os.path.dirname(os.path.abspath(path)),
                             ".aidex-artifact-prev")
@@ -3784,7 +3815,7 @@ def check_decided_trace(path):
     # an item born after the last reply is open in the baseline, not the snapshot
     base = read(baseline)
     was_open |= ({i for i, *_ in consult_items(base)} - decided_ids(base)) - in_old
-    gap = (decided_ids(text) - dropped_ids(text)) & was_open
+    gap = (decided_ids(text) - dropped_ids(text) - proposal_ids(text)) & was_open
     page_ids = in_old | {i for i, *_ in consult_items(base)} \
         | {i for i, *_ in consult_items(text)}
     return [("consult-decided-trace", name,

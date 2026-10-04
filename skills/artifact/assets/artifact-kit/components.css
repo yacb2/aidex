@@ -313,6 +313,9 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
    a statement rather than as a missing image. */
 .gal-na:where(:not(svg *)) { font-family: var(--sans); font-size: 0.88rem; color: var(--ink-soft);
           border-left: 2px solid var(--rule); padding-left: 0.8rem; margin: 0.2rem 0 0.3rem; }
+/* A sample row asks nothing (BL-693): its one line stands where the options would be. */
+.gal-asks-nothing:where(:not(svg *)) { font-family: var(--sans); font-size: 0.88rem; color: var(--ink-soft);
+          margin: 0.4rem 0 0.3rem; }
 /* One column below 700px: two tiles side by side on a phone are two thumbnails
    nobody can judge, and judging is the whole point of the row. */
 @media (max-width: 700px) { .gal { grid-template-columns: 1fr; } }
@@ -551,8 +554,8 @@ dialog.kit-mark-note::backdrop { background: rgba(0, 0, 0, 0.3); }
 /* An empty reply box on a settled item carries no record and cannot be typed
    into, so it is a dead control, not history. It is hidden with its label; one
    that HAS text stays, because then it is part of what was answered. */
-.consult-item[data-decided]:has(textarea:placeholder-shown) .fieldlabel:where(:not(svg *)),
-.consult-item[data-decided] textarea:placeholder-shown { display: none; }
+.consult-item[data-decided]:not([data-proposal]):has(textarea:placeholder-shown) .fieldlabel:where(:not(svg *)),
+.consult-item[data-decided]:not([data-proposal]) textarea:placeholder-shown { display: none; }
 
 /* The "not now" choice (BL-381) closes the option group after "other" and
    shares its dashed band: the two exits read as one band, not two. */
@@ -777,6 +780,11 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .decided-unit > summary:hover { background: var(--paper); }
 .decided-unit > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .decided-verdict:where(:not(svg *)) { color: var(--ink-soft); }
+/* A folded block lists one point per line (BL-692). */
+.decided-lines:where(:not(svg *)) { white-space: pre-line; }
+/* "Decidido, corrígeme si no": a proposal drawn in place, not a settled record (BL-692). */
+.consult-proposal:where(:not(svg *)) { font-family: var(--sans); font-size: 0.78rem; font-weight: 600;
+                letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); margin: 0.2rem 0 0.5rem; }
 /* The moved node keeps its own markup; only the box around it changes, so the
    item reads as a record rather than as a question still on the page. */
 .decided-unit > .consult-item:where(:not(svg *)),

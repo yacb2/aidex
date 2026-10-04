@@ -271,6 +271,15 @@ the contract baseline, and a second writer would only disagree with it.
 python3 "${CLAUDE_SKILL_DIR}/scripts/spec_verbs.py" new-round <name>.spec.md
 ```
 
+Proposals expire by themselves (BL-692): an `item decided=yes proposal=yes` loses `proposal=yes`
+and files its ledger row only if the saved answered page (`.aidex-artifact-prev/<stem>.answered.html`)
+carried `data-proposal` on it, i.e. the reader saw it. A NEW proposal written this turn is absent from
+that page and stays a proposal, in any order of verbs (an id that already expired and is marked
+`proposal=yes` again in the same round is expired again by the next `new-round`: write a fresh id); with no saved page nothing expires, so a
+mid-round `new-round --drop/--retitle` is safe. `decide` on an item the ledger already names also
+rewrites that row's verdict, but only a row `new-round` wrote (`- id — title` or `- id — title (verdict)`);
+a hand-written row is left byte-identical and the verb says so on stderr.
+
 Each verb prints the rebuilt page's path on stdout and the contract check's lines on
 stderr; a refusal prints `spec-verbs <verb>: <why>` and exits 1 with the spec untouched.
 
@@ -1119,7 +1128,7 @@ tables on any page carrying the kit — plus the consultation shape of § 8 when
 and the page-contract classes below. Fix what it reports; never open or hand over a file that fails
 it.
 
-**The page-contract classes.** `dash/contract_defects.py` owns thirteen source rules, twelve
+**The page-contract classes.** `dash/contract_defects.py` owns fifteen source rules, twelve
 frozen on a page that shipped the defect (LOOP-006); `check-artifact` prints one
 `FAIL [<class>] line <n>: …` per finding. They fail the page being wrapped or checked, and
 only warn in `--census`: a page built by an older kit is red on them by construction. The
@@ -1141,6 +1150,8 @@ exact rule of each is the module's docstring; run one alone with
 | `unique-dom-ids` | an `id` appears twice, inline-SVG ids included | prefix each figure's SVG ids with the figure's own id |
 | `group-item-id-collision` | an element's `id` equals a consult item's `data-id` (a group and an item both `W1`): every hand-written `#W1` link opens the other element | a distinct id per group and item; the spec builder refuses the pair |
 | `body-language-follows-lang` | 75% or more of the function words in the prose are of the other language than `<html lang>` (es/en); judged from 80 prose words and 25 function words, function words inside a proper name or title ("Calle de Alcalá") not counted, with code, `pre`, `svg`, `nav`, kit chrome and any element with its own `lang` left out | write the page in the language it declares, or set `--lang` / the masthead `lang=` to the one it is written in; mark a quotation in the other language with its own `lang` |
+| `one-decision-one-control` | an alternatives or states row and another open item of a different kind offer the same options: their labels folded, or, when every option starts with a capital letter and `:` `,` `.` or `)` and there are three or more of them, those leading tokens provided that, token by token, the two options also share a content word (more than three letters, folded), so a reworded restatement is caught and two unrelated A/B/C questions are not; the kit's generic extras (Ninguna / None of them, Todavía no, Otra) and settled items are left out; two plain items, two alternatives rows or two states rows never fail each other (BL-689) | keep the alternatives row (it IS the question) and drop the other, or make it the row's evidence with no pick |
+| `sample-row-asks-nothing` | a row marked `data-asks-nothing` renders any input, select, textarea or button, or lacks its `.gal-asks-nothing` line (BL-693); the composer's runtime chips are not judged | let `gallery-items.sh` write the row; do not add controls to a `kind: sample` row |
 
 The three rendered classes (`text-style-drift`, `figure-text-contrast`,
 `svg-label-outside-its-box`) are measured in the browser by `render-probe.sh`
@@ -1424,7 +1435,11 @@ messages and the tests; § 8.4 is the block shape.
    **Triage before asking (BL-503).** Before the brief lists items, sort the open
    decisions: one that is reversible in minutes and carries a recommendation is
    DECIDED, not asked. It goes in a block titled "decidido, corrígeme si no" (one line
-   each: the situation, what was chosen, why) and the reader only corrects. Only the
+   each: the situation, what was chosen, why) and the reader only corrects. Each point is an
+   `item decided=yes proposal=yes` (BL-687, BL-692): without `proposal=yes` the kit reads it as an
+   earlier round's settled answer and folds it into the bottom "N preguntas ya resueltas" section,
+   hiding the correction box. `check-artifact` WARNS (`consult-round1-decided`) on a round-1 page that carries a
+   decided item with neither `proposal=yes` nor `dropped=`: nothing can be settled before the first reply. Only the
    rest become items. Inside a gallery, that
    block goes in the `decided_note` of a row still open (a callout under the captures), never in the
    row's Qué mirar line.

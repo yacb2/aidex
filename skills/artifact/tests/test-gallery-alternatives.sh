@@ -201,7 +201,8 @@ sed 's/rows="alt.json"/rows="sample.json"/' "$TMP/spec/a.spec.md" > "$TMP/spec/s
 if [[ $rc == 0 ]]; then
   s="$(item skel-muestra-light-desktop-sample "$TMP/spec/sample.html")"
   [[ -n "$s" ]] && ! grep -q 'type="radio"' <<<"$s" && grep -q 'El espaciado' <<<"$s" \
-    && ok "a sample row built from a spec has its look line and no radios" \
+    && ! grep -q '<textarea' <<<"$s" && grep -q 'class="gal-asks-nothing"' <<<"$s" \
+    && ok "a sample row built from a spec has its look line, its no-answer line, no radios and no notes box (BL-693)" \
     || fail "the sample row from the spec is missing, has radios or lacks its look"
 else fail "the sample spec did not build: $(tail -2 "$TMP/s.out")"; fi
 

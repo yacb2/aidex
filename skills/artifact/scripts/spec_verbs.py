@@ -414,9 +414,40 @@ def decide(spec_text, item_id, verdict):
             == spec_build.PLAIN.sub("", verdict).strip()):
         return spec_text
     lines = _split(spec_text)
+    old_verdict = node.attrs.get("decided", "").strip()
     if not _set_attr(lines, node, "decided", verdict):
         return spec_text
+    _update_ledger_row(lines, tree, node, old_verdict, verdict)
     return "\n".join(lines)
+
+
+def _update_ledger_row(lines, tree, node, old_verdict, verdict):
+    """A verdict recorded after `new-round` already filed the item leaves its
+    ledger row with the OLD verdict (BL-692 review). Only a row `_sync_ledger`
+    wrote is rewritten: exactly `- id — title`, or `- id — title (<old verdict>)`.
+    Any other row for this id is hand-written: it stays byte-identical and the
+    caller is told. A compound key (`c1 + c12`) or no row at all is left alone.
+    Line numbers are stable: the attr edit never adds or removes a line."""
+    title = node.attrs.get("title", "").strip() or node.id
+
+    def row(v):
+        v = v.strip()
+        return "- %s%s%s" % (node.id, SEP, title if v in ("yes", "true", "")
+                             else "%s (%s)" % (title, v))
+
+    for ledger in _ledgers(tree):
+        for i in range(ledger.line, _end_line(ledger) - 1):
+            line = lines[i].rstrip("\r")
+            if not line.startswith("- "):
+                continue
+            if line[2:].split(SEP, 1)[0].strip() != node.id:
+                continue
+            if line in (row(old_verdict), "- %s%s%s" % (node.id, SEP, title)):
+                lines[i] = row(verdict) + ("\r" if lines[i].endswith("\r") else "")
+            else:
+                sys.stderr.write("spec-verbs decide: ledger row for %s is "
+                                 "hand-written; update it yourself\n" % node.id)
+            return
 
 
 def _set_attr(lines, node, name, value):
@@ -466,7 +497,25 @@ def _drop_attr(lines, node, name):
     return True
 
 
-def new_round(spec_text, dropped=(), retitled=()):
+def _expire_proposals(text, answered_html):
+    """`proposal=yes` (BL-692) lasts one round: an item that carried it on the
+    saved answered page has been seen by the reader, so it becomes an ordinary
+    settled item and folds."""
+    if not answered_html:
+        return text
+    seen = check_artifact.proposal_ids(answered_html)
+    if not seen:
+        return text
+    tree = _parse(text, "the spec")
+    lines = _split(text)
+    hit = False
+    for n in _walk(tree):
+        if n.block_type == "item" and n.id in seen and "proposal" in n.attrs:
+            hit |= _drop_attr(lines, n, "proposal")
+    return "\n".join(lines) if hit else text
+
+
+def new_round(spec_text, dropped=(), retitled=(), answered_html=None):
     """`_sync_ledger`, then record `dropped` and `retitled` ids on the masthead.
 
     `dropped` (BL-533) is the ids this round takes OFF the page: the author
@@ -489,7 +538,12 @@ def new_round(spec_text, dropped=(), retitled=()):
     excuses a later, unrelated reword. Not derived from the old page: an
     undeclared removal or reword is still the BL-396 failure.
     """
-    text = _sync_ledger(spec_text)
+    # A proposal expires only if the reader SAW it: it carried data-proposal on the
+    # saved answered snapshot (BL-692). One written this turn is absent from it and
+    # stays a proposal, whichever order the verbs run in; with no snapshot nothing
+    # expires.
+    text = _expire_proposals(spec_text, answered_html)
+    text = _sync_ledger(text)
     clean = lambda ids: [i for i in (d.strip().lstrip("#") for d in ids) if i]
     dropped = list(dict.fromkeys(clean(dropped)))
     retitled = [i for i in dict.fromkeys(clean(retitled)) if i not in dropped]
@@ -545,7 +599,8 @@ def _sync_ledger(spec_text):
     tree = _parse(spec_text, "the spec")
     decided = [n for n in _walk(tree)
                if n.block_type == "item" and n.id
-               and n.attrs.get("decided", "").strip()]
+               and n.attrs.get("decided", "").strip()
+               and "proposal" not in n.attrs]    # a proposal is not settled yet
 
     ledgers = _ledgers(tree)
     if len(ledgers) > 1:
@@ -658,9 +713,14 @@ def _trial_build(spec_path, new, out_name, lang):
         raise VerbError("cannot make a temp dir for the trial build: %s" % exc)
     try:
         _write(cand, new)
+        # The trial page sits in an empty temp dir, so it is always "round 1":
+        # round-dependent advisories (consult-round1-decided) would fire on every
+        # round-2+ verb call. The real rebuild after it reports the real round.
+        os.environ["AIDEX_TRIAL_BUILD"] = "1"
         rc = spec_build.main([cand, "-o", os.path.join(trial_dir, out_name),
                               "--lang", lang])
     finally:
+        os.environ.pop("AIDEX_TRIAL_BUILD", None)
         for path in (cand, cand + ".spec-verbs.tmp"):
             try:
                 os.unlink(path)
@@ -825,8 +885,24 @@ def decide_many_file(spec_path, pairs, out=None, lang="es"):
     return apply_edit(spec_path, transform, out=out, lang=lang)
 
 
+def _answered_snapshot(spec_path, out):
+    """`.aidex-artifact-prev/<stem>.answered.html` beside the page, as
+    `save-reply.sh` writes it, or None."""
+    page = out or default_out(spec_path)
+    stem = os.path.splitext(os.path.basename(page))[0]
+    path = os.path.join(os.path.dirname(os.path.abspath(page)),
+                        ".aidex-artifact-prev", stem + ".answered.html")
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            return fh.read()
+    except OSError:
+        return None
+
+
 def new_round_file(spec_path, out=None, lang="es", dropped=(), retitled=()):
-    return apply_edit(spec_path, lambda text: new_round(text, dropped, retitled),
+    answered = _answered_snapshot(spec_path, out)
+    return apply_edit(spec_path,
+                      lambda text: new_round(text, dropped, retitled, answered),
                       out=out, lang=lang)
 
 
