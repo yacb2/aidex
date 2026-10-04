@@ -6,6 +6,14 @@ modifiers live in their own columns, never embedded in the status.
 
 ---
 
+## Contents
+
+- [States (canon base vocabulary)](#states-canon-base-vocabulary)
+- [Transitions](#transitions)
+- [Enforcement](#enforcement)
+- [Reading the state at a glance](#reading-the-state-at-a-glance)
+- [Edge cases](#edge-cases)
+
 ## States (canon base vocabulary)
 
 | Status | Meaning |

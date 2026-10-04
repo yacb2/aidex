@@ -13,6 +13,21 @@ runner) is an example of where a rule applies, never a requirement for applying 
 
 ---
 
+## Contents
+
+- [1. Naming & dates (D-01)](#1-naming--dates-d-01)
+- [2. Index files (D-02 spillover)](#2-index-files-d-02-spillover)
+- [3. Cross-references (D-03)](#3-cross-references-d-03)
+- [4. Language (D-04)](#4-language-d-04)
+- [5. Archive (D-05, amended by D-10)](#5-archive-d-05-amended-by-d-10)
+- [6. Status vocabulary](#6-status-vocabulary)
+- [7. Front-matter minimum (D-07)](#7-front-matter-minimum-d-07)
+- [8. Quick reference](#8-quick-reference)
+- [9. Canonical vs acceptable-optional `.context/` types](#9-canonical-vs-acceptable-optional-context-types)
+- [10. Validator escape hatches](#10-validator-escape-hatches)
+- [11. ADR map](#11-adr-map)
+- [12. Profiles (`.context/profiles/`)](#12-profiles-contextprofiles)
+
 ## 1. Naming & dates (D-01)
 
 ADR: [`2026-05-14-date-format-iso-8601.md`](../../../.context/decisions/2026-05-14-date-format-iso-8601.md)

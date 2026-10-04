@@ -6,6 +6,14 @@ skill works without the (workspace-private) research module that produced it.
 
 ---
 
+## Contents
+
+- [First cut — what are you handing off?](#first-cut--what-are-you-handing-off)
+- [Engine decision matrix](#engine-decision-matrix)
+- [Adoption steps (the `design` interview)](#adoption-steps-the-design-interview)
+- [When NOT to loop](#when-not-to-loop)
+- [Run command cheatsheet](#run-command-cheatsheet)
+
 ## First cut — what are you handing off?
 
 Before picking an engine, classify the loop by the component being handed to the

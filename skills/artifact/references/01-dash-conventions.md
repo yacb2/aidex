@@ -4,6 +4,17 @@ The canon for the dash HTML render layer. dash renders `.context/` boards and
 indexes into self-contained interactive HTML via deterministic scripts. It
 authors no content and introduces no new data files.
 
+## Contents
+
+- [The GENERATED contract](#the-generated-contract)
+- [Markdown/JSON stays canon; HTML is a render](#markdownjson-stays-canon-html-is-a-render)
+- [Sibling-path rule (one render per index/board)](#sibling-path-rule-one-render-per-indexboard)
+- [Ad-hoc sibling reports (not boards)](#ad-hoc-sibling-reports-not-boards)
+- [Token-cost rationale](#token-cost-rationale)
+- [Self-contained output](#self-contained-output)
+- [Publish is never automatic](#publish-is-never-automatic)
+- [v2 lane (out of scope for v1)](#v2-lane-out-of-scope-for-v1)
+
 ## The GENERATED contract
 
 Every rendered page's **first line** is an HTML comment of the form:

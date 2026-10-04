@@ -9,6 +9,14 @@ exists in the pages this skill wraps, and each carries the count that proves it.
 with no corpus occurrence does not get a row; a construct the corpus repeats does not get
 dropped because it is awkward to model.
 
+## Contents
+
+- [How the counts were taken](#how-the-counts-were-taken)
+- [The types](#the-types)
+- [What is deliberately NOT a type](#what-is-deliberately-not-a-type)
+- [Worked examples](#worked-examples)
+- [Related](#related)
+
 ## How the counts were taken
 
 Two independent passes, both reported, because they measure different things:

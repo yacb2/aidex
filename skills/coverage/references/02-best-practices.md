@@ -11,6 +11,17 @@ an item whose content moved to a stack pack keeps its number as a pointer.
 
 ---
 
+## Contents
+
+- [1. The 2026-08-21 primary-source sweep, re-run against current versions](#1-the-2026-08-21-primary-source-sweep-re-run-against-current-versions)
+- [2. The `transaction=True` finding](#2-the-transactiontrue-finding)
+- [3. The `-n`-with-`--reuse-db` orphaned-database trap](#3-the--n-with---reuse-db-orphaned-database-trap)
+- [4. The multi-tenant isolation rule](#4-the-multi-tenant-isolation-rule)
+- [5. The OpenAPI contract layer](#5-the-openapi-contract-layer)
+- [6. MSW's `onUnhandledRequest: 'error'`](#6-msws-onunhandledrequest-error)
+- [7. The pyramid-versus-trophy resolution](#7-the-pyramid-versus-trophy-resolution)
+- [8. The six-layer model and its layer-assignment rubric](#8-the-six-layer-model-and-its-layer-assignment-rubric)
+
 ## 1. The 2026-08-21 primary-source sweep, re-run against current versions
 
 This file **is** that re-run, dated 2026-08-23. Fetched and quoted directly, rather than

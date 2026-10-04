@@ -10,6 +10,15 @@ The generic, stack-agnostic taxonomy. It is **four independent axes**, not a fla
 of cases — a task's answer was always a tuple across all four, never a single letter
 grade.
 
+## Contents
+
+- [Axis 1 — Tier (what must be isolated)](#axis-1--tier-what-must-be-isolated)
+- [Axis 2 — Scope (which participants)](#axis-2--scope-which-participants)
+- [Axis 3 — Infra strategy (only meaningful when Axis 1 resolves to Tier 2)](#axis-3--infra-strategy-only-meaningful-when-axis-1-resolves-to-tier-2)
+- [Axis 4 — Lifecycle & cleanup](#axis-4--lifecycle--cleanup)
+- [These are axes, not a single choice](#these-are-axes-not-a-single-choice)
+- [Cross-cutting concern: unversioned infra wrappers](#cross-cutting-concern-unversioned-infra-wrappers)
+
 ---
 
 ### Axis 1 — Tier (what must be isolated)

@@ -12,6 +12,22 @@ not to improvise a gallery — it is to say the harness is missing and stop.
 
 ---
 
+## Contents
+
+- [Presence check — before saying "absent"](#presence-check--before-saying-absent)
+- [1. The harness module and its matrix validation](#1-the-harness-module-and-its-matrix-validation)
+- [1b. The meta-suite — every predicate proven able to fail, before the galleries](#1b-the-meta-suite--every-predicate-proven-able-to-fail-before-the-galleries)
+- [1c. Flakes: a fix needs a named cause](#1c-flakes-a-fix-needs-a-named-cause)
+- [2. The runner invocation — ALWAYS with a spec path](#2-the-runner-invocation--always-with-a-spec-path)
+- [2b. Iterating versus the closing run](#2b-iterating-versus-the-closing-run)
+- [3. The four projects: light/dark x desktop/mobile](#3-the-four-projects-lightdark-x-desktopmobile)
+- [4. Where baselines live](#4-where-baselines-live)
+- [4b. A scroll-owning shell: the cell captures the full content](#4b-a-scroll-owning-shell-the-cell-captures-the-full-content)
+- [5. Known-defect entries need `projects`, and there is a rot guard](#5-known-defect-entries-need-projects-and-there-is-a-rot-guard)
+- [6. The contact sheet](#6-the-contact-sheet)
+- [7. Who owns the style-lint allowlist](#7-who-owns-the-style-lint-allowlist)
+- [Limits the gate is known NOT to cover](#limits-the-gate-is-known-not-to-cover)
+
 ## Presence check — before saying "absent"
 
 Run these in the repo (quote globs; in zsh an unmatched glob is an error, so use `find`).

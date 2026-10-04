@@ -6,6 +6,17 @@ installed review instruments each hard-code a scope of their own.
 Owner of the mechanism: `scripts/resolve-review-scope.sh`.
 Consumer: `plan-exec` (between-phase checkpoint and final phase).
 
+## Contents
+
+- [1. The problem this solves](#1-the-problem-this-solves)
+- [2. The scope enum](#2-the-scope-enum)
+- [3. Two modes, and when each applies](#3-two-modes-and-when-each-applies)
+- [4. Routing table](#4-routing-table)
+- [5. Delegating a scope to `/simplify` — settled, and it is a mutation](#5-delegating-a-scope-to-simplify--settled-and-it-is-a-mutation)
+- [5b. Which flags mutate — `/code-review --fix` and `--comment`](#5b-which-flags-mutate--code-review---fix-and---comment)
+- [5c. Detect, do not predict (invocability)](#5c-detect-do-not-predict-invocability)
+- [6. Rules](#6-rules)
+
 ## 1. The problem this solves
 
 The installed instruments are not interchangeable, and two of them cannot see a

@@ -6,6 +6,22 @@ Standards for creating numbered reference documentation modules (also covers `re
 
 ---
 
+## Contents
+
+- [Structure pattern](#structure-pattern)
+- [No README.md at root level](#no-readmemd-at-root-level)
+- [Accepted alias: `00-overview.md` in `research/`](#accepted-alias-00-overviewmd-in-research)
+- [File naming](#file-naming)
+- [`00-index.md` template](#00-indexmd-template)
+- [Module template (`01-NN`)](#module-template-01-nn)
+- [Warning format](#warning-format)
+- [Cross-reference format](#cross-reference-format)
+- [Code block standards](#code-block-standards)
+- [The Verification block — a check that cannot fail is worse than no check](#the-verification-block--a-check-that-cannot-fail-is-worse-than-no-check)
+- [Stable anchors — no bare line numbers](#stable-anchors--no-bare-line-numbers)
+- [Validation rules](#validation-rules)
+- [Related](#related)
+
 ## Structure pattern
 
 ```

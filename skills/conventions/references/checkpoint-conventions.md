@@ -6,6 +6,15 @@ protocol is a second place to drift. Guarded by
 `scripts/test_checkpoint_lockstep.sh`: the canon must carry the load-bearing parts named
 below, and each consumer must point here instead of carrying its own numbered copy.
 
+## Contents
+
+- [The unit](#the-unit)
+- [The four moves, in order](#the-four-moves-in-order)
+  - [1. Code-review the diff — scope first, verdict with its anchor](#1-code-review-the-diff--scope-first-verdict-with-its-anchor)
+  - [2. Commit](#2-commit)
+  - [3. Defer what the unit uncovered — register it, never discuss it](#3-defer-what-the-unit-uncovered--register-it-never-discuss-it)
+  - [4. Context check → auto-handoff, never asked](#4-context-check--auto-handoff-never-asked)
+
 ## The unit
 
 The checkpoint fires **between units of work**. The unit is the consumer's:

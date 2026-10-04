@@ -11,6 +11,14 @@ The skill body picks a subset from the measured target; this file is what it pic
 
 ---
 
+## Contents
+
+- [The one thing that changes on a module scope](#the-one-thing-that-changes-on-a-module-scope)
+- [Lenses and their angles](#lenses-and-their-angles)
+- [The verify phase](#the-verify-phase)
+- [Cost — the finder number is a floor, not an estimate of the run](#cost--the-finder-number-is-a-floor-not-an-estimate-of-the-run)
+- [Angle accounting — three states, and only one of them is a broken promise](#angle-accounting--three-states-and-only-one-of-them-is-a-broken-promise)
+
 ## The one thing that changes on a module scope
 
 The difference is about **what the boundary is**, not about age. The built-in

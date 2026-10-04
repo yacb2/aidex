@@ -12,6 +12,15 @@ tracked tree has no test the suite runs. That is exactly how `extract.py` kept a
 prompt classifier for three published runs. Shipping the code ships no data — these
 scripts are read-only over whatever transcript root they are pointed at.
 
+## Contents
+
+- [Run](#run)
+- [Facets](#facets)
+- [Pipeline](#pipeline)
+- [Taxonomy](#taxonomy)
+- [Output](#output)
+- [Known limitations](#known-limitations)
+
 ## Run
 
 ```bash

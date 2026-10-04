@@ -4,6 +4,15 @@ The stock audit types below ship with AIDEX. Each has a playbook template in `as
 
 ---
 
+## Contents
+
+- [When to pick which](#when-to-pick-which)
+- [Playbook shape shared by all](#playbook-shape-shared-by-all)
+- [Customizing a shipped playbook](#customizing-a-shipped-playbook)
+- [Writing a custom playbook](#writing-a-custom-playbook)
+- [Multiple playbooks per run](#multiple-playbooks-per-run)
+- [Not every project needs every playbook](#not-every-project-needs-every-playbook)
+
 ## When to pick which
 
 | Type | Cadence | Run when... | Produces findings of type |

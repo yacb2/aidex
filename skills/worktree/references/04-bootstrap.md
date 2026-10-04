@@ -5,6 +5,10 @@ The full bootstrap procedure. It lives here rather than in `SKILL.md` because it
 / `remove` reads `config.env` instead of this. `SKILL.md` cites it as a step at the
 dispatch point.
 
+## Contents
+
+- [`bootstrap` — investigate, verify, write `config.env`](#bootstrap--investigate-verify-write-configenv-1)
+
 ## `bootstrap` — investigate, verify, write `config.env`
 
 The output is a machine-readable `.context/worktrees/config.env`, not a prose

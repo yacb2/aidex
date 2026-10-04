@@ -13,6 +13,15 @@ this only when the work is **decomposable + machine-verifiable + unattended** an
 opted in (the `Workflow` tool is gated and token-heavy). § Promotion at Orient below owns how
 that opt-in is resolved.
 
+## Contents
+
+- [Promotion threshold (when batching actually pays off)](#promotion-threshold-when-batching-actually-pays-off)
+- [Deriving `args` from the plan](#deriving-args-from-the-plan)
+- [Phase tier hint (model/effort)](#phase-tier-hint-modeleffort)
+- [Bugs a phase reports but did not fix](#bugs-a-phase-reports-but-did-not-fix)
+- [When a phase fails the gate](#when-a-phase-fails-the-gate)
+- [Promotion at Orient](#promotion-at-orient)
+
 ### Promotion threshold (when batching actually pays off)
 
 Promote a plan (or a phase) to a `Workflow` only when **all** hold:

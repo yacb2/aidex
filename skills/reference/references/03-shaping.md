@@ -10,6 +10,15 @@ where they go, and what shape the document takes.**
 
 ---
 
+## Contents
+
+- [The axis: surfaces versus mechanisms](#the-axis-surfaces-versus-mechanisms)
+- [Where a present-tense claim may come from](#where-a-present-tense-claim-may-come-from)
+- [Enumerate versus orient](#enumerate-versus-orient)
+- [Lead with the journey, not the layer](#lead-with-the-journey-not-the-layer)
+- [Shape](#shape)
+- [Verification](#verification)
+
 ## The axis: surfaces versus mechanisms
 
 Everything else depends on this, and getting it wrong is what causes repeated reorganization.

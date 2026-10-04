@@ -15,6 +15,23 @@ any project, any skill).
 
 ---
 
+## Contents
+
+- [1. Which levers move recall](#1-which-levers-move-recall)
+- [2. Valid-measurement protocol (the runbook)](#2-valid-measurement-protocol-the-runbook)
+- [3. Speed / cost economics](#3-speed--cost-economics)
+- [4. Inventory curation rules](#4-inventory-curation-rules)
+- [5. Run history / provenance](#5-run-history--provenance)
+- [6. The instrument is not a stable point estimate (2026-05-18)](#6-the-instrument-is-not-a-stable-point-estimate-2026-05-18)
+- [7. Anti-motivated-design discipline (applies to every project)](#7-anti-motivated-design-discipline-applies-to-every-project)
+- [8. Concurrent-execution invalidation (2026-05-19)](#8-concurrent-execution-invalidation-2026-05-19)
+- [9. Two instruments, one boundary: firing vs. output (2026-08-06)](#9-two-instruments-one-boundary-firing-vs-output-2026-08-06)
+- [9a. Executor probes name a plan that does not exist](#9a-executor-probes-name-a-plan-that-does-not-exist)
+- [10. The sets are too small to carry a p-value (2026-09-01)](#10-the-sets-are-too-small-to-carry-a-p-value-2026-09-01)
+- [11. The cwd contradicts the queries (2026-09-01)](#11-the-cwd-contradicts-the-queries-2026-09-01)
+- [11a. Native output evals: cases are human-judged hard, and every baseline is read for headroom and noise (2026-09-29)](#11a-native-output-evals-cases-are-human-judged-hard-and-every-baseline-is-read-for-headroom-and-noise-2026-09-29)
+- [12. The six modular siblings: structural pass, 2026-09-01](#12-the-six-modular-siblings-structural-pass-2026-09-01)
+
 ## 1. Which levers move recall
 
 | Lever | Status | Evidence |

@@ -7,6 +7,17 @@ finds them is comparing the test against what production actually does.
 Stack-agnostic. The concrete harness shapes live in the stack pack named by
 `.context/profiles/testing.md`.
 
+## Contents
+
+- [1. Mutation is the only evidence a behaviour is guarded](#1-mutation-is-the-only-evidence-a-behaviour-is-guarded)
+- [2. A fixture more convenient than production makes every assertion over it optimistic](#2-a-fixture-more-convenient-than-production-makes-every-assertion-over-it-optimistic)
+- [3. Patching a registry tests the dispatch, never what it dispatches to](#3-patching-a-registry-tests-the-dispatch-never-what-it-dispatches-to)
+- [4. A bug in a shared primitive is invisible to a harness that stubs it](#4-a-bug-in-a-shared-primitive-is-invisible-to-a-harness-that-stubs-it)
+- [5. A negative measurement measures the harness first](#5-a-negative-measurement-measures-the-harness-first)
+- [6. `toBeVisible()` does not catch a layout collapse](#6-tobevisible-does-not-catch-a-layout-collapse)
+- [7. Confirm the fixture contains the case the check discriminates](#7-confirm-the-fixture-contains-the-case-the-check-discriminates)
+- [8. Every absence check needs a positive control in the same run](#8-every-absence-check-needs-a-positive-control-in-the-same-run)
+
 ## 1. Mutation is the only evidence a behaviour is guarded
 
 "N tests pass" is a claim. Disable the mechanism in the source and re-run; if nothing

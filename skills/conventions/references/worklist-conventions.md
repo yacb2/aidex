@@ -14,6 +14,17 @@ that front-loads a chained multi-item session so execution does not stop to ask
 
 ---
 
+## Contents
+
+- [When a work-list exists](#when-a-work-list-exists)
+- [File shape](#file-shape)
+- [The three-class rule (from the autonomy canon)](#the-three-class-rule-from-the-autonomy-canon)
+- [Creation survey (the front-loaded entry)](#creation-survey-the-front-loaded-entry)
+- [Lifecycle](#lifecycle)
+- [A sweep queue is ordered by cluster](#a-sweep-queue-is-ordered-by-cluster)
+- [Sweep mode drives the item lifecycle](#sweep-mode-drives-the-item-lifecycle)
+- [Related](#related)
+
 ## When a work-list exists
 
 A session that will work **more than one tracked item** (a backlog sweep, closing

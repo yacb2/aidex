@@ -7,6 +7,19 @@ Standards for logging real correspondence and drafting outgoing messages in
 
 ---
 
+## Contents
+
+- [Purpose](#purpose)
+- [Location & naming](#location--naming)
+- [Front-matter](#front-matter)
+- [Draft → sent flow](#draft--sent-flow)
+- [Language — English-only EXEMPTION](#language--english-only-exemption)
+- [House style — the workspace communications profile](#house-style--the-workspace-communications-profile)
+- [Pre-canonical body filenames](#pre-canonical-body-filenames)
+- [Migrating from `drafts/`](#migrating-from-drafts)
+- [Relocating a meeting filed under `received/` or `sent/`](#relocating-a-meeting-filed-under-received-or-sent)
+- [An email is plain HTML, never an artifact page](#an-email-is-plain-html-never-an-artifact-page)
+
 ## Purpose
 
 A communication is a record of real correspondence with a person — an email,

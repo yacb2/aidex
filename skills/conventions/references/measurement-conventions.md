@@ -21,6 +21,12 @@ Provenance: the 2026-08-21/22 suite-speed measurement campaign
 
 ---
 
+## Contents
+
+- [m5 — On a development laptop, machine load is the dominant confounder](#m5--on-a-development-laptop-machine-load-is-the-dominant-confounder)
+- [m9 — A stop condition cannot depend on iteration count](#m9--a-stop-condition-cannot-depend-on-iteration-count)
+- [m11 — A control the intervention can move is not a control](#m11--a-control-the-intervention-can-move-is-not-a-control)
+
 ## m5 — On a development laptop, machine load is the dominant confounder
 
 A performance comparison taken on a shared, interactively-used machine can be dominated by

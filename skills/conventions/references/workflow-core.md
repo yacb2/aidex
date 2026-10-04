@@ -12,6 +12,15 @@ standalone `Workflow` script** that embeds the block below **verbatim** between 
 (`skills/conventions/scripts/test_workflow_core_drift.sh`) diffs each asset's embedded
 block against this canonical one and fails on any mismatch.
 
+## Contents
+
+- [What the CORE guarantees (the invariant)](#what-the-core-guarantees-the-invariant)
+- [Canonical CORE block](#canonical-core-block)
+- [Canonical ARBITER block](#canonical-arbiter-block)
+- [Orchestrator model](#orchestrator-model)
+- [Adding a catalog entry](#adding-a-catalog-entry)
+- [Four things a large Workflow run does not tell you](#four-things-a-large-workflow-run-does-not-tell-you)
+
 ## What the CORE guarantees (the invariant)
 
 - **`JSON.parse(args)`** — Phase-1 gotcha: `args` arrives as a JSON **string**.

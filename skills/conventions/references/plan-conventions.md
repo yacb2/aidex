@@ -6,6 +6,20 @@ Standards for implementation plans with checkbox tracking for multi-session work
 
 ---
 
+## Contents
+
+- [Philosophy: plans are specs, not scripts](#philosophy-plans-are-specs-not-scripts)
+- [Plan mode: triage before structure](#plan-mode-triage-before-structure)
+- [Structure pattern](#structure-pattern)
+- [`00-index.md` template](#00-indexmd-template)
+- [Open decisions (optional)](#open-decisions-optional)
+- [Phase file template](#phase-file-template)
+- [Phase organization](#phase-organization)
+- [Execution log (canonical journaling home)](#execution-log-canonical-journaling-home)
+- [Session checkpoint](#session-checkpoint)
+- [Validation checklist](#validation-checklist)
+- [Related](#related)
+
 ## Philosophy: plans are specs, not scripts
 
 A plan records **what to build, how to know it's built, and what was discovered

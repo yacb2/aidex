@@ -6,6 +6,21 @@ Standards for cataloging the state of a project — bugs, gaps, opportunities, r
 
 ---
 
+## Contents
+
+- [Purpose](#purpose)
+- [When to use what](#when-to-use-what)
+- [Canonical structure (D-02)](#canonical-structure-d-02)
+- [Core principles](#core-principles)
+- [ID conventions](#id-conventions)
+- [Status map](#status-map)
+- [Document templates](#document-templates)
+- [Audit types (methodologies)](#audit-types-methodologies)
+- [Integration with other doc types](#integration-with-other-doc-types)
+- [Tooling](#tooling)
+- [Anti-patterns](#anti-patterns)
+- [Related](#related)
+
 ## Purpose
 
 An **audit** describes what **is** (the current state). A **plan** describes what **will be** (the intended work). These two are distinct and must not be mixed in the same document tree.
