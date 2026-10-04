@@ -1,7 +1,7 @@
 ---
 name: audit
 description: 'Use when the user wants to assess the state of a feature, flow, or module — a UX, security, performance, or accessibility audit; cataloging bugs, gaps, and opportunities; retesting open findings; escalating a finding to the backlog; or updating audit methodology. Fires on "I want to do a UX / security / performance / accessibility audit", "before we ship I want to audit X", "audit the X flow or module", "catalog the state of X", "list bugs and gaps in X", "retest open findings", "register a finding under audit X", "escalate finding <id> to backlog", and /aidex:audit commands. Not for: auditing the Claude Code setup itself like skills or MEMORY.md (/aidex:aidex); creating plans (/aidex:plan) or decisions (/aidex:decision); generic backlog items not from a finding (/aidex:backlog).'
-argument-hint: "[new <type|--standalone> <slug> | validate [path] | escalate <finding-id> [--loop] | remediate <run> [--check] | close <run> | reindex | migrate [project-dir] | coverage-matrix | coverage-sweep [--since ISO] | usage-retro --facet <name> [--since X] [--until Y] | affected-tests [--since <ref>] [--command] | config-check [project ...] [--root <dir>] [--verbose] [--json]]"
+argument-hint: "[new <type|--standalone> <slug> | validate [path] | escalate <finding-id>... [--page <page.html>] [--loop] | remediate <run> [--check] | close <run> | reindex | migrate [project-dir] | coverage-matrix | coverage-sweep [--since ISO] | usage-retro --facet <name> [--since X] [--until Y] | affected-tests [--since <ref>] [--command] | config-check [project ...] [--root <dir>] [--verbose] [--json]]"
 disable-model-invocation: false
 allowed-tools: Bash Read Write Edit Glob Grep Workflow Agent
 model-policy: per-stage
@@ -32,7 +32,7 @@ Dispatch by first argument:
 | `/aidex:audit` | — | Show help + current state of `.context/audits/` |
 | `/aidex:audit new <type> <slug>` | [scripts/new-audit.sh](scripts/new-audit.sh) | Scaffold a new audit run |
 | `/aidex:audit validate [path]` | [scripts/validate-audit.sh](scripts/validate-audit.sh) | Check coherence INVENTORY ↔ findings ↔ backlog. Every finding prints its rule id; accept one by adding a line to `.context/.aidex-waivers` (same store and format as `validate.py`, canon `00-global.md` §10.1) |
-| `/aidex:audit escalate <finding-id>` | [scripts/escalate-finding.sh](scripts/escalate-finding.sh) | Move finding to backlog |
+| `/aidex:audit escalate <id>... [--page <page.html>]` | [scripts/escalate-finding.sh](scripts/escalate-finding.sh) | Move finding to backlog |
 | `/aidex:audit escalate <finding-id> --loop` | [scripts/escalate-finding-to-loop.sh](scripts/escalate-finding-to-loop.sh) | Escalate a **bulk, machine-checkable** finding to an `loop` loop-spec instead of the backlog (see guard below) |
 | `/aidex:audit remediate <run> [--check] [--dry-run]` | [scripts/remediation-loop-spec.sh](scripts/remediation-loop-spec.sh) | Emit ONE remediation loop-spec from a run's **unresolved** findings, priority-grouped, that `loop` runs without hand-editing. Rows move to `doing` + the `loop/<file>` marker — never `done`, which would satisfy the gate before any work. `--check` IS the gate: it reads the inventory, so an item only counts once its row moves |
 | `/aidex:audit migrate [project-dir]` | [scripts/migrate-audit.sh](scripts/migrate-audit.sh) | Move legacy audit-like folders from `plans/` |
@@ -184,12 +184,13 @@ the defaulting in the audit brief —
 > destructive verification is `deny`. Full rule:
 > [autonomy-conventions.md](../conventions/references/autonomy-conventions.md).
 >
-> **Don't pause at the escalate gate.** When net-new findings exist, escalating the
-> confirmed ones to backlog is the mandated next step — not an "escalate, or triage
-> yourself?" question. If a specific finding is genuinely ambiguous to escalate,
-> consult the [durability-arbiter](../../agents/durability-arbiter.md)
-> (Agent tool, `subagent_type: aidex:durability-arbiter`, read-only) per finding and batch any `ASK` to the
-> end — never stall the whole sweep on one finding.
+> **Don't pause at the escalate gate for one finding.** A single confirmed finding goes
+> to backlog without a question. When more than one is confirmed, build the consultation
+> page with `/aidex:artifact` first (a consultation page citing every finding id; the owner decides the batch there), then run
+> `escalate <ids...> --page <page.html>`; the script refuses a batch without it. If a
+> specific finding is genuinely ambiguous, consult the
+> [durability-arbiter](../../agents/durability-arbiter.md)
+> (Agent tool, `subagent_type: aidex:durability-arbiter`, read-only) per finding and put any `ASK` on that page.
 >
 > **Isolation.** An audit is read-mostly — usually no worktree. The
 > exception is a security audit that needs **destructive verification**: run it in an
@@ -202,6 +203,7 @@ the defaulting in the audit brief —
 ```
 /aidex:audit validate              # verify coherence
 /aidex:audit escalate BUG-01-1     # one finding at a time → backlog
+/aidex:audit escalate BUG-01-1 BUG-01-2 --page <page.html>  # a batch (or a 2nd escalation within 10 min) needs a consultation page built with /aidex:artifact (a kit-stamped .html with consult-groups, citing the ids; it may live under .context/audits/)
 /aidex:audit escalate A11Y-02-1 --loop  # bulk, machine-checkable finding → loop-spec
 /aidex:audit remediate 2026-06-21-retro  # the whole run's open findings → one remediation loop-spec
 ```
