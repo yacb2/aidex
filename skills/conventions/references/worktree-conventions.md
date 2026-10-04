@@ -17,6 +17,18 @@ skill keeps a short inline summary and points here for the full rule.
 
 ---
 
+## Contents
+
+- [The core distinction](#the-core-distinction)
+- [One path, not tiers](#one-path-not-tiers)
+- [The opt-in gate (who decides vs who authorizes)](#the-opt-in-gate-who-decides-vs-who-authorizes)
+- [Repo topology changes the unit of isolation](#repo-topology-changes-the-unit-of-isolation)
+- [The environment-isolation recipe (what `worktree.sh new` sets up)](#the-environment-isolation-recipe-what-worktreesh-new-sets-up)
+- [Naming/teardown contract (Docker hygiene)](#namingteardown-contract-docker-hygiene)
+- [Docker safety doctrine — dangling is not disposable](#docker-safety-doctrine--dangling-is-not-disposable)
+- [Lifecycle](#lifecycle)
+- [Per-skill application](#per-skill-application)
+
 ## The core distinction
 
 **A git worktree isolates *code*, not *environment*.** It gives you N working

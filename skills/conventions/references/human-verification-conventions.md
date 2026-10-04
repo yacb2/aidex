@@ -4,6 +4,17 @@ Shared canon. Consumers: `plan-exec` (close-out step 7), `bugfix`
 (step 9) and `backlog`'s sweep run mode (`sweep-execution-policy.md`, close-out).
 None restates it — a restated protocol is a second place to drift.
 
+## Contents
+
+- [Why this is a step and not guidance](#why-this-is-a-step-and-not-guidance)
+- [Where it fires](#where-it-fires)
+- [The four moves, in order](#the-four-moves-in-order)
+- [It emits a proof artifact](#it-emits-a-proof-artifact)
+- [Skipping is allowed. Skipping silently is not](#skipping-is-allowed-skipping-silently-is-not)
+- [A claim is backed by a fresh run, shown](#a-claim-is-backed-by-a-fresh-run-shown)
+- [NEVER (destructive verification)](#never-destructive-verification)
+- [What counts as evidence](#what-counts-as-evidence)
+
 ## Why this is a step and not guidance
 
 Verification that only a human can do — a flow clicked through, a screen actually

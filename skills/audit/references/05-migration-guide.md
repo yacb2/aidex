@@ -4,6 +4,17 @@ Moving from a legacy layout (audits scattered in `.context/plans/`) to the canon
 
 ---
 
+## Contents
+
+- [Symptoms of the legacy layout](#symptoms-of-the-legacy-layout)
+- [Assisted migration — the script detects, you move](#assisted-migration--the-script-detects-you-move)
+- [Manual migration (recommended for small cases)](#manual-migration-recommended-for-small-cases)
+- [Hybrid: audit that became a plan](#hybrid-audit-that-became-a-plan)
+- [What to keep in `plans/`](#what-to-keep-in-plans)
+- [Rollback](#rollback)
+- [Post-migration checklist](#post-migration-checklist)
+- [Preventing recurrence](#preventing-recurrence)
+
 ## Symptoms of the legacy layout
 
 You have the problem if:

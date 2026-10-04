@@ -7,6 +7,17 @@ declared here.
 
 ---
 
+## Contents
+
+- [Location & naming](#location--naming)
+- [The agent's own context is not isolated the same way the stack is](#the-agents-own-context-is-not-isolated-the-same-way-the-stack-is)
+- [Front-matter](#front-matter)
+- [Required body sections](#required-body-sections)
+- [Evergreen vs task-scoped content (prune rule)](#evergreen-vs-task-scoped-content-prune-rule)
+- [Family defaults](#family-defaults)
+- [Lifecycle](#lifecycle)
+- [Relationship to other artifacts](#relationship-to-other-artifacts)
+
 ## Location & naming
 
 - **One file per project**, not one per topic: `.context/worktrees/00-index.md`. This

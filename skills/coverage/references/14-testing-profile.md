@@ -18,6 +18,13 @@ set: adding it there would ask every existing project for a fifth key it has no 
 Without it, such a project has to map its single suite onto `backend` — a lie that passes
 only because the count regex happens to match.
 
+## Contents
+
+- [Facts versus rules](#facts-versus-rules)
+- [Who reads it](#who-reads-it)
+- [Stack packs](#stack-packs)
+- [Seeding it](#seeding-it)
+
 ## Facts versus rules
 
 | A fact (belongs in the profile) | A rule (never enters the profile) |

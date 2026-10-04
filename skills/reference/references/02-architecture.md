@@ -24,6 +24,18 @@ screen* is **running the code path**.
 
 ---
 
+## Contents
+
+- [§1 — A mechanism is not a module](#1--a-mechanism-is-not-a-module)
+- [§2 — Every branch is a configuration you have not run](#2--every-branch-is-a-configuration-you-have-not-run)
+- [§3 — Vendors, engines and containers get checked, not recalled](#3--vendors-engines-and-containers-get-checked-not-recalled)
+- [§4 — The environment axis (no surface equivalent)](#4--the-environment-axis-no-surface-equivalent)
+- [§5 — Anchor on symbols, and here is the receipt](#5--anchor-on-symbols-and-here-is-the-receipt)
+- [The sweep, in order](#the-sweep-in-order)
+- [Closing a module](#closing-a-module)
+- [Imported prose is not swept prose](#imported-prose-is-not-swept-prose)
+- [Verification](#verification)
+
 ## §1 — A mechanism is not a module
 
 **The surface version:** a page that hands data to a shared component is describing a surface;

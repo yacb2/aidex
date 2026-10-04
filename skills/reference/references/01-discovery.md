@@ -19,6 +19,21 @@ answer lived in another. Confidence was uniformly high.
 
 ---
 
+## Contents
+
+- [The provenance ledger](#the-provenance-ledger)
+- [Rule 1 — A surface is not a file](#rule-1--a-surface-is-not-a-file)
+- [Rule 2 — Every guard is a document you have not read](#rule-2--every-guard-is-a-document-you-have-not-read)
+- [Rule 3 — A negative requires a consumer search](#rule-3--a-negative-requires-a-consumer-search)
+- [Rule 3′ — A positive requires a reachability proof](#rule-3--a-positive-requires-a-reachability-proof)
+- [Rule 4 — A framework's limits get checked, not recalled](#rule-4--a-frameworks-limits-get-checked-not-recalled)
+- [Rule 5 — A release note proves shipping, never current state](#rule-5--a-release-note-proves-shipping-never-current-state)
+- [Rule 6 — Separate field age from row age](#rule-6--separate-field-age-from-row-age)
+- [Rule 7 — Ask the data which branches are real](#rule-7--ask-the-data-which-branches-are-real)
+- [The sweep, in order](#the-sweep-in-order)
+- [Closing a module](#closing-a-module)
+- [Verification](#verification)
+
 ## The provenance ledger
 
 The single rule that catches most of it. Every claim carries one of three labels while you work:

@@ -14,6 +14,18 @@ workflow-specific rules are declared here.
 
 ---
 
+## Contents
+
+- [Location & naming](#location--naming)
+- [Front-matter (flat — mirrors loop-spec)](#front-matter-flat--mirrors-loop-spec)
+- [Required body sections](#required-body-sections)
+- [Fan-out shape catalog](#fan-out-shape-catalog)
+- [Per-agent model table](#per-agent-model-table)
+- [Execution — delegated, never rebuilt](#execution--delegated-never-rebuilt)
+- [Carrier authority — spec-only](#carrier-authority--spec-only)
+- [Lifecycle](#lifecycle)
+- [Relationship to other artifacts](#relationship-to-other-artifacts)
+
 ## Location & naming
 
 - One file per workflow: `.context/workflows/YYYY-MM-DD-<slug>.md` (ISO date, kebab

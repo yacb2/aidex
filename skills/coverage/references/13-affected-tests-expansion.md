@@ -9,6 +9,15 @@ says the same: "The full suite gates integration, never the inner loop"). A chan
 the auth store widens the E2E selection to every authenticated spec's module set; it
 does not turn a two-minute loop into a twenty-minute one.
 
+## Contents
+
+- [What the script does](#what-the-script-does)
+- [What it does not do](#what-it-does-not-do)
+- [The expansion heuristics](#the-expansion-heuristics)
+- [Confidence matrix](#confidence-matrix)
+- [Escalation catalog (widen to the named set)](#escalation-catalog-widen-to-the-named-set)
+- [Output](#output)
+
 ## What the script does
 
 `/aidex:audit affected-tests [--since <ref>] [--command]`

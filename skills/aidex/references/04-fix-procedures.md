@@ -1,5 +1,11 @@
 # Fix Procedures
 
+## Contents
+
+- [Safe Fixes (batch with single confirmation)](#safe-fixes-batch-with-single-confirmation)
+- [Reorganization Fixes (per-item approval)](#reorganization-fixes-per-item-approval)
+- [Destructive Fixes (per-item approval)](#destructive-fixes-per-item-approval)
+
 ## Safe Fixes (batch with single confirmation)
 
 ### Loose File Conversion

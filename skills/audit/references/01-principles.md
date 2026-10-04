@@ -14,6 +14,16 @@ Two other owners, for the same reason:
 
 ---
 
+## Contents
+
+- [1. Finding ≠ Issue ≠ Task](#1-finding--issue--task)
+- [2. Per-methodology inventory as single source of truth](#2-per-methodology-inventory-as-single-source-of-truth)
+- [3. Living methodology with a changelog](#3-living-methodology-with-a-changelog)
+- [4. Every finding is registered, and none is deleted](#4-every-finding-is-registered-and-none-is-deleted)
+- [5. Escalation flow](#5-escalation-flow)
+- [6. Shared concerns flagged](#6-shared-concerns-flagged)
+- [Anti-patterns](#anti-patterns)
+
 ## 1. Finding ≠ Issue ≠ Task
 
 **Why:** conflating them loses information. A finding may escalate to multiple tasks, be

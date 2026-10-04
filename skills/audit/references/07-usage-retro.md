@@ -6,6 +6,17 @@ backlog or plan actually manages — rather than about prompts or sessions, whic
 what made the 2026-08-07 study interpretable at all: session-level metrics mostly
 measure task size.
 
+## Contents
+
+- [Entry points](#entry-points)
+- [What `mine_items.py` answers](#what-mine_itemspy-answers)
+- [What `subagent_spend.py` answers](#what-subagent_spendpy-answers)
+- [What it cannot answer](#what-it-cannot-answer)
+- [Who counts as the user: `prompt_kinds.py`](#who-counts-as-the-user-prompt_kindspy)
+- [Two invariants, both load-bearing, both pinned by tests](#two-invariants-both-load-bearing-both-pinned-by-tests)
+- [Performance note](#performance-note)
+- [Not promoted](#not-promoted)
+
 ## Entry points
 
 ```bash

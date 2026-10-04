@@ -7,6 +7,17 @@ everything below is loaded when an artifact is actually being built.
 
 Read this file **before writing any page markup**, not after.
 
+## Contents
+
+- [The procedure at a glance](#the-procedure-at-a-glance)
+- [Route A — structured board](#route-a--structured-board)
+- [Route S — the page SPEC (the default for a new or revised page)](#route-s--the-page-spec-the-default-for-a-new-or-revised-page)
+- [The quality loop — both routes end here](#the-quality-loop--both-routes-end-here)
+- [Route B — ad-hoc report, written as HTML](#route-b--ad-hoc-report-written-as-html)
+- [Publishing](#publishing)
+- [Language](#language)
+- [The built-in `Artifact` tool competes with this skill (measured 2026-09-12)](#the-built-in-artifact-tool-competes-with-this-skill-measured-2026-09-12)
+
 ## The procedure at a glance
 
 The canon below carries, on purpose, the incident behind every rule — that is what keeps

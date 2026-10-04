@@ -12,6 +12,16 @@ restated rule is a second copy, and the copy is what drifts (guarded by
 `tests/test-sweep-policy-shape.sh`). What stays in prose is what no script can hold,
 marked *prose* below.
 
+## Contents
+
+- [Stage 1 — Kickoff: interactive, once](#stage-1--kickoff-interactive-once)
+- [Stage 2 — Isolation: an isolated worktree, always](#stage-2--isolation-an-isolated-worktree-always)
+- [Stage 3 — Per item](#stage-3--per-item)
+- [Stage 4 — Checkpoint every ~5 items](#stage-4--checkpoint-every-5-items)
+- [Stage 5 — Boundary gate, once](#stage-5--boundary-gate-once)
+- [Stage 6 — Close-out](#stage-6--close-out)
+- [Review tiers](#review-tiers)
+
 ## Stage 1 — Kickoff: interactive, once
 
 Enforced by `scripts/sweep-kickoff.sh` (with `sweep-eligible.py`, `sweep-order.py`,

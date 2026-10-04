@@ -4,6 +4,19 @@ Standards for creating effective CLAUDE.md project context files.
 
 > **Read [`00-global.md`](00-global.md) first** for shared rules (date format, archive, language, cross-references, front-matter minimum). This file declares CLAUDE.md-specific structure and size constraints.
 
+## Contents
+
+- [Purpose](#purpose)
+- [Size Constraints](#size-constraints)
+- [Structure Pattern](#structure-pattern)
+- [What to Include](#what-to-include)
+- [What NOT to Include](#what-not-to-include)
+- [Project Context Directory (.context/)](#project-context-directory-context)
+- [Scratch Output (`_tmp/`)](#scratch-output-_tmp)
+- [Referencing Resources](#referencing-resources)
+- [Global vs Project CLAUDE.md](#global-vs-project-claudemd)
+- [Validation Rules](#validation-rules)
+
 ## Purpose
 
 CLAUDE.md provides concise project context for Claude. It is:
@@ -31,7 +44,7 @@ own framing, and it is why "it is only a few hundred tokens" is not a defence.
 
 ## Structure Pattern
 
-```markdown
+````markdown
 # Project Name
 
 Brief project description (1-2 sentences).
@@ -81,7 +94,7 @@ npm run build     # Production build
 ## Important Notes
 
 [Any critical information that doesn't fit above]
-```
+````
 
 ## What to Include
 

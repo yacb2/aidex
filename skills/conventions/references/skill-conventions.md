@@ -2,6 +2,29 @@
 
 Standards for creating Claude Code skills with progressive disclosure.
 
+## Contents
+
+- [Structure Pattern](#structure-pattern)
+- [Skill Locations](#skill-locations)
+- [SKILL.md Requirements](#skillmd-requirements)
+- [Size Constraints](#size-constraints)
+- [Inline Content Rules (Book Index Pattern)](#inline-content-rules-book-index-pattern)
+- [Progressive Disclosure](#progressive-disclosure)
+- [SKILL.md Body Structure](#skillmd-body-structure)
+- [Reference File Organization](#reference-file-organization)
+- [Scripts](#scripts)
+- [Fan-out: `allowed-tools` and `model-policy` (house fields)](#fan-out-allowed-tools-and-model-policy-house-fields)
+- [Agents (`agents/*.md`, plugin level)](#agents-agentsmd-plugin-level)
+- [Assets](#assets)
+- [Data Storage](#data-storage)
+- [Skill Categories](#skill-categories)
+- [On-Demand Hooks](#on-demand-hooks)
+- [Writing Guidelines](#writing-guidelines)
+- [Validation Rules](#validation-rules)
+- [Triggering Tests](#triggering-tests)
+- [Skill Management Commands](#skill-management-commands)
+- [Troubleshooting](#troubleshooting)
+
 ## Structure Pattern
 
 ```
@@ -265,11 +288,13 @@ references/
 └── api-reference.md     # API documentation
 ```
 
-For files > 100 lines, include a table of contents. Keep references one level deep from SKILL.md. Avoid references linking to other references.
+For files > 100 lines (counted with `splitlines`), start with a `## Contents` heading within the first 40 lines, followed by a bullet list of `[text](#anchor)` links in document order: every H2 at top level, every H3 nested two spaces under its enclosing H2 (an H3 before the first H2 sits at top level, and the first entry is never nested). A file with fewer than 3 H2s (not counting Contents) must list every H3; any other file may. Anchors follow GitHub's slug rule, duplicate suffixes included. Headings are ATX only (`#` to `######`, up to 3 leading spaces) and fenced code is skipped; setext headings are not seen. `skills/conventions/scripts/test_reference_toc.sh` enforces it. Keep references one level deep from SKILL.md. Avoid references linking to other references.
 
 ## Scripts
 
 Include scripts when: same code is rewritten repeatedly, deterministic reliability needed, or complex transformations. Scripts must be executable (`chmod +x`) and include a docstring with usage.
+
+A script that needs a tool beyond bash/python3/git (node, playwright, jq, a pip package) states it in SKILL.md next to where the script is invoked, with the install command.
 
 **Scripts from repeated patterns:** Look at what subagents keep reinventing — if test runs, validation steps, or tool invocations repeatedly generate similar helper scripts, bundle that script in `scripts/`. This avoids context waste from Claude recreating the same logic each session.
 

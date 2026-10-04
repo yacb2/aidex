@@ -9,6 +9,14 @@ The grader is the `artifact-grader` agent. It sees the request and the viewport-
 renders (listed by the `<name>-shots.json` manifest from `render-probe.sh --shots`), and nothing else: not the spec, not
 the HTML, not the builder's reasoning. A builder who grades its own page approves it.
 
+## Contents
+
+- [What the probe already measured](#what-the-probe-already-measured)
+- [The ten points](#the-ten-points)
+- [Verdict](#verdict)
+- [Output format](#output-format)
+- [Two calibration anchors](#two-calibration-anchors)
+
 ## What the probe already measured
 
 `render-probe.sh` runs before the grader and fails on geometry (text over text, svg text

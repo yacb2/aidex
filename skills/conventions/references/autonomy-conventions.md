@@ -14,6 +14,19 @@ loaded at the deciding moment) and points here for the full rule.
 
 ---
 
+## Contents
+
+- [The core principle: front-loaded autonomy](#the-core-principle-front-loaded-autonomy)
+- [The two failure modes this eliminates](#the-two-failure-modes-this-eliminates)
+- [The native model (why `allow` is not the lever)](#the-native-model-why-allow-is-not-the-lever)
+- [The decision rule during the run](#the-decision-rule-during-the-run)
+- [The durability-arbiter (active enforcement)](#the-durability-arbiter-active-enforcement)
+- [What is *not* gated (commit, deps, migrations)](#what-is-not-gated-commit-deps-migrations)
+- [Chained work-lists (front-loading across many items)](#chained-work-lists-front-loading-across-many-items)
+- [Execution environment — what a given run actually provides](#execution-environment--what-a-given-run-actually-provides)
+- [Per-skill application](#per-skill-application)
+- [A supervisor's deadline is wall clock, never an iteration count](#a-supervisors-deadline-is-wall-clock-never-an-iteration-count)
+
 ## The core principle: front-loaded autonomy
 
 **Once a process starts, it runs autonomously start-to-finish. All questions are

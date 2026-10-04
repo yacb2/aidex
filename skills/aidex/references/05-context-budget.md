@@ -2,6 +2,16 @@
 
 Heuristics for diagnosing a bloated idle footprint in Claude Code sessions. Complements the per-domain checks (skills, MEMORY.md, CLAUDE.md) with a **cross-domain cost analysis** over the measured snapshot.
 
+## Contents
+
+- [When to run](#when-to-run)
+- [Budget targets (reference)](#budget-targets-reference)
+- [Usage is evidence, never a driver](#usage-is-evidence-never-a-driver)
+- [Two remedies, not one: remove and defer](#two-remedies-not-one-remove-and-defer)
+- [Cost drivers (ranked by impact)](#cost-drivers-ranked-by-impact)
+- [Output shape](#output-shape)
+- [Validation case](#validation-case)
+
 ## When to run
 
 - Project opens above the idle ceiling below before any user message.

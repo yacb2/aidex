@@ -4,6 +4,32 @@ The exact grammar a page spec is written in and Phase 1's tokenizer reads. This 
 is the contract: the tokenizer implements *this*, it does not re-derive a grammar from
 the prior art, and a disagreement between the two is a bug in the tokenizer.
 
+## Contents
+
+- [Provenance, and what is NOT installed](#provenance-and-what-is-not-installed)
+- [The shape](#the-shape)
+- [Lexical rules](#lexical-rules)
+- [Attrs](#attrs)
+- [Nesting](#nesting)
+- [`section`: a page section that is not a `group`](#section-a-page-section-that-is-not-a-group)
+- [The page's language](#the-pages-language)
+- [Prose outside any fence](#prose-outside-any-fence)
+- [Fenced code blocks](#fenced-code-blocks)
+- [The `chart` body: data rows](#the-chart-body-data-rows)
+- [The `diagram` body: boxes, arrows and lanes](#the-diagram-body-boxes-arrows-and-lanes)
+- [The `tree` shape: parents, children and marks](#the-tree-shape-parents-children-and-marks)
+- [The `compare` shape: option A and option B](#the-compare-shape-option-a-and-option-b)
+- [The `figure` block: a drawing from a file](#the-figure-block-a-drawing-from-a-file)
+- [The `video` block: a local film, by reference](#the-video-block-a-local-film-by-reference)
+- [The `graph` body: DOT, laid out by Graphviz](#the-graph-body-dot-laid-out-by-graphviz)
+- [`gallery` rows and `item dropped=`](#gallery-rows-and-item-dropped)
+- [An `item`'s heading: `heading=` over `title=` (BL-652)](#an-items-heading-heading-over-title-bl-652)
+- [An `item`'s option list: one choice or a set](#an-items-option-list-one-choice-or-a-set)
+- [What counts as malformed](#what-counts-as-malformed)
+- [Two layers, and why](#two-layers-and-why)
+- [Worked example](#worked-example)
+- [Related](#related)
+
 ## Provenance, and what is NOT installed
 
 The syntax is Pandoc's fenced-div grammar (`:::` fences, curly-brace attrs, nesting),

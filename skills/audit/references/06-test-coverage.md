@@ -4,6 +4,14 @@ The `test-coverage` playbook tracks which parts of a codebase have tests and
 which do not, using a per-project keystone artifact (`module-map.json`) and a
 set of deterministic scripts derived from it.
 
+## Contents
+
+- [Two-layer model: generated vs judged](#two-layer-model-generated-vs-judged)
+- [`module-map.json`](#module-mapjson)
+- [`defect-prone.jsonl` — optional second input](#defect-pronejsonl--optional-second-input)
+- [Multi-repo workspace semantics](#multi-repo-workspace-semantics)
+- [Coverage thresholds — flag enforcement, not just the number](#coverage-thresholds--flag-enforcement-not-just-the-number)
+
 ## Two-layer model: generated vs judged
 
 Coverage tracking splits into two layers:

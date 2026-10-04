@@ -6,6 +6,23 @@ Rules for entries in `.context/backlog/`.
 
 ---
 
+## Contents
+
+- [Location & naming](#location--naming)
+- [`00-index.md` (auto-regenerated)](#00-indexmd-auto-regenerated)
+- [Front-matter (required)](#front-matter-required)
+- [Priority taxonomy](#priority-taxonomy)
+- [Body structure](#body-structure)
+- [Lifecycle](#lifecycle)
+- [The deferred layer (`_deferred/`)](#the-deferred-layer-_deferred)
+- [Promoting to a plan](#promoting-to-a-plan)
+- [Cross-project routing](#cross-project-routing)
+- [When NOT to create a backlog entry](#when-not-to-create-a-backlog-entry)
+- [Anti-patterns](#anti-patterns)
+- [Related](#related)
+- [A `doing` item may belong to a peer session](#a-doing-item-may-belong-to-a-peer-session)
+- [IDs drift; slugs do not — close by the file, cite by the slug](#ids-drift-slugs-do-not--close-by-the-file-cite-by-the-slug)
+
 ## Location & naming
 
 ```
