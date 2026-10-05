@@ -1545,6 +1545,7 @@
   function addClearControls() {
     items.forEach(function (el) {
       if (isDecided(el)) return;
+      if (el.hasAttribute('data-asks-nothing')) return;   /* nothing to clear on a row that asks nothing (BL-690) */
       if (el.querySelector('.consult-clear')) return;
       var b = document.createElement('button');
       b.type = 'button';

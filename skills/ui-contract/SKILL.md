@@ -105,8 +105,8 @@ before that approval is a sketch round:
   answer did not ask for are marked `kind: "unrequested"` with a `look` line naming the cause.
 - **What the page shows:** the open decision first, page rows after. A full-page row whose
   content depends on an undecided consult item shows context only (labelled with the item id)
-  or waits for the round after the decision; a row whose only change is the pending option, or
-  a change already shown in another row, is not shown.
+  or waits for the round after the decision; a row whose only change is the pending option
+  folds; a change already shown in another row is not shown.
 
 Read `${CLAUDE_PLUGIN_ROOT}/skills/ui-contract/references/02-sketch-round-kit.md` before
 briefing the capturing agent.

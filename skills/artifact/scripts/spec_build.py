@@ -159,6 +159,7 @@ class BuildContext:
         self.base_dir = os.path.abspath(base_dir)
         self.page = page
         self.s = STRINGS[lang]
+        self.tree = ()      # the parsed spec, set by `build` (a gallery reads its items)
 
 
 # --- the dispatch table ------------------------------------------------------
@@ -981,6 +982,12 @@ def emit_notes(node, ctx):
         "</section>"])
 
 
+def _settled(item):
+    """An item that no longer waits for the reader: decided or dropped."""
+    return "dropped" in item.attrs or bool(
+        PLAIN.sub("", item.attrs.get("decided", "")).strip())
+
+
 @emitter("gallery")
 def emit_gallery(node, ctx):
     a = _attrs(node, {"title", "rows", "lang", "root"},
@@ -1017,13 +1024,20 @@ def emit_gallery(node, ctx):
     # was testable at all (the suite's own helper catches SpecBuildError). The
     # line it wrote is captured and carried into the documented exception, with
     # the spec line every other refusal names.
+    # BL-690: a row may depend on a consult item; the gallery needs to know
+    # which items the page has, which are settled and which sit before it.
+    order = {id(n): i for i, n in enumerate(_walk(ctx.tree))}
+    items = {n.id: (_settled(n), order[id(n)] < order[id(node)])
+             for n in _walk(ctx.tree) if n.block_type == "item" and n.id} \
+        if ctx.tree else None
     err = io.StringIO()
     try:
         with contextlib.redirect_stderr(err):
             doc = gallery_items.load(rows)
             html = gallery_items.render(doc, os.path.normpath(root), node.id,
                                         a["title"], lang, page=ctx.page,
-                                        require_look=True, lead=lead_html)
+                                        require_look=True, lead=lead_html,
+                                        items=items)
     except SystemExit:
         said = [ln for ln in err.getvalue().splitlines() if ln.strip()]
         raise SpecBuildError(
@@ -1872,6 +1886,7 @@ def build(spec_text, lang=None, base_dir=".", page=None):
     lang = spec_lang(spec_text) or lang or "es"
     ctx = BuildContext(lang=lang, base_dir=base_dir, page=page)
     tree = parse(spec_text)
+    ctx.tree = tree
     _refuse_links(spec_text)
     _refuse_entities(spec_text)
     _refuse_title_links(tree)
