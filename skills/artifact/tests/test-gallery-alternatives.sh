@@ -102,6 +102,7 @@ refuse() {  # refuse <label> <needle> <python that edits d>
   python3 - "$TMP/alt.json" "$TMP/bad.json" <<PY
 import json, sys
 d = json.load(open(sys.argv[1]))
+P = lambda n: "shots/" + n + ".png"
 $3
 json.dump(d, open(sys.argv[2], "w"))
 PY
@@ -455,6 +456,110 @@ assert r["verdict"] == "" and r["notes"] == "- Con cajón antiguo", r
 err = open(sys.argv[3]).read()
 assert 'warning: row skel-list-light-desktop-alternatives: "Con cajón antiguo" is not a label of the --rows document; kept as a note (stale --rows?)' in err, err
 PY
+
+echo "== per-option states (BL-691) =="
+png shots/list-a-empty.png 160 90
+png shots/list-drawer-empty.png 160 90
+cat > "$TMP/st.json" <<'JSON'
+{"gallery": "skel", "variants": ["light-desktop"],
+ "alternatives": [{"id": "a", "label": "Esqueleto A"}, {"id": "drawer", "label": "Con cajón"}],
+ "rows": [
+  {"cell": "list", "variant": "light-desktop", "kind": "alternatives",
+   "look": "Cómo se ve cada opción con datos y vacía",
+   "captures": {"a": {"with-data": "shots/list-a.png", "empty": "shots/list-a-empty.png"},
+                "drawer": {"with-data": "shots/list-drawer.png", "empty": "shots/list-drawer-empty.png"}}}
+ ]}
+JSON
+gen "$TMP/st.json" > "$TMP/st.html" 2> "$TMP/st.err" \
+  && ok "a per-option-states document generates" \
+  || fail "a per-option-states document was refused: $(cat "$TMP/st.err")"
+srow="$(item skel-list-light-desktop-alternatives "$TMP/st.html")"
+python3 - "$TMP/st.html" <<'PY' && ok "figures are option-major: each option's with-data and empty adjacent, captioned option · state" || fail "per-option figures are not adjacent/captioned (see above)"
+import re, sys
+html = open(sys.argv[1], encoding="utf-8").read()
+row = re.search(r'data-id="skel-list-light-desktop-alternatives".*?</section>', html, re.S).group(0)
+caps = re.findall(r'<figcaption>([^<]*)</figcaption>', row)
+want = ["Esqueleto A · con datos", "Esqueleto A · vacío", "Con cajón · con datos", "Con cajón · vacío"]
+assert caps == want, caps
+tiles = re.findall(r'<figure data-tile="([^"]*)"', row)
+assert tiles == ["a-with-data", "a-empty", "drawer-with-data", "drawer-empty"], tiles
+assert 'data-per-option="2"' in row
+assert re.search(r'data-tiles="a-with-data a-empty drawer-with-data drawer-empty"', html), html[:400]
+PY
+n="$(grep -o 'type="radio" name="skel-list-light-desktop-alternatives"' <<<"$srow" | wc -l | tr -d ' ')"
+[[ "$n" -eq 3 ]] && ok "still one which-one radio group for the row (2 options + none of them)" || fail "expected 3 radios on a per-state row, found $n"
+printf '### skel-list-light-desktop-alternatives · skel · list · light-desktop\n\n- Con cajón\n' > "$TMP/rs.txt"
+bash "$REPLY" --rows "$TMP/st.json" "$TMP/rs.txt" 2>/dev/null | python3 -c "import json,sys; sys.exit(0 if json.load(sys.stdin)['rows'][0]['verdict']=='Con cajón' else 1)" \
+  && ok "reply-contract pin: the reply names the option, not a state" || fail "reply of a per-state row lost the chosen option"
+gen "$TMP/alt.json" 2>/dev/null | grep -q 'data-per-option' \
+  && fail "a single-capture alternatives row gained data-per-option" \
+  || ok "a single-capture alternatives row renders unchanged (no per-option marker)"
+refuse "options with different states" "every option shows the same states" \
+  'd["rows"][0]["captures"] = {"a": {"with-data": "shots/list-a.png", "empty": "shots/list-a-empty.png"}, "drawer": {"with-data": "shots/list-drawer.png", "other": "shots/list-drawer-empty.png"}}'
+refuse "one option plain, another with states within a row" "every option of a row shows the same" \
+  'd["rows"][0]["captures"]["a"] = {"with-data": "shots/list-a.png", "empty": "shots/list-a-empty.png"}'
+refuse "a single state per option" "per-option states are 2 to 4" \
+  'd["rows"][0]["captures"] = {"a": {"with-data": "shots/list-a.png"}, "drawer": {"with-data": "shots/list-drawer.png"}}'
+refuse "a state path that escapes the checkout" "must be relative to the repo root" \
+  'd["rows"][0]["captures"] = {"a": {"with-data": "../x.png", "empty": "shots/list-a-empty.png"}, "drawer": {"with-data": "shots/list-drawer.png", "empty": "shots/list-drawer-empty.png"}}'
+refuse "a plain row beside a per-state row names the plain row" "plain (one capture per option)" \
+  'st = {"a": {"with-data": "shots/list-a.png", "empty": "shots/list-a-empty.png"}, "drawer": {"with-data": "shots/list-drawer.png", "empty": "shots/list-drawer-empty.png"}}; d["rows"][0]["captures"] = st; d["rows"].append({"cell": "detail", "variant": "light-desktop", "kind": "alternatives", "look": "x", "captures": {"a": "shots/list-a.png", "drawer": "shots/list-drawer.png"}})'
+
+# F1-F5 (review of BL-691): order, sets, counts, highlight, tile-name clashes
+png shots/short-empty.png 160 40
+png shots/s3.png 160 90
+png shots/s4.png 160 90
+png shots/s5.png 160 90
+mkdoc() {  # mkdoc <out> <python that builds d from the per-state document>
+  python3 - "$TMP/st.json" "$1" <<PY
+import json, sys
+d = json.load(open(sys.argv[1]))
+P = lambda n: "shots/" + n + ".png"
+$2
+json.dump(d, open(sys.argv[2], "w"))
+PY
+}
+mkdoc "$TMP/ord.json" 'r2 = json.loads(json.dumps(d["rows"][0])); r2["cell"] = "detail"; r2["captures"]["drawer"] = {"empty": P("list-drawer-empty"), "with-data": P("list-drawer")}; r2["captures"] = {"drawer": r2["captures"]["drawer"], "a": {"empty": P("list-a-empty"), "with-data": P("list-a")}}; d["rows"].append(r2)'
+gen "$TMP/ord.json" > "$TMP/ord.html" 2> "$TMP/ord.err" \
+  && python3 - "$TMP/ord.html" <<'PY' && ok "the same states in another order (within and across rows) are accepted; the first row's order is the page's" || fail "same states in another order refused or reordered: $(cat "$TMP/ord.err")"
+import re, sys
+html = open(sys.argv[1], encoding="utf-8").read()
+for cell in ("list", "detail"):
+    row = re.search(r'data-id="skel-%s-light-desktop-alternatives".*?</section>' % cell, html, re.S).group(0)
+    tiles = re.findall(r'<figure data-tile="([^"]*)"', row)
+    assert tiles == ["a-with-data", "a-empty", "drawer-with-data", "drawer-empty"], (cell, tiles)
+PY
+# the refuse helper edits alt.json; these checks edit the per-state document
+refuse_st() { cp "$TMP/alt.json" "$TMP/alt.keep"; cp "$TMP/st.json" "$TMP/alt.json"; refuse "$@"; cp "$TMP/alt.keep" "$TMP/alt.json"; }
+refuse_st "two per-state rows with different state sets" "one document, one set of states" \
+  'import copy; r2 = copy.deepcopy(d["rows"][0]); r2["cell"] = "detail"; r2["captures"]["a"] = {"with-data": "shots/list-a.png", "loading": "shots/list-a-empty.png"}; r2["captures"]["drawer"] = {"with-data": "shots/list-drawer.png", "loading": "shots/list-drawer-empty.png"}; d["rows"].append(r2)'
+refuse_st "five states per option" "per-option states are 2 to 4" \
+  'd["rows"][0]["captures"] = {"a": {"s%d" % k: P("s3") for k in range(5)}, "drawer": {"s%d" % k: P("s4") for k in range(5)}}'
+refuse_st "options a and a-x with states x-y and y name one tile twice" "same tile name twice" \
+  'd["alternatives"] = [{"id": "a", "label": "A"}, {"id": "a-x", "label": "AX"}]; d["rows"][0]["captures"] = {"a": {"x-y": P("list-a"), "y": P("list-a-empty")}, "a-x": {"y": P("list-a"), "x-y": P("list-a-empty")}}'
+refuse_st "an escaping path in the LAST option's LAST state" "must be relative to the repo root" \
+  'd["rows"][0]["captures"]["drawer"]["empty"] = "../x.png"'
+mkdoc "$TMP/four.json" 'd["rows"][0]["captures"] = {"a": {"s%d" % k: P("s3") for k in range(4)}, "drawer": {"s%d" % k: P("s4") for k in range(4)}}'
+gen "$TMP/four.json" 2>/dev/null | grep -q 'data-per-option="4"' \
+  && ok "four states per option are accepted (data-per-option=4)" || fail "four states per option refused or unmarked"
+mkdoc "$TMP/hl.json" 'd["rows"][0]["captures"]["a"]["empty"] = P("short-empty"); d["rows"][0]["captures"]["drawer"]["empty"] = P("short-empty"); d["rows"][0]["highlight"] = {"x": 10, "y": 50, "w": 40, "h": 30}'
+gen "$TMP/hl.json" > "$TMP/hl.html" 2> "$TMP/hl.err" \
+  && python3 - "$TMP/hl.html" <<'PY' && ok "a highlight on a per-state row builds with a shorter empty capture and outlines only each option's first state" || fail "highlight on a per-state row: $(cat "$TMP/hl.err")"
+import re, sys
+row = re.search(r'data-id="skel-list-light-desktop-alternatives".*?</section>', open(sys.argv[1], encoding="utf-8").read(), re.S).group(0)
+figs = re.findall(r'<figure data-tile="([^"]*)">(.*?)</figure>', row, re.S)
+marked = [t for t, body in figs if "gal-hl" in body]
+assert [t for t, _ in figs] == ["a-with-data", "a-empty", "drawer-with-data", "drawer-empty"], figs
+assert marked == ["a-with-data", "drawer-with-data"], marked
+PY
+
+# the per-option states page must pass the checker's matrix (data-tiles) too
+cp "$TMP/st.json" "$TMP/spec/st.json"
+sed 's/rows="alt.json"/rows="st.json"/' "$TMP/spec/a.spec.md" > "$TMP/spec/st.spec.md"
+( cd "$TMP/spec" && python3 "$BUILD" st.spec.md -o st.html > "$TMP/sb.out" 2>&1 ); rc=$?
+[[ $rc == 0 ]] && bash "$CHECK" "$TMP/spec/st.html" > "$TMP/sc.out" 2>&1 \
+  && ok "a per-option-states page builds from a spec and passes check-artifact" \
+  || fail "the per-option-states page does not build/check (rc $rc): $(tail -3 "$TMP/sb.out" "$TMP/sc.out")"
 
 if [[ $failures -gt 0 ]]; then echo "FAILED: $failures"; exit 1; fi
 echo "ok: gallery alternatives, compact answer, look, sample, reply, dropped and ordering"

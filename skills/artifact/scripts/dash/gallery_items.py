@@ -337,6 +337,50 @@ def load(path):
 LAYOUTS = ("stacked", "side")
 
 
+# BL-691: an alternatives row may give each option several captures (its
+# with-data and its empty state): `"captures": {"a": {"with-data": path,
+# "empty": path}, ...}`. The page shows them adjacent per option, still under
+# the row's one which-one radio. The caption word of a state, by language; a
+# state id with no entry here is shown as written.
+OPTION_STATE_WORDS = {"es": {"with-data": "con datos", "empty": "vacío"},
+                      "en": {"with-data": "with data", "empty": "empty"}}
+MAX_OPTION_STATES = 4
+
+
+def check_option_states(caps, alts, cell):
+    """The state ids of a per-state alternatives row, or None for the plain
+    one-capture-per-option row. Every option carries the same SET of states
+    (the first option's order is the row's order), because the block's
+    `data-tiles` is one matrix for all rows."""
+    shapes = {isinstance(caps[a["id"]], dict) for a in alts}
+    if shapes == {False}:
+        return None
+    if shapes == {True, False}:
+        die("row '%s': some alternatives have one capture and others a "
+            "{state: path} object — every option of a row shows the same "
+            "states" % cell)
+    first = list(caps[alts[0]["id"]])
+    if not 2 <= len(first) <= MAX_OPTION_STATES \
+            or not all(SLUG.match(k) for k in first):
+        die("row '%s': per-option states are 2 to %d lowercase slugs "
+            "(\"with-data\", \"empty\"), not %r"
+            % (cell, MAX_OPTION_STATES, first))
+    for a in alts:
+        got = list(caps[a["id"]])
+        if set(got) != set(first):
+            die("row '%s': option '%s' has the states %r, but '%s' has %r — "
+                "every option shows the same states (the first option's order "
+                "is the row's)"
+                % (cell, a["id"], got, alts[0]["id"], first))
+        for st in first:
+            check_path(caps[a["id"]][st], cell, "%s/%s" % (a["id"], st))
+    ids = [a["id"] + "-" + st for a in alts for st in first]
+    if len(set(ids)) != len(ids) or set(ids) & set(TILES):
+        die("row '%s': the option and state ids make the same tile name "
+            "twice (%s); rename an option or a state" % (cell, " ".join(ids)))
+    return first
+
+
 def check_title(row, cell):
     """The row's optional human heading (BL-577): one line of plain text in the
     page's language. It is shown, never parsed, so it may say anything."""
@@ -601,12 +645,15 @@ def check_row(row, variants, n, alts=None, require_look=False):
             if a["id"] not in caps:
                 die("row '%s' has no capture for '%s' — every alternative is "
                     "shown in every row" % (cell, a["id"]))
+            if isinstance(caps[a["id"]], dict):
+                continue    # per-state captures: checked below (BL-691)
             check_path(caps[a["id"]], cell, a["id"])
         extra = sorted(set(caps) - {a["id"] for a in alts})
         if extra:
             die("row '%s' has a capture for '%s', which is not a declared "
                 "alternative" % (cell, extra[0]))
         out["captures"] = caps
+        out["option_states"] = check_option_states(caps, alts, cell)
         return out
     if kind == "states":
         for k in ("before", "after", "highlight", "highlight_before", "layout",
@@ -961,6 +1008,29 @@ def pending_on(r, items):
     return dep
 
 
+def alternatives_states(doc, variants, alts, require_look):
+    """The state ids every alternatives row of the block shows (BL-691), or
+    None when none has per-option states. The block's `data-tiles` is one
+    matrix for all rows, so a row with other states than its neighbours is
+    refused."""
+    seen = None
+    for n, row in enumerate(doc["rows"], 1):
+        r = check_row(row, variants, n, alts, require_look)
+        if r.get("kind") != "alternatives" or "option_states" not in r:
+            continue
+        if seen is None:
+            seen = (r["cell"], r["option_states"])
+        elif (set(r["option_states"] or ()) != set(seen[1] or ())):
+            def said(st):
+                return "plain (one capture per option)" if st is None \
+                    else repr(st)
+            die("rows '%s' and '%s' show different states per option (%s vs "
+                "%s) — one document, one set of states; the first row's "
+                "order is the page's"
+                % (seen[0], r["cell"], said(seen[1]), said(r["option_states"])))
+    return seen[1] if seen else None
+
+
 def group_intro(doc, variants, alts, require_look, lang, items=None):
     """The block's one instruction (BL-595): which sentences apply depends on
     the kinds of row the block holds. Rows are only classified here; `render`
@@ -1019,6 +1089,9 @@ def render(doc, root, group_id, group_title, lang, page=None,
     variants = list(doc["variants"])
     alts = doc.get("alternatives")
     tiles = [a["id"] for a in alts] if alts else list(TILES)
+    option_states = alternatives_states(doc, variants, alts, require_look)
+    if option_states:
+        tiles = [a["id"] + "-" + st for a in alts for st in option_states]
     words = TILE_WORDS[lang]
     root = root.rstrip("/")
     out = []
@@ -1170,8 +1243,10 @@ def render(doc, root, group_id, group_title, lang, page=None,
         # puts before above after at the column's full width.
         pair = kind not in ("alternatives", "states") and before is not None
         layout = r.get("layout") or "side"
-        add('    <div class="gal%s">' % (" stacked" if layout == "stacked" and pair
-                                         else ""))
+        per_option = r.get("option_states")
+        add('    <div class="gal%s"%s>'
+            % (" stacked" if layout == "stacked" and pair else "",
+               ' data-per-option="%d"' % len(per_option) if per_option else ""))
         regions = r.get("highlight")
         alt = "%s · %%s" % heading
         if kind == "states":
@@ -1180,8 +1255,21 @@ def render(doc, root, group_id, group_title, lang, page=None,
                            alt % st["label"], assets, copies))
         elif kind == "alternatives":
             for a in alts:
-                add(figure(root, r["captures"][a["id"]], a["id"], a["label"],
-                           cell, alt % a["label"], assets, copies, regions))
+                if not option_states or not r.get("option_states"):
+                    add(figure(root, r["captures"][a["id"]], a["id"],
+                               a["label"], cell, alt % a["label"], assets,
+                               copies, regions))
+                    continue
+                # BL-691: option-major, so each option's states sit adjacent.
+                for k, st in enumerate(option_states):
+                    # The highlight outlines the canonical (first, with-data)
+                    # state only: a fixed region would overflow a shorter
+                    # empty capture, and @name needs a sidecar per capture.
+                    cap = "%s · %s" % (a["label"],
+                                       OPTION_STATE_WORDS[lang].get(st, st))
+                    add(figure(root, r["captures"][a["id"]][st],
+                               a["id"] + "-" + st, cap, cell, alt % cap,
+                               assets, copies, regions if k == 0 else None))
         elif before is not None:
             add(figure(root, before, "before", words["before"], cell,
                        alt % words["before"], assets, copies,

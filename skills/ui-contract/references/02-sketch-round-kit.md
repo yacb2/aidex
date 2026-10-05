@@ -55,6 +55,8 @@ and button; with a separate re-capture agent the rows flagged those cells `unreq
 4/4, with the impl agent doing its own rows 0/4. So: every row whose visible change the
 owner's answer did not ask for gets `kind: "unrequested"` and a `look` line naming it. The one exception: when the changed region repeats one already shown in another row of the round, no row is emitted and the knock-on goes in that row's look text.
 
+**Alternatives that differ in what they show with data and when empty (BL-691).** The sketch brief asks the capturing agent for BOTH states of every option in ONE rows file: each option's `captures` entry is `{"with-data": path, "empty": path}` (alternatives rows, `04-block-vocabulary.md`), so the page shows option A's two states side by side, then option B's, under one which-one pick. Never a second gallery of "the same options, calm state": the reader compares options, not states, and two galleries ask the same decision twice (the asset_lab round that cost an extra round).
+
 An alternatives gallery IS the question: no parallel text item restates its options. No row of ANY kind (sample, unrequested, review) whose highlighted region repeats one already shown in another row of the round: the build refuses it, and its knock-on goes in one line of that row's look text.
 
 ## Rows that depend on an open question

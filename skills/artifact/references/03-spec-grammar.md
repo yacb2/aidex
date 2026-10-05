@@ -930,7 +930,7 @@ These things of the grammar are worth stating here:
   both, silently.
 - **`kind`** of a row is `review`, `unrequested`, `sample` (no radios), `states` (N captures of one
   component, a checkbox each; `04-block-vocabulary.md`) or `alternatives`
-  (labelled variants declared once in the document's `alternatives`, one which-one radio).
+  (labelled variants declared once in the document's `alternatives`, one which-one radio). An option's capture may be `{"with-data": path, "empty": path}`: the page shows each option's states adjacent, still one radio per row (`04-block-vocabulary.md`, BL-691).
 - **`look`** is required on every shown row by this route: a row without it fails the build
   (and `--check`), with a message naming the cell. Not-applicable and dropped rows are exempt.
 - **`answer`** (BL-629) on a `decided` row is the reply to the owner's note on it: the row folds,

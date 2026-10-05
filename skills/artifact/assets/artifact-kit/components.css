@@ -281,6 +281,13 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .gal { display: grid; grid-template-columns: repeat(auto-fit, minmax(calc(50% - 0.4rem), 1fr));
        gap: 0.6rem; margin: 0.2rem 0 0.3rem; }
 .gal figure { margin: 0; }
+/* An alternatives row with per-option states (BL-691): the figures come
+   option-major, so N states per option make one grid row per option. Two is the
+   default grid; 3 and 4 need their own tracks, and a narrow page stacks them. */
+@media (min-width: 700px) {
+  .gal[data-per-option="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .gal[data-per-option="4"] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
 .gal img { width: 100%; height: auto; border: 1px solid var(--rule); border-radius: 4px;
            background: var(--paper); }
 /* A phone capture is a tall, narrow image: at the column's full width it towers
