@@ -1,6 +1,6 @@
 ---
 name: freshness-checker
-description: Launched by /aidex:aidex audit; not for direct use. Detects stale documentation by comparing each artifact's front-matter `updated` date against recent project activity.
+description: Launched by /aidex:aidex audit; not for direct use. Returns stale documentation artifacts.
 model: haiku
 tools: Read, Grep, Glob, Bash, WebFetch
 context: fork

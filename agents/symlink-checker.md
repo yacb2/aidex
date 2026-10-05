@@ -1,6 +1,6 @@
 ---
 name: symlink-checker
-description: Launched by /aidex:aidex audit; not for direct use. Verifies all symlinks in .claude/ resolve to valid targets.
+description: Launched by /aidex:aidex audit; not for direct use. Returns broken symlinks in .claude/.
 model: haiku
 tools: Read, Glob, Bash
 context: fork

@@ -1,6 +1,6 @@
 ---
 name: regression-checker
-description: Launched by /aidex:bugfix step 6; not for direct use. Verifies that a bug fix doesn't introduce regressions by running test suites, checking types, and validating lint.
+description: Launched by /aidex:bugfix step 6; not for direct use. Returns whether the fix introduced regressions.
 tools: Glob, Grep, Read, Bash
 model: sonnet
 effort: high

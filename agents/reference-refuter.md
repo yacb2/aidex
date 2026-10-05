@@ -1,6 +1,6 @@
 ---
 name: reference-refuter
-description: Launched by /aidex:reference step 5 (close gate); not for direct use. Adversarial close-gate for a reference module. Given a module path, tries to REFUTE its claims against the code, the database and the tree. Returns a verdict per claim. Never rewrites the document.
+description: Launched by /aidex:reference step 5 (close gate); not for direct use. Returns a verdict per claim of a reference module.
 model: sonnet
 tools: Read, Grep, Glob, Bash
 effort: high

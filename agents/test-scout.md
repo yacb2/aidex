@@ -1,6 +1,6 @@
 ---
 name: test-scout
-description: Launched by /aidex:bugfix step 1; not for direct use. Discovers existing tests, testing patterns, and frameworks in the project to recommend the best approach for writing a regression test.
+description: Launched by /aidex:bugfix step 1; not for direct use. Returns the project's test framework and a regression-test approach.
 tools: Glob, Grep, Read, Bash
 model: sonnet
 effort: medium

@@ -1,6 +1,6 @@
 ---
 name: skills-auditor
-description: Launched by /aidex:aidex audit; not for direct use. Audits skills across all scopes for structural issues, frontmatter compliance, and scope placement.
+description: Launched by /aidex:aidex audit; not for direct use. Returns skill structure, frontmatter and scope findings.
 model: sonnet
 effort: low
 tools: Read, Glob, Grep

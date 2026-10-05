@@ -1,6 +1,6 @@
 ---
 name: verify-ui
-description: Launched by /aidex:ui-contract and /aidex:plan-exec; not for direct use. Runs a project's existing UI evidence gate and reports what it printed — the closing line per runner project, which cells failed, and the contact-sheet path. Runs commands and reads files; writes no code, moves no baseline, and never renders a verdict on how a screen looks.
+description: Launched by /aidex:ui-contract and /aidex:plan-exec; not for direct use. Returns the UI evidence gate's closing line, failed cells and contact-sheet path.
 model: sonnet
 effort: low
 tools: Bash, Read

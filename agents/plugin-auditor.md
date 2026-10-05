@@ -1,6 +1,6 @@
 ---
 name: plugin-auditor
-description: Launched by /aidex:aidex audit; not for direct use. Audits installed Claude Code plugins for always-loaded subagent cost vs. recent usage; flags uninstall candidates.
+description: Launched by /aidex:aidex audit; not for direct use. Returns uninstall candidates by subagent cost vs usage.
 model: haiku
 tools: Read, Grep, Glob, Bash
 context: fork

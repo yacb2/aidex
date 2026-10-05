@@ -1,6 +1,6 @@
 ---
 name: inventory-seeder
-description: Launched by /aidex:audit migrate; not for direct use. Read scattered findings from legacy audit folders and generate canonical 00-inventory.md rows. Used by /aidex:audit migrate after folders have been moved.
+description: Launched by /aidex:audit migrate; not for direct use. Returns canonical 00-inventory.md rows from legacy audit findings.
 model: sonnet
 effort: medium
 tools: Read, Write, Edit, Glob, Grep

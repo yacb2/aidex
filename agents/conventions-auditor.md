@@ -1,6 +1,6 @@
 ---
 name: conventions-auditor
-description: Launched by /aidex:aidex audit; not for direct use. Runs the conventions validator (validate.py) against the project's .context/ and reports violations as aidex findings.
+description: Launched by /aidex:aidex audit; not for direct use. Returns validate.py violations as aidex findings.
 model: haiku
 tools: Read, Bash
 context: fork

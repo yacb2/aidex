@@ -1,6 +1,6 @@
 ---
 name: memory-auditor
-description: Launched by /aidex:aidex audit; not for direct use. Audits the memory FILES in a project's memory directory — one verdict per file against the memory-hygiene checks — plus the MEMORY.md index it is summarized by.
+description: Launched by /aidex:aidex audit; not for direct use. Returns one verdict per memory file plus the MEMORY.md index.
 model: sonnet
 tools: Read, Grep, Glob
 effort: medium

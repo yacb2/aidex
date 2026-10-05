@@ -1,6 +1,6 @@
 ---
 name: bug-investigator
-description: Launched by /aidex:bugfix step 1; not for direct use. Investigates bug root cause by tracing code paths, reading error messages, checking recent changes, and identifying the exact source of the problem.
+description: Launched by /aidex:bugfix step 1; not for direct use. Returns the root cause of a bug.
 tools: Glob, Grep, Read, Bash
 model: sonnet
 effort: high
