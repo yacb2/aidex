@@ -357,7 +357,7 @@ each subagent's own transcript (`<session>/subagents/*.jsonl`):
 | haiku | `effort: low` | `--effort high` | **no effort at all** |
 
 The case that matters is an undeclared *judgement* agent on an effort-capable model: its
-depth is set by its caller. For a safety gate like `durability-arbiter`, that means the
+depth is set by its caller. For a safety gate such as the batch arbiter, that means the
 run asking to be judged decides how carefully its own stop gets judged.
 
 **Haiku 4.5 has no reasoning effort** — the level is absent from its requests whether

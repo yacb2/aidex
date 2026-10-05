@@ -116,7 +116,7 @@ parameters were defaulted. Full rule:
      with `isolation: 'worktree'` per agent, each gated by the spec's machine gate.
    Translate the spec's per-stage **model/effort** directly into the `agent(prompt,
    {model, effort})` options, and the work-list into the items array. The two-stage gate
-   (Bash verifier → conditional durability-arbiter) and kill-resume come from the
+   (Bash verifier → conditional arbiter prompt) and kill-resume come from the
    plan-exec CORE.
    - **The spec is the binding carrier; the `.workflow.js` is generated here, at
      launch, and is disposable.** Write it into the session scratchpad (or an equivalent
@@ -145,17 +145,15 @@ condition without interrupting the user:
 - **A genuine emergent decision the work itself revealed (class c)** is the one
   legitimate mid-run interrupt — rare; preserve it. The goal is removing the *avoidable*
   "what next?" questions, not reaching zero.
-- **Ambiguous consent point not in the ask-set → consult the durability-arbiter, do not
-  deadlock.** Launch
-  [`aidex:durability-arbiter`](../../agents/durability-arbiter.md) with the Agent tool
-  (`subagent_type: aidex:durability-arbiter`; its definition pins `sonnet`/`high`, read-only) with the situation + the spec's
-  autonomy surface + proof, follow its verdict, batch any `ASK` to the end. If it errors,
-  apply the rule above and proceed — never block on it. `model-policy: per-stage` is what
-  that pin expresses, and it is the same policy the spec's per-agent model table sets for
-  every agent the designed Workflow spawns.
+- **Ambiguous consent point not in the ask-set → decide it yourself, do not
+  deadlock.** Judge CONTINUE / ASK / STOP against the policy in the ARBITER block of
+  [workflow-core.md](../conventions/references/workflow-core.md), using the spec's
+  autonomy surface + proof; batch any `ASK` to the end. If the policy does not settle it,
+  apply the rule above and proceed — never block on it. `model-policy: per-stage` is the
+  policy the spec's per-agent model table sets for every agent the designed Workflow spawns.
 
 This is the workflow's instance of the shared autonomy canon — full decision rule, the
-`commit`-is-not-gated policy, the three-class model, and the durability-arbiter live in
+`commit`-is-not-gated policy, the three-class model, and the arbiter policy live in
 [autonomy-conventions.md](../conventions/references/autonomy-conventions.md).
 
 ---

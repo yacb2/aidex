@@ -139,17 +139,14 @@ condition or turn cap **without interrupting the user**:
   **verify the assumption is correct (investigate, don't guess)** and **surface or
   log** what you decided — not to stop. You may investigate, read the DB, and take
   a backup without asking when it gives confidence to continue.
-- **Ambiguous consent point not in the declared ask-set → consult the
-  durability-arbiter, do not deadlock.** Definition:
-  [`../../agents/durability-arbiter.md`](../../agents/durability-arbiter.md);
-  launch it with the Agent tool as `subagent_type: aidex:durability-arbiter` (its definition pins `sonnet`/`high`, read-only) with the situation + the
-  spec's autonomy surface + proof, and follow its verdict; batch any `ASK` to the
-  end. If it errors, apply the rule above and proceed — never block on it.
-  `model-policy: per-stage` — that pin is the policy: the gate's depth is set here,
-  not inherited from the loop asking to be judged.
+- **Ambiguous consent point not in the declared ask-set → decide it yourself, do not
+  deadlock.** Judge CONTINUE / ASK / STOP against the policy in the ARBITER block of
+  [workflow-core.md](../conventions/references/workflow-core.md), using the spec's
+  autonomy surface + proof; batch any `ASK` to the end. If the policy does not settle it,
+  apply the rule above and proceed — never block on it. `model-policy: per-stage`: every subagent this skill launches pins its own model and effort rather than inheriting the run's.
 
 This is the loop's instance of the shared autonomy canon — full decision rule, the
-`commit`-is-not-gated policy, and the durability-arbiter in
+`commit`-is-not-gated policy, and the arbiter policy in
 [autonomy-conventions.md](../conventions/references/autonomy-conventions.md).
 
 ---

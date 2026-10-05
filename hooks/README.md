@@ -147,7 +147,7 @@ alone. The measurement is scheduled as a P2 backlog item, so it is done, not rem
 `aidex-audit`, `aidex-backlog`, `aidex-loop`, `aidex-workflow` and `aidex-plan-exec` — the marker
 they wrote had exactly one consumer (`durability-stop-hook.sh`), so leaving them would have meant
 five skills writing state nobody reads. Durability now rests on skill-side autonomy plus the
-voluntary durability-arbiter, which is what the retirement rule designates as the successor.
+voluntary durability-arbiter (agent retired 2026-10-05), which is what the retirement rule designates as the successor.
 
 **Measured verdict (window: blocks since 2026-07-23):** 4 real blocks, **0 justified**, 4 misfires
 — all four were answer-to-user terminals, the class the post-retro policy was supposed to allow.

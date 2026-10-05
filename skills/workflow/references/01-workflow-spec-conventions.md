@@ -112,7 +112,7 @@ Reference implementation already in the suite:
 [`review-with-gate.workflow.js`](../../plan-exec/assets/workflows/review-with-gate.workflow.js)
 — a fresh `opus/high` reviewer over the cumulative diff, with the arbiter invoked **only
 on `passed=false`**, never per gate. Reuse its `CONTINUE / ASK / STOP` verdict contract
-([`durability-arbiter.md`](../../../agents/durability-arbiter.md)) rather
+(the ARBITER block of [`workflow-core.md`](../../conventions/references/workflow-core.md)) rather
 than inventing a new trigger vocabulary.
 
 ## Execution — delegated, never rebuilt
@@ -122,7 +122,7 @@ tool reusing plan-exec's forms
 ([`../../plan-exec/assets/workflows/*.workflow.js`](../../plan-exec/assets/workflows/))
 and the single-sourced durability CORE
 ([`../../conventions/references/workflow-core.md`](../../conventions/references/workflow-core.md)).
-The two-stage gate (Bash verifier → conditional durability-arbiter), kill-resume via
+The two-stage gate (Bash verifier → conditional arbiter prompt), kill-resume via
 `resumeFromRunId`, and the ~22k/agent cost floor all come from there. The spec **cites**
 that machinery; it does not re-author it.
 

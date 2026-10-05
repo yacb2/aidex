@@ -90,15 +90,13 @@ That is the transition to `doing` and, for `type: bug`, the route into RED→GRE
 
 When asked to **work or sweep the backlog autonomously**, resolve every safe + additive
 item to completion before stopping. Do not halt with "the rest needs your decision":
-classify each open item first, and for any you would otherwise pause on, **consult the
-[durability-arbiter](../../agents/durability-arbiter.md)** (Agent tool,
-`subagent_type: aidex:durability-arbiter`; its definition pins `sonnet` / `high`, read-only —
-`model-policy: per-stage`, so the gate's depth is never inherited from the run asking to be judged) — pass the item + the standing autonomy surface + proof the
-fix is safe. Implement the ones it returns `CONTINUE` for (commit per item; deps and
+classify each open item first, and for any you would otherwise pause on, **decide it yourself
+against the policy in the ARBITER block in [workflow-core.md](../conventions/references/workflow-core.md)** — weigh the item + the standing autonomy surface + proof the
+fix is safe. Implement the ones you rule `CONTINUE` for (commit per item; deps and
 additive migrations are not gated), and **batch the `ASK`/`STOP` ones into a single
-end-of-run list** — never stop the sweep on the first item that needs you. If the arbiter
-errors, fall back to the [autonomy canon](../conventions/references/autonomy-conventions.md)
-and proceed. This is the gate that turns "I resolved 2, the other 15 need you" into "I
+end-of-run list** — never stop the sweep on the first item that needs you. When the policy
+is unclear, fall back to the [autonomy canon](../conventions/references/autonomy-conventions.md)
+and proceed. `model-policy: per-stage`: every subagent this skill launches pins its own model and effort rather than inheriting the run's. This is the gate that turns "I resolved 2, the other 15 need you" into "I
 resolved the 14 safe ones; here are the 3 that are genuinely yours."
 
 ## Sweep run mode (`/aidex:backlog sweep`)

@@ -13,3 +13,8 @@ a pre-plugin setup, check out the last pre-plugin tag and run the installer from
 this tree does not work, because the script resolves `skills/` and `rules/` relative to
 its own directory. The install diagnosis that `--doctor` provided returns as a skill
 sub-action under backlog item BL-404.
+
+`agents/` holds the `durability-arbiter` agent and its eval, retired 2026-10-05: it was
+launched 0 times in 30 days while the five skills that consulted it ran 160+ times. Its
+policy lives on as the canonical ARBITER block in
+`skills/conventions/references/workflow-core.md`, which the running session applies itself.

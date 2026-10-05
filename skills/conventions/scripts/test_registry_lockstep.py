@@ -339,7 +339,7 @@ def main() -> int:
     # definition with no effort key ran at `low` under a `--effort low` parent and at
     # `high` under a `--effort high` one, while an explicit `effort: high` won over a
     # `low` parent. So an undeclared agent's reasoning depth is set by its caller, which
-    # for a safety gate like durability-arbiter is the caller deciding how carefully its
+    # for a safety gate like the batch arbiter is the caller deciding how carefully its
     # own stop gets judged. Declaring model without effort is half a decision.
     # Since 2026-09-29 the definitions live at the plugin-level agents/ (registered as
     # `aidex:<name>`); a skill-local skills/*/agents/ is not registered by Claude Code.

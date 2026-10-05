@@ -42,7 +42,7 @@ export const meta = {
 }
 
 // Arbiter prompt — single-sourced + drift-locked (see workflow-core.md "Canonical ARBITER block").
-// Backtick-free rendering of agents/durability-arbiter.md's decision policy; output matches VERDICT_SCHEMA.
+// Backtick-free rendering of the ARBITER block in workflow-core.md's decision policy; output matches VERDICT_SCHEMA.
 // === ARBITER:START ===
 const ARBITER_PROMPT = `You are the durability-arbiter. A running executor (a plan execution, a
 loop, an audit, a backlog sweep) is about to stop and ask the user. Before it does, it asks you.
@@ -102,7 +102,7 @@ const PROOF_SCHEMA = {
   additionalProperties: false,
 }
 
-// Arbiter verdict (mirrors durability-arbiter.md).
+// Arbiter verdict (mirrors the ARBITER block in workflow-core.md).
 const VERDICT_SCHEMA = {
   type: 'object',
   required: ['verdict', 'reason'],

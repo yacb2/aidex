@@ -20,7 +20,7 @@ loaded at the deciding moment) and points here for the full rule.
 - [The two failure modes this eliminates](#the-two-failure-modes-this-eliminates)
 - [The native model (why `allow` is not the lever)](#the-native-model-why-allow-is-not-the-lever)
 - [The decision rule during the run](#the-decision-rule-during-the-run)
-- [The durability-arbiter (active enforcement)](#the-durability-arbiter-active-enforcement)
+- [The arbiter policy (active enforcement)](#the-arbiter-policy-active-enforcement)
 - [What is *not* gated (commit, deps, migrations)](#what-is-not-gated-commit-deps-migrations)
 - [Chained work-lists (front-loading across many items)](#chained-work-lists-front-loading-across-many-items)
 - [Execution environment — what a given run actually provides](#execution-environment--what-a-given-run-actually-provides)
@@ -169,26 +169,29 @@ with no merge request anywhere in the chain. **Tearing down a worktree is close-
 integrating its branch is not.** The two are routinely confused because they happen at
 the same moment.
 
-## The durability-arbiter (active enforcement)
+## The arbiter policy (active enforcement)
 
 The rules above are static; at a real mid-run boundary the executing agent still
-tends to default to "better ask". The **durability-arbiter** is the active
-enforcement of this canon: a focused subagent the executor consults *instead of*
-stopping to ask the user. It plays the user's standing posture — *"don't stop yet,
+tends to default to "better ask". The **arbiter policy** is the active
+enforcement of this canon: the running session applies it *instead of* stopping to ask
+the user. It plays the user's standing posture — *"don't stop yet,
 you can do this, continue"* — but **with criterion**: it applies the allow/ask/deny
-classification plus a proof-of-safety gate, and returns `CONTINUE` / `ASK` / `STOP`.
+classification plus a proof-of-safety gate, and decides `CONTINUE` / `ASK` / `STOP`.
+The policy is canonical in the ARBITER block of
+[`workflow-core.md`](workflow-core.md); the former `durability-arbiter` agent was
+retired 2026-10-05 (`docs/retired/agents/`).
 
-**Consult it only at an *ambiguous* would-stop boundary** — not every step. Clear
+**Apply it only at an *ambiguous* would-stop boundary** — not every step. Clear
 cases are resolved inline by the rule above (a `commit` is never a question; a
 `push` is always the ask-set). Consult when the executor is about to pause on a
 judgment call it cannot cleanly classify.
 
-**The consultation passes:** the standing autonomy surface (allow/ask/deny fixed at
+**The decision weighs:** the standing autonomy surface (allow/ask/deny fixed at
 the initial phase), the situation (what was just done; what it wants to do, or why
 it would stop), the **proof** the next step is safe (verification output; additive /
 reversible nature), and the stop condition / remaining work.
 
-**It returns:**
+**It yields:**
 - `CONTINUE` — proceed with the action; **log the bifurcation** for later review.
 - `ASK` — genuinely the user's call (unauthorized publication, deny-class ambiguity).
   **Accumulate the question, finish all other safe work first, surface ONE batched
@@ -201,20 +204,18 @@ output, an additive/reversible nature, a passing gate. No proof for a mutating s
 the arbiter orders *verify first*, not *ask*. The gate is "do you have proof this is
 safe?", not merely "is it in the allow-set?".
 
-**Three guardrails so the arbiter never becomes the stall it prevents:**
-1. **Ambiguous boundaries only** — overhead is real; do not consult on clearly-classified steps.
-2. **Fail open to the canon, never block** — if the arbiter errors or returns nothing,
+**Three guardrails so the policy never becomes the stall it prevents:**
+1. **Ambiguous boundaries only** — overhead is real; do not deliberate on clearly-classified steps.
+2. **Fail open to the canon, never block** — if the policy does not settle it,
    apply the inline rule above and proceed. It is a forcing function, not a single point of failure.
 3. **ASK is batched and deferred** — surfaced once, at the end, after all safe work is
    done. The run never silently waits (the Stop-hook deadlock failure mode). "The end"
    is the end of the RUN, not of the session: where the run spans a handoff, the batched
    ASK is also an `OPEN OWED` delta (see *A deferral must outlive its run*).
 
-The arbiter prompt lives at
-[`../../../agents/durability-arbiter.md`](../../../agents/durability-arbiter.md); consuming skills
-launch it via the Agent tool as `subagent_type: aidex:durability-arbiter`. It is consulted by the **main-loop
-executor** — where the stop-to-ask decision actually happens — not by short-lived leaf
-subagents.
+The decision is made by the **main-loop executor** — where the stop-to-ask decision
+actually happens — not by short-lived leaf subagents. Batch workflows still run the
+policy as a prompt (`ARBITER_PROMPT`, re-embedded from the same block).
 
 ## What is *not* gated (commit, deps, migrations)
 
@@ -263,7 +264,7 @@ The initial phase captures parameters + the work-list + (for workflows) per-agen
 models through the official **`AskUserQuestion`** tool as a structured survey — run
 **first and to completion**, after which execution is **headless and menu-free**.
 `AskUserQuestion` is the un-governed leak surface at *execution* time (a tool pause the
-durability-arbiter never sees) and the right instrument at *planning* time. Use it for
+arbiter policy never sees) and the right instrument at *planning* time. Use it for
 **parametric / confirm-or-correct** decisions (each option carrying a recommended
 default); **discuss** deep architectural forks rather than menuing them. Limits: ≤4
 questions per call, interactive-only — which is exactly why the survey belongs to the
@@ -323,23 +324,23 @@ word here would make every "verify the harness" line ambiguous.
   per phase, review, handoff are mandated (do them). Mid-run non-destructive
   bifurcation → do + document (in the plan doc / final summary, and as an `OPEN OWED`
   delta where a chain ledger exists). Only publish stays gated, surfaced at the end if
-  not pre-authorized. **Consult the durability-arbiter**
+  not pre-authorized. **Apply the arbiter policy**
   on an ambiguous mid-phase fork or before any would-stop at the between-phase
-  checkpoint, passing the phase's proof (verification output, commit SHA).
+  checkpoint, weighing the phase's proof (verification output, commit SHA).
 - **audit** — scope and borders are set at `new` (phase 0). The run is an
   uninterrupted sweep: catalog each finding with best-judgment severity and **log
   the assumption**. Escalation to backlog/loop is a separate explicit sub-action;
   when an escalate/sweep step would pause to ask "escalate or triage yourself?",
-  **consult the durability-arbiter** instead. For security audits, active
+  **apply the arbiter policy** instead. For security audits, active
   exploitation / destructive verification is `deny`.
 - **loop** — the design interview (Step 1.5) pre-declares the surface; the run
   then proceeds to its stop condition without interrupting. If the loop is about to
-  pause on a consent point not in the declared ask-set, **consult the
-  durability-arbiter** rather than deadlocking on it.
+  pause on a consent point not in the declared ask-set, **apply the
+  arbiter policy** rather than deadlocking on it.
 - **backlog** — an autonomous "work / sweep the backlog" pass resolves
   safe+additive items to completion; before halting with "the rest needs your
-  decision", **consult the durability-arbiter** per item, halting only on the ones
-  it returns `ASK`/`STOP` for.
+  decision", **apply the arbiter policy** per item, halting only on the ones
+  it rules `ASK`/`STOP`.
 
 ## A supervisor's deadline is wall clock, never an iteration count
 

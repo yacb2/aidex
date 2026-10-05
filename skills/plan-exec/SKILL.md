@@ -54,16 +54,12 @@ The operative rule here:
   phase's first tool call; never close a turn by announcing the next step instead of
   taking it (both drew a bare "continue" from the user). Waiting on a launched subagent is
   not a stop: one line naming it closes the turn.
-- **On an ambiguous fork you cannot cleanly classify — consult the
-  durability-arbiter before stopping.** Launch it with the Agent tool as
-  `subagent_type: aidex:durability-arbiter` (definition:
-  [`../../agents/durability-arbiter.md`](../../agents/durability-arbiter.md); its own
-  `model: sonnet` / `effort: high`, read-only — `model-policy: per-stage`, so the gate's
-  depth is pinned rather than inherited from the run it is judging), giving it the
-  situation + the run's autonomy surface + the phase's proof (verification output,
-  commit SHA). Follow its `CONTINUE` / `ASK` / `STOP` verdict; batch any `ASK` to the
-  end. If it errors or returns nothing, apply the rule above and **proceed — never
-  block on the arbiter** (it is a forcing function, not a gate).
+- **On an ambiguous fork you cannot cleanly classify — decide it yourself before stopping.**
+  Judge CONTINUE / ASK / STOP against the policy in the ARBITER block in [workflow-core.md](../conventions/references/workflow-core.md),
+  using the run's autonomy surface and the phase's proof (verification output, commit SHA).
+  Follow your own verdict; batch any `ASK` to the end. A doubt you cannot settle is not a
+  reason to block: apply the rule above and **proceed**.
+  `model-policy: per-stage`: every subagent this skill launches pins its own model and effort rather than inheriting the run's.
 
 Otherwise: proceed. The user will redirect if needed.
 

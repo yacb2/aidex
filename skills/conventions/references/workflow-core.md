@@ -91,7 +91,7 @@ const PROOF_SCHEMA = {
   additionalProperties: false,
 }
 
-// Arbiter verdict (mirrors durability-arbiter.md).
+// Arbiter verdict (mirrors the ARBITER block in workflow-core.md).
 const VERDICT_SCHEMA = {
   type: 'object',
   required: ['verdict', 'reason'],
@@ -238,17 +238,14 @@ The batch arbiter prompt (`ARBITER_PROMPT`, used by CORE's `arbiter()`) is **sin
 here and re-embedded verbatim** in every asset, exactly like the CORE block — the same drift-lock
 covers both.
 
-**Why it is a backtick-free rendering, not `durability-arbiter.md` byte-for-byte.** The
-interactive (Stop-hook) host reads
-[`../../../agents/durability-arbiter.md`](../../../agents/durability-arbiter.md) directly. The batch host
-must hold the prompt as a **JS template literal**, and any backtick (or the agent doc's ```json
-fence) would terminate that literal — so the markdown agent doc cannot be embedded byte-identically
-under the no-`import` constraint. The block below is therefore a faithful, backtick-free rendering
-of that doc's **decision policy** (the part that must not drift across hosts), and its requested
-output matches CORE's `VERDICT_SCHEMA` (`verdict`/`reason`/`batched_question`/`log`). When the
-policy in `durability-arbiter.md` changes, update this block in lockstep —
-`test_arbiter_policy_lockstep.sh` guards against a one-sided edit (it asserts both hosts still
-carry all five decision tiers + the verdict enum, without requiring byte-identity). The block is
+**This block is the canonical arbiter policy.** The interactive host (the running session) applies
+it directly from here; the former `durability-arbiter` agent was retired 2026-10-05
+(`docs/retired/agents/`). The batch host must hold the prompt as a **JS template literal**, so the
+block is backtick-free (a backtick would terminate the literal), and its requested output matches
+CORE's `VERDICT_SCHEMA` (`verdict`/`reason`/`batched_question`/`log`). When the policy here changes,
+update the four workflow templates in lockstep — `test_arbiter_policy_lockstep.sh` guards against a
+one-sided edit (it asserts the canon block and each template's `ARBITER_PROMPT` still carry all five
+decision tiers + the verdict enum, without requiring byte-identity). The block is
 everything strictly between the two marker lines:
 
 ```js

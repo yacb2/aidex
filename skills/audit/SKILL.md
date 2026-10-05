@@ -188,9 +188,9 @@ the defaulting in the audit brief —
 > to backlog without a question. When more than one is confirmed, build the consultation
 > page with `/aidex:artifact` first (a consultation page citing every finding id; the owner decides the batch there), then run
 > `escalate <ids...> --page <page.html>`; the script refuses a batch without it. If a
-> specific finding is genuinely ambiguous, consult the
-> [durability-arbiter](../../agents/durability-arbiter.md)
-> (Agent tool, `subagent_type: aidex:durability-arbiter`, read-only) per finding and put any `ASK` on that page.
+> specific finding is genuinely ambiguous, decide CONTINUE / ASK / STOP yourself per finding
+> against the policy in the ARBITER block of
+> [workflow-core.md](../conventions/references/workflow-core.md) and put any `ASK` on that page.
 >
 > **Isolation.** An audit is read-mostly — usually no worktree. The
 > exception is a security audit that needs **destructive verification**: run it in an

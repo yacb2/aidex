@@ -2,7 +2,7 @@
 //
 // FORM: fan-out of analyst subagents over audit dimensions/shards, gated by STRUCTURED OUTPUT
 // (a valid finding schema) instead of a Bash test, with a dedup/synthesis barrier, a
-// completeness critic, and the conditional durability-arbiter at the escalate-to-backlog boundary.
+// completeness critic, and the conditional arbiter prompt at the escalate-to-backlog boundary.
 //
 // The per-analyst gate is a SCHEMA gate, not a Bash gate: agent() retries on invalid output
 // against FINDING_SCHEMA, so each analyst is self-healing. There is no `gateCmd` / Bash verifier
@@ -33,7 +33,7 @@ export const meta = {
 }
 
 // Arbiter prompt — single-sourced + drift-locked (see workflow-core.md "Canonical ARBITER block").
-// Backtick-free rendering of agents/durability-arbiter.md's decision policy; output matches VERDICT_SCHEMA.
+// Backtick-free rendering of the ARBITER block in workflow-core.md's decision policy; output matches VERDICT_SCHEMA.
 // === ARBITER:START ===
 const ARBITER_PROMPT = `You are the durability-arbiter. A running executor (a plan execution, a
 loop, an audit, a backlog sweep) is about to stop and ask the user. Before it does, it asks you.
@@ -93,7 +93,7 @@ const PROOF_SCHEMA = {
   additionalProperties: false,
 }
 
-// Arbiter verdict (mirrors durability-arbiter.md).
+// Arbiter verdict (mirrors the ARBITER block in workflow-core.md).
 const VERDICT_SCHEMA = {
   type: 'object',
   required: ['verdict', 'reason'],

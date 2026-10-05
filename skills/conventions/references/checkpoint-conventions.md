@@ -56,7 +56,7 @@ registered (move 3) with the text naming the **remedy** as what needs authorizat
 goes to the chain ledger as `OPEN OWED` where one exists. In a sweep the absorb-once rule
 gates first. Two things are never deferred: a confirmed security or data-loss defect is
 fixed or the unit stays uncommitted as a hard blocker; and a unit whose acceptance cannot
-be met without the extension is a hard blocker — consult the durability-arbiter before
+be met without the extension is a hard blocker — apply the arbiter policy (ARBITER block of `workflow-core.md`) before
 stopping. When a re-review finds its defects in what a prior fix round added beyond its
 finding, do not repair on top: reset the fix-round diff to the review line's recorded
 `anchor=` and re-apply only the smallest corrections, at most once per finding.
@@ -126,5 +126,5 @@ A chain that renames itself renders as unrelated rows in the `--resume` picker.
 than took — a class-1 skip, a class-2 publication left unpublished). A deferral carried
 only as seed summary text is gone one link later, with no record that it was owed.
 
-Context exhaustion is not a judgment call: it never routes to the durability-arbiter — it
+Context exhaustion is not a judgment call: it never routes to the arbiter policy — it
 just hands off.
