@@ -51,6 +51,18 @@ plan names `/aidex:ui-contract` as **step 0**, before any phase is written, in t
 and the full outcome alike, unless the request names an already-decided `ui-contract.md`
 (Step 0 full, item 3: carry it over). A request that touches no screen is unaffected.
 
+**A screen plan names the project's components, not the UI kit's** (BL-702: a plan that
+said "shadcn dialog and sheet primitives" got a raw Sheet built where the project mandates
+its own FormSheet):
+
+1. The components reused / new list names, per surface (list, form, dialog, side panel,
+   detail), the project's wrapper component found by reading its shared components
+   directory — never only the UI-kit primitive.
+2. Every impl brief for a screen lists the project's component reference and frontend
+   skill under "Files to read first".
+3. The brief says: a shared component missing a state (a FormFooter with no saving state)
+   is reported as a finding, never worked around inside the consumer.
+
 ## Step 0 (scoped) — one confirmation round
 
 For `mode: scoped` only. The scope **is** the file list plus the acceptance criteria, so

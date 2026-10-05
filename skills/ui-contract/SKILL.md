@@ -189,9 +189,9 @@ open question it is.
 2. **Screen inventory and reference screen** — every screen the change reaches with its
    target form (Step 0), and the existing screen this one is modelled on, named by path or
    route. "None, this is new" is an answer, and it raises the level.
-3. **Components reused / new** — the existing primitives this screen is built from, and
-   every genuinely new one. A new component that duplicates an existing primitive is the
-   finding, not the plan.
+3. **Components reused / new** — per surface, the project's wrapper (its shared components
+   folder), not the bare kit primitive, plus each new one (briefs: `/aidex:plan`).
+   A duplicate is a finding.
 4. **State matrix** — the pattern's full table from Step 2 for **each inventoried screen**, every cell filled. Add a
    "proved by" column (pixel, assertion or unit test id; harness contract § 1).
 5. **Review variants** — the value (Step 2's three) per variant, set at the first gallery
