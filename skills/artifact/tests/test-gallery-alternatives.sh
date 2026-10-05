@@ -491,7 +491,7 @@ n="$(grep -o 'type="radio" name="skel-list-light-desktop-alternatives"' <<<"$sro
 printf '### skel-list-light-desktop-alternatives · skel · list · light-desktop\n\n- Con cajón\n' > "$TMP/rs.txt"
 bash "$REPLY" --rows "$TMP/st.json" "$TMP/rs.txt" 2>/dev/null | python3 -c "import json,sys; sys.exit(0 if json.load(sys.stdin)['rows'][0]['verdict']=='Con cajón' else 1)" \
   && ok "reply-contract pin: the reply names the option, not a state" || fail "reply of a per-state row lost the chosen option"
-gen "$TMP/alt.json" 2>/dev/null | grep -q 'data-per-option' \
+gen "$TMP/alt.json" 2>/dev/null | grep >/dev/null 'data-per-option' \
   && fail "a single-capture alternatives row gained data-per-option" \
   || ok "a single-capture alternatives row renders unchanged (no per-option marker)"
 refuse "options with different states" "every option shows the same states" \
@@ -540,7 +540,7 @@ refuse_st "options a and a-x with states x-y and y name one tile twice" "same ti
 refuse_st "an escaping path in the LAST option's LAST state" "must be relative to the repo root" \
   'd["rows"][0]["captures"]["drawer"]["empty"] = "../x.png"'
 mkdoc "$TMP/four.json" 'd["rows"][0]["captures"] = {"a": {"s%d" % k: P("s3") for k in range(4)}, "drawer": {"s%d" % k: P("s4") for k in range(4)}}'
-gen "$TMP/four.json" 2>/dev/null | grep -q 'data-per-option="4"' \
+gen "$TMP/four.json" 2>/dev/null | grep >/dev/null 'data-per-option="4"' \
   && ok "four states per option are accepted (data-per-option=4)" || fail "four states per option refused or unmarked"
 mkdoc "$TMP/hl.json" 'd["rows"][0]["captures"]["a"]["empty"] = P("short-empty"); d["rows"][0]["captures"]["drawer"]["empty"] = P("short-empty"); d["rows"][0]["highlight"] = {"x": 10, "y": 50, "w": 40, "h": 30}'
 gen "$TMP/hl.json" > "$TMP/hl.html" 2> "$TMP/hl.err" \

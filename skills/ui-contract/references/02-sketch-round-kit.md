@@ -5,6 +5,19 @@ Owned by SKILL.md Step 0 (sketch mode, kept after readout 2026-10-04,
 variant): a re-capture round went from 11.2 min / $1.15 to 3.2 min / $0.40, a first build
 from 11.1 / $1.53 to 8.9 / $1.39. Gate checks stayed green on every variant.
 
+## Contents
+
+- [Who does what](#who-does-what)
+- [One capture run per round](#one-capture-run-per-round)
+- [The kit: `gallery-kit.md` in the consultation folder](#the-kit-gallery-kitmd-in-the-consultation-folder)
+- [Highlight the changed region on every full-page row](#highlight-the-changed-region-on-every-full-page-row)
+- [Unrequested rows](#unrequested-rows)
+- [Rows that depend on an open question](#rows-that-depend-on-an-open-question)
+- [The sketch worktree](#the-sketch-worktree)
+- [First build: never throwaway capture scripts](#first-build-never-throwaway-capture-scripts)
+- [Why the target-form figure never covers an extraction](#why-the-target-form-figure-never-covers-an-extraction)
+- [Merging a dev-only mock](#merging-a-dev-only-mock)
+
 ## Who does what
 
 | Round | Agent | Reads | Does |

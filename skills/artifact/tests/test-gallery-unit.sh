@@ -1045,7 +1045,7 @@ unreq="$(item audit-loaded-dark-mobile-unrequested "$TMP/dep.html")"
 grep -q 'Las filas que esperan una decisión abierta son solo contexto' "$TMP/dep.html" \
   && ok "BL-690 the block's intro says that waiting rows ask nothing" || fail "BL-690 no waiting-row intro"
 bash "$GEN" "$TMP/rows-dep.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T --lang en 2>/dev/null \
-  | grep -q 'Context only: waits for the decision on Q14' \
+  | grep >/dev/null 'Context only: waits for the decision on Q14' \
   && ok "BL-690 the waiting line is localized (en)" || fail "BL-690 no en waiting line"
 bash "$GEN" "$TMP/rows-dep-bad.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T >/dev/null 2>"$TMP/dep-bad.err"; rc=$?
 [[ $rc == 2 ]] && grep -q "row 'empty'.*depends_on" "$TMP/dep-bad.err" \
