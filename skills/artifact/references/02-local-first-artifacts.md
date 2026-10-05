@@ -1449,7 +1449,7 @@ messages and the tests; § 8.4 is the block shape.
    each: the situation, what was chosen, why) and the reader only corrects. Each point is an
    `item decided=yes proposal=yes` (BL-687, BL-692): without `proposal=yes` the kit reads it as an
    earlier round's settled answer and folds it into the bottom "N preguntas ya resueltas" section,
-   hiding the correction box. `check-artifact` WARNS (`consult-round1-decided`) on a round-1 page that carries a
+   hiding the correction box. A proposal keeps its options live with the proposed one pre-selected: a changed selection or a typed note is the correction that reaches the reply (BL-700). `check-artifact` WARNS (`consult-round1-decided`) on a round-1 page that carries a
    decided item with neither `proposal=yes` nor `dropped=`: nothing can be settled before the first reply. Only the
    rest become items. Inside a gallery, that
    block goes in the `decided_note` of a row still open (a callout under the captures), never in the

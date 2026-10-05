@@ -761,9 +761,30 @@
   /* A PROPOSAL (data-proposal, BL-692) is a decided item the reader has not
    * answered: the main session's "decidido, corrígeme si no". It is decided for
    * the counts (no question, no blank), but it stays drawn in place with a label,
-   * its options sealed, and its notes box live: a correction typed there is the
-   * only thing it adds to the reply (see collect()). */
+   * its options LIVE with the proposed one pre-selected (BL-700: sealed radios
+   * read as broken), and its notes box live: a typed note, or a selection
+   * changed away from the proposed one, is the correction and the only thing it
+   * adds to the reply (see collect() and replyBody()). */
   function isProposal(el) { return isDecided(el) && el.hasAttribute('data-proposal'); }
+  /* The proposed selection as the page shipped it, captured before restore()
+   * touches anything, read from the `checked` ATTRIBUTE (defaultChecked): a
+   * same-tab reload makes the browser restore the reader's option into the live
+   * `:checked` state before this script runs (BL-700); the reader's selection is a correction only when it
+   * differs from this (BL-700). */
+  var propBase = {};
+  function selSig(el, byDefault) {
+    return [].filter.call(el.querySelectorAll('input[type="radio"], input[type="checkbox"]'),
+      function (i) { return byDefault ? i.defaultChecked : i.checked; })
+      .map(function (i) { return i.dataset.label || i.value || ''; }).sort().join('\u0001');
+  }
+  function selChanged(el) { return isProposal(el) && selSig(el) !== propBase[el.dataset.id]; }
+  /* What an item adds to the reply. A proposal with its proposed option still
+   * selected adds only its typed note; once the selection differs it adds what
+   * an answered item does (the option plus the note). */
+  function replyBody(el) {
+    if (!isProposal(el) || selChanged(el)) return readItem(el);
+    return [].map.call(el.querySelectorAll('textarea'), function (t) { return t.value.trim(); }).filter(Boolean).join('\n\n');
+  }
   /* Settled by an earlier round's answer: what collapseDecided folds away. */
   function isSettled(el) { return isDecided(el) && !isProposal(el); }
 
@@ -771,8 +792,9 @@
     items.forEach(function (el) {
       if (!isDecided(el)) return;
       el.querySelectorAll('input, select, textarea').forEach(function (i) {
-        i.disabled = !(isProposal(el) && i.tagName === 'TEXTAREA');
+        i.disabled = !isProposal(el);
       });
+      if (isProposal(el)) propBase[el.dataset.id] = selSig(el, true);
       if (isProposal(el) && !el.querySelector('.consult-proposal')) {
         var tag = document.createElement('p');
         tag.className = 'consult-proposal';
@@ -884,7 +906,7 @@
          * confirmation: it is not marked answered until something is typed
          * (BL-692). A proposal inside a group has no rail link, so only the
          * item's has-answer class moves; the rail has no "pending" state. */
-        var fix = isProposal(el) ? [].map.call(el.querySelectorAll('textarea'), function (t) { return t.value.trim(); }).filter(Boolean).join('\n\n') : '';
+        var fix = isProposal(el) ? replyBody(el) : '';
         if (isProposal(el)) { proposals++; if (fix) fixed++; }
         var shown = isProposal(el) ? !!fix : true;
         el.classList.toggle('has-answer', shown);
@@ -1090,9 +1112,10 @@
   function snapshotItem(el) {
     var s = { m: [] }, any = false;
     if (isDecided(el) && !isProposal(el)) return null;
-    /* A proposal keeps only what the reader typed: its checked option is the
-     * writer's, sealed, and must not make the item look answered (BL-692). */
-    el.querySelectorAll(isProposal(el) ? 'x-none' : 'input[type="radio"]:checked, input[type="checkbox"]:checked')
+    /* A proposal keeps only what the reader did: its pre-selected option is the
+     * writer's and must not make the item look answered, so the selection is
+     * stored only once it differs from the proposed one (BL-692, BL-700). */
+    el.querySelectorAll(isProposal(el) && !selChanged(el) ? 'x-none' : 'input[type="radio"]:checked, input[type="checkbox"]:checked')
       .forEach(function (i) { s.m.push(i.dataset.label || i.value || ''); });
     if (s.m.length) any = true;
     FREE.forEach(function (kind) {
@@ -1104,7 +1127,7 @@
     if (any) {
       s.h = questionHash(el);
       if (ROUND) s.r = ROUND;
-      if (copied[el.dataset.id] === fnv(readItem(el))) s.x = 1;
+      if (copied[el.dataset.id] === fnv(replyBody(el))) s.x = 1;
     }
     return any ? s : null;
   }
@@ -1135,7 +1158,9 @@
         if (isDecided(el) && !isProposal(el)) return;
         /* A proposal restores only a correction typed in THIS round: an earlier
          * round's note was about the open question, not about the writer's
-         * proposal, and its sealed options are never the reader's (BL-692). */
+         * proposal; a stored selection is restored (it is only ever saved when
+         * it differs from the proposed one), the pre-selected one never is
+         * the reader's answer (BL-692, BL-700). */
         if (isProposal(el) && s.r && ROUND && s.r !== ROUND) return;
         /* No `h` means an answer set saved before this existed. It is restored,
          * not discarded: upgrading the kit must not blank answers a reader
@@ -1148,7 +1173,13 @@
          * upgrading the kit must never blank what a reader already typed. */
         if (s.x && s.r && ROUND && s.r !== ROUND) { spent++; return; }
         var hit = false;
-        el.querySelectorAll(isProposal(el) ? 'x-none' : 'input[type="radio"], input[type="checkbox"]')
+        /* A stored proposal selection REPLACES the proposed one (a checkbox
+         * group would otherwise keep the proposed boxes ticked beside it). */
+        if (isProposal(el) && [].some.call(el.querySelectorAll('input[type="radio"], input[type="checkbox"]'),
+              function (i) { return (s.m || []).indexOf(i.dataset.label || i.value || '') !== -1; })) {
+          el.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(function (i) { i.checked = false; });
+        }
+        el.querySelectorAll('input[type="radio"], input[type="checkbox"]')
           .forEach(function (i) {
             if ((s.m || []).indexOf(i.dataset.label || i.value || '') !== -1) { i.checked = true; hit = true; }
           });
@@ -1176,7 +1207,7 @@
           n++;
           // Restored INSIDE its own round: the answer is still a sent one, and
           // forgetting that here would make the next save record it as unsent.
-          if (s.x) copied[el.dataset.id] = fnv(readItem(el));
+          if (s.x) copied[el.dataset.id] = fnv(replyBody(el));
         }
       });
     } catch (e) { return { n: 0, stale: 0, spent: 0 }; }
@@ -1488,7 +1519,10 @@
       var lab = ev.target.closest ? ev.target.closest('.consult-item label') : null;
       var r = lab ? lab.querySelector('input[type="radio"]') : null;
       if (!r && ev.target.type === 'radio') r = ev.target;
-      was = (r && r.checked) ? r : null;
+      /* A proposal's checked radio is the writer's proposal: clicking it is the
+       * reader confirming it, not releasing it (BL-700). */
+      var it = (lab || r) && (lab || r).closest ? (lab || r).closest('.consult-item') : null;
+      was = (r && r.checked && !(it && isProposal(it))) ? r : null;
     });
     document.addEventListener('click', function (ev) {
       var r = ev.target;
@@ -1682,7 +1716,7 @@
      * fallback path too — there the reader copies the pre-selected text, which
      * is the same act with a worse clipboard. */
     items.forEach(function (el) {
-      var body = readItem(el);
+      var body = replyBody(el);
       if (body) copied[el.dataset.id] = fnv(body);
     });
     save();

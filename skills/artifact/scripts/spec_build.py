@@ -905,7 +905,7 @@ def emit_item(node, ctx):
     if a.get("free", "").strip() in ("yes", "true"):
         flag += " data-free"
     # `proposal=yes` (BL-692): decided by the writer THIS round, awaiting the
-    # reader's correction. The composer keeps it in place with its notes box live
+    # reader's correction. The composer keeps it in place with its options and notes box live
     # instead of folding it away as an earlier round's settled answer.
     if "proposal" in a and a["proposal"].strip() not in ("yes", "true"):
         raise SpecBuildError(

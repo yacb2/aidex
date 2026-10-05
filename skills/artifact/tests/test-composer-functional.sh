@@ -4198,7 +4198,7 @@ item692() {  # item692 <id> <title> <attrs>; an asks-nothing row is shaped like 
  + "|ASKS=" + document.querySelectorAll('[data-id="A1"] .kit-ask').length + "/" + document.querySelectorAll('[data-id="A2"] .kit-ask').length
     + "|STATTYPED=" + statTyped
     + "|EMPTYVIS=" + emptyVis
-    + "|RADIOOFF=" + (p1.querySelectorAll("input[type=radio]:disabled").length === p1.querySelectorAll("input[type=radio]").length ? 1 : 0)
+    + "|RADIOOFF=" + (p1.querySelectorAll("input[type=radio]:disabled").length ? 1 : 0)
     + "|DONE0=" + done0 + "|DONE1=" + done1
     + "|REPLY=" + cap.replace(/[|<>\n]/g, " ") + "|";
 });</script>
@@ -4223,8 +4223,8 @@ tp="$(grep -oE '<title>[^<]*</title>' "$PRP/dom.html" | sed -n 1p)"
   || fail "BL-692: the status must count the typed corrections beside the questions (want '2 correcciones listas para copiar'): $tp"
 [[ "$tp" == *"|DONE0=0|DONE1=1|"* ]] \
   || fail "BL-692: a proposal with no correction must not read as answered (has-answer), and must once something is typed: $tp"
-[[ "$tp" == *"|EMPTYVIS=1|RADIOOFF=1|"* ]] \
-  || fail "BL-692: an EMPTY proposal must show its correction box and label (EMPTYVIS=1), with its options sealed (RADIOOFF=1): $tp"
+[[ "$tp" == *"|EMPTYVIS=1|RADIOOFF=0|"* ]] \
+  || fail "BL-692/BL-700: an EMPTY proposal must show its correction box and label (EMPTYVIS=1), with its options live (RADIOOFF=0, BL-700): $tp"
 [[ "$tp" == *"|REPLY="*"### P2"*"zzzloose"* && "${tp%%## G3*}" != *"- Si"* && "$tp" != *"### S1"* && "$tp" != *"### S2"* ]] \
   || fail "BL-692: the reply must carry P2's correction and neither the proposal's sealed '- Si' nor the settled S1/S2: $tp"
 [[ "$tp" == *"|ASKS=0/1|"* ]] \
@@ -4339,7 +4339,8 @@ tr2b="$(grep -oE '<title>[^<]*</title>' "$R2/dom2.html" | sed -n 1p)"
 [[ "$tr2b" == *"|CHECKED=Si|NOTE=|REST=none|"* ]] \
   || fail "BL-692: a round-2 proposal restored round 1's unsent answer (want CHECKED=Si, empty NOTE, and no restored/stale banner about it): $tr2b"
 # Same round (no saved reply between the wraps): the open P1 with a stored "No" is rebuilt as a proposal "Si".
-# Its sealed options are the writer's: only Si may be checked, whatever the store holds.
+# BL-700: its options are live, so the stored "No" is the reader's own unsent answer (given this
+# round, on the open item) and comes back as a correction over the proposed Si.
 rm -rf "$TMP/profile"
 body692 open
 bash "$WRAP" --title "r2b" --lang es --out "$TMP/reports/r2b692.html" < "$R2/body.html" > "$R2/wrap3.log" 2>&1 \
@@ -4350,8 +4351,102 @@ bash "$WRAP" --title "r2b" --lang es --out "$TMP/reports/r2b692.html" < "$R2/bod
   || fail "BL-692: the same-round proposal page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$R2/wrap4.log" | sed -n 1,4p)"
 CHROME_WINDOW=1280,900 chrome_dump "$R2/dom4.html" "file://$TMP/reports/r2b692.html" 45 || true
 tr2c="$(grep -oE '<title>[^<]*</title>' "$R2/dom4.html" | sed -n 1p)"
-[[ "$tr2c" == *"|CHECKED=Si|"* ]] \
-  || fail "BL-692: an open item rebuilt as a proposal in the SAME round restored the stored 'No' onto its sealed options (want only Si checked): $tr2c"
+[[ "$tr2c" == *"|CHECKED=No|"* ]] \
+  || fail "BL-700: an open item rebuilt as a proposal in the SAME round must restore the reader's stored 'No' over the proposed Si (want only No checked): $tr2c"
+
+# ---- BL-700: a proposal keeps its radios LIVE, the proposed option pre-selected ----
+# Owner read the sealed radios as broken (twice). Layer: browser, because whether an input is
+# enabled and what the copied reply carries are the composer's calls. A changed selection is a
+# correction that reaches the reply (same shape as an answered item); an unchanged one sends nothing
+# and stays pending; changing back is the unchanged case again; a reload keeps the change only.
+L700="$TMP/l700"; mkdir -p "$L700"
+{
+  printf '%s\n' '<meta name="consult-visual" content="none: a layout probe, nothing to draw">' \
+    '<div class="page"><main class="main"><header><p class="eyebrow">PROBE</p><h1>Live proposals</h1></header>' \
+    '<section id="sec-ask"><div class="sec-head"><h2>Questions</h2></div>'
+  printf '<section class="consult-group" data-id="G1" data-title="Propuestas"><p>Contexto</p>\n'
+  item692 P1 "Primera propuesta" 'data-decided="Si" data-proposal'
+  item692 P2 "Segunda propuesta" 'data-decided="Si" data-proposal'
+  printf '</section>\n'
+  printf '%s\n' '<div class="endbar"><button type="button" id="consult-copy-end">Copy</button><span class="consult-status" id="consult-status-end"></span></div>' \
+    '<section class="consult-item consult-notes" data-id="notes" data-title="Notas generales"><h3>Notas generales</h3><textarea></textarea></section>' \
+    '</section></main><aside class="rail"><p class="railhead">Contenido</p><nav class="raillist" id="raillist"></nav>' \
+    '<div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div></aside></div>'
+  cat <<'PROBE'
+<script>/* Runs BEFORE the composer. formrestore: the browser restored the reader's "No" into the form on a
+   * same-tab reload. notnow: a stored [not-now] on an item rebuilt as a proposal. */
+(function () {
+  var q = location.search;
+  if (q.indexOf("phase=formrestore") > -1) document.querySelector('[data-id="P1"] input[data-label="No"]').checked = true;
+  if (q.indexOf("phase=notnow") > -1) localStorage.setItem("aidex-kit-answers:" + location.pathname, JSON.stringify({ P1: { m: ["[not-now]"] } }));
+})();</script>
+<script>window.addEventListener("load", function () {
+  var p1 = document.querySelector('[data-id="P1"]'), p2 = document.querySelector('[data-id="P2"]');
+  var radio = function (it, l) { return it.querySelector('input[data-label="' + l + '"]'); };
+  var checked = function (it) { return [].filter.call(it.querySelectorAll("input[type=radio]"), function (i) { return i.checked; }).map(function (i) { return i.dataset.label; }).join("+"); };
+  var st = document.getElementById("consult-status"), cap = null;
+  var has = function (n) { return n.classList.contains("has-answer") ? 1 : 0; };
+  Object.defineProperty(navigator, "clipboard", { configurable: true,
+    value: { writeText: function (s) { cap = s; return Promise.resolve(); } } });
+  var copy = function () { cap = null; document.getElementById("consult-copy").click(); return (cap || "NONE").replace(/[|<>\n]/g, " "); };
+  var ph = location.search.match(/phase=(\w+)/); ph = ph ? ph[1] : "";
+  if (ph === "reload" || ph === "formrestore" || ph === "notnow") {
+    document.title = "L700R|P1=" + checked(p1) + "|P2=" + checked(p2) + "|HAS1=" + has(p1) + "|STAT=" + st.textContent + "|REPLY=" + copy() + "|";
+    return;
+  }
+  var fire = function (el) { el.dispatchEvent(new Event("change", { bubbles: true })); };
+  var live = p1.querySelectorAll("input[type=radio]:disabled").length === 0 ? 1 : 0;
+  var pre = checked(p1);
+  var stat0 = st.textContent, r0 = copy();
+  radio(p1, "No").checked = true; fire(radio(p1, "No"));
+  var h1 = has(p1), statChanged = st.textContent, r1 = copy();
+  radio(p1, "Si").checked = true; fire(radio(p1, "Si"));
+  var h2 = has(p1), statBack = st.textContent, r2 = copy();
+  radio(p1, "No").checked = true; fire(radio(p1, "No"));
+  var lab2 = radio(p2, "Si").parentNode;
+  lab2.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+  radio(p2, "Si").click();
+  var confirmKept = radio(p2, "Si").checked ? 1 : 0;
+  document.title = "L700|CONFIRM=" + confirmKept + "|LIVE=" + live + "|PRE=" + pre + "|STAT0=" + stat0 + "|R0=" + r0
+    + "|H1=" + h1 + "|STATCH=" + statChanged + "|R1=" + r1
+    + "|H2=" + h2 + "|STATBACK=" + statBack + "|R2=" + r2 + "|";
+});</script>
+PROBE
+} > "$L700/body.html"
+bash "$WRAP" --title "l700" --lang es --out "$TMP/reports/l700.html" < "$L700/body.html" > "$L700/wrap.log" 2>&1 \
+  || fail "BL-700: the live-proposal probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$L700/wrap.log" | sed -n 1,4p)"
+rm -rf "$TMP/profile"
+CHROME_WINDOW=1280,900 chrome_dump "$L700/dom.html" "file://$TMP/reports/l700.html" 45 || true
+tl="$(grep -oE '<title>[^<]*</title>' "$L700/dom.html" | sed -n 1p)"
+[[ "$tl" == *"|LIVE=1|PRE=Si|"* ]] \
+  || fail "BL-700: a proposal's radios must be live with the proposed option pre-selected (want LIVE=1|PRE=Si): $tl"
+[[ "$tl" == *"|R0=NONE|"* && "$tl" == *"|STAT0=Quedan puntos decididos por confirmar o corregir|"* ]] \
+  || fail "BL-700: an untouched proposal must send nothing and stay pending (want R0=NONE and 'Quedan puntos...'): $tl"
+[[ "$tl" == *"|H1=1|"* && "$tl" == *"|R1="*"### P1"*"- No"* && "$tl" != *"|R1="*"### P2"* ]] \
+  || fail "BL-700: a changed selection on a proposal must reach the reply as '### P1' with '- No' (and not P2), and read as answered: $tl"
+[[ "$tl" == *"|STATCH="*"1 corrección lista para copiar|"* ]] \
+  || fail "BL-700: a changed selection must count as a correction in the status line: $tl"
+[[ "$tl" == *"|H2=0|"* && "$tl" == *"|R2=NONE|"* && "$tl" == *"|STATBACK=Quedan puntos decididos por confirmar o corregir|"* ]] \
+  || fail "BL-700: changing back to the proposed option must return the item to the unchanged case (nothing sent, pending): $tl"
+# Reload on the same profile: the changed selection comes back as a change; the baseline is not an answer.
+CHROME_WINDOW=1280,900 chrome_dump "$L700/dom2.html" "file://$TMP/reports/l700.html?phase=reload" 45 || true
+tl2="$(grep -oE '<title>[^<]*</title>' "$L700/dom2.html" | sed -n 1p)"
+[[ "$tl2" == *"|P1=No|P2=Si|HAS1=1|"* && "$tl2" == *"|REPLY="*"### P1"*"- No"* && "$tl2" != *"|REPLY="*"### P2"* ]] \
+  || fail "BL-700: a changed proposal selection must survive a reload (and copy as '### P1' with '- No', not P2) while the untouched P2 keeps only its pre-selected Si: $tl2"
+[[ "$tl" == *"|CONFIRM=1|"* ]] \
+  || fail "BL-700: clicking the already-checked proposed radio is the reader confirming it and must keep it checked (releasableRadios must not release a proposal): $tl"
+# Same-tab reload: the browser restores the reader's "No" into the form BEFORE the composer runs.
+rm -rf "$TMP/profile"
+CHROME_WINDOW=1280,900 chrome_dump "$L700/dom3.html" "file://$TMP/reports/l700.html?phase=formrestore" 45 || true
+tl3="$(grep -oE '<title>[^<]*</title>' "$L700/dom3.html" | sed -n 1p)"
+[[ "$tl3" == *"|P1=No|"*"|HAS1=1|"* && "$tl3" == *"|REPLY="*"### P1"*"- No"* ]] \
+  || fail "BL-700: a selection the browser restored into the form before the composer ran is the reader's change, not the proposed baseline (want P1=No, has-answer, '### P1' + '- No' in the reply): $tl3"
+# A stored [not-now] (no such option on the proposal) must not clear the proposed option.
+rm -rf "$TMP/profile"
+CHROME_WINDOW=1280,900 chrome_dump "$L700/dom4.html" "file://$TMP/reports/l700.html?phase=notnow" 45 || true
+tl4="$(grep -oE '<title>[^<]*</title>' "$L700/dom4.html" | sed -n 1p)"
+[[ "$tl4" == *"|P1=Si|P2=Si|HAS1=0|"* ]] \
+  || fail "BL-700: a stored selection matching no option of the proposal must leave the proposed Si checked: $tl4"
 
 # ---- BL-690: a row waiting on an open consult item is not settled ----
 # The waiting rows ask nothing and are NOT data-decided, so the composer must leave them in their block:
