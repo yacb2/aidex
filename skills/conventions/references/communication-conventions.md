@@ -336,7 +336,7 @@ automatic move. Existing async `received/`/`sent/` entries are unaffected.
 
 ## An email is plain HTML, never an artifact page
 
-When the ask is an email "in HTML", produce **email HTML**: inline `style=` attributes on
+Every outgoing email draft is built as **email HTML** (the comm skill's `email-draft.py`): inline `style=` attributes on
 every element, light theme only, no `prefers-color-scheme` block, no CSS custom
 properties, no `<style>` block, no background fills. Use borders and bold for emphasis
 instead of filled panels.

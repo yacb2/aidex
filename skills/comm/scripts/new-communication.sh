@@ -241,6 +241,9 @@ Next steps:
   2. Drop any attachments alongside body.md in: $ENTRY_DIR/
   3. For a sent draft: when it goes out, set status: sent and update 'updated'.
 EOF
+  if [[ "$KIND" == "sent" && "$CHANNEL" == "email" ]]; then
+    echo "  4. Build the paste-ready HTML: write the email spec in $ENTRY_DIR/ and run scripts/email-draft.py on it (comm SKILL.md)." >&2
+  fi
 fi
 
 # Machine-readable path on stdout.

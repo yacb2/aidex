@@ -181,9 +181,10 @@ this as `communication-paste-unsafe` — scoped to `sent/` + `channel: email` on
 `received/` body is a faithful capture of what arrived: a table there is *correct*, and
 `>`-quoted thread text is the normal inbound shape, so neither is flagged.
 
-If the recipient genuinely needs a rendered table, write a `body.html` **alongside**
-`body.md` and have the user paste that one — attachments already live next to the body,
-so this needs no new file tier. It is opt-in: do not emit one unless it is asked for.
+The HTML the owner pastes comes from the email-draft section below, which is the default
+for every outgoing email draft; `body.md` stays the record. A hand-written `body.html`
+**alongside** `body.md` is only for a body that path cannot express — attachments already
+live next to the body, so this needs no new file tier.
 
 A `body.html` **states `font-family` explicitly**, at the scaffolded `paste_font` value.
 Omitting it is not neutral — copying from a browser puts computed styles on the clipboard,
@@ -194,10 +195,11 @@ contract: `conventions/references/communication-conventions.md` § Typography co
 
 ---
 
-## An email "in HTML" for Outlook: one spec, one command
+## Every outgoing email draft: one spec, one command
 
-When the owner asks for an email or reply "in HTML", or a draft to paste into Outlook, do
-not build an artifact page. Write ONE spec file per email (front matter `subject`, `to`,
+Every `sent/` draft with `channel: email` (an email, a reply, "in HTML", "to paste into
+Outlook" — asked for or not) is built this way; never stop at a markdown `body.md` shown in
+chat. Do not build an artifact page. Write ONE spec file per email (front matter `subject`, `to`,
 `cc`, `language`; then the body in markdown: paragraphs, bold/italic, links, headings,
 lists, pipe tables, one fenced block), then run (keep the spec inside the communication's own folder, `sent/<YYYY-MM-DD>-<slug>/`, beside `body.md`, since attachments and `body.html` live there per communication-conventions.md; a single newline in a paragraph is a line break, so sign-offs keep their lines):
 
