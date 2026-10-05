@@ -146,7 +146,9 @@ row = ('<section class="consult-group" id="R" data-id="R" data-title="Review" da
        '<h3><span class="consult-id">svgrow-sample</span>svg &middot; row</h3><p>A sample.</p><div class="gal">'
        '<figure data-tile="before"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 20"><rect width="40" height="20" fill="none" stroke="currentColor"/></svg><figcaption>antes</figcaption></figure>'
        '<figure data-tile="after"><img src="%s" alt="after"><figcaption>propuesto</figcaption></figure>'
-       '</div><p class="fieldlabel">Notas</p><textarea></textarea></section></section>\n' % px)
+       '</div><p class="fieldlabel">Notas</p><textarea></textarea></section>'
+       '<div class="group-notes"><p class="fieldlabel">Notas de este bloque</p><textarea></textarea></div>'
+       '</section>\n' % px)
 mark = '<section class="consult-item consult-notes"'
 assert mark in s
 open(p, "w", encoding="utf-8").write(s.replace(mark, row + mark, 1))

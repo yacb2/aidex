@@ -89,8 +89,10 @@ STRINGS = {
         "item_placeholder": "Lo que las opciones no cubren…",
         "item_open_placeholder": "Tu respuesta…",
         "notes_badge": "notas",
-        "notes_label": "Lo que no encaja arriba",
-        "notes_placeholder": "Lo que sea…",
+        "notes_label": "Notas de la página",
+        "notes_placeholder": "Lo que no encaja en ninguna pregunta…",
+        "group_notes_label": "Notas de este bloque",
+        "group_notes_placeholder": "Lo que afecta a todo el bloque…",
         "copy": "Copiar mis respuestas",
     },
     "en": {
@@ -98,8 +100,10 @@ STRINGS = {
         "item_placeholder": "Anything the options do not cover…",
         "item_open_placeholder": "Your answer…",
         "notes_badge": "notes",
-        "notes_label": "Anything that does not fit above",
-        "notes_placeholder": "Whatever it is…",
+        "notes_label": "Notes for the whole page",
+        "notes_placeholder": "Anything that fits no question…",
+        "group_notes_label": "Notes on this block",
+        "group_notes_placeholder": "Anything about the block as a whole…",
         "copy": "Copy my answers",
     },
 }
@@ -486,6 +490,13 @@ def emit_group(node, ctx):
     out.append("    <h2>%s</h2>" % md_body._inline(heading))
     out.append("  </div>")
     out.extend(emit_children(node, ctx))
+    # The block's own free text (BL-701), always last: page, block and item each
+    # carry a notes box, and check-artifact fails a block without one.
+    out.append('  <div class="group-notes">')
+    out.append('    <p class="fieldlabel">%s</p>' % esc(ctx.s["group_notes_label"]))
+    out.append('    <textarea placeholder="%s"></textarea>'
+               % esc(ctx.s["group_notes_placeholder"]))
+    out.append("  </div>")
     out.append("</section>")
     return "\n".join(out)
 

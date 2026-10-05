@@ -175,6 +175,10 @@
   <textarea placeholder="Anything the value alone does not say…"></textarea>
 </section>
 
+  <div class="group-notes">
+    <p class="fieldlabel">Notes on this block</p>
+    <textarea placeholder="Anything about the block as a whole&hellip;"></textarea>
+  </div>
 </section>
 <!-- end of block G1 -->
 
@@ -248,6 +252,10 @@
     <p class="fieldlabel">Notes on this row</p>
     <textarea placeholder="What to change&hellip;"></textarea>
   </section>
+  <div class="group-notes">
+    <p class="fieldlabel">Notes on this block</p>
+    <textarea placeholder="Anything about the block as a whole&hellip;"></textarea>
+  </div>
 </section>
 <!-- end of the generated gallery block -->
 
@@ -256,7 +264,7 @@
      lost or forced into the wrong item. -->
 <section class="consult-item consult-notes" data-id="notes" data-title="General notes">
   <h3><span class="consult-id">notes</span>General notes</h3>
-  <p class="fieldlabel">Anything that does not fit above</p>
+  <p class="fieldlabel">Notes for the whole page</p>
   <textarea placeholder="Whatever it is…"></textarea>
 </section>
 

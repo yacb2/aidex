@@ -42,17 +42,17 @@ mkpage() {
 visual='<meta name="consult-visual" content="none: fixtures have no shape to draw">'
 header='<header><p class="eyebrow">FIXTURE</p><h1>Claim</h1><p class="standfirst">The thesis.</p></header>'
 ledger='<section id="sec-ledger"><div class="sec-head"><h2>Settled</h2></div><div class="ledger"><div><span class="k">d1</span><span class="v"><b>Done.</b> x</span></div></div></section>'
-notes='<section class="consult-item consult-notes" data-id="notes" data-title="General notes"><h3>General notes</h3><textarea></textarea></section>'
+notes='<section class="consult-item consult-notes" data-id="notes" data-title="General notes"><h3>General notes</h3><p class="fieldlabel">Notes for the whole page</p><textarea></textarea></section>'
 bars='<div class="endbar"><button type="button" id="consult-copy-end">Copy</button><span class="consult-status" id="consult-status-end"></span></div><aside class="rail"><div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div></aside>'
 ref='<section id="sec-ref"><div class="sec-head"><h2>Where the figures come from</h2></div><p>Measured.</p></section>'
 # Fixtures obey the page contract (contract_defects.py, blocking since LOOP-006)
 # so a case fails only for the rule it tests: an optionless item is a declared
 # open answer (data-free), and the rail's copy control sits in aside.rail.
 item() {  # item <id> <title>
-  printf '<section class="consult-item" data-id="%s" data-title="%s" data-free><h3>%s</h3><textarea></textarea></section>' "$1" "$2" "$2"
+  printf '<section class="consult-item" data-id="%s" data-title="%s" data-free><h3>%s</h3><p class="fieldlabel">Free text</p><textarea></textarea></section>' "$1" "$2" "$2"
 }
 group() {  # group <id> <title> <items-html>
-  printf '<section class="consult-group" id="%s" data-id="%s" data-title="%s"><div class="sec-head"><p class="eyebrow">Block %s</p><h2>%s</h2></div><p>The context this block shares.</p>%s</section>' "$1" "$1" "$2" "$1" "$2" "$3"
+  printf '<section class="consult-group" id="%s" data-id="%s" data-title="%s"><div class="sec-head"><p class="eyebrow">Block %s</p><h2>%s</h2></div><p>The context this block shares.</p>%s<div class="group-notes"><p class="fieldlabel">Notes on this block</p><textarea></textarea></div></section>' "$1" "$1" "$2" "$1" "$2" "$3"
 }
 
 run() { bash "$CHECK" "$@" > "$TMP/out" 2>&1; echo $?; }

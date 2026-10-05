@@ -621,6 +621,27 @@ try:
           '::: masthead {lang="es"}\n# T\n\nS\n:::\n'
           '::: notes {#G9 title="N"}\n:::',
           'data-id="G9"', '<span class="consult-id">G9</span>')
+    # BL-701: free text at three levels, each with a VISIBLE label (a placeholder
+    # vanishes on the first keystroke). The group's box closes the group.
+    G2 = ('::: group {#G1 title="T"}\n::: item {#Q1 title="t"}\n?\n\n- A\n- B\n:::\n:::\n'
+          '::: group {#G2 title="U"}\n::: item {#Q2 title="u"}\n?\n\n- A\n- B\n:::\n:::\n')
+    h = holds("group (es): each group ends with its own labelled notes box",
+              '::: masthead {lang="es"}\n# T\n\nS\n:::\n' + G2,
+              '<div class="group-notes">',
+              '<p class="fieldlabel">Notas de este bloque</p>')
+    check("...one box per group, each AFTER its last item and inside the group",
+          h.count('group-notes') == 2
+          and re.search(r'data-id="Q1".*?group-notes.*?</div>\s*</section>'
+                        r'\s*<section class="consult-group" id="G2"', h, re.S) is not None, h)
+    holds("group (en): the label and the placeholder follow the page language",
+          '::: masthead {lang="en"}\n# T\n\nS\n:::\n' + G2,
+          '<p class="fieldlabel">Notes on this block</p>')
+    holds("notes (es): the page-level box is labelled as the page's",
+          '::: masthead {lang="es"}\n# T\n\nS\n:::\n::: notes {title="N"}\n:::',
+          '<p class="fieldlabel">Notas de la p\u00e1gina</p>')
+    holds("notes (en): the page-level box is labelled as the page's",
+          '::: masthead {lang="en"}\n# T\n\nS\n:::\n::: notes {title="N"}\n:::',
+          '<p class="fieldlabel">Notes for the whole page</p>')
     holds("ledger: a grid of .k/.v rows and nothing else",
           "::: ledger\n- d4 — **Hecho.** T-100.\n- d12 — Plantilla.\n:::",
           '<div class="ledger">',

@@ -615,10 +615,12 @@ dialog.kit-mark-note::backdrop { background: rgba(0, 0, 0, 0.3); }
                    line-height: 1.5; color: var(--ink-soft);
                    border-left: 2px solid var(--accent-dim); padding-left: 0.6rem; }
 
-.consult-item select, .consult-item input[type="text"], .consult-item textarea {
+.consult-item select, .consult-item input[type="text"], .consult-item textarea, .group-notes textarea {
   width: 100%; box-sizing: border-box; padding: .5rem .7rem; font-family: var(--sans); font-size: 0.9rem;
   color: inherit; background: var(--paper); border: 1px solid var(--rule); border-radius: 4px; }
-.consult-item textarea { min-height: 4rem; }
+.consult-item textarea, .group-notes textarea { min-height: 4rem; }
+/* BL-701: the block's own free text closes the block, set apart from the items above it. */
+.group-notes { margin-top: 1rem; }
 
 /* Per-item clear, injected by the composer. Aligned to the item's trailing edge
    and drawn as a quiet link rather than a button: it is a recovery affordance,

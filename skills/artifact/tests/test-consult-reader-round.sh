@@ -157,4 +157,46 @@ python3 "$BUILD" "$ES" -o "$ESG" --new-round >/dev/null 2>&1
   && ok "(e) a Spanish spec page reads ronda 2 in the rail and in consult-round" \
   || fail "(e) es page: meta '$(round_of "$ESG")', rail '$(shown_of "$ESG")'"
 
+# (f) BL-701: a BLOCK note sits under its `## ` heading in the reply and must survive the round:
+# it is not an item answer (no `### `), and a marker-shaped line typed in it belongs to the block,
+# never to the last item of the block before it. G2's note carries `- [show-me]`, a duty only an
+# ITEM can own: save-reply must not charge it to Q1, and the next round must still open.
+SP2="$TMP/reports/blk.spec.md"
+cat > "$SP2" <<'SPEC'
+::: masthead {lang="en" visual="none: consultation"}
+# Block notes
+:::
+
+::: group {#G1 title="One"}
+::: item {#Q1 title="Pick"}
+Ana opens the project and sees no Delete button.
+
+- Allow it {recommended}
+- Keep it
+:::
+:::
+
+::: group {#G2 title="Two"}
+::: item {#Q2 title="Pick again"}
+Ana opens the list and sees no filter.
+
+- Add it {recommended}
+- Skip it
+:::
+:::
+
+::: notes {title="Anything else"}
+:::
+SPEC
+SPB="$TMP/reports/blk.html"
+python3 "$BUILD" "$SP2" -o "$SPB" >/dev/null 2>&1 || fail "(f) the block-notes spec build failed"
+REPLY_B=$'## G1 \xc2\xb7 One\n\nthis whole block is fine\n\n### Q1 \xc2\xb7 Pick\n\n- Keep it\n\n## G2 \xc2\xb7 Two\n\n- [show-me]\n\n### Q2 \xc2\xb7 Pick again\n\n- Skip it\n'
+out="$(printf '%s' "$REPLY_B" | bash "$SAVE" "$SPB" - 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" != *Q1* ]] \
+  && ok "(f) a block note with a marker-shaped line is not charged to the item before it" \
+  || fail "(f) save-reply charged the G2 note's [show-me] to Q1 (rc=$rc): $out"
+python3 "$BUILD" "$SP2" -o "$SPB" --new-round >/dev/null 2>&1 && [[ "$(round_of "$SPB")" == "2" ]] \
+  && ok "(f) the round after a reply with block notes opens" \
+  || fail "(f) the round after a reply with block notes did not open (got '$(round_of "$SPB")')"
+
 [[ $failures -eq 0 ]] && echo "PASS: consult reader round" || { echo "FAILED: $failures"; exit 1; }

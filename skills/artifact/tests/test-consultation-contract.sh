@@ -45,9 +45,10 @@ mkpage() {
 
 # The page-level general-notes item. Every consultation fixture that is not
 # testing its absence carries it, the way the template ships it.
-notesitem='<section class="consult-item consult-notes" data-id="notes" data-title="General notes"><h3>General notes</h3><textarea></textarea></section>'
+notesitem='<section class="consult-item consult-notes" data-id="notes" data-title="General notes"><h3>General notes</h3><p class="fieldlabel">Notes for the whole page</p><textarea></textarea></section>'
 gopen='<section class="consult-group" id="G1" data-id="G1" data-title="The context"><div class="sec-head"><h2>The context</h2></div><p>What the decisions below share.</p>'
-gclose='</section>'
+gnotes='<div class="group-notes"><p class="fieldlabel">Notes on this block</p><textarea></textarea></div>'
+gclose="$gnotes</section>"
 # The copy controls where the page contract puts them (copy-control-placement,
 # blocking since LOOP-006): one in the rail's .consult-bar, one at the end of <main>.
 bars='<main><div class="endbar"><button type="button" id="consult-copy-end">Copy</button></div></main><aside class="rail"><div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div></aside>'
@@ -71,7 +72,7 @@ $gopen
     <label><input type=\"radio\" name=\"Q1\" data-label=\"A\"><span>A</span></label>
     <label><input type=\"radio\" name=\"Q1\" data-label=\"B\"><span>B</span></label>
   </div>
-  <textarea placeholder=\"Anything the options do not cover\"></textarea>
+  <p class=fieldlabel>Free text</p><textarea placeholder=\"Anything the options do not cover\"></textarea>
 </section>
 $gclose
 $notesitem
@@ -124,7 +125,7 @@ grep -qiE 'data-id|consult-copy' "$TMP/out" || fail "5. the failure names neithe
 mkpage "$TMP/prev.html" "$visual
 $gopen
 <section class=\"consult-item\" data-id=\"Q1\" data-free data-title=\"The first claim\">
-  <h3>Q1</h3><textarea></textarea></section>
+  <h3>Q1</h3><p class=fieldlabel>Free text</p><textarea></textarea></section>
 $gclose
 $notesitem
 $bars
@@ -132,7 +133,7 @@ $composer"
 mkpage "$TMP/now.html" "$visual
 $gopen
 <section class=\"consult-item\" data-id=\"Q1\" data-free data-title=\"A completely different claim\">
-  <h3>Q1</h3><textarea></textarea></section>
+  <h3>Q1</h3><p class=fieldlabel>Free text</p><textarea></textarea></section>
 $gclose
 $notesitem
 $bars
@@ -170,7 +171,7 @@ grep -qi 'Q1' "$TMP/out" || fail "8. the failure does not name the item that has
 mkpage "$TMP/no-general.html" "$visual
 $gopen
 <section class=\"consult-item\" data-id=\"Q1\" data-free data-title=\"Pick one\">
-  <h3>Pick one</h3><textarea></textarea>
+  <h3>Pick one</h3><p class=fieldlabel>Free text</p><textarea></textarea>
 </section>
 $gclose
 $bars
@@ -186,13 +187,13 @@ grep -qi 'consult-notes' "$TMP/out" || fail "9. the failure does not name the mi
 mkpage "$TMP/notes-mid.html" "$visual
 $gopen
 <section class=\"consult-item\" data-id=\"Q1\" data-free data-title=\"Pick one\">
-  <h3>Pick one</h3><textarea></textarea>
+  <h3>Pick one</h3><p class=fieldlabel>Free text</p><textarea></textarea>
 </section>
 $gclose
 $notesitem
 <section class=\"consult-group\" id=\"G2\" data-id=\"G2\" data-title=\"More\"><div class=\"sec-head\"><h2>More</h2></div>
 <section class=\"consult-item\" data-id=\"Q2\" data-free data-title=\"Pick again\">
-  <h3>Pick again</h3><textarea></textarea>
+  <h3>Pick again</h3><p class=fieldlabel>Free text</p><textarea></textarea>
 </section>
 $gclose
 $bars
@@ -204,7 +205,7 @@ grep -q "FAIL \[consult-shape\].*notes.*'G2'" "$TMP/out" || fail "9c. the failur
 mkpage "$TMP/notes-then-ref.html" "$visual
 $gopen
 <section class=\"consult-item\" data-id=\"Q1\" data-free data-title=\"Pick one\">
-  <h3>Pick one</h3><textarea></textarea>
+  <h3>Pick one</h3><p class=fieldlabel>Free text</p><textarea></textarea>
 </section>
 $gclose
 $notesitem
@@ -218,11 +219,11 @@ rc="$(run "$TMP/notes-then-ref.html")"
 mkpage "$TMP/notes-in-group.html" "$visual
 $gopen
 <section class=\"consult-item\" data-id=\"Q1\" data-free data-title=\"Pick one\">
-  <h3>Pick one</h3><textarea></textarea>
+  <h3>Pick one</h3><p class=fieldlabel>Free text</p><textarea></textarea>
 </section>
 $notesitem
 <section class=\"consult-item\" data-id=\"Q2\" data-free data-title=\"Pick again\">
-  <h3>Pick again</h3><textarea></textarea>
+  <h3>Pick again</h3><p class=fieldlabel>Free text</p><textarea></textarea>
 </section>
 $gclose
 $bars
@@ -236,7 +237,7 @@ mkpage "$TMP/notes-hint.html" "$visual
 $gopen
 <p class=\"consult-notes-hint\">Anything else goes in the general notes.</p>
 <section class=\"consult-item\" data-id=\"Q1\" data-free data-title=\"Pick one\">
-  <h3>Pick one</h3><textarea></textarea>
+  <h3>Pick one</h3><p class=fieldlabel>Free text</p><textarea></textarea>
 </section>
 $gclose
 $notesitem
@@ -255,7 +256,7 @@ ledger_ok='<div class="ledger"><div><span class="k">c1</span><span class="v"><b>
 ledger_bad='<div class="ledger"><div><span class="k">c1 &middot; BL-265</span><span class="v"><b>Done.</b> Settled last round.</span></div></div>'
 # An optionless item is a declared open answer (data-free): the page contract
 # fails one that is not (decision-item-without-options, LOOP-006).
-item() { printf '<section class="consult-item" data-id="%s" data-title="A question" data-free><h3>A question</h3><textarea></textarea></section>' "$1"; }
+item() { printf '<section class="consult-item" data-id="%s" data-title="A question" data-free><h3>A question</h3><p class=fieldlabel>Free text</p><textarea></textarea></section>' "$1"; }
 
 mkpage "$TMP/ledger-clean.html" "$visual
 $ledger_ok
@@ -323,7 +324,7 @@ rc="$(run "$TMP/ledger-numbered.html")"
 # — which forced a real page to hand-roll a `.settled` section the kit does not
 # define, in breach of gate 1.
 # The verdict in data-decided, where the fold shows it (decided-item-without-verdict).
-decided() { printf '<section class="consult-item" data-decided="the first option won" data-id="%s" data-title="A question"><h3>A question</h3><textarea></textarea></section>' "$1"; }
+decided() { printf '<section class="consult-item" data-decided="the first option won" data-id="%s" data-title="A question"><h3>A question</h3><p class=fieldlabel>Free text</p><textarea></textarea></section>' "$1"; }
 
 mkpage "$TMP/ledger-decided.html" "$visual
 $ledger_bad
@@ -371,7 +372,7 @@ grep -qi 'verdict in its body' "$TMP/out" \
 # `data-decided-round` is written next to `data-decided`, never instead of it —
 # but `\bdata-decided\b` is satisfied by the hyphen, so an item carrying only the
 # stamp read as settled and the still-asked rule went silent on a live question.
-stamped_only() { printf '<section class="consult-item" data-decided-round="3" data-id="%s" data-title="A question"><h3>A question</h3><textarea></textarea></section>' "$1"; }
+stamped_only() { printf '<section class="consult-item" data-decided-round="3" data-id="%s" data-title="A question"><h3>A question</h3><p class=fieldlabel>Free text</p><textarea></textarea></section>' "$1"; }
 mkpage "$TMP/ledger-stamp-only.html" "$visual
 $ledger_bad
 $gopen
@@ -421,7 +422,7 @@ $gopen
     <label><input type=\"radio\" name=\"Q1\" data-label=\"A\"><span>A</span></label>
     <label><input type=\"radio\" name=\"Q1\" data-label=\"B\"><span>B</span></label>
   </div>
-  <textarea></textarea>
+  <p class=fieldlabel>Free text</p><textarea></textarea>
 </section>
 <section class=\"consult-item\" data-id=\"Q2\" data-title=\"Hand-rolled wrapper\">
   <h3>Hand-rolled wrapper</h3>
@@ -429,7 +430,7 @@ $gopen
     <label><input type=\"radio\" name=\"Q2\" data-label=\"B (recomendada)\"><span>B</span></label>
     <label><input type=\"radio\" name=\"Q2\" data-label=\"C\"><span>C</span></label>
   </div>
-  <textarea></textarea>
+  <p class=fieldlabel>Free text</p><textarea></textarea>
 </section>
 $gclose
 $notesitem
@@ -457,15 +458,15 @@ mkpage "$TMP/warn-free.html" "$visual
 $gopen
 <section class=\"consult-item\" data-id=\"H1\" data-title=\"Finding with no options\">
   <h3>Finding with no options</h3>
-  <textarea></textarea>
+  <p class=fieldlabel>Free text</p><textarea></textarea>
 </section>
 <section class=\"consult-item\" data-id=\"H2\" data-title=\"Declared free\" data-free>
   <h3>Declared free</h3>
-  <textarea></textarea>
+  <p class=fieldlabel>Free text</p><textarea></textarea>
 </section>
 <section class=\"consult-item\" data-id=\"H3\" data-title=\"Settled\" data-decided=\"answered in H9\">
   <h3>Settled</h3>
-  <textarea></textarea>
+  <p class=fieldlabel>Free text</p><textarea></textarea>
 </section>
 <section class=\"consult-item\" data-id=\"Q1\" data-title=\"With options\">
   <h3>With options</h3>
@@ -473,7 +474,7 @@ $gopen
     <label><input type=\"radio\" name=\"Q1\" data-label=\"A\"><span>A</span></label>
     <label><input type=\"radio\" name=\"Q1\" data-label=\"B\"><span>B</span></label>
   </div>
-  <textarea></textarea>
+  <p class=fieldlabel>Free text</p><textarea></textarea>
 </section>
 $gclose
 $notesitem
@@ -501,7 +502,7 @@ $gopen
     <label><input type=\"radio\" name=\"Q1\" data-label=\"B\"><span>B</span></label>
   </div>
   <p>Quoted, it is not a leak: <code>{recommended}</code>.</p>
-  <textarea></textarea>
+  <p class=fieldlabel>Free text</p><textarea></textarea>
 </section>
 $gclose
 $notesitem
@@ -525,22 +526,22 @@ mkpage "$TMP/warn-facts.html" "$visual
 <section class=\"consult-item\" data-id=\"Q1\" data-free data-title=\"Dense\">
   <h3>Dense</h3>
   <p>The boilerplate suite takes <code>a</code>, <code>b</code>, <code>c</code> and <code>d</code>; myskills keeps <code>e</code>.</p>
-  <textarea></textarea>
+  <p class=fieldlabel>Free text</p><textarea></textarea>
 </section>
 <section class=\"consult-item\" data-id=\"Q2\" data-free data-title=\"Plain\">
   <h3>Plain</h3>
   <p>One explanatory paragraph that names <code>one</code> thing and says why it matters, at length; nothing else.</p>
-  <textarea></textarea>
+  <p class=fieldlabel>Free text</p><textarea></textarea>
 </section>
 <section class=\"consult-item\" data-id=\"Q3\" data-free data-title=\"Code semicolons\">
   <h3>Code semicolons</h3>
   <p>The hook runs <code>a; b; c; d</code> once per session.</p>
-  <textarea></textarea>
+  <p class=fieldlabel>Free text</p><textarea></textarea>
 </section>
 <section class=\"consult-item\" data-id=\"Q4\" data-free data-title=\"Source line\">
   <h3>Source line</h3>
   <p>Fuente: sección 4; sección 5; <code>a.py</code>, <code>b.py</code>, <code>c.py</code>, <code>run.sh; exit</code>.</p>
-  <textarea></textarea>
+  <p class=fieldlabel>Free text</p><textarea></textarea>
 </section>
 $gclose
 $notesitem
@@ -584,7 +585,7 @@ $gopen
     <label><input type=\"radio\" name=\"Q1\" data-label=\"A\" data-recommended><span>A</span></label>
     <label><input type=\"radio\" name=\"Q1\" data-label=\"B\" data-recommended=\"no\"><span>B</span></label>
   </div>
-  <textarea></textarea>
+  <p class=fieldlabel>Free text</p><textarea></textarea>
 </section>
 $gclose
 $notesitem
@@ -659,6 +660,7 @@ mkpage "$TMP/warn-entities.html" "$visual
   <p>La p&aacute;gina se public&oacute; en espa&ntilde;ol con acentos codificados; eso es todo.</p>
   <p class=\"fieldlabel\">Notes on this one</p><textarea></textarea>
 </section>
+$gnotes
 </section>
 $notesitem
 $bars
@@ -680,17 +682,20 @@ grep -q "WARN \[consult-facts\]" "$TMP/out" \
 mkpage "$TMP/warn-order.html" "$visual
 <section class=\"consult-group\" id=\"G1\" data-id=\"G1\" data-title=\"Videos\"><div class=\"sec-head\"><h2>Videos</h2></div>
 <p>What both films share.</p>
-<section class=\"consult-item\" data-id=\"V1\" data-free data-title=\"Approve F1\"><h3>Approve F1</h3><textarea></textarea></section>
+<section class=\"consult-item\" data-id=\"V1\" data-free data-title=\"Approve F1\"><h3>Approve F1</h3><p class=fieldlabel>Free text</p><textarea></textarea></section>
 <p>F1 before and after:</p>
+$gnotes
 <p>@@VIDEO a.mp4|F1 before@@</p>
 </section>
 <section class=\"consult-group\" id=\"G2\" data-id=\"G2\" data-title=\"Numbers\"><div class=\"sec-head\"><h2>Numbers</h2></div>
-<section class=\"consult-item\" data-id=\"T1\" data-free data-title=\"Pick\"><h3>Pick</h3><textarea></textarea></section>
+<section class=\"consult-item\" data-id=\"T1\" data-free data-title=\"Pick\"><h3>Pick</h3><p class=fieldlabel>Free text</p><textarea></textarea></section>
 <div class=\"tw\"><table><tr><td>x</td></tr></table></div>
+$gnotes
 </section>
 <section class=\"consult-group\" id=\"G3\" data-id=\"G3\" data-title=\"Frames\"><div class=\"sec-head\"><h2>Frames</h2></div>
-<section class=\"consult-item\" data-id=\"F1\" data-free data-title=\"Look\"><h3>Look</h3><textarea></textarea></section>
+<section class=\"consult-item\" data-id=\"F1\" data-free data-title=\"Look\"><h3>Look</h3><p class=fieldlabel>Free text</p><textarea></textarea></section>
 <video src=\"b.mp4\" controls></video>
+$gnotes
 </section>
 $notesitem
 $bars
@@ -707,11 +712,12 @@ mkpage "$TMP/order-clean.html" "$visual
 <p>What both films share.</p>
 <div class=\"tw\"><table><tr><td>x</td></tr></table></div>
 <p>@@VIDEO a.mp4|F1 before@@</p>
-<section class=\"consult-item\" data-id=\"V1\" data-free data-title=\"Approve F1\"><h3>Approve F1</h3><textarea></textarea></section>
+<section class=\"consult-item\" data-id=\"V1\" data-free data-title=\"Approve F1\"><h3>Approve F1</h3><p class=fieldlabel>Free text</p><textarea></textarea></section>
 <video src=\"b.mp4\" controls></video>
-<section class=\"consult-item\" data-id=\"V2\" data-free data-title=\"Approve F2\"><h3>Approve F2</h3><textarea></textarea></section>
+<section class=\"consult-item\" data-id=\"V2\" data-free data-title=\"Approve F2\"><h3>Approve F2</h3><p class=fieldlabel>Free text</p><textarea></textarea></section>
 <p>A closing sentence is prose, not evidence.</p>
 <p><svg width=\"8\" height=\"8\"></svg> an inline legend swatch is decoration, not evidence.</p>
+$gnotes
 </section>
 $notesitem
 $bars
@@ -729,7 +735,7 @@ grep -q "WARN \[consult-order\]" "$TMP/out" \
 # sentence of the lead paragraph counts; an id later in the lead, or on a
 # Fuente: line, must stay silent.
 idem() {  # id, lead paragraph html, [second paragraph html]
-  printf '<section class=\"consult-item\" data-id=\"%s\" data-free data-title=\"T %s\"><h3>T %s</h3><p>%s</p>%s<textarea></textarea></section>' "$1" "$1" "$1" "$2" "${3:+<p>$3</p>}"
+  printf '<section class=\"consult-item\" data-id=\"%s\" data-free data-title=\"T %s\"><h3>T %s</h3><p>%s</p>%s<p class=fieldlabel>Free text</p><textarea></textarea></section>' "$1" "$1" "$1" "$2" "${3:+<p>$3</p>}"
 }
 mkpage "$TMP/lead-ids.html" "$visual
 $gopen
@@ -759,7 +765,7 @@ done
 # ids, block contexts, gate/gates.
 fl='<p class="fieldlabel">'
 rawitem() {  # id, inner html (paragraphs)
-  printf '<section class=\"consult-item\" data-id=\"%s\" data-free data-title=\"T %s\"><h3>T %s</h3>%s<textarea></textarea></section>' "$1" "$1" "$1" "$2"
+  printf '<section class=\"consult-item\" data-id=\"%s\" data-free data-title=\"T %s\"><h3>T %s</h3>%s<p class=fieldlabel>Free text</p><textarea></textarea></section>' "$1" "$1" "$1" "$2"
 }
 mkpage "$TMP/lead-ids2.html" "$visual
 $gopen
@@ -777,6 +783,7 @@ $(rawitem Q2 '<p>Ana, a manager, opens the project and sees no Delete button.</p
 $gclose
 <section class=\"consult-group\" id=\"G7\" data-id=\"G7\" data-title=\"Ctx\"><div class=\"sec-head\"><h2>Ctx</h2></div><p>M095 and BL-4 frame everything below.</p>
 $(rawitem D1 '<p>Ana, a manager, opens the project and sees no Delete button.</p>')
+$gnotes
 </section>
 $notesitem
 $bars
@@ -873,7 +880,7 @@ grep -q "WARN \[consult-lead-id\].*'F5'" "$TMP/out" \
 # asking. WARN only. A real word beside the code ("decisión d4 ... fase 8") and
 # an English page ("phase") stay clean. mkpage is lang=en, so sed swaps it.
 qitem() {  # id, h3 text, fuente text
-  printf '<section class=\"consult-item\" data-id=\"%s\" data-title=\"T %s\"><h3>%s</h3><p>Ana abre el proyecto y no ve el botón.</p><p>%s</p><div class=\"opts\"><label><input type=\"radio\" name=\"%s\" data-label=\"A\"><span>A</span></label><label><input type=\"radio\" name=\"%s\" data-label=\"B\"><span>B</span></label></div><textarea></textarea></section>' "$1" "$1" "$2" "$3" "$1" "$1"
+  printf '<section class=\"consult-item\" data-id=\"%s\" data-title=\"T %s\"><h3>%s</h3><p>Ana abre el proyecto y no ve el botón.</p><p>%s</p><div class=\"opts\"><label><input type=\"radio\" name=\"%s\" data-label=\"A\"><span>A</span></label><label><input type=\"radio\" name=\"%s\" data-label=\"B\"><span>B</span></label></div><p class=fieldlabel>Free text</p><textarea></textarea></section>' "$1" "$1" "$2" "$3" "$1" "$1"
 }
 mkpage "$TMP/fuente-es.html" "$visual
 $gopen
@@ -884,7 +891,7 @@ $gclose
 $notesitem
 $bars
 $composer"
-sed -i.bak 's/<html lang="en">/<html lang="es">/' "$TMP/fuente-es.html"
+sed -i.bak -e 's/<html lang="en">/<html lang="es">/' -e 's/Notes on this block/Notas de este bloque/' -e 's/Notes for the whole page/Notas de la página/' "$TMP/fuente-es.html"
 rc="$(run "$TMP/fuente-es.html")"
 [[ "$rc" == "0" ]] || fail "10b4e. the new warnings changed the exit code: $(cat "$TMP/out")"
 grep -q "WARN \[consult-fuente-unreadable\].*'H1'" "$TMP/out" \
@@ -904,7 +911,7 @@ done
 radios2='<div class="opts"><label><input type="radio" name="g" data-label="A"><span>A</span></label><label><input type="radio" name="g" data-label="B"><span>B</span></label></div>'
 mkpage "$TMP/fuente-es2.html" "$visual
 $gopen
-<section class=\"consult-item consult-gallery\" data-id=\"g-a-b\" data-title=\"g · a · b\"><h3>Lista vacía</h3>$radios2<textarea></textarea></section>
+<section class=\"consult-item consult-gallery\" data-id=\"g-a-b\" data-title=\"g · a · b\"><h3>Lista vacía</h3>$radios2<p class=fieldlabel>Free text</p><textarea></textarea></section>
 $(qitem K1 'La columna muestra el texto cortado.' 'Fuente: decisión d4 del contrato.' | sed 's/data-title=/data-decided=\"Aprobada\" data-title=/')
 $(qitem K2 '¿Mostramos el botón?' 'Fuente: BL-617.')
 $(qitem K3 '¿Mostramos el botón?' 'Fuente: BL-716, BL-708, P11.')
@@ -912,7 +919,7 @@ $gclose
 $notesitem
 $bars
 $composer"
-sed -i.bak 's/<html lang="en">/<html lang="es">/' "$TMP/fuente-es2.html"
+sed -i.bak -e 's/<html lang="en">/<html lang="es">/' -e 's/Notes on this block/Notas de este bloque/' -e 's/Notes for the whole page/Notas de la página/' "$TMP/fuente-es2.html"
 rc="$(run "$TMP/fuente-es2.html")"
 grep -q "WARN \[consult-heading-statement\].*'g-a-b'" "$TMP/out" \
   && fail "10b4e. BL-623: a gallery row heading is a state name and must not warn: $(cat "$TMP/out")"
@@ -940,16 +947,16 @@ grep -q "WARN \[consult-fuente-unreadable\]" "$TMP/out" \
 slug='users-list-actions-menu-invited-light-desktop'
 mkpage "$TMP/raw-label-es.html" "$visual
 $(printf '%s' "$gopen" | sed 's/data-title=\"The context\"/data-title=\"The context\" data-tiles=\"light-desktop\"/')
-<section class=\"consult-item consult-gallery\" data-id=\"$slug\" data-title=\"users · list\"><h3><span class=\"consult-id\">$slug</span>Menú de acciones</h3><p class=\"gal-na\">No aplica a este estado.</p>$radios2<textarea></textarea></section>
-<section class=\"consult-item\" data-id=\"R1\" data-title=\"Titulo 1\"><h3>¿Cambiamos el menú?</h3><p>Ana abre la lista. La fila $slug se ve cortada.</p>$radios2<textarea></textarea></section>
-<section class=\"consult-item\" data-id=\"R2\" data-title=\"Titulo 2\"><h3>¿Mostramos el botón?</h3><p>Ana abre el proyecto.</p><label>notes</label><div class=\"opts\"><label><input type=\"radio\" name=\"R2\" data-label=\"A\"><span>A</span></label><label><input type=\"radio\" name=\"R2\" data-label=\"B\"><span>B</span></label></div><textarea></textarea></section>
-<section class=\"consult-item\" data-id=\"R3\" data-title=\"Titulo 3\"><h3>¿Mostramos el botón?</h3><p>Ana abre el proyecto; ver <code>$slug</code>.</p><p>Fuente: $slug, notes.</p><p>Fuente: <em>notes</em></p><p data-x=\"$slug\">Sin ids a la vista.</p><div class=\"opts\"><label><input type=\"radio\" name=\"R3\" data-label=\"A\"><span>A</span></label><label><input type=\"radio\" name=\"R3\" data-label=\"B\"><span>B</span></label></div><textarea></textarea></section>
-<section class=\"consult-item\" data-id=\"R4\" data-title=\"Titulo 4\"><h3>¿Mostramos el botón?</h3><p>Ana abre el proyecto. Desde 2026-10-02 (BL-123) el archivo foo-bar-baz.md y https://x.dev/a-b-c-d no cambian; escríbenos a e-mail@x.dev. Es un cambio socio-económico.</p><div class=\"opts\"><label><input type=\"radio\" name=\"R4\" data-label=\"A\"><span>A</span></label><label><input type=\"radio\" name=\"R4\" data-label=\"B\"><span>B</span></label></div><textarea></textarea></section>
+<section class=\"consult-item consult-gallery\" data-id=\"$slug\" data-title=\"users · list\"><h3><span class=\"consult-id\">$slug</span>Menú de acciones</h3><p class=\"gal-na\">No aplica a este estado.</p>$radios2<p class=fieldlabel>Free text</p><textarea></textarea></section>
+<section class=\"consult-item\" data-id=\"R1\" data-title=\"Titulo 1\"><h3>¿Cambiamos el menú?</h3><p>Ana abre la lista. La fila $slug se ve cortada.</p>$radios2<p class=fieldlabel>Free text</p><textarea></textarea></section>
+<section class=\"consult-item\" data-id=\"R2\" data-title=\"Titulo 2\"><h3>¿Mostramos el botón?</h3><p>Ana abre el proyecto.</p><label>notes</label><div class=\"opts\"><label><input type=\"radio\" name=\"R2\" data-label=\"A\"><span>A</span></label><label><input type=\"radio\" name=\"R2\" data-label=\"B\"><span>B</span></label></div><p class=fieldlabel>Free text</p><textarea></textarea></section>
+<section class=\"consult-item\" data-id=\"R3\" data-title=\"Titulo 3\"><h3>¿Mostramos el botón?</h3><p>Ana abre el proyecto; ver <code>$slug</code>.</p><p>Fuente: $slug, notes.</p><p>Fuente: <em>notes</em></p><p data-x=\"$slug\">Sin ids a la vista.</p><div class=\"opts\"><label><input type=\"radio\" name=\"R3\" data-label=\"A\"><span>A</span></label><label><input type=\"radio\" name=\"R3\" data-label=\"B\"><span>B</span></label></div><p class=fieldlabel>Free text</p><textarea></textarea></section>
+<section class=\"consult-item\" data-id=\"R4\" data-title=\"Titulo 4\"><h3>¿Mostramos el botón?</h3><p>Ana abre el proyecto. Desde 2026-10-02 (BL-123) el archivo foo-bar-baz.md y https://x.dev/a-b-c-d no cambian; escríbenos a e-mail@x.dev. Es un cambio socio-económico.</p><div class=\"opts\"><label><input type=\"radio\" name=\"R4\" data-label=\"A\"><span>A</span></label><label><input type=\"radio\" name=\"R4\" data-label=\"B\"><span>B</span></label></div><p class=fieldlabel>Free text</p><textarea></textarea></section>
 $gclose
 $(printf '%s' "$notesitem" | sed 's|<h3>General notes</h3>|<h3><span class="consult-id">notes</span>Notas generales</h3>|')
 $bars
 $composer"
-sed -i.bak 's/<html lang="en">/<html lang="es">/' "$TMP/raw-label-es.html"
+sed -i.bak -e 's/<html lang="en">/<html lang="es">/' -e 's/Notes on this block/Notas de este bloque/' -e 's/Notes for the whole page/Notas de la página/' "$TMP/raw-label-es.html"
 rc="$(run "$TMP/raw-label-es.html")"
 [[ "$rc" == "0" ]] || fail "10b4f. BL-650: consult-raw-label changed the exit code — it is a warning: $(cat "$TMP/out")"
 grep -q "WARN \[consult-raw-label\].*'R1'.*$slug" "$TMP/out" \
@@ -970,13 +977,13 @@ grep -q "WARN \[consult-raw-label\]" "$TMP/out" \
 # elsewhere; the gallery contract FAILs such a page, but the WARN must not add noise.
 mkpage "$TMP/raw-short.html" "$visual
 $(printf '%s' "$gopen" | sed 's/data-title=\"The context\"/data-title=\"The context\" data-tiles=\"light-desktop\"/')
-<section class=\"consult-item consult-gallery\" data-id=\"vacio\" data-title=\"vacio\"><h3>Estado vacío</h3><p class=\"gal-na\">No aplica a este estado.</p>$radios2<textarea></textarea></section>
-<section class=\"consult-item\" data-id=\"S1\" data-title=\"Titulo S1\"><h3>¿Mostramos el botón?</h3><p>Ana abre la lista y se ve vacio hoy.</p>$radios2<textarea></textarea></section>
+<section class=\"consult-item consult-gallery\" data-id=\"vacio\" data-title=\"vacio\"><h3>Estado vacío</h3><p class=\"gal-na\">No aplica a este estado.</p>$radios2<p class=fieldlabel>Free text</p><textarea></textarea></section>
+<section class=\"consult-item\" data-id=\"S1\" data-title=\"Titulo S1\"><h3>¿Mostramos el botón?</h3><p>Ana abre la lista y se ve vacio hoy.</p>$radios2<p class=fieldlabel>Free text</p><textarea></textarea></section>
 $gclose
 $notesitem
 $bars
 $composer"
-sed -i.bak 's/<html lang="en">/<html lang="es">/' "$TMP/raw-short.html"
+sed -i.bak -e 's/<html lang="en">/<html lang="es">/' -e 's/Notes on this block/Notas de este bloque/' -e 's/Notes for the whole page/Notas de la página/' "$TMP/raw-short.html"
 rc="$(run "$TMP/raw-short.html")"
 grep -q "WARN \[consult-raw-label\]" "$TMP/out" \
   && fail "10b4f. BL-650: a gallery id of fewer than three segments is prose and must not warn: $(cat "$TMP/out")"
@@ -1135,7 +1142,7 @@ $gopen
     <label><input data-label=\"BL-013 superseded\" name=\"Q1\" type=\"checkbox\"><span>BL-013</span></label>
     <label><input type=\"checkbox\" name=\"Q1\" data-label=\"BL-067 no owner\"><span>BL-067</span></label>
   </div>
-  <textarea></textarea>
+  <p class=fieldlabel>Free text</p><textarea></textarea>
 </section>
 <section class=\"consult-item\" data-id=\"Q2\" data-title=\"Which parts of the export?\">
   <h3>Which parts of the export?</h3>
@@ -1144,7 +1151,7 @@ $gopen
     <label><input type=\"checkbox\" name=\"Q2\" data-label=\"Body\"><span>Body</span></label>
     <label><input type=\"checkbox\" name=\"Q2\" data-label=\"Figures\"><span>Figures</span></label>
   </div>
-  <textarea></textarea>
+  <p class=fieldlabel>Free text</p><textarea></textarea>
 </section>
 <section class=\"consult-item\" data-id=\"Q3\" data-title=\"Discard BL-010?\">
   <h3>Discard BL-010?</h3>
@@ -1152,7 +1159,7 @@ $gopen
     <label><input type=\"radio\" name=\"Q3\" data-label=\"Discard BL-010\" data-recommended><span>Discard</span></label>
     <label><input type=\"radio\" name=\"Q3\" data-label=\"Keep BL-010\"><span>Keep</span></label>
   </div>
-  <textarea></textarea>
+  <p class=fieldlabel>Free text</p><textarea></textarea>
 </section>
 $gclose
 $notesitem
@@ -1748,9 +1755,9 @@ showitem() {  # $1 = extra markup inside Q1
   mkpage "$2" "$visual
 $gopen
 <section class=\"consult-item\" data-id=\"Q1\" data-free data-title=\"The first claim\">
-  <h3>Q1</h3><p>What happens today, explained again.</p>$1<textarea></textarea></section>
+  <h3>Q1</h3><p>What happens today, explained again.</p>$1<p class=fieldlabel>Free text</p><textarea></textarea></section>
 <section class=\"consult-item\" data-id=\"Q2\" data-free data-title=\"The second claim\">
-  <h3>Q2</h3><textarea></textarea></section>
+  <h3>Q2</h3><p class=fieldlabel>Free text</p><textarea></textarea></section>
 $gclose
 $notesitem
 $bars
@@ -1824,6 +1831,54 @@ rc="$(run "$R/page.html" --prev "$R/.aidex-artifact-prev/page.html")"
 [[ "$rc" == "1" ]] || fail "11e. a reply from 2020, with nothing newer, was NOT enforced: $(cat "$TMP/out")"
 grep -q 'FAIL \[consult-marker-duties\].*Q1' "$TMP/out" \
   || fail "11e. the stale-but-only reply's failure does not name the item: $(cat "$TMP/out")"
+
+# ---- 12. BL-701: free text at three levels, each with a visible label -------
+# One compliant page, then one mutation per level. The block box and the labels
+# are judged on the markup, so a commented-out box or a placeholder-only box
+# must not satisfy them.
+q1='<section class="consult-item" data-id="Q1" data-title="Pick one"><h3>Pick one</h3><div class="opts"><label><input type="radio" name="Q1" data-label="A"><span>A</span></label><label><input type="radio" name="Q1" data-label="B"><span>B</span></label></div><p class="fieldlabel">Notes on this one</p><textarea></textarea></section>'
+q1nolabel="$(printf '%s' "$q1" | sed 's|<p class="fieldlabel">Notes on this one</p>||')"
+bl701() {  # bl701 <name> <block box> <item html> <page notes html>; echoes the exit code
+  mkpage "$TMP/$1.html" "$visual
+$gopen
+$3
+$2
+</section>
+$4
+$bars
+$composer"
+  run "$TMP/$1.html"
+}
+rc="$(bl701 t3-ok "$gnotes" "$q1" "$notesitem")"
+[[ "$rc" == "0" ]] || fail "12. the three-level page failed: $(cat "$TMP/out")"
+rc="$(bl701 t3-nogroup "" "$q1" "$notesitem")"
+[[ "$rc" == "1" ]] && grep -q "block 'G1' has no notes box" "$TMP/out" \
+  || fail "12. a block with no notes box of its own passed (rc=$rc): $(cat "$TMP/out")"
+rc="$(bl701 t3-commented "<!-- $gnotes -->" "$q1" "$notesitem")"
+[[ "$rc" == "1" ]] && grep -q "block 'G1' has no notes box" "$TMP/out" \
+  || fail "12. a COMMENTED-OUT block notes box satisfied the check (rc=$rc): $(cat "$TMP/out")"
+rc="$(bl701 t3-grouplabel '<div class="group-notes"><textarea placeholder="Notes on this block"></textarea></div>' "$q1" "$notesitem")"
+[[ "$rc" == "1" ]] && grep -q "block 'G1': its notes box has no visible label" "$TMP/out" \
+  || fail "12. a block notes box with only a placeholder passed (rc=$rc): $(cat "$TMP/out")"
+rc="$(bl701 t3-itemlabel "$gnotes" "$q1nolabel" "$notesitem")"
+[[ "$rc" == "1" ]] && grep -q "item 'Q1': its notes box has no visible label" "$TMP/out" \
+  || fail "12. an item notes box with no visible label passed (rc=$rc): $(cat "$TMP/out")"
+q1sel='<section class="consult-item" data-id="Q1" data-title="T"><h3>T</h3><p class="fieldlabel">The choice</p><select><option>A</option><option>B</option></select><textarea></textarea></section>'
+rc="$(bl701 t3-labelbefore "$gnotes" "$q1sel" "$notesitem")"
+[[ "$rc" == "1" ]] && grep -q "item 'Q1': its notes box has no visible label" "$TMP/out" \
+  || fail "12. a label that names the select above, not the notes box, satisfied the item label rule (rc=$rc): $(cat "$TMP/out")"
+# A gallery-shaped item: label, notes box, then the hidden kit-marks channel. The channel is not the notes box.
+q1marks="${q1%</section>}<textarea class=\"kit-marks\" hidden></textarea></section>"
+rc="$(bl701 t3-marks "$gnotes" "$q1marks" "$notesitem")"
+[[ "$rc" == "0" ]] \
+  || fail "12. an item with a label, its notes box and a hidden kit-marks textarea was rejected (rc=$rc): $(cat "$TMP/out")"
+# A page that does not exist fails with the `missing` finding; --prev must not crash on opening it.
+rc="$(run "$TMP/does-not-exist.html" --prev "$TMP/t3-ok.html")"
+[[ "$rc" == "1" ]] && grep -q "FAIL \[missing\]" "$TMP/out" && ! grep -q "Traceback" "$TMP/out" \
+  || fail "12. a missing page with --prev crashed or did not fail clearly (rc=$rc): $(cat "$TMP/out")"
+rc="$(bl701 t3-pagelabel "$gnotes" "$q1" '<section class="consult-item consult-notes" data-id="notes" data-title="General notes"><h3>General notes</h3><textarea placeholder="Notes for the whole page"></textarea></section>')"
+[[ "$rc" == "1" ]] && grep -q "the general-notes item: its notes box has no visible label" "$TMP/out" \
+  || fail "12. a page notes box with only a placeholder passed (rc=$rc): $(cat "$TMP/out")"
 
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — the consultation contract counts items, accepts any reply surface, leaves a read alone, and warns without failing"

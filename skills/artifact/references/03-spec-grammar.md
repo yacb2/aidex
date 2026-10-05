@@ -240,6 +240,9 @@ The result is a tree. Depth is not limited by the grammar; the builder may refus
 nesting a given block type does not accept (an `item` inside an `item`, say) — again,
 builder, not tokenizer.
 
+A `group` needs no child for its own free text: the build closes every group with
+its notes box (BL-701; `04-block-vocabulary.md`), so a spec never writes one.
+
 Two of those refusals moved during the corpus conversion, and both moved because a
 real page said something the grammar could not:
 

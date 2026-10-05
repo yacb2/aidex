@@ -164,6 +164,11 @@ ALSO = {"es": "también en: ", "en": "also in: "}
 
 NOTES_LABEL = {"es": "Notas sobre esta fila", "en": "Notes on this row"}
 NOTES_PLACEHOLDER = {"es": "Qué cambiar…", "en": "What to change…"}
+# The block's own free text (BL-701): the gallery group closes with the same
+# box spec_build.emit_group writes for every other group.
+GROUP_NOTES_LABEL = {"es": "Notas de este bloque", "en": "Notes on this block"}
+GROUP_NOTES_PLACEHOLDER = {"es": "Lo que afecta a todo el bloque…",
+                           "en": "Anything about the block as a whole…"}
 
 ROW_ID = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)+$")
 SLUG = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
@@ -1314,6 +1319,11 @@ def render(doc, root, group_id, group_title, lang, page=None,
             out.extend(verdicts(ident, lang))
         out.extend(notes(lang))
         add('  </section>')
+    add('  <div class="group-notes">')
+    add('    <p class="fieldlabel">%s</p>' % e(GROUP_NOTES_LABEL[lang]))
+    add('    <textarea placeholder="%s"></textarea>'
+        % e(GROUP_NOTES_PLACEHOLDER[lang]))
+    add('  </div>')
     add('</section>')
     if assets is not None:
         dest = os.path.join(os.path.dirname(os.path.abspath(page)), assets)

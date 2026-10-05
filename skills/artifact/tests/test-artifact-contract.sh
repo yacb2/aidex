@@ -519,8 +519,8 @@ done
 # this suite now rejects. It has to count them.
 mk noviz.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}
 :root[data-theme=\"dark\"] .consult-bar{background:#101619}</style>
-<main><section class=\"consult-group\" id=\"G1\" data-id=\"G1\" data-title=\"Ctx\"><h2>Ctx</h2><section class=\"consult-item\" data-id=\"c1\" data-title=\"T\" data-free><textarea></textarea></section></section>
-<section class=\"consult-item consult-notes\" data-id=\"notes\" data-title=\"General notes\"><textarea></textarea></section>
+<main><section class=\"consult-group\" id=\"G1\" data-id=\"G1\" data-title=\"Ctx\"><h2>Ctx</h2><section class=\"consult-item\" data-id=\"c1\" data-title=\"T\" data-free><p class=\"fieldlabel\">Free text</p><textarea></textarea></section><div class=\"group-notes\"><p class=\"fieldlabel\">Notes on this block</p><textarea></textarea></div></section>
+<section class=\"consult-item consult-notes\" data-id=\"notes\" data-title=\"General notes\"><p class=\"fieldlabel\">Notes for the whole page</p><textarea></textarea></section>
 <button id=\"consult-copy-end\"></button></main>
 <aside class=\"rail\"><div class=\"consult-bar\"><button id=\"consult-copy\"></button><span id=\"consult-status\"></span></div></aside>
 <script>
@@ -989,8 +989,8 @@ tr_page() {  # tr_page <lang> <title> <prose> <out>
   printf '<meta name="consult-visual" content="none: %s">\n<div class="page"><main class="main">
 <section id="s"><div class="sec-head"><h2>%s</h2></div><p>%s</p>
 <section class="consult-group" id="G1" data-id="G1" data-title="%s"><div class="sec-head"><h2>%s</h2></div><p>%s</p>
-'"$TR_ITEM"'</section>
-<section class="consult-item consult-notes" data-id="notes" data-title="%s"><h3>%s</h3><textarea></textarea></section>
+'"$TR_ITEM"'<div class="group-notes"><p class="fieldlabel">Notes on this block</p><textarea></textarea></div></section>
+<section class="consult-item consult-notes" data-id="notes" data-title="%s"><h3>%s</h3><p class="fieldlabel">Notes for the whole page</p><textarea></textarea></section>
 <div class="endbar"><button type="button" id="consult-copy-end">Copy</button><span class="consult-status" id="consult-status-end"></span></div>
 </section></main><aside class="rail"><nav class="raillist" id="raillist"></nav>
 <div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div></aside></div>\n' "$3" "$2" "$3" "$2" "$2" "$3" "$4" "$4" "$5" "$5" \

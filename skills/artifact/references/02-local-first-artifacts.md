@@ -1294,6 +1294,19 @@ messages and the tests; § 8.4 is the block shape.
    Both are checked: an item without free text fails, and so does a consultation with
    no general-notes item.
 
+   **Free text exists at three levels, and each box carries a visible label** (BL-701).
+   A reader asked for page, block and item feedback and found it at none, because a
+   placeholder disappears on the first keystroke and only two of the three levels
+   existed. The levels: the page (`consult-notes`, "Notas de la página"), the block (a
+   `<div class="group-notes">` closing every `consult-group`, "Notas de este bloque"),
+   the item ("Notas sobre esto"). The label is a `<p class="fieldlabel">` with text
+   before the `<textarea>`, in the page's language. A block's note is copied under that
+   block's `## <id> · <title>` heading, before its `### ` items (a `### ` heading would
+   read as an item answer, and text after the last item would read as that item's own
+   notes); an empty box adds nothing, not even the heading, and a note alone is
+   something to copy. check-artifact fails a block without its box and any notes box
+   without its label.
+
 4. **The unit is the BLOCK: one context with the decisions that fall out of it.**
    A consultation is a sequence of `<section class="consult-group">` blocks, each
    carrying the shared evidence (the finding, the numbers, the paths, a slice of the

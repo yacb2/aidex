@@ -64,16 +64,20 @@ cat > "$TMP/body.html" <<'HTML'
   <p>Shared context for both decisions.</p>
   <section class="consult-item" data-id="c1" data-free data-title="First claim">
     <h3>The first question</h3>
+    <p class="fieldlabel">Notes on this one</p>
     <textarea placeholder="Notes"></textarea>
   </section>
   <section class="consult-item" data-id="c2" data-free data-title="Segunda afirmación">
     <h3>¿La segunda pregunta, con acentos?</h3>
     <p>Aquí hay una decisión más: ¿qué pasa con la configuración?</p>
+    <p class="fieldlabel">Notes on this one</p>
     <textarea placeholder="Notas"></textarea>
   </section>
+  <div class="group-notes"><p class="fieldlabel">Notes on this block</p><textarea></textarea></div>
 </section>
 <section class="consult-item consult-notes" data-id="notes" data-title="General notes">
   <h3>General notes</h3>
+  <p class="fieldlabel">Notes for the whole page</p>
   <textarea></textarea>
 </section>
 <div class="endbar"><button type="button" id="consult-copy-end">Copy</button><span class="consult-status" id="consult-status-end"></span></div>
@@ -128,6 +132,7 @@ cat > "$TMP/c1-new.html" <<'HTML'
 <section class="consult-item" data-id="c1" data-free data-title="First claim">
     <h3>The first question, asked better</h3>
     <p>Qué existe hoy: dos archivos, uno de ellos vacío.</p>
+    <p class="fieldlabel">Notes on this one</p>
     <textarea placeholder="Notes"></textarea>
   </section>
 HTML
@@ -163,6 +168,7 @@ src, dst, iid, title = sys.argv[1:5]
 t = open(src, encoding="utf-8").read()
 item = ('  <section class="consult-item" data-id="%s" data-free data-title="%s">\n'
         '    <h3>A question added this round</h3>\n'
+        '    <p class="fieldlabel">Notes on this one</p>\n'
         '    <textarea></textarea>\n'
         '  </section>\n') % (iid, title)
 i = t.rstrip().rfind("</section>")

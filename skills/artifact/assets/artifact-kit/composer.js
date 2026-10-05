@@ -48,6 +48,9 @@
       value: 'The value',
       general: 'Anything that does not fit above',
       generalPh: 'Whatever it is\u2026',
+      pageNotes: 'Notes for the whole page',
+      groupNotes: 'Notes on this block',
+      groupNotesPh: 'Anything about the block as a whole\u2026',
       clear: 'Clear',
       clearTitle: 'Clear this answer',
       rec: 'Recommended',
@@ -164,6 +167,9 @@
       value: 'El valor',
       general: 'Cualquier cosa que no encaje arriba',
       generalPh: 'Lo que sea\u2026',
+      pageNotes: 'Notas de la p\u00e1gina',
+      groupNotes: 'Notas de este bloque',
+      groupNotesPh: 'Lo que afecta a todo el bloque\u2026',
       clear: 'Limpiar',
       clearTitle: 'Limpiar esta respuesta',
       rec: 'Recomendada',
@@ -359,10 +365,13 @@
     ['.fieldlabel', 'text', 'choice'],
     ['.fieldlabel', 'text', 'value'],
     ['.fieldlabel', 'text', 'general'],
+    ['.fieldlabel', 'text', 'pageNotes'],
+    ['.fieldlabel', 'text', 'groupNotes'],
     ['textarea', 'placeholder', 'notesPh'],
     ['textarea', 'placeholder', 'listPh'],
     ['textarea', 'placeholder', 'valuePh'],
-    ['textarea', 'placeholder', 'generalPh']
+    ['textarea', 'placeholder', 'generalPh'],
+    ['textarea', 'placeholder', 'groupNotesPh']
   ];
   CHROME.forEach(function (row) {
     var sel = row[0], kind = row[1], key = row[2];
@@ -789,6 +798,10 @@
   function isSettled(el) { return isDecided(el) && !isProposal(el); }
 
   function sealDecided() {
+    document.querySelectorAll('.consult-group').forEach(function (g) {
+      var t = groupNoteBox(g);
+      if (t && groupSettled(g)) t.disabled = true;
+    });
     items.forEach(function (el) {
       if (!isDecided(el)) return;
       el.querySelectorAll('input, select, textarea').forEach(function (i) {
@@ -889,8 +902,38 @@
   /* `n` counts ITEMS. The markdown array also carries one `## G1 · title` line
    * per block, and reporting ITS length said "12 de 9" on a nine-item page —
    * every block touched was counted as an answer (BL-268). */
+  /* A block's own free text (BL-701): the `.group-notes` box that closes each
+   * `.consult-group`. It is not an item (no id, no rail link, never counted as
+   * a question), so every place that walks `items` has to be told about it
+   * here instead. Its text travels in the paste right under the block's `## `
+   * heading, before the `### ` item blocks: a `### ` heading would read as an
+   * item answer, and text after the last item's block would be read as that
+   * item's own notes. An empty box adds nothing, not even the heading. */
+  function groupNoteBox(g) { return g.querySelector('.group-notes textarea'); }
+  function groupNoteText(g) { var t = groupNoteBox(g); return t ? t.value.trim() : ''; }
+  function groupHead(g) {
+    var head = '## ' + (g.dataset.id || g.id || '') + ' · ' + (g.dataset.title || ''), note = groupNoteText(g);
+    return note ? head + '\n\n' + note : head;
+  }
+  /* A block whose items are ALL settled folds into the decided section: nothing is asked of it
+   * any more, so its note is neither stored, restored, nor pasted, like a settled item's. */
+  function groupSettled(g) {
+    var its = [].slice.call(g.querySelectorAll('.consult-item'));
+    return its.length > 0 && its.every(isSettled);
+  }
+  function noteGroups() {
+    return [].slice.call(document.querySelectorAll('.consult-group'))
+      .filter(function (g) { return groupNoteBox(g) && !groupSettled(g); });
+  }
+
   function collect() {
     var answered = [], blank = [], lastGroup = null, n = 0, total = 0, proposals = 0, fixed = 0;
+    /* `nodes` runs beside `answered`: the page node each chunk came from, so a
+     * block whose only filled box is its own notes can be slotted in at the
+     * block's place in the page rather than at the end. */
+    var nodes = [], headed = [];
+    function put(node, text) { answered.push(text); nodes.push(node); }
+    function putHead(g) { put(g, groupHead(g)); headed.push(g); lastGroup = g; }
     items.forEach(function (el, i) {
       /* The general-notes item is NOT one of the questions, and counting it as
        * one made the page ask for something it never asked for: a reader who
@@ -913,11 +956,8 @@
         if (links[i]) links[i].classList.toggle('done', shown);
         if (fix) {
           var pg = el.closest('.consult-group');
-          if (pg && pg !== lastGroup) {
-            answered.push('## ' + (pg.dataset.id || pg.id || '') + ' \u00b7 ' + (pg.dataset.title || ''));
-            lastGroup = pg;
-          }
-          answered.push('### ' + el.dataset.id + ' \u00b7 ' + (el.dataset.title || '') + '\n\n' + fix);
+          if (pg && pg !== lastGroup) putHead(pg);
+          put(el, '### ' + el.dataset.id + ' \u00b7 ' + (el.dataset.title || '') + '\n\n' + fix);
         }
         return;
       }
@@ -938,13 +978,18 @@
          * answered item of each block, so the session that reads it sees the
          * grouping the reader answered under, not a flat list of ids. */
         var g = el.closest('.consult-group');
-        if (g && g !== lastGroup) {
-          answered.push('## ' + (g.dataset.id || g.id || '') + ' · ' + (g.dataset.title || ''));
-          lastGroup = g;
-        }
-        answered.push('### ' + el.dataset.id + ' · ' + (el.dataset.title || '') + '\n\n' + body);
+        if (g && g !== lastGroup) putHead(g);
+        put(el, '### ' + el.dataset.id + ' · ' + (el.dataset.title || '') + '\n\n' + body);
       }
       else if (!notes) blank.push(el.dataset.id);
+    });
+    /* A block with a note and no answered item still owes its heading + note. */
+    noteGroups().forEach(function (g) {
+      if (headed.indexOf(g) !== -1 || !groupNoteText(g)) return;
+      var at = nodes.findIndex(function (x) { return g.compareDocumentPosition(x) & 4; });
+      if (at === -1) at = nodes.length;
+      answered.splice(at, 0, groupHead(g));
+      nodes.splice(at, 0, g);
     });
     return { markdown: answered.join('\n\n'), answered: n, blank: blank,
              total: total, proposals: proposals, fixed: fixed };
@@ -1066,7 +1111,7 @@
     return h.toString(16);
   }
 
-  function questionHash(el) {
+  function questionHash(el, legacyLabel) {
     var clone = el.cloneNode(true);
     clone.querySelectorAll('[contenteditable]').forEach(function (c) { c.textContent = ''; });
     /* Chrome this file injects — the recommendation badges and the per-item
@@ -1092,6 +1137,9 @@
         if (c.textContent.trim() === L[row[2]]) c.textContent = STRINGS.en[row[2]];
       });
     });
+    if (legacyLabel !== undefined) {
+      clone.querySelectorAll('.fieldlabel').forEach(function (c) { c.textContent = legacyLabel; });
+    }
     /* The id badge prints the item's id, so it IS the id, not question text: a
      * kit that relabels the default notes badge (notes -> notas on an es page)
      * must not make every stored note read as "the question changed". Every
@@ -1107,6 +1155,18 @@
     });
     if (srcs.length) text += ' ' + srcs.join(' ');
     return fnv(text);
+  }
+
+  /* BL-701 reworded the page-level notes label. A general note stored under the
+   * old wording is the same question, so the stored fingerprint is also tried with
+   * each wording a page could have carried: the kit's English default (a hand-written
+   * page, or an English spec build) and spec_build's old Spanish one. A notes item
+   * that had no label at all cannot be matched this way: adding the label moves it. */
+  var LEGACY_PAGE_LABELS = ['Anything that does not fit above', 'Lo que no encaja arriba'];
+  function legacyNotesMatch(el, h) {
+    return el.classList.contains('consult-notes') && LEGACY_PAGE_LABELS.some(function (l) {
+      return h === questionHash(el, l);
+    });
   }
 
   function snapshotItem(el) {
@@ -1132,12 +1192,27 @@
     return any ? s : null;
   }
 
+  /* A block's note is stored beside the items under `group:<id>` (BL-701), with
+   * the same round / sent / fingerprint fields: the fingerprint is the block's
+   * title, so a renamed block does not get a note typed under the old name. The
+   * sent flag compares the copied text with the box's CURRENT text, as for items. */
+  function groupKey(g) { return 'group:' + (g.dataset.id || g.id || ''); }
+  function groupTitleHash(g) { return fnv(g.dataset.title || ''); }
+
   function save() {
     try {
       var data = {};
       items.forEach(function (el) {
         var s = snapshotItem(el);
         if (s) data[el.dataset.id] = s;
+      });
+      noteGroups().forEach(function (g) {
+        var note = groupNoteText(g);
+        if (!note) return;
+        var s = { a: [groupNoteBox(g).value], h: groupTitleHash(g) };
+        if (ROUND) s.r = ROUND;
+        if (copied[groupKey(g)] === fnv(note)) s.x = 1;
+        data[groupKey(g)] = s;
       });
       if (Object.keys(data).length) localStorage.setItem(STORE_KEY, JSON.stringify(data));
       else localStorage.removeItem(STORE_KEY);
@@ -1166,7 +1241,7 @@
          * not discarded: upgrading the kit must not blank answers a reader
          * already typed, and the first input event re-saves the entry with a
          * fingerprint. */
-        if (s.h && s.h !== questionHash(el)) { stale++; return; }
+        if (s.h && s.h !== questionHash(el) && !legacyNotesMatch(el, s.h)) { stale++; return; }
         /* Both rounds must be known before this can drop anything: an entry
          * saved before rounds existed has no `r`, and a page that predates the
          * marker has no ROUND. Either way the answer comes back, because
@@ -1209,6 +1284,15 @@
           // forgetting that here would make the next save record it as unsent.
           if (s.x) copied[el.dataset.id] = fnv(replyBody(el));
         }
+      });
+      noteGroups().forEach(function (g) {
+        var s = data[groupKey(g)];
+        if (!s || !s.a || !s.a[0] || !s.a[0].trim()) return;
+        if (s.h && s.h !== groupTitleHash(g)) { stale++; return; }
+        if (s.x && s.r && ROUND && s.r !== ROUND) { spent++; return; }
+        groupNoteBox(g).value = s.a[0];
+        n++;
+        if (s.x) copied[groupKey(g)] = fnv(s.a[0].trim());
       });
     } catch (e) { return { n: 0, stale: 0, spent: 0 }; }
     return { n: n, stale: stale, spent: spent };
@@ -1718,6 +1802,9 @@
     items.forEach(function (el) {
       var body = replyBody(el);
       if (body) copied[el.dataset.id] = fnv(body);
+    });
+    noteGroups().forEach(function (g) {
+      if (groupNoteText(g)) copied[groupKey(g)] = fnv(groupNoteText(g));
     });
     save();
     var msg = L.copied(r.answered + r.fixed) + (r.blank.length ? L.blankList(r.blank) : L.noneBlank);

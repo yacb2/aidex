@@ -463,11 +463,11 @@ galrow() {  # galrow <id> <inner-html>
     "$1" "$1" "$2" "$1" "$1"
 }
 block() {  # block <data-tiles-attr> <items>
-  printf '<section class="consult-group" id="E" data-id="E" data-title="The audit gallery"%s><div class="sec-head"><h2>The audit gallery</h2></div><p>The state matrix this block reviews, one row per screen state.</p>%s</section>' \
+  printf '<section class="consult-group" id="E" data-id="E" data-title="The audit gallery"%s><div class="sec-head"><h2>The audit gallery</h2></div><p>The state matrix this block reviews, one row per screen state.</p>%s<div class="group-notes"><p class="fieldlabel">Notes on this block</p><textarea></textarea></div></section>' \
     "$1" "$2"
 }
 header='<header><p class="eyebrow">FIXTURE</p><h1>Claim</h1><p class="standfirst">The thesis.</p></header>'
-notes='<section class="consult-item consult-notes" data-id="notes" data-title="General notes"><h3>General notes</h3><textarea></textarea></section>'
+notes='<section class="consult-item consult-notes" data-id="notes" data-title="General notes"><h3>General notes</h3><p class="fieldlabel">Notes for the whole page</p><textarea></textarea></section>'
 bars='<div class="endbar"><button type="button" id="consult-copy-end">Copy</button><span class="consult-status" id="consult-status-end"></span></div>'
 railbar='<div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div>'
 tiles_attr=' data-tiles="light-desktop dark-desktop light-mobile dark-mobile"'

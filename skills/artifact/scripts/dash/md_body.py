@@ -65,6 +65,10 @@ CHROME = {
     "valuePh": {"en": "Anything the value alone does not say…",
                 "es": "Cualquier cosa que el valor por sí solo no diga…"},
     "generalPh": {"en": "Whatever it is…", "es": "Lo que sea…"},
+    "pageNotes": {"en": "Notes for the whole page", "es": "Notas de la página"},
+    "groupNotes": {"en": "Notes on this block", "es": "Notas de este bloque"},
+    "groupNotesPh": {"en": "Anything about the block as a whole…",
+                     "es": "Lo que afecta a todo el bloque…"},
 }
 
 

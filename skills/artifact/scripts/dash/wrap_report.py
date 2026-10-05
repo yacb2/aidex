@@ -558,8 +558,10 @@ CHROME_SITES = (
     ("contents", "text", r'<p class="railhead">'),
     ("notes", "text", _LABEL), ("choice", "text", _LABEL),
     ("value", "text", _LABEL), ("general", "text", _LABEL),
+    ("pageNotes", "text", _LABEL), ("groupNotes", "text", _LABEL),
     ("notesPh", "placeholder", None), ("listPh", "placeholder", None),
     ("valuePh", "placeholder", None), ("generalPh", "placeholder", None),
+    ("groupNotesPh", "placeholder", None),
 )
 
 
@@ -769,8 +771,13 @@ def question_texts(text):
     """
     import check_artifact as ca
 
-    def question_of(body):
+    def question_of(body, notes=False):
         body = chrome_to_english(re.sub(r"<!--.*?-->", "", body, flags=re.S))
+        # Mirrors composer.js `legacyNotesMatch` (BL-701): the page-level notes
+        # label was reworded, and an old wording is the same question.
+        if notes:
+            body = re.sub(r">\s*(?:Notes for the whole page|Lo que no encaja arriba)\s*<",
+                          ">Anything that does not fit above<", body)
         kept, pos = [], 0
         for m in QUESTION_DROP.finditer(body):
             if m.start() < pos:
@@ -794,7 +801,8 @@ def question_texts(text):
     for m in CONSULT_ITEM_OPEN.finditer(text):
         ident = _attr(ATTR_ID, m.group(0))
         if ident:
-            out[ident] = question_of(ca._subtree(text, m.group(1), m.end()))
+            out[ident] = question_of(ca._subtree(text, m.group(1), m.end()),
+                                     "consult-notes" in ca._class_tokens(m.group(0)))
     return out
 
 

@@ -48,9 +48,9 @@ mkpage() {
 }
 
 visual='<meta name="consult-visual" content="none: the subject is a single number, so there is no shape to draw">'
-notesitem='<section class="consult-item consult-notes" data-id="notes" data-title="General notes"><h3>General notes</h3><textarea></textarea></section>'
+notesitem='<section class="consult-item consult-notes" data-id="notes" data-title="General notes"><h3>General notes</h3><p class="fieldlabel">Notes for the whole page</p><textarea></textarea></section>'
 gopen='<section class="consult-group" id="G1" data-id="G1" data-title="The context"><div class="sec-head"><h2>The context</h2></div><p>What the decisions below share.</p>'
-gclose='</section>'
+gclose='<div class="group-notes"><p class="fieldlabel">Notes on this block</p><textarea></textarea></div></section>'
 bars='<main><div class="endbar"><button type="button" id="consult-copy-end">Copy</button></div></main><aside class="rail"><div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div></aside>'
 kit="$(printf '<style>\n'; cat "$KIT/tokens.css"; printf '</style>\n<style>\n'; \
        cat "$KIT/components.css"; printf '</style>\n')"
@@ -69,7 +69,7 @@ $gopen
   <h3>$heading</h3>
   <p>What is at stake, and what each answer costs, in one short paragraph.</p>
   $2
-  <textarea></textarea>
+  <p class=fieldlabel>Free text</p><textarea></textarea>
 </section>
 $gclose
 $notesitem
@@ -84,7 +84,7 @@ $gopen
 <section class=\"consult-item\" data-decided=\"First option\" data-id=\"Q1\" data-free data-title=\"The first claim\">
   <h3>The question, asked as a question</h3>
   <p>What is at stake, and what each answer costs, in one short paragraph.</p>
-  <textarea></textarea>
+  <p class=fieldlabel>Free text</p><textarea></textarea>
 </section>
 $gclose
 $notesitem
@@ -140,7 +140,7 @@ $gopen
 <section class=\"consult-item\" data-id=\"Q1\" data-free data-title=\"The first claim\">
   <h3>Q1</h3>
   <p>Shorter.</p>
-  <textarea></textarea>
+  <p class=fieldlabel>Free text</p><textarea></textarea>
 </section>
 $gclose
 $notesitem
@@ -375,7 +375,7 @@ mkdir -p "$TMP/pageg"
 gpage() {  # $1=extra markup outside the row  $2=the row's capture file
   mkpage "$PAGEG" "$1
 <section class=\"consult-item consult-gallery\" data-id=\"x-full-light-desktop\" data-title=\"x · full · light-desktop\">
-  <h3>x full</h3><figure class=\"gal-tile\"><img src=\"$2\"></figure><textarea></textarea>
+  <h3>x full</h3><figure class=\"gal-tile\"><img src=\"$2\"></figure><p class=fieldlabel>Free text</p><textarea></textarea>
 </section>"
 }
 gpage '<p>v1</p>' 'x-full-v1.png'
@@ -512,8 +512,8 @@ wflow d "$UNREQ
 # row — never go green with the duty unmet.
 ST="$TMP/stale"; mkdir -p "$ST"
 spage() {  # $1=Q1 claim  $2=trailing markup
-  mkpage "$ST/page.html" "<section class=\"consult-item\" data-id=\"Q1\" data-title=\"Q1\"><h3>Q1</h3><p>$1</p><textarea></textarea></section>
-<section class=\"consult-item consult-gallery\" data-id=\"x-full-light-desktop\" data-title=\"x · full · light-desktop\"><h3>x full</h3><figure class=\"gal-tile\"><img src=\"v1.png\"></figure><textarea></textarea></section>
+  mkpage "$ST/page.html" "<section class=\"consult-item\" data-id=\"Q1\" data-title=\"Q1\"><h3>Q1</h3><p>$1</p><p class=fieldlabel>Free text</p><textarea></textarea></section>
+<section class=\"consult-item consult-gallery\" data-id=\"x-full-light-desktop\" data-title=\"x · full · light-desktop\"><h3>x full</h3><figure class=\"gal-tile\"><img src=\"v1.png\"></figure><p class=fieldlabel>Free text</p><textarea></textarea></section>
 $2"
 }
 spage 'Round one claim about the cache.' ''
@@ -549,7 +549,7 @@ echo "$st_out" | grep >/dev/null 'gallery row x-full-light-desktop' \
 # the next save replaces reply.md and re-snapshots.
 DC="$TMP/decided"; mkdir -p "$DC"
 dpage() {  # $1=attributes on the row
-  mkpage "$DC/page.html" "<p>$2</p><section class=\"consult-item consult-gallery\" $1 data-id=\"x-full-light-desktop\" data-title=\"x · full · light-desktop\"><h3>x full</h3><figure class=\"gal-tile\"><img src=\"v1.png\"></figure><textarea></textarea></section>"
+  mkpage "$DC/page.html" "<p>$2</p><section class=\"consult-item consult-gallery\" $1 data-id=\"x-full-light-desktop\" data-title=\"x · full · light-desktop\"><h3>x full</h3><figure class=\"gal-tile\"><img src=\"v1.png\"></figure><p class=fieldlabel>Free text</p><textarea></textarea></section>"
 }
 dpage '' 'v1'
 printf '%s' '### x-full-light-desktop · x · full · light-desktop
@@ -575,14 +575,14 @@ import check_artifact as ca
 for _, _, msg in ca.check_marker_duties(sys.argv[2])[1]: print(msg)
 P
 }
-row_html='<section class="consult-item consult-gallery" data-id="x-full-light-desktop" data-title="x · full · light-desktop"><h3>x full</h3><figure class="gal-tile"><img src="v1.png"></figure><textarea></textarea></section>'
-q_html='<section class="consult-item" data-id="Q1" data-title="Q1"><h3>Q1</h3><p>claim</p><textarea></textarea></section>'
+row_html='<section class="consult-item consult-gallery" data-id="x-full-light-desktop" data-title="x · full · light-desktop"><h3>x full</h3><figure class="gal-tile"><img src="v1.png"></figure><p class=fieldlabel>Free text</p><textarea></textarea></section>'
+q_html='<section class="consult-item" data-id="Q1" data-title="Q1"><h3>Q1</h3><p>claim</p><p class=fieldlabel>Free text</p><textarea></textarea></section>'
 
 # D9. an ORDINARY item whose heading has the old light/dark row shape
 # (`cache-ttl · cache · ttl`) is not a gallery row: no "could not be read"
 # WARN at the gate, and save-reply prints no [unreadable] duty for it.
 P9="$TMP/d9"; mkdir -p "$P9"
-mkpage "$P9/page.html" '<section class="consult-item" data-id="cache-ttl" data-title="cache · ttl"><h3>TTL</h3><p>claim</p><textarea></textarea></section>'
+mkpage "$P9/page.html" '<section class="consult-item" data-id="cache-ttl" data-title="cache · ttl"><h3>TTL</h3><p>claim</p><p class=fieldlabel>Free text</p><textarea></textarea></section>'
 out9="$(printf '%s' '### cache-ttl · cache · ttl
 
 - [explain-why]
@@ -750,7 +750,7 @@ rc="$(run "$R/page.html" --prev "$R/.aidex-artifact-prev/page.html")"
 printf '### Q1 · Q1\n\n- [show-me]\n\nno entiendo\n' > "$R/.aidex-artifact-prev/page.reply.md"
 mkpage "$R/.aidex-artifact-prev/page.answered.html" "$visual
 $gopen
-<section class=\"consult-item\" data-id=\"Q9\" data-free data-title=\"A different item\"><h3>Q9</h3><textarea></textarea></section>
+<section class=\"consult-item\" data-id=\"Q9\" data-free data-title=\"A different item\"><h3>Q9</h3><p class=fieldlabel>Free text</p><textarea></textarea></section>
 $gclose
 $notesitem
 $bars

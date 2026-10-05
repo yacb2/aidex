@@ -208,6 +208,20 @@ rc=$?
 [[ "$rc" == 0 ]] || fail "re-wrapping a plain report exits $rc: $(cat "$err")"
 grep -q "$NOTE_RE" "$err" && fail "a report with no consult items reports changed questions: $(cat "$err")"
 
+# BL-701 reworded the page-level notes label; composer.js legacyNotesMatch restores a note stored under
+# the old wording, so the first rebuild must not announce that the notes question changed.
+notes() { printf '<section class="consult-item consult-notes" data-id="notes" data-title="Notas"><h3>Notas</h3><p class="fieldlabel">%s</p><textarea></textarea></section>' "$1"; }
+for old in 'Lo que no encaja arriba' 'Anything that does not fit above' 'Cualquier cosa que no encaje arriba'; do
+  got="$(changed "$(notes "$old")" "$(notes 'Notas de la página')")"
+  [[ -z "$got" ]] || fail "the page notes label reworded from '$old' reports '$got' as a changed question"
+done
+# An ORDINARY item is not the page notes: the legacy wording is its own label and a change still reports.
+ordinary() { printf '<section class="consult-item" data-id="Q9" data-title="T"><h3>T</h3><p class="fieldlabel">%s</p><textarea></textarea></section>' "$1"; }
+got="$(changed "$(ordinary 'Lo que no encaja arriba')" "$(ordinary 'Notes for the whole page')")"
+[[ "$got" == "Q9" ]] || fail "an ordinary item's label changing from the legacy page wording reports '$got', expected 'Q9'"
+got="$(changed "$(notes 'Lo que no encaja arriba')" "$(notes 'Mis propias notas')")"
+[[ "$got" == "notes" ]] || fail "an author's own page-notes label reports '$got', expected 'notes'"
+
 if [[ "$failures" -eq 0 ]]; then
   echo "test-question-changed-note.sh: all checks passed"
 else

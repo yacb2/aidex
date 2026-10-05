@@ -28,7 +28,11 @@ Checks (per file):
                with a decision, nothing but blocks between the first block and
                the general notes, only header/figure/ledger before them (BL-247),
                and no block or item after the general notes — reference
-               sections may follow them (BL-457)
+               sections may follow them (BL-457). Free text at three levels,
+               each box with a visible label: every block ends with a
+               `.group-notes` box, and the notes box of the page, a block and
+               an item carries a `.fieldlabel` after the control before it
+               (BL-701)
   consult-ids  with --prev: an id kept between two regenerations still names
                the same claim (unless the page declares a reword with the
                `consult-retitled` meta, a note not a failure, BL-611), and no
@@ -2960,6 +2964,10 @@ GROUP_OPEN = re.compile(r'<([a-zA-Z][\w:-]*)\b[^>]*\bclass\s*=\s*["\'][^"\']*'
                         r'\bconsult-group\b[^>]*>', re.I | re.S)
 NOTES_OPEN = re.compile(r'<([a-zA-Z][\w:-]*)\b[^>]*\bclass\s*=\s*["\'][^"\']*'
                         r'\bconsult-notes\b[^>]*>', re.I | re.S)
+GROUP_NOTES_OPEN = re.compile(r'<([a-zA-Z][\w:-]*)\b[^>]*\bclass\s*=\s*["\']?[^"\'>]*'
+                              r'\bgroup-notes\b[^>]*>', re.I | re.S)
+FIELDLABEL_OPEN = re.compile(r'<([a-zA-Z][\w:-]*)\b[^>]*\bclass\s*=\s*["\']?[^"\'>]*'
+                             r'\bfieldlabel\b[^>]*>', re.I | re.S)
 SECTION_OPEN = re.compile(r'<section\b[^>]*>', re.I | re.S)
 H2 = re.compile(r'<h2\b[^>]*>(.*?)</h2\s*>', re.I | re.S)
 PROSE = re.compile(r'<(p|table|ul|ol|dl|blockquote|pre)\b', re.I)
@@ -2974,6 +2982,25 @@ def _tag_attr(tag, name):
 def _h2_text(fragment):
     m = H2.search(fragment)
     return " ".join(re.sub(r'<[^>]+>', '', m.group(1)).split()) if m else "(untitled)"
+
+
+def _box_label(body):
+    """None when `body` has no textarea; else whether a `.fieldlabel` with
+    visible text sits between the control before its last textarea and the
+    textarea itself (True/False): a label for the options above does not name
+    the notes box."""
+    # the kit-marks channel is a hidden textarea beside the notes box, not the box
+    tas = [m for m in re.finditer(r'<textarea\b[^>]*>', body, re.I)
+           if not re.search(r'\bclass\s*=\s*["\'][^"\']*\bkit-marks\b', m.group(0))]
+    if not tas:
+        return None
+    last = tas[-1].start()
+    prev = [m.end() for m in re.finditer(r'<(?:input|select|textarea)\b|contenteditable',
+                                         body[:last], re.I)]
+    for m in FIELDLABEL_OPEN.finditer(body, prev[-1] if prev else 0, last):
+        if re.sub(r'<[^>]+>', '', _subtree(body, m.group(1), m.end())).strip():
+            return True
+    return False
 
 
 def _strip_subtrees(fragment, opener):
@@ -3098,6 +3125,38 @@ def check_shape(path, text):
 
     def in_group(pos):
         return any(a <= pos < b for _, _, a, b in groups)
+
+    # Free text at three levels (BL-701): the page, the block and the item each
+    # carry a notes box WITH a visible label (a placeholder vanishes on the
+    # first keystroke, and a reader who could not find the box sent nothing).
+    # The item and page boxes are judged where they have a textarea at all (an
+    # item with none is the free-text rule's FAIL, and a row that asks nothing
+    # has no box); the block box is required of every block.
+    for ident, _, a, b in groups:
+        body = strip_html_comments(strip_script_style(text[a:b]))
+        gm = GROUP_NOTES_OPEN.search(body)
+        label = _box_label(_subtree(body, gm.group(1), gm.end())) if gm else None
+        if label is None:
+            report(f"block '{ident}' has no notes box of its own — free text "
+                   f"exists at three levels (page, block, item) and a block's "
+                   f"is <div class=\"group-notes\"><p class=\"fieldlabel\">"
+                   f"…</p><textarea></textarea></div>, last in the block "
+                   f"(02-local-first-artifacts.md § 8.3)")
+        elif label is False:
+            report(f"block '{ident}': its notes box has no visible label — a "
+                   f"<p class=\"fieldlabel\"> with text before the <textarea>; "
+                   f"a placeholder is not a label")
+    for m in ITEM_OPEN.finditer(text):
+        toks = _class_tokens(m.group(0))
+        if "consult-item" not in toks or "consult-group" in toks:
+            continue
+        ident = next(g for g in m.groups()[1:] if g is not None)
+        body = strip_html_comments(strip_script_style(_subtree(text, m.group(1), m.end())))
+        if _box_label(body) is False:
+            what = "the general-notes item" if "consult-notes" in toks else f"item '{ident}'"
+            report(f"{what}: its notes box has no visible label — a "
+                   f"<p class=\"fieldlabel\"> with text before the <textarea>; "
+                   f"a placeholder is not a label (02-local-first-artifacts.md § 8.3)")
 
     # Every item lives inside a block — the general-notes item excepted, it is
     # the one item that answers to no context.
@@ -3401,6 +3460,7 @@ def check_consultation(path, text, flat):
 # a reply is saved, EVERY later wrap of the page is judged against that same
 # answered snapshot, until a newer reply replaces it.
 REPLY_ITEM = re.compile(r"^### (\S+) · ", re.M)
+REPLY_BLOCK = re.compile(r"^## ", re.M)
 # BL-569: a reply pasted in chat format (`Q1: ...`, `### Q1 · ...`) is a reply
 # too (SKILL.md: chat replies are saved the same way as composer replies).
 _MARK_TOKEN = re.compile(r"\[([a-z][a-z-]*)\]")
@@ -3514,6 +3574,11 @@ def marker_duties_of(reply_text):
     heads = list(REPLY_ITEM.finditer(reply_text))
     for k, h in enumerate(heads):
         end = heads[k + 1].start() if k + 1 < len(heads) else len(reply_text)
+        # A `## ` heading ends the item's block too: the next block's own note
+        # (BL-701) sits under it, and is not this item's answer.
+        block = REPLY_BLOCK.search(reply_text, h.end(), end)
+        if block:
+            end = block.start()
         ident = h.group(1)
         marks = ASK_LINE.findall(reply_text, h.end(), end)
         if not marks:
@@ -4280,7 +4345,9 @@ def main(argv):
             print(f"  NOTE [warnings] the advisory scan did not run ({e})")
 
     prev_notes = []
-    if prev is not None:
+    # A page that does not exist is already a `missing` FAIL above; comparing it
+    # with a previous version would only crash on opening it.
+    if prev is not None and os.path.isfile(files[0]):
         prev_fails, prev_notes = check_prev(files[0], prev)
         failures.extend(prev_fails)
         duty_fails, duty_warns = check_marker_duties(files[0])

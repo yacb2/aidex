@@ -166,6 +166,8 @@ grep -q 'id="consult-copy"' "$KIT/skeleton.html" \
 grep -q 'id="consult-status"' "$KIT/skeleton.html" \
   || fail "skeleton.html has no id=\"consult-status\""
 n_area="$(grep -oiE '<textarea|contenteditable=' "$KIT/skeleton.html" | wc -l | tr -d ' ')"
+# A block's own notes box (`group-notes`, BL-701) is a reply box with no item of its own.
+n_area=$(( n_area - $(grep -oiE 'class="group-notes"' "$KIT/skeleton.html" | wc -l) ))
 # A block (`consult-group`) carries data-id/data-title for --prev but is not an item.
 n_id="$(grep -viE 'consult-group' "$KIT/skeleton.html" | grep -oiE 'data-id=' | wc -l | tr -d ' ')"
 n_title="$(grep -viE 'consult-group' "$KIT/skeleton.html" | grep -oiE 'data-title=' | wc -l | tr -d ' ')"

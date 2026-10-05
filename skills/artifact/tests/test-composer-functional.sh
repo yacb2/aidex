@@ -125,6 +125,12 @@ rm -rf "$TMP/profile"
 # A Spanish consultation page, so the run also proves the localised chrome:
 # the skeleton ships English button labels and the composer must swap them.
 mkdir -p "$TMP/reports"
+# These probes test the COMPOSER, and their hand-written pages predate the notes boxes check-artifact
+# requires of every block and item (BL-701). Every wrap below goes through a shim that adds the missing
+# ones, so no fixture has to repeat them; the BL-701 probe carries its own and the fixup leaves those alone.
+REAL_WRAP="$WRAP"
+WRAP="$TMP/wrap-with-boxes.sh"
+printf '#!/usr/bin/env bash\npython3 "%s" | bash "%s" "$@"\n' "$SKILL/tests/consult_box_fixup.py" "$REAL_WRAP" > "$WRAP"
 gopen='<section class="consult-group" id="G1" data-id="G1" data-title="The context"><div class="sec-head"><h2>The context</h2></div><p>What the decisions below share.</p>'
 gclose='</section>'
 PAGE="$TMP/reports/consult.html"
@@ -2539,7 +2545,12 @@ window.addEventListener('load', function () {
          computed for it before gallery rows hashed their tiles. */
       localStorage.setItem('aidex-kit-answers:' + location.pathname, JSON.stringify({
         'audit-with-data': { m: ['Approved'], a: ['notes from phase 3'] },
-        'notes': { a: ['general from phase 3'], h: 'd6d63aa3' }
+        /* Re-pinned (BL-701): the wrap shim now gives this probe's label-less notes item the label
+           check-artifact requires, which moves its fingerprint. The rule under test (a gallery-row
+           hash rule must not move a non-gallery item's hash) is unchanged, but this pin no longer
+           proves a Phase-3 entry for a LABEL-LESS notes item still restores: it does not, and no
+           kit change can make it (see the report's left-alone list). */
+        'notes': { a: ['general from phase 3'], h: 'fd6c937e' }
       }));
       document.title = 'GMOLDSET|DONE';
     } else if (q.indexOf('phase=gmold') !== -1) {
@@ -4447,6 +4458,150 @@ CHROME_WINDOW=1280,900 chrome_dump "$L700/dom4.html" "file://$TMP/reports/l700.h
 tl4="$(grep -oE '<title>[^<]*</title>' "$L700/dom4.html" | sed -n 1p)"
 [[ "$tl4" == *"|P1=Si|P2=Si|HAS1=0|"* ]] \
   || fail "BL-700: a stored selection matching no option of the proposal must leave the proposed Si checked: $tl4"
+
+# ---- BL-701: each block's own notes box reaches the reply under the block's `## ` heading ----
+# Free text exists at three levels (page, block, item); the block level had no box. Layer: browser,
+# because what the copied reply carries, what counts as "something to copy" and what a reload gives
+# back are the composer's calls. Newlines are shown as "~" in the probe's title.
+L701="$TMP/l701"; mkdir -p "$L701"
+{
+  printf '%s\n' '<meta name="consult-visual" content="none: a layout probe, nothing to draw">' \
+    '<div class="page"><main class="main"><header><p class="eyebrow">PROBE</p><h1>Block notes</h1></header>' \
+    '<section id="sec-ask"><div class="sec-head"><h2>Questions</h2></div>'
+  for g in "G1 Uno Q1" "G2 Dos Q2"; do
+    set -- $g
+    printf '<section class="consult-group" id="%s" data-id="%s" data-title="%s"><p>Contexto</p>\n' "$1" "$1" "$2"
+    printf '<section class="consult-item" data-id="%s" data-title="Pregunta %s"><h3><span class="consult-id">%s</span>Pregunta?</h3>\n<div class="opts one"><label><input type="radio" name="%s" data-label="Si"><span>Si</span></label><label><input type="radio" name="%s" data-label="No"><span>No</span></label></div>\n<p class="fieldlabel">Notas sobre esto</p><textarea></textarea></section>\n' "$3" "$3" "$3" "$3" "$3"
+    printf '<div class="group-notes"><p class="fieldlabel">Notas de este bloque</p><textarea></textarea></div>\n</section>\n'
+  done
+  printf '%s\n' '<div class="endbar"><button type="button" id="consult-copy-end">Copy</button><span class="consult-status" id="consult-status-end"></span></div>' \
+    '<section class="consult-item consult-notes" data-id="notes" data-title="Notas generales"><h3>Notas generales</h3><p class="fieldlabel">Notas de la p&aacute;gina</p><textarea></textarea></section>' \
+    '</section></main><aside class="rail"><p class="railhead">Contenido</p><nav class="raillist" id="raillist"></nav>' \
+    '<div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div></aside></div>'
+  cat <<'PROBE'
+<script>/* Runs BEFORE the composer. spent: a block note stored as SENT in an earlier round.
+   * formrestore: the browser put the text into the box on a same-tab reload before the composer ran. */
+(function () {
+  var q = location.search;
+  if (q.indexOf("phase=spent") > -1) localStorage.setItem("aidex-kit-answers:" + location.pathname,
+    JSON.stringify({ "group:G1": { a: ["ya enviada"], r: "0", x: 1 }, "group:G2": { a: ["sin enviar"], r: "0" } }));
+  if (q.indexOf("phase=formrestore") > -1) document.querySelector('#G2 .group-notes textarea').value = "del navegador";
+  /* settled: G1's items are all decided (page l701s). renamed: G2's stored note carries another title's hash. */
+  if (q.indexOf("phase=settled") > -1) localStorage.setItem("aidex-kit-answers:" + location.pathname,
+    JSON.stringify({ "group:G1": { a: ["vieja"], r: "0" } }));
+  if (q.indexOf("phase=partial") > -1) localStorage.setItem("aidex-kit-answers:" + location.pathname,
+    JSON.stringify({ "group:G1": { a: ["viva"], r: "0" } }));
+  if (q.indexOf("phase=renamed") > -1) localStorage.setItem("aidex-kit-answers:" + location.pathname,
+    JSON.stringify({ "group:G2": { a: ["bajo otro nombre"], h: "deadbeef" } }));
+})();</script>
+<script>window.addEventListener("load", function () {
+  var box = function (g) { return document.querySelector("#" + g + " .group-notes textarea"); };
+  var cap = null;
+  Object.defineProperty(navigator, "clipboard", { configurable: true,
+    value: { writeText: function (s) { cap = s; return Promise.resolve(); } } });
+  var copy = function () { cap = null; document.getElementById("consult-copy").click(); return (cap || "NONE").replace(/\n/g, "~").replace(/[|<>]/g, " "); };
+  var type = function (el, v) { el.value = v; el.dispatchEvent(new Event("input", { bubbles: true })); };
+  var ph = location.search.match(/phase=(\w+)/); ph = ph ? ph[1] : "";
+  if (ph === "notesset") {
+    type(document.querySelector(".consult-notes textarea"), "nota general");
+    document.title = "L701N|SET|";
+    return;
+  }
+  if (ph) {
+    document.title = "L701R|G1=" + box("G1").value + "|G2=" + box("G2").value + "|G1OFF=" + (box("G1").disabled ? 1 : 0) + "|REPLY=" + copy() + "|";
+    return;
+  }
+  var r0 = copy();
+  type(box("G1"), "   ");
+  var rBlank = copy();
+  type(box("G1"), "nota uno");
+  var rOnly = copy();
+  var q2 = document.querySelector('[data-id="Q2"] input[data-label="No"]');
+  q2.checked = true; q2.dispatchEvent(new Event("change", { bubbles: true }));
+  var rBoth = copy();
+  var q1 = document.querySelector('[data-id="Q1"] input[data-label="Si"]');
+  q1.checked = true; q1.dispatchEvent(new Event("change", { bubbles: true }));
+  type(box("G2"), "nota dos");
+  var rAll = copy();
+  document.title = "L701|LAB=" + document.querySelectorAll(".group-notes .fieldlabel").length
+    + "|R0=" + r0 + "|RBLANK=" + rBlank + "|RONLY=" + rOnly + "|RBOTH=" + rBoth + "|RALL=" + rAll + "|";
+});</script>
+PROBE
+} > "$L701/body.html"
+bash "$WRAP" --title "l701" --lang es --out "$TMP/reports/l701.html" < "$L701/body.html" > "$L701/wrap.log" 2>&1 \
+  || fail "BL-701: the block-notes probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$L701/wrap.log" | sed -n 1,4p)"
+rm -rf "$TMP/profile"
+CHROME_WINDOW=1280,900 chrome_dump "$L701/dom.html" "file://$TMP/reports/l701.html" 45 || true
+t1="$(grep -oE '<title>[^<]*</title>' "$L701/dom.html" | sed -n 1p)"
+[[ "$t1" == *"|R0=NONE|RBLANK=NONE|"* ]] \
+  || fail "BL-701: empty and whitespace-only block notes must add nothing (want R0=NONE|RBLANK=NONE): $t1"
+[[ "$t1" == *"|RONLY=## G1 · Uno~~nota uno|"* ]] \
+  || fail "BL-701: a block note with no answered item must still be sendable, under the block's heading and with no ### block (want 'RONLY=## G1 · Uno~~nota uno'): $t1"
+[[ "$t1" == *"|RBOTH=## G1 · Uno~~nota uno~~## G2 · Dos~~### Q2 · Pregunta Q2~~- No|"* ]] \
+  || fail "BL-701: a note-only block and an answered block must come out in page order, the empty G2 note adding nothing: $t1"
+[[ "$t1" == *"|RALL=## G1 · Uno~~nota uno~~### Q1 · Pregunta Q1~~- Si~~## G2 · Dos~~nota dos~~### Q2 · Pregunta Q2~~- No|"* ]] \
+  || fail "BL-701: a block note must sit under its '## ' heading, before that block's '### ' items: $t1"
+# Reload: the notes come back from storage and are copied again.
+CHROME_WINDOW=1280,900 chrome_dump "$L701/dom2.html" "file://$TMP/reports/l701.html?phase=reload" 45 || true
+t2="$(grep -oE '<title>[^<]*</title>' "$L701/dom2.html" | sed -n 1p)"
+[[ "$t2" == *"|G1=nota uno|G2=nota dos|"* && "$t2" == *"|REPLY=## G1 · Uno~~nota uno~~### Q1"*"## G2 · Dos~~nota dos~~### Q2"* ]] \
+  || fail "BL-701: block notes must survive a reload and reach the reply again: $t2"
+# Same-tab reload: the browser restored the text into the box before the composer ran, nothing in storage.
+rm -rf "$TMP/profile"
+CHROME_WINDOW=1280,900 chrome_dump "$L701/dom3.html" "file://$TMP/reports/l701.html?phase=formrestore" 45 || true
+t3="$(grep -oE '<title>[^<]*</title>' "$L701/dom3.html" | sed -n 1p)"
+[[ "$t3" == *"|G2=del navegador|"* && "$t3" == *"|REPLY=## G2 · Dos~~del navegador|"* ]] \
+  || fail "BL-701: a note the browser restored into the box before the composer ran is the reader's own and must be copied: $t3"
+# A later round: a note already SENT is not handed back, an unsent one is.
+rm -rf "$TMP/profile"
+CHROME_WINDOW=1280,900 chrome_dump "$L701/dom4.html" "file://$TMP/reports/l701.html?phase=spent" 45 || true
+t4="$(grep -oE '<title>[^<]*</title>' "$L701/dom4.html" | sed -n 1p)"
+[[ "$t4" == *"|G1=|G2=sin enviar|"* ]] \
+  || fail "BL-701: a block note sent in an earlier round must not come back, an unsent one must (want G1= empty, G2=sin enviar): $t4"
+# A block renamed since the note was typed: the stored fingerprint no longer matches, so it is stale.
+rm -rf "$TMP/profile"
+CHROME_WINDOW=1280,900 chrome_dump "$L701/dom7.html" "file://$TMP/reports/l701.html?phase=renamed" 45 || true
+t7="$(grep -oE '<title>[^<]*</title>' "$L701/dom7.html" | sed -n 1p)"
+[[ "$t7" == *"|G1=|G2=|G1OFF=0|REPLY=NONE|"* ]] \
+  || fail "BL-701: a stored block note whose title fingerprint differs (block renamed) must come back stale, not restored: $t7"
+# A block whose items are ALL settled folds away: its stored note is not restored, pasted or editable.
+sed 's|data-id="Q1" data-title="Pregunta Q1"|data-id="Q1" data-title="Pregunta Q1" data-decided="Si"|' "$L701/body.html" > "$L701/body-settled.html"
+bash "$WRAP" --title "l701s" --lang es --out "$TMP/reports/l701s.html" < "$L701/body-settled.html" > "$L701/wrap-s.log" 2>&1 \
+  || fail "BL-701: the settled-block probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$L701/wrap-s.log" | sed -n 1,3p)"
+rm -rf "$TMP/profile"
+CHROME_WINDOW=1280,900 chrome_dump "$L701/dom8.html" "file://$TMP/reports/l701s.html?phase=settled" 45 || true
+t8="$(grep -oE '<title>[^<]*</title>' "$L701/dom8.html" | sed -n 1p)"
+[[ "$t8" == *"|G1=|"* && "$t8" == *"|G1OFF=1|"* && "$t8" != *"## G1"* && "$t8" != *vieja* ]] \
+  || fail "BL-701: a note stored for a block whose items are all settled must not be restored into the hidden box or pasted, and the box is disabled (want G1= empty, G1OFF=1, no '## G1'): $t8"
+# A block with one settled item and one OPEN item is still asked: its stored note comes back and is pasted.
+perl -0pe 's{(<section class="consult-item" data-id="Q1".*?</section>)}{my $x = $1; $x . ($x =~ s/Q1/Q3/gr =~ s/ data-decided="Si"//r)}se' "$L701/body-settled.html" > "$L701/body-partial.html"
+bash "$WRAP" --title "l701p" --lang es --out "$TMP/reports/l701p.html" < "$L701/body-partial.html" > "$L701/wrap-p.log" 2>&1 \
+  || fail "BL-701: the partly settled block probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$L701/wrap-p.log" | sed -n 1,3p)"
+rm -rf "$TMP/profile"
+CHROME_WINDOW=1280,900 chrome_dump "$L701/dom9.html" "file://$TMP/reports/l701p.html?phase=partial" 45 || true
+t9="$(grep -oE '<title>[^<]*</title>' "$L701/dom9.html" | sed -n 1p)"
+[[ "$t9" == *"|G1=viva|"* && "$t9" == *"|G1OFF=0|"* && "$t9" == *"|REPLY=## G1 · Uno~~viva"* ]] \
+  || fail "BL-701: a block with one settled and one open item is still asked: its stored note must be restored and pasted (want G1=viva, '## G1 · Uno~~viva'): $t9"
+[[ "$t1" == *"|LAB=2|"* ]] \
+  || fail "BL-701: each block's notes box carries a visible label (want LAB=2): $t1"
+# The page-level label changed wording (BL-701). A general note typed under the OLD label, on a page
+# rebuilt at the same path with the new one, is the same question and must come back, not read as stale.
+#   composer's old es default (a hand-written page) and spec_build's old es label (a spec-built page).
+n=0
+for legacy in 'Cualquier cosa que no encaje arriba' 'Lo que no encaja arriba'; do
+  n=$((n + 1)); lp="$TMP/reports/l701b$n.html"
+  sed "s|Notas de la p&aacute;gina|$legacy|" "$L701/body.html" > "$L701/body-legacy$n.html"
+  bash "$WRAP" --title "l701" --lang es --out "$lp" < "$L701/body-legacy$n.html" > "$L701/wrap-b1-$n.log" 2>&1 \
+    || fail "BL-701: the legacy-label probe ($legacy) failed to wrap"
+  rm -rf "$TMP/profile"
+  CHROME_WINDOW=1280,900 chrome_dump "$L701/dom5-$n.html" "file://$lp?phase=notesset" 45 || true
+  bash "$WRAP" --title "l701" --lang es --out "$lp" < "$L701/body.html" > "$L701/wrap-b2-$n.log" 2>&1 \
+    || fail "BL-701: the rebuilt page failed to wrap"
+  CHROME_WINDOW=1280,900 chrome_dump "$L701/dom6-$n.html" "file://$lp?phase=reload" 45 || true
+  t6="$(grep -oiE '<title>[^<]*</title>' "$L701/dom6-$n.html" | sed -n 1p)"
+  [[ "$t6" == *"|REPLY="*"### notes · Notas generales~~nota general"* ]] \
+    || fail "BL-701: a general note typed under the old page label '$legacy' must be restored on the rebuilt page (label reworded, question unchanged): $t6"
+done
 
 # ---- BL-690: a row waiting on an open consult item is not settled ----
 # The waiting rows ask nothing and are NOT data-decided, so the composer must leave them in their block:
