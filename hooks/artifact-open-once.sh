@@ -22,10 +22,10 @@
 # That is deliberately the same line context-depth-nudge.sh's header draws about why it
 # survived and the durability judge did not: counting is a thing that cannot misfire.
 #
-# WHAT IT DOES NOT DO. It does not judge whether the page is finished, it does not read
-# the file, and it never blocks anything but a repeat `open` of a path that already
+# WHAT THE PER-TURN RULE DOES NOT DO. It does not judge whether the page is finished,
+# it does not read the file, and it blocks only a repeat `open` of a path that already
 # exists on disk. A different file, a URL, a non-`open` command and a path that is not
-# there yet all pass untouched.
+# there yet all pass untouched. (The kit gate below DOES read the file, for one marker.)
 #
 # NO OVERRIDE FLAG, on purpose. The escape hatch is the user speaking, which is exactly
 # when a re-open is legitimate; a flag would be reachable in the turn where it is not.
@@ -49,11 +49,40 @@
 #     same file, plus stop_hook_active as a second guard). It never blocks twice.
 # Exempt: any event carrying agent_id (only the main session opens pages) and a page
 # under a temp dir (tests and evals wrap there). Fail open on any error.
+#
+# THE THIRD REFUSAL: A PAGE OUTSIDE THE KIT (owner decision 2026-10-06, LOOP-008 row
+# gallery-kit-parity). Boards, contact sheets and hand-written review pages were being
+# opened for the owner straight from a .context/ or ui-contract/ folder: no kit, no
+# consultation composer, no contract check, a different look from every other page the
+# owner reads. skills/artifact/SKILL.md already says they are never shown to the owner;
+# nothing observed it. So an `open` of an EXISTING local .html whose path contains
+# `/.context/reports/`, `/.context/artifacts/` or `/_tmp/ui-contract/` and whose text lacks the marker
+# `<meta name="artifact-kit"` is denied, naming the route (`/aidex:artifact`, spec
+# route; `::: gallery rows=` for galleries). The marker is what wrap-report.sh injects
+# into EVERY page it builds (wrap_report.py, kit head), so a kit page cannot lack it:
+# census 2026-10-06, 52 of 52 reports dated 2026-09 or later carry it, and no
+# gallery_board.py board does. Pages from before the marker (<= 2026-08-18) lack it
+# and are refused too; they are re-wrapped, not opened raw.
+# The locations are an explicit allow-list of where artifact pages and boards live,
+# NOT all of .context/: /.context/communications/sent/ holds email bodies the owner
+# opens to copy and send, /.context/proofs/ holds proof pages, and a bare `/ui-contract/`
+# would match the skills/ui-contract folder itself; none of those carry the kit and none
+# are artifacts.
+# What it does NOT do: judge content, touch a path outside those three locations
+# (playwright reports, coverage html, /tmp pages), a URL, a non-html file, or a file
+# that is missing or unreadable. It runs before the per-turn rule and needs no
+# transcript. Same as the rest: no override flag, fails open on any error.
+# The gate applies to subagents too (agent_id is NOT an exemption) and to every path in
+# the three locations, temp dir or not: the agent_id and temp-dir exemptions belong to
+# the wrap/Stop rule only. This matches agents/verify-ui.md (never open a contact sheet,
+# never build an HTML page from one for the owner). The recognizer is check_artifact.py's
+# KIT_STAMP (case-insensitive, any attribute order, optional quotes). `open -R`, `-t`
+# and `-e` (reveal in Finder, text editor) are not a browser view and skip the gate.
 
 command -v python3 >/dev/null 2>&1 || exit 0
 
 exec python3 -c '
-import json, os, shlex, sys, time
+import json, os, re, shlex, sys, time
 from urllib.parse import unquote
 
 def out(payload):
@@ -289,6 +318,7 @@ try:
         segments = nxt
 
     targets = []
+    no_gate = set()
     for seg in segments:
         try:
             tokens = shlex.split(seg)
@@ -300,6 +330,7 @@ try:
         if head != "open" and not head.endswith("/open"):
             continue
         args = tokens[1:]
+        not_a_view = any(x in ("-R", "-t", "-e") for x in args)
         i = 0
         while i < len(args):
             a = args[i]
@@ -313,10 +344,44 @@ try:
             for p in candidates(a):
                 if os.path.isfile(p) and p not in targets:
                     targets.append(p)
+                    if not_a_view:
+                        no_gate.add(p)
                     break
             i += 1
 
     if not targets:
+        sys.exit(0)
+
+    # The kit gate (see the header). Owner-facing folders only; fail open on a read error.
+    outside = []
+    for p in targets:
+        if p in no_gate or not p.lower().endswith((".html", ".htm")):
+            continue
+        low = os.path.realpath(p).lower()
+        if not any(loc in low for loc in ("/.context/reports/", "/.context/artifacts/",
+                                        "/_tmp/ui-contract/")):
+            continue
+        try:
+            with open(p, errors="replace") as fh:
+                text = fh.read()
+        except OSError:
+            continue
+        if not re.search(r"<meta[^>]+name=[\"" + chr(39) + r"]?artifact-kit", text, re.I):
+            outside.append(p)
+    if outside:
+        lines = ["This page is outside the artifact kit and is not opened for the owner:", ""]
+        lines += ["  " + p for p in outside]
+        lines += ["",
+                  "A page built without the kit has no contract check and no composer, "
+                  "and boards, contact sheets and hand-written review pages are never "
+                  "shown to the owner (skills/artifact/SKILL.md). Build it through the "
+                  "spec route of /aidex:artifact (wrap-report.sh); a gallery of options "
+                  "is a `::: gallery rows=` block in that spec, not a separate board. "
+                  "Then open the wrapped page."]
+        out({"hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": "\n".join(lines)}})
         sys.exit(0)
 
     # THE BUILD LOCK, added 2026-09-20. A delegated artifact agent writes its final

@@ -244,6 +244,89 @@ def wrap_cells():
         check("malformed event fails open", (p.returncode, p.stdout.strip()), (0, ""))
 
 
+def kit_cells():
+    """The kit gate: an owner-facing .html without the kit marker is not opened."""
+    with tempfile.TemporaryDirectory() as home:
+        tr = os.path.join(home, "t.jsonl")
+        transcript(tr, 1)
+        kit = "<meta name=\"artifact-kit\" content=\"v1\"><p>x</p>"
+
+        def page(rel, text):
+            path = os.path.join(home, rel)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            open(path, "w").write(text)
+            return path
+
+        kitpage = page("proj/.context/reports/ok.html", kit)
+        bare = page("proj/.context/reports/bare.html", "<p>hand written</p>")
+        board = page("proj/_tmp/ui-contract/contact-sheets/gallery-board.html",
+                     "<p>board</p>")
+        elsewhere = page("report/index.html", "<p>playwright</p>")
+        sent = page("proj/.context/communications/sent/x/body.html", "<p>email</p>")
+        proof = page("proj/.context/proofs/p.html", "<p>proof</p>")
+        skill = page("aidex/skills/ui-contract/assets/x.html", "<p>asset</p>")
+        art = page("proj/.context/artifacts/a.html", "<p>hand written</p>")
+        notes = page("proj/.context/notes.txt", "plain")
+
+        rc, d, _ = run("open %s" % kitpage, home, transcript_path=tr)
+        check("kit page under .context opens", (rc, d), (0, ""))
+        rc, d, out = run("open %s" % bare, home, transcript_path=tr)
+        check("non-kit page under .context is denied", (rc, d), (0, "deny"))
+        check("the denial names the route", "::: gallery rows=" in out, True)
+        rc, d, _ = run("open %s" % board, home, transcript_path=tr)
+        check("a board under _tmp/ui-contract is denied", (rc, d), (0, "deny"))
+        rc, d, _ = run("open %s" % elsewhere, home, transcript_path=tr)
+        check("non-kit html outside the owner folders is allowed", (rc, d), (0, ""))
+        for label, f in (("an email body under communications/sent", sent),
+                         ("a proof page under .context/proofs", proof),
+                         ("a file in the skills/ui-contract folder", skill)):
+            rc, d, _ = run("open %s" % f, home, transcript_path=tr)
+            check(label + " is allowed", (rc, d), (0, ""))
+        rc, d, _ = run("open %s" % art, home, transcript_path=tr)
+        check("non-kit page under .context/artifacts is denied", (rc, d), (0, "deny"))
+        rc, d, _ = run("open %s" % notes, home, transcript_path=tr)
+        check("a non-html file under .context is allowed", (rc, d), (0, ""))
+        rc, d, _ = run("open %s/proj/.context/gone.html" % home, home, transcript_path=tr)
+        check("a missing file under .context is allowed", (rc, d), (0, ""))
+        bare2 = page("proj/.context/reports/bare2.html", "<p>hand written</p>")
+        rc, d, _ = run("open file://%s" % bare2, home, transcript_path=tr)
+        check("the file:// spelling is denied too", d, "deny")
+        rc, d, _ = run("open %s" % bare, home)
+        check("the denial needs no transcript", d, "deny")
+
+        # Recognizer spellings (check_artifact.py KIT_STAMP) and non-view opens.
+        for i, text in enumerate(['<meta content="27" name="artifact-kit">',
+                                  '<META NAME="artifact-kit">',
+                                  '<meta name=artifact-kit content=27>']):
+            f = page("proj/.context/reports/spell%d.html" % i, text)
+            rc, d, _ = run("open %s" % f, home, transcript_path=tr)
+            check("kit marker spelling %d is recognised" % i, (rc, d), (0, ""))
+        for flag in ("-R", "-t", "-e"):
+            f = page("proj/.context/reports/flag%s.html" % flag, "<p>x</p>")
+            rc, d, _ = run("open %s %s" % (flag, f), home, transcript_path=tr)
+            check("open %s is not a browser view and skips the gate" % flag,
+                  (rc, d), (0, ""))
+        upper = page("Proj/.Context/Reports/up.html", "<p>x</p>")
+        rc, d, _ = run("open %s" % upper, home, transcript_path=tr)
+        check("a differently-cased owner folder is still gated", d, "deny")
+
+        # Producer output: what wrap-report.sh really writes must pass its own gate.
+        wrap = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir,
+                            "skills", "artifact", "scripts", "wrap-report.sh")
+        real = os.path.join(home, "proj", ".context", "reports", "real.html")
+        w = subprocess.run(["bash", wrap, "--title", "T", "--out", real],
+                           input='<div class="page"><main class="main"><p>body</p></main></div>',
+                           capture_output=True, text=True,
+                           env=dict(os.environ, HOME=home))
+        check("wrap-report.sh produced the page", os.path.isfile(real), True)
+        rc, d, _ = run("open %s" % real, home, transcript_path=tr)
+        check("a real wrap-report page under .context/reports opens", (rc, d), (0, ""))
+        page("proj/_tmp/ui-contract/consult-x/page.html", kit)
+        rc, d, _ = run("open %s" % os.path.join(home, "proj/_tmp/ui-contract/consult-x/page.html"),
+                       home, transcript_path=tr)
+        check("a kit page under _tmp/ui-contract opens", (rc, d), (0, ""))
+
+
 def main():
     if not os.path.exists(HOOK):
         print("no hook at %s" % HOOK)
@@ -459,6 +542,8 @@ def main():
         check("a lock further ahead than the window is stale", (rc, d), (0, ""))
         check("and the stale notice carries no negative age", "-1 minutes" in out, False)
         os.unlink(lock)
+
+    kit_cells()
 
     wrap_cells()
 
