@@ -76,6 +76,15 @@ not ask for, so they are a workaround, not the answer.
 - **Inside a code span the backslash is literal.** `` `a\_b` `` shows `a\_b`.
   CommonMark's rule, and the reason is that a path in backticks is the one place
   an author means the backslash they typed.
+- **A literal backtick in prose is a builder refusal, not an escape.** `` \` `` is
+  accepted by the renderer, but the page would show a raw backtick (invariant
+  CNT-2), so `spec_build` refuses it with the spec line, and refuses a backtick
+  with no partner the same way (the renderer leaves it raw too). Write `` `x` ``
+  for code; a literal backtick belongs inside a code span. Code spans are paired over the whole wrapped paragraph or list item, so a span
+  may wrap. Fenced code blocks and real code spans are code and are not checked; a
+  fence opens with exactly three backticks or tildes at the start of the line (a
+  four-backtick fence or a BOM before it is prose). A double-backtick span is not
+  supported, so ``` ``a`b`` ``` is refused as unmatched.
 - **Block markers are not escapable.** `#`, `-`, `|`, `:::` are read a layer
   above this one, by `_blocks` and by the tokenizer, and an escape here would
   arrive after they had already decided. A paragraph that must open with `- ` has
@@ -981,6 +990,14 @@ becomes the situation lead (`.consult-lead`) under the h3, as for a title-headed
 `section` already take, with the same meaning (`title` the NAME, `heading` the sentence).
 Without `heading=` nothing changes. Adding `heading=` to an item on a live page changes its h3, so its `questionHash` changes once and typed-but-unsent text reads blank once (as BL-576). `heading=` follows the `title=` quoting rules and is
 not a retitle: `consult-ids` and `check_prev` read `data-title` only.
+
+**The title is shown, never hidden (LOOP-008, kit rail = `data-title`).** The rail lists an
+item by its `data-title`, so when the h3 is a question or a `heading=` that differs from the
+title, the builder prints the title above it as a kicker, `<p class="eyebrow consult-kicker">`,
+and the rail label is visible text of that item (NAV-4). A title that equals the h3 gets no
+kicker. The kicker renders the title as inline markdown (`title="`RTK.md`"` shows a code
+span); `data-title`, so the rail label and the composed reply, carries the plain text with
+no markers.
 
 ## An `item`'s option list: one choice or a set
 

@@ -1747,6 +1747,56 @@ t="$(n650 notas phase=verify)"
   || fail "BL-650b: the rail chip for the notes item shows the raw data-id instead of the visible badge: $t"
 PAGE="$PAGE_SAVED"
 
+# ---- LOOP-008 F3: a builder kicker must not change the question's hash --------
+# spec_build now prints the item's title above a question h3 as `p.consult-kicker`.
+# It is text inside the item, so a questionHash that keeps it reads every stored
+# unsent answer of a live page as "the question changed" the first time it is rebuilt.
+rm -rf "$TMP/profile"
+PAGE_SAVED="$PAGE"; PAGE="$TMP/reports/kicker.html"
+kick() {  # kick <kicker html or empty> <phase>: wrap a one-item es page, load it with ?phase=
+  cat > "$TMP/body.html" <<HTML
+<meta name="consult-visual" content="none: a persistence probe, nothing to draw">
+<div class="page"><main class="main"><header><p class="eyebrow">PROBE</p><h1>Kicker probe</h1></header>
+<section id="sec-ask"><div class="sec-head"><h2>Preguntas</h2></div>
+  $gopen
+  <section class="consult-item" data-id="Q1" data-title="Nombre corto" data-free>
+    $1
+    <h3><span class="consult-id">Q1</span>&iquest;Una pregunta larga?</h3>
+    <p class="fieldlabel">Escribe libremente</p>
+    <textarea></textarea>
+  </section>
+  $gclose
+  <section class="consult-item consult-notes" data-id="notes" data-title="Notas generales">
+    <h3><span class="consult-id">notas</span>Notas generales</h3>
+    <textarea></textarea>
+  </section>
+  <div class="endbar"><button type="button" id="consult-copy-end">Copiar</button><span class="consult-status" id="consult-status-end"></span></div>
+</section></main>
+<aside class="rail"><p class="railhead">Contenido</p><nav class="raillist" id="raillist"></nav>
+<div class="consult-bar"><button type="button" id="consult-copy">Copiar</button><span class="consult-status" id="consult-status"></span></div></aside></div>
+<script>window.addEventListener('load', function () {
+  var ta = document.querySelector('[data-id="Q1"] textarea');
+  if (location.search.indexOf('phase=fill') !== -1) {
+    ta.value = 'unsent-kicker-answer';
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    document.title = 'FILLED';
+  } else {
+    var st = document.getElementById('consult-restored');
+    document.title = 'KICK|TA=' + ta.value + '|STALE=' + (/pregunta cambi/.test(st ? st.textContent : '') ? 1 : 0) + '|';
+  }
+});</script>
+HTML
+  bash "$WRAP" --title "kicker" --lang es --out "$PAGE" < "$TMP/body.html" > "$TMP/wrap.log" 2>&1 \
+    || fail "LOOP-008 F3: the kicker probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/wrap.log" | sed -n 1,4p)"
+  run "$2"
+}
+t="$(kick '' phase=fill)"
+[[ "$t" == *FILLED* ]] || fail "LOOP-008 F3: the fill phase did not run: $t"
+t="$(kick '<p class="eyebrow consult-kicker">Nombre corto</p>' phase=verify)"
+[[ "$t" == *"|TA=unsent-kicker-answer|"* && "$t" == *"|STALE=0|"* ]] \
+  || fail "LOOP-008 F3: a rebuilt page that gained a kicker dropped the reader's unsent answer or marked it stale: $t"
+PAGE="$PAGE_SAVED"
+
 # ---- BL-341: a page whose every question is DECIDED --------------------------
 #
 # BL-331 taught the checker to accept such a page; the composer was never taught

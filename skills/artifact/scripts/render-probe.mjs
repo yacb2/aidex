@@ -511,7 +511,7 @@ const brief = (x, n = 60) => String(x).replace(/\s+/g, ' ').trim().slice(0, n);
 // Each predicate is keyed by its catalog id and returns detail strings, one per violation.
 const invariants = () => {
   // composer.js questionHash(): the chrome the composer injects into an item (keep in step, test-invariants.sh checks)
-  const CHROME = '.kit-tag, .consult-proposal, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-more, .kit-provisional, .kit-marks-tile, .kit-marks-list, details.opts-more > summary';
+  const CHROME = '.kit-tag, .consult-proposal, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-more, .kit-provisional, .kit-marks-tile, .kit-marks-list, .consult-kicker, details.opts-more > summary';
   const t = s => (s || '').replace(/\s+/g, ' ').trim();
   const lc = s => t(s).toLowerCase();
   const brief = (s, n = 60) => t(s).slice(0, n);
@@ -561,12 +561,14 @@ const invariants = () => {
       const c = h.cloneNode(true); c.querySelectorAll('.consult-id').forEach(n => n.remove());
       return lc(c.textContent);
     };
+    // an item's kicker (its title, shown above a question h3) is part of its own heading block
+    const ownKicker = x => { const k = x.querySelector(':scope > .consult-kicker'); return k && shown(k) ? lc(k.textContent) : null; };
     for (const { a, x } of resolved) {
       const l = lc(label(a));
       if (!l) { add('NAV-4', `rail entry for #${x.id} has an empty label`); continue; }
       const h = ownHeading(x);
       const cut = l.replace(/(\u2026|\.\.\.)$/, '').trim();
-      const ok = h === null ? lc(x.textContent).includes(l) : (h === l || (cut !== l && cut && h.startsWith(cut)));
+      const ok = h === null ? lc(x.textContent).includes(l) : (h === l || ownKicker(x) === l || (cut !== l && cut && h.startsWith(cut)));
       if (!ok) add('NAV-4', `rail label "${brief(label(a))}" is not the heading of #${x.id}${h === null ? '' : ` ("${brief(h)}")`}`);
     }
     // NAV-5

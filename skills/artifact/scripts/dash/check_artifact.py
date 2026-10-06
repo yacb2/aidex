@@ -2524,6 +2524,9 @@ def _norm_title(s):
     Accent-folding alone does not fix it: `&eacute;` is five ASCII characters,
     and there is no combining mark to strip."""
     s = _html.unescape(s)
+    # The builder stores a title's text without its inline markers (LOOP-008 F3);
+    # a page built before that carries them, and the same claim must compare equal.
+    s = re.sub(r"[`*_]", "", s)
     s = unicodedata.normalize("NFKD", s)
     s = "".join(c for c in s if not unicodedata.combining(c))
     return " ".join(s.split()).casefold()

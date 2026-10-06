@@ -71,6 +71,7 @@ import gallery_items                            # noqa: E402
 import graph_svg                                # noqa: E402
 import md_body                                  # noqa: E402
 import wrap_report                              # noqa: E402
+import spec_parser                                # noqa: E402
 from spec_parser import SpecSyntaxError, parse   # noqa: E402,F401
 
 esc = md_body.esc
@@ -310,6 +311,11 @@ def _prose_lines(node):
 
 def _classes(base, node):
     return " ".join([base] + list(node.classes))
+
+
+def _plain_text(html):
+    """Rendered inline HTML -> its visible text (tags dropped, entities decoded)."""
+    return htmllib.unescape(re.sub(r"<[^>]+>", "", html))
 
 
 def _unwrap_p(html):
@@ -934,9 +940,18 @@ def emit_item(node, ctx):
                 "decided point awaiting correction (decided=yes, or the verdict "
                 "itself)")
         flag += " data-proposal"
+    # The rail label is data-title, so it must be visible text of the item: when
+    # the h3 is a question (or a heading=) that is not the title, the title shows
+    # above it as a kicker, rendered inline like the body. data-title carries the
+    # marker-free text (no backticks in the rail label or the composed reply).
+    title_html = md_body._inline(a["title"])
+    title_plain = _plain_text(title_html)
     out = ['<section class="%s" data-id="%s" data-title="%s"%s>'
-           % (_classes("consult-item", node), esc(node.id), esc(a["title"]),
+           % (_classes("consult-item", node), esc(node.id), esc(title_plain),
               flag)]
+    if " ".join(_plain_text(question).split()).lower() != \
+            " ".join(title_plain.split()).lower():
+        out.append('  <p class="eyebrow consult-kicker">%s</p>' % title_html)
     out.append('  <h3><span class="consult-id">%s</span>%s</h3>'
                % (esc(node.id), question))
     out.extend("  " + p for p in parts)
@@ -1884,6 +1899,86 @@ def _refuse_entities(spec_text):
                                " (inside a quoted attr)" if in_attr else ""))
 
 
+def _backtick_chunks(spec_text):
+    """(first line number, text) of each unit `md_body._inline` will see.
+
+    A paragraph or list item is joined across its wrapped lines before the
+    renderer pairs backticks, so a code span may wrap; the check has to pair
+    them over the same unit. A chunk ends where `_blocks` splits: a blank line,
+    a `:::` line, a list marker, a heading, a table row. ``` / ~~~ fences are
+    skipped; a trailing `\\r` is dropped so a CRLF fence still closes.
+    """
+    fence, start, buf = None, 0, []
+    for n, ln in enumerate(spec_text.split("\n"), 1):
+        ln = ln.rstrip("\r")
+        before, fence = fence, md_body.fence_state(ln, fence)
+        in_fence = before is not None or fence is not None
+        in_item = bool(buf) and bool(md_body.MARKER.match(buf[0]))
+        indent = len(ln) - len(ln.lstrip())
+        base = len(buf[0]) - len(buf[0].lstrip()) if in_item else 0
+        # `_blocks`: a heading ends a list item on its stripped text but a
+        # paragraph only on the raw line; a `:::` line is the tokenizer's, read
+        # at column 0 only.
+        alone = (spec_parser.OPEN.match(ln) or spec_parser.CLOSE.match(ln)
+                 or ln.lstrip().startswith("|")
+                 or md_body.HEADING.match(ln.lstrip() if in_item else ln))
+        # A marker deeper than the item's own continues it, unless it opens a
+        # sub-list: ordered only when it counts from 1.
+        wrapped = (in_item and md_body.ORDERED.match(ln) and indent > base
+                   and not re.match(r"\s*1[.)]", ln))
+        # An unindented line under a list item is a new paragraph, not its
+        # continuation (`_blocks`).
+        new_unit = (in_fence or not ln.strip() or alone
+                    or (md_body.MARKER.match(ln) and not wrapped)
+                    or (in_item and not ln[:1].isspace()))
+        if new_unit and buf:
+            yield start, "\n".join(buf)
+            buf = []
+        if in_fence or not ln.strip():
+            continue
+        if alone:
+            yield n, ln
+            continue
+        if not buf:
+            start = n
+        buf.append(ln)
+    if buf:
+        yield start, "\n".join(buf)
+
+
+def _refuse_literal_backticks(spec_text):
+    """Refuse a backtick that would reach the reader raw, naming its line.
+
+    `md_body` turns `` \\` `` into a plain backtick and leaves a backtick with no
+    partner as it is, so both ship as a literal backtick in prose (CNT-2), and
+    an author who escapes them is writing a shell-heredoc habit, not markdown.
+    Real code spans (paired over the whole wrapped paragraph or item) and
+    fenced code are code: a backslash-backtick there is content and stays legal.
+    """
+    blank = lambda m: re.sub(r"[^\n]", " ", m.group(0))
+    fences = ("fences open with exactly three backticks or tildes at the "
+              "start of the line: a four-backtick fence or a BOM before it is "
+              "prose")
+    for start, chunk in _backtick_chunks(spec_text):
+        rest = md_body.CODE.sub(blank, chunk)
+        for m in md_body.ESCAPE.finditer(rest):
+            if m.group(1) == "`":
+                n = start + rest[:m.start()].count("\n")
+                raise SpecBuildError(
+                    n, "an escaped backtick (backslash then backtick) shows "
+                    "the reader a raw backtick: write `x` for code, and a "
+                    "literal backtick belongs inside a code span; %s; found "
+                    "in %r" % (fences, chunk.split("\n")[n - start].strip()[:80]))
+        bare = md_body.ESCAPE.sub("  ", rest)
+        k = bare.find("`")
+        if k >= 0:
+            n = start + bare[:k].count("\n")
+            raise SpecBuildError(
+                n, "an unmatched backtick shows the reader a raw backtick: "
+                "close the code span (`x`), or leave the backtick out; %s; "
+                "found in %r" % (fences, chunk.split("\n")[n - start].strip()[:80]))
+
+
 def _refuse_title_links(tree):
     """A `[x](y)` in `title=` is refused: the title also reaches the rail and a
     decided item's <summary> as `data-title`, raw, where no link is rendered."""
@@ -1908,6 +2003,7 @@ def build(spec_text, lang=None, base_dir=".", page=None):
     ctx.tree = tree
     _refuse_links(spec_text)
     _refuse_entities(spec_text)
+    _refuse_literal_backticks(spec_text)
     _refuse_title_links(tree)
     _refuse_item_id_collisions(tree)
     answerable = any(n.block_type in ANSWERABLE for n in _walk(tree))
