@@ -17,7 +17,7 @@
 # failure with the install command, never a skip: a gate that passes because it
 # could not look is the defect it exists to catch.
 #
-# Usage: render-probe.sh [--shots <dir>] [--contract <slug>] <page.html>...
+# Usage: render-probe.sh [--shots <dir>] [--contract <slug>] [--invariants] <page.html>...
 #   --shots <dir>      also write <name>-1280.png and <name>-390.png (full page), viewport-height
 #                      tiles <name>-<width>-t01.png ... and <name>-shots.json (tiles in order,
 #                      the data-id items each holds, ids in page order, files written this run
@@ -25,6 +25,10 @@
 #                      `SHOT <path>` per file
 #   --contract <slug>  run only that contract class; the last stdout line is
 #                      `CONTRACT <slug> findings=<n>` (absent on a crash)
+#   --invariants       a different mode: evaluate the rendered-DOM invariants of
+#                      tests/invariants/catalog.md at 1280 px (no geometry checks). Prints one
+#                      `INV <id> <page> <detail>` per violation and a last line
+#                      `INVARIANTS pages=<n> violations=<m>`; exit 1 when m > 0.
 # Exit 0 = clean. Exit 1 = at least one defect (each printed). Exit 2 = usage error.
 # Exit 3 = Playwright or its Chromium missing (the install command is printed).
 # Exit 4 = the probe crashed (any other launch error, a page that failed to load, an

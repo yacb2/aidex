@@ -26,6 +26,11 @@
 // `--contract <slug>` runs only that class and ends with one line `CONTRACT <slug>
 // findings=<n>` (exit 1 when n >= 1, 0 when n = 0); a crash exits 4 without that line.
 //
+// `--invariants` is a different mode: it loads each page at 1280 px, waits for the composer,
+// and evaluates the rendered-DOM invariants of tests/invariants/catalog.md (rail, consultation,
+// content, runtime, lang). One line per violation `INV <id> <page> <detail>`, a last line
+// `INVARIANTS pages=<n> violations=<m>`, exit 1 when m > 0. It does not run the geometry checks.
+//
 // Promoted from .context/experiments/2026-09-24-artifact-route-ab/probe.mjs (aidex_ws).
 // Output: one JSON line per page and width, then a human-readable defect list.
 // Exit 0 = clean, 1 = at least one defect, 2 = usage, 3 = Playwright or its browser missing,
@@ -37,17 +42,19 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const CONTRACT = ['text-style-drift', 'figure-text-contrast', 'svg-label-outside-its-box'];
-const USAGE = `usage: render-probe.sh [--shots <dir>] [--contract <${CONTRACT.join('|')}>] <page.html>...`;
+const USAGE = `usage: render-probe.sh [--shots <dir>] [--contract <${CONTRACT.join('|')}>] [--invariants] <page.html>...`;
 const args = process.argv.slice(2);
-let shots = null, only = null;
+let shots = null, only = null, inv = false;
 const files = [];
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--shots') { shots = args[++i]; if (!shots) { console.error(USAGE); process.exit(2); } }
+  else if (args[i] === '--invariants') inv = true;
   else if (args[i] === '--contract') { only = args[++i]; if (!CONTRACT.includes(only)) { console.error(USAGE); process.exit(2); } }
   else if (args[i].startsWith('-')) { console.error(USAGE); process.exit(2); }
   else files.push(args[i]);
 }
 if (!files.length) { console.error(USAGE); process.exit(2); }
+if (inv && (shots || only)) { console.error('render-probe: --invariants is its own mode and takes no --shots or --contract'); process.exit(2); }
 for (const f of files) if (!fs.existsSync(f)) { console.error(`render-probe: no such file: ${f}`); process.exit(2); }
 
 let chromium;
@@ -498,6 +505,164 @@ const VIEW_H = 900;
 const manifests = new Map();
 const written = [];
 let current = '';
+const brief = (x, n = 60) => String(x).replace(/\s+/g, ' ').trim().slice(0, n);
+
+// --- --invariants: the rendered-DOM invariants (tests/invariants/catalog.md) ---------------
+// Each predicate is keyed by its catalog id and returns detail strings, one per violation.
+const invariants = () => {
+  const t = s => (s || '').replace(/\s+/g, ' ').trim();
+  const lc = s => t(s).toLowerCase();
+  const brief = (s, n = 60) => t(s).slice(0, n);
+  const out = [];
+  const add = (id, detail) => out.push({ id, detail });
+  const shown = el => el.checkVisibility({ contentVisibilityAuto: true, opacityProperty: true, visibilityProperty: true });
+  const inClosedDetails = el => { for (let d = el.closest('details:not([open])'); d; d = d.parentElement && d.parentElement.closest('details:not([open])')) { if (!(d === el)) return true; } return false; };
+  const links = [...document.querySelectorAll('#raillist a.railitem[href^="#"], #raillist a[href^="#"]')]
+    .filter((a, i, all) => all.indexOf(a) === i);
+  const idOf = a => { try { return decodeURIComponent(a.getAttribute('href').slice(1)); } catch { return a.getAttribute('href').slice(1); } };
+  const target = a => document.getElementById(idOf(a));
+  const label = a => t((a.querySelector('.rt') || a).textContent);
+  const hasRail = !!document.getElementById('raillist');
+  const items = [...document.querySelectorAll('.consult-item')];
+  const consultation = items.length > 0;
+
+  if (hasRail) {
+    // NAV-1
+    for (const a of links) if (!target(a)) add('NAV-1', `rail entry "${brief(label(a))}" links to #${idOf(a)}, which no element carries`);
+    // NAV-8 first: a decided target is NAV-8's, not also NAV-2's
+    const decidedTarget = x => x.matches('[data-decided]:not([data-proposal])') || !!x.closest('details.decided-unit');
+    // NAV-2: the composer never opens a details on rail navigation, so a closed one hides its target too
+    for (const a of links) { const x = target(a); if (x && !shown(x) && !decidedTarget(x)) add('NAV-2', `rail entry "${brief(label(a))}" targets #${x.id}, which is not rendered`); }
+    for (const a of links) { const x = target(a); if (x && decidedTarget(x)) add('NAV-8', `rail entry "${brief(label(a))}" targets #${x.id}, a decided item folded out of the index`); }
+    // NAV-3: adjacent pairs, the first one that precedes its predecessor names the break
+    const resolved = links.map(a => ({ a, x: target(a) })).filter(p => p.x);
+    const ordered = resolved.filter(p => !decidedTarget(p.x));   // a folded decided target has no place to be in order (NAV-8's)
+    for (let i = 1; i < ordered.length; i++) {
+      const p = ordered[i - 1], q = ordered[i];
+      if (p.x !== q.x && (p.x.compareDocumentPosition(q.x) & Node.DOCUMENT_POSITION_PRECEDING))
+        add('NAV-3', `rail lists "${brief(label(p.a), 40)}" before "${brief(label(q.a), 40)}" but the page has them the other way round`);
+    }
+    // NAV-4
+    // the target's OWN heading (not one of a nested item); equal when folded, a prefix only for an explicit truncation marker
+    const ownHeading = x => {
+      const h = x.querySelector(':scope > .sec-head h2, :scope > h2, :scope > h3');
+      if (!h) return null;
+      const c = h.cloneNode(true); c.querySelectorAll('.consult-id').forEach(n => n.remove());
+      return lc(c.textContent);
+    };
+    for (const { a, x } of resolved) {
+      const l = lc(label(a));
+      if (!l) { add('NAV-4', `rail entry for #${x.id} has an empty label`); continue; }
+      const h = ownHeading(x);
+      const cut = l.replace(/(\u2026|\.\.\.)$/, '').trim();
+      const ok = h === null ? lc(x.textContent).includes(l) : (h === l || (cut !== l && cut && h.startsWith(cut)));
+      if (!ok) add('NAV-4', `rail label "${brief(label(a))}" is not the heading of #${x.id}${h === null ? '' : ` ("${brief(h)}")`}`);
+    }
+    // NAV-5
+    const targets = resolved.map(p => p.x);
+    for (const h of document.querySelectorAll('.main h2')) {
+      if (!shown(h) || inClosedDetails(h)) continue;
+      if (!targets.some(x => x === h || x.querySelector('h2') === h)) add('NAV-5', `h2 "${brief(h.textContent)}" is in no rail entry's target`);
+    }
+    // NAV-6
+    const seen = new Map();
+    for (const a of links) { const k = idOf(a); if (seen.has(k)) add('NAV-6', `two rail entries target #${k}: "${brief(label(seen.get(k)), 30)}" and "${brief(label(a), 30)}"`); else seen.set(k, a); }
+  }
+  // NAV-7: any id carried twice (the second copy is where a link may land instead of the first)
+  const ids = new Map();
+  for (const el of document.querySelectorAll('[id]')) ids.set(el.id, (ids.get(el.id) || 0) + 1);
+  for (const [id, n] of ids) if (n > 1) add('NAV-7', `id "${id}" is carried by ${n} elements`);
+
+  if (consultation) {
+    // CON-1: mirrors contract_defects.check_decision_item_without_options on the rendered DOM: every
+    // item that asks (not the notes box, not a gallery sample with no .opts, not data-free other than
+    // "no"/"false", not data-decided) offers >= 2 AUTHORED options: radio or checkbox inputs inside `.opts` (the composer adds
+    // chip inputs elsewhere in the item), or the largest select's options, counted in the item's own subtree (a nested item's are its own).
+    for (const el of items) {
+      if (el.classList.contains('consult-notes') || el.classList.contains('consult-group') || !el.hasAttribute('data-id')) continue;
+      const gallery = el.classList.contains('consult-gallery') || !!el.querySelector('.gal:not(.shots), figure[data-tile]');
+      if (gallery && !el.querySelector('.opts')) continue;
+      const free = el.getAttribute('data-free');
+      if (el.hasAttribute('data-decided') || (free !== null && !['no', 'false'].includes(free.trim().toLowerCase()))) continue;
+      const own = n => n.closest('.consult-item') === el;
+      const inputs = [...el.querySelectorAll('.opts input[type="radio"], .opts input[type="checkbox"]')].filter(i => own(i) && !i.closest('.kit-other, .kit-notnow') && !i.hasAttribute('data-other')).length;
+      const sel = Math.max(0, ...[...el.querySelectorAll('select')].filter(own).map(x => x.querySelectorAll('option').length));
+      const n = Math.max(inputs, sel);
+      if (n < 2) add('CON-1', `item ${el.dataset.id} offers ${n} option${n === 1 ? '' : 's'}`);
+    }
+    // CON-2
+    const top = document.querySelectorAll('aside.rail #consult-copy').length, end = document.querySelectorAll('main #consult-copy-end').length;
+    if (top !== 1 || end !== 1) add('CON-2', `copy controls: ${top} #consult-copy in aside.rail and ${end} #consult-copy-end in main, expected 1 and 1`);
+    // CON-3
+    for (const el of items) {
+      const c = el.cloneNode(true);
+      c.querySelectorAll('.consult-id, .fieldlabel, textarea, script, style, [class*="kit-"], .consult-clear').forEach(n => n.remove());
+      const media = c.querySelector('input, img, svg, table, figure, canvas, video, pre, select');
+      if (!t(c.textContent) && !media) add('CON-3', `item ${el.dataset.id || '?'} has no text beyond its id badge`);
+    }
+  }
+
+  // CNT-1, CNT-2: visible prose only (code, pre, kbd, samp, textarea, script, style, template are exempt)
+  const skip = 'script,style,noscript,textarea,template,code,pre,kbd,samp';
+  const tw = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  const spec = new Set(), md = new Set();
+  for (let n; (n = tw.nextNode());) {
+    // all prose, folded details included (the composer folds every decided item into one); only an
+    // authored [hidden] / display:none outside a details is exempt
+    const el = n.parentElement; if (!el || el.closest(skip) || el.closest('[hidden]') || (!shown(el) && !el.closest('details:not([open])'))) continue;
+    const x = n.textContent;
+    for (const m of x.matchAll(/:::|\{#/g)) spec.add(m[0] + ' in "' + brief(x.slice(Math.max(0, m.index - 15), m.index + 25), 40) + '"');
+    for (const m of x.matchAll(/\*\*|`/g)) md.add(m[0] + ' in "' + brief(x.slice(Math.max(0, m.index - 15), m.index + 25), 40) + '"');
+  }
+  for (const d of spec) add('CNT-1', `literal spec syntax ${d}`);
+  for (const d of md) add('CNT-2', `unrendered markdown ${d}`);
+  // CNT-3
+  const solid = 'svg, img, table, figure, canvas, video, iframe, input, textarea, select, pre';
+  for (const el of document.querySelectorAll('.main section, .callout, .note')) {
+    if (el.matches('.consult-item') || !shown(el)) continue;
+    const c = el.cloneNode(true); c.querySelectorAll('.sec-head, h2, h3, .eyebrow').forEach(n => n.remove());
+    if (!t(c.textContent) && !c.querySelector(solid)) add('CNT-3', `empty ${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}${el.classList.length ? '.' + el.classList[0] : ''}`);
+  }
+
+  // LANG-1: the kit chrome (rail head, copy button) speaks the language of the first STRINGS
+  // entry it matches; <html lang> must be that language. Read from the page's own inlined composer.
+  const src = [...document.scripts].map(s => s.textContent).find(x => /var STRINGS = \{/.test(x));
+  const m = src && src.match(/var STRINGS = (\{[\s\S]*?\n  \});\s*\n\s*var L =/);
+  if (m) {
+    let S = null; try { S = new Function('return ' + m[1])(); } catch { /* an unreadable table is not a verdict */ }
+    const chrome = [document.querySelector('.railhead'), document.getElementById('consult-copy')].filter(Boolean);
+    if (S && chrome.length) {
+      const lang = (document.documentElement.getAttribute('lang') || '').slice(0, 2).toLowerCase();
+      const spoken = new Set();
+      chrome.forEach(el => { const k = el.id === 'consult-copy' ? 'copy' : 'contents'; for (const l of Object.keys(S)) if (t(el.textContent) === S[l][k]) spoken.add(l); });
+      if (spoken.size && !spoken.has(lang)) add('LANG-1', `<html lang="${document.documentElement.getAttribute('lang') || ''}"> but the kit chrome is in ${[...spoken].join('/')}`);
+    }
+  }
+  return out;
+};
+
+if (inv) {
+  const results = []; let n = 0, bad = 0;
+  for (const f of files) {
+    current = f;
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    const runtime = [];
+    page.on('console', m => { if (m.type() === 'error' && !/^Failed to load resource/.test(m.text())) runtime.push({ id: 'RUN-1', detail: brief(m.text()) }); });
+    page.on('pageerror', e => runtime.push({ id: 'RUN-2', detail: brief(String(e && e.message || e)) }));
+    page.on('requestfailed', r => runtime.push({ id: 'RUN-3', detail: `${r.url().slice(0, 80)} (${r.failure() && r.failure().errorText})` }));
+    page.on('response', r => { if (r.status() >= 400) runtime.push({ id: 'RUN-3', detail: `${r.url().slice(0, 80)} (HTTP ${r.status()})` }); });
+    try { await page.goto('file://' + path.resolve(f), { waitUntil: 'load' }); }
+    catch (e) { crash(new Error(`could not load ${f}: ${String(e && e.message || e).split('\n')[0]}`)); }
+    await page.waitForTimeout(300);
+    const found = [...await page.evaluate(invariants), ...runtime];
+    n++;
+    for (const v of found) { bad++; console.log(`INV ${v.id} ${path.basename(f)} ${v.detail.replace(/\s+/g, ' ')}`); }
+    await page.close();
+  }
+  await browser.close();
+  console.log(`INVARIANTS pages=${n} violations=${bad}`);
+  process.exit(bad ? 1 : 0);
+}
 try {
 for (const f of files) for (const width of [1280, 390]) {
   current = `${f} @${width}px`;

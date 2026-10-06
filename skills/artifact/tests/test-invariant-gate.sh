@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# test-invariant-gate.sh — invariant-gate.sh's own logic, with a FAKE probe (AIDEX_RENDER_PROBE,
+# no browser) and a fake corpus built here: the seven lines and their order, `corpus: X/Y` counting
+# distinct pages (a builder refusal is a failing page), a probe that gives no verdict reading
+# `0/unknown`, every line needing its minimum (0/0 never green, no traceback), the stub seam
+# (AIDEX_INVARIANT_STUBS) and exit 0 only when all seven are green.
+# Run with: bash skills/artifact/tests/test-invariant-gate.sh
+set -uo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+GATE="$HERE/invariant-gate.sh"
+PASS=0 FAIL=0
+ok()  { printf '  ok: %s\n' "$1"; PASS=$((PASS + 1)); }
+bad() { printf '  FAIL: %s\n' "$1" >&2; FAIL=$((FAIL + 1)); }
+TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+
+fake() { printf '#!/usr/bin/env bash\n%s\n' "$2" > "$TMP/$1.sh"; }
+# the arguments after --invariants are the pages
+fake probe-clean 'shift; echo "INVARIANTS pages=$# violations=0"; exit 0'
+# flags the page named *flag* twice (two lines, one page)
+fake probe-dup 'shift; for p in "$@"; do case "$p" in *flag*) echo "INV NAV-4 $(basename "$p") a"; echo "INV CNT-2 $(basename "$p") b";; esac; done
+echo "INVARIANTS pages=$# violations=2"; exit 1'
+fake probe-crash 'echo "boom" >&2; exit 4'
+fake probe-silent 'exit 0'
+
+SPECS="$TMP/specs"; mkdir -p "$SPECS"
+for n in clean flag; do
+  printf '::: masthead {eyebrow="Test" lang=en}\n# Page %s\n\nA short report.\n:::\n\n## Findings\n\nNothing to decide here.\n' "$n" > "$SPECS/$n.spec.md"
+done
+printf '::: masthead {eyebrow="Test" lang=en}\n# Loose item\n\nNo block around it.\n:::\n\n::: item {#q1 title="Pick one"}\nWhich?\n\n- **A.** This\n- **B.** That\n:::\n' > "$SPECS/refused.spec.md"
+CORP="$TMP/corpus"
+corpus() {   # corpus SPEC... -> a corpus-sample.json + corpus-specs/cproj__SPEC.spec.md
+  local rows="" s; rm -rf "$CORP"; mkdir -p "$CORP/corpus-specs"
+  for s in "$@"; do
+    rows+="${rows:+, }{\"path\": \"cproj/$s.html\"}"
+    cp "$SPECS/$s.spec.md" "$CORP/corpus-specs/cproj__$s.spec.md"
+  done
+  printf '{"root": "%s", "pages": [%s]}\n' "$TMP" "$rows" > "$CORP/corpus-sample.json"
+}
+GREEN_STUBS='generated=300/300,rounds=50/50,mutations=1/1,galleries=1/1,hunts-clean=2'
+gate() {   # gate PROBE [STUBS] -> $TMP/out; exit code in $rc; stderr in $TMP/err
+  AIDEX_RENDER_PROBE="$TMP/$1.sh" AIDEX_SPEC_CORPUS="$CORP" AIDEX_INVARIANT_STUBS="${2:-}" \
+    bash "$GATE" >"$TMP/out" 2>"$TMP/err"; rc=$?
+}
+rows="$(grep -c '^| [A-Z]*-[0-9]* |' "$HERE/invariants/catalog.md")"
+
+echo "== the seven lines =="
+corpus clean
+gate probe-clean; out="$(<"$TMP/out")"
+[[ "$(sed 's/:.*//' <<<"$out" | tr '\n' ' ')" == "catalog corpus generated rounds mutations galleries hunts-clean " ]] \
+  && ok "seven lines in the loop spec's order" || bad "lines: $out"
+[[ "$(head -1 <<<"$out")" == "catalog: $rows" ]] && ok "catalog: counts the catalog's rows ($rows)" || bad "catalog line: $(head -1 <<<"$out")"
+[[ "$(sed -n 2p <<<"$out")" == "corpus: 1/1" && "$(tail -n +3 <<<"$out" | tr '\n' ' ')" == "generated: 0/0 rounds: 0/0 mutations: 0/0 galleries: 0/0 hunts-clean: 0 " ]] \
+  && ok "a clean corpus reads 1/1 and the stubs read zero" || bad "corpus/stubs: $out"
+[[ $rc -eq 1 ]] && ok "with the stubs at zero the gate is RED" || bad "exit $rc with zero stubs"
+
+echo "== corpus: X/Y =="
+corpus clean refused
+gate probe-clean; out="$(<"$TMP/out")"
+[[ "$(sed -n 2p <<<"$out")" == "corpus: 1/2" ]] && ok "a spec the builder refuses is a failing page" || bad "refused: $(sed -n 2p <<<"$out")"
+corpus clean flag
+gate probe-dup; out="$(<"$TMP/out")"
+[[ "$(sed -n 2p <<<"$out")" == "corpus: 1/2" ]] && ok "two INV lines on one page fail that one page, once" || bad "dup: $(sed -n 2p <<<"$out")"
+corpus clean
+gate probe-crash; out="$(<"$TMP/out")"
+[[ "$(sed -n 2p <<<"$out")" == "corpus: 0/unknown" && $rc -eq 1 ]] && ok "a crashed probe (rc 4) reads 0/unknown" || bad "crash: $out"
+gate probe-silent; out="$(<"$TMP/out")"
+[[ "$(sed -n 2p <<<"$out")" == "corpus: 0/unknown" ]] && ok "a probe that exits 0 without its summary line reads 0/unknown" || bad "silent: $out"
+out="$(AIDEX_RENDER_PROBE="$TMP/probe-clean.sh" AIDEX_SPEC_CORPUS="$TMP/nowhere" bash "$GATE" 2>/dev/null)"
+[[ "$(sed -n 2p <<<"$out")" == "corpus: 0/unknown" ]] && ok "no corpus reads 0/unknown" || bad "no corpus: $out"
+
+echo "== every line needs its minimum =="
+corpus clean
+gate probe-clean 'generated=300/300,rounds=50/50,mutations=0/0,galleries=0/0,hunts-clean=2'; out="$(<"$TMP/out")"
+{ [[ $rc -eq 1 ]] && ! grep -q Traceback "$TMP/err"; } && ok "mutations 0/0 and galleries 0/0 are RED, with no traceback" || bad "0/0: rc=$rc $(cat "$TMP/err")"
+for s in generated=299/299 rounds=49/49 mutations=0/0 galleries=0/0 hunts-clean=1 generated=300/301; do
+  gate probe-clean "$(sed "s|${s%%=*}=[^,]*|$s|" <<<"$GREEN_STUBS")"
+  [[ $rc -eq 1 ]] && ok "$s is RED" || bad "$s read green"
+done
+corpus
+gate probe-clean "$GREEN_STUBS"; out="$(<"$TMP/out")"
+[[ "$(sed -n 2p <<<"$out")" == "corpus: 0/0" && $rc -eq 1 ]] && ok "an empty corpus prints corpus: 0/0 and is RED" || bad "empty corpus: rc=$rc $out"
+
+echo "== all green =="
+corpus clean
+gate probe-clean "$GREEN_STUBS"; out="$(<"$TMP/out")"
+[[ $rc -eq 0 && "$(tail -n +2 <<<"$out" | tr '\n' ' ')" == "corpus: 1/1 generated: 300/300 rounds: 50/50 mutations: 1/1 galleries: 1/1 hunts-clean: 2 " ]] \
+  && ok "every line at its minimum exits 0" || bad "green: rc=$rc $out"
+
+echo "$PASS ok, $FAIL failed"
+[[ $FAIL -eq 0 ]]
