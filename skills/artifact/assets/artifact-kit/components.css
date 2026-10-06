@@ -49,6 +49,8 @@ p { margin: 0; }
 
 .eyebrow:where(:not(svg *)) { font-family: var(--sans); font-size: 0.7rem; text-transform: uppercase;
            letter-spacing: 0.14em; color: var(--muted); margin: 0; }
+/* An item's title shown over its question (spec_build): a name, not a label, so a code span keeps its case. */
+.consult-kicker:where(:not(svg *)) { text-transform: none; }
 .standfirst:where(:not(svg *)) { font-size: 1.18rem; line-height: 1.5; color: var(--ink-soft); }
 
 .main > header { display: flex; flex-direction: column; gap: 0.9rem; padding-bottom: 2rem; border-bottom: 1px solid var(--rule); }
