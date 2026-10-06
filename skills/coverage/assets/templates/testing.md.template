@@ -48,6 +48,7 @@ helpers_dir:              # E2E helpers, repo-relative: frontend/tests/helpers
 # profile-init.py never writes or asks for them
 gallery_gate_cmd:         # one gallery gate call, read first by verify-ui: ./test-e2e.sh --demo --projects {projects} {spec}
 gallery_scripts:          # space-separated board and contact-sheet composers: _scripts/gallery_board.py _scripts/gallery_contact_sheet.py
+ui_patterns_ref:          # path to the project's page-pattern catalog index, read by ui-contract and gallery-builder: frontend/src/lib/patterns/00-index.md
 # The profile is COMPOSED: the core plus the groups of the packs `testing_packs` names.
 # Delete the groups of packs this project does not use — a key that does not apply is
 # OMITTED, never answered `n/a` (retired 2026-09-08, BL-364: `sweep-gate.sh` runs a key's

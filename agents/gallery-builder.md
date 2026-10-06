@@ -28,6 +28,9 @@ the brief says the harness module changed since the last build.
 3. The **reference screen** named in the plan's UI-contract section, and the components it
    is built from.
 4. One **existing gallery spec** in the project, if there is one. Mirror it.
+5. The testing profile's optional `ui_patterns_ref` (the page-pattern catalog index), when
+   present: a level 2a screen instantiates a pattern from it, and its cells follow that
+   pattern's states.
 
 For every full-page cell whose picture changed or is new, also write the capture's
 `<capture>.regions.json` (the changed region, from `locator.boundingBox()`, scaled to the

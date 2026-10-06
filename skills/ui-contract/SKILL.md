@@ -8,14 +8,14 @@ model-policy: per-stage
 
 # UI contract
 
-> **Experimental (1.3.0).** Proven on projects whose harness the owner shaped; say so before relying on it.
+> **Experimental (1.3.0).** Proven on owner-shaped harnesses; say so before relying on it.
 
 The contract for what "matches" means is a **state gallery rendered by the project's real
 components** against fixture data — one entry per state-matrix cell — reviewed by the owner
 through a consultation page. Not a drawn mockup: a drawing cannot be checked against reality and shows
 things the real components cannot do.
 
-Canon: ADR `2026-09-21-ui-contract-state-galleries-and-evidence-gate` (as amended).
+Canon: ADR `2026-09-21-ui-contract-state-galleries-and-evidence-gate`.
 
 ## When this fires
 
@@ -32,7 +32,8 @@ line and stop.
 ## Step 0 — At fire time: the harness, then the design discussion
 
 **Check the harness first, before any plan or discussion.** Read the testing profile's
-`gallery_gate_cmd` and `gallery_scripts` (optional keys), then check the "Presence check"
+`gallery_gate_cmd`, `gallery_scripts` and `ui_patterns_ref` (optional keys; the last is the
+project's page-pattern catalog index, read for levels 2a and 3), then check the "Presence check"
 markers of `references/01-harness-contract.md` in the repo itself. Never say "absent"
 before those checks ran: a note, a memory or an earlier session is not evidence, a project
 may have adopted the harness since. Present: continue. Absent (every marker checked, none
@@ -78,8 +79,8 @@ a change does not exist yet (a dialog whose page is new), build that host first;
 capture the new piece on the old host. Never show the BEFORE alone as if it were the
 proposal.
 
-**Sketch mode: how a round is built until the owner approves the whole screen** (kept after
-readout 2026-10-04, `research/2026-10-04-ui-contract-sketch-mode-readout.md`). Every round
+**Sketch mode: how a round is built until the owner approves the whole screen** (kept, readout
+`research/2026-10-04-ui-contract-sketch-mode-readout.md`). Every round
 before that approval is a sketch round:
 
 - **Where:** a throwaway branch in its own worktree (`sketch/<screen>`), named in the
@@ -134,8 +135,9 @@ it.** Never decide it silently.
 | Level | What is produced | What the owner reviews |
 |---|---|---|
 | 1 — Adjustment (one property on an existing screen) | contact sheet of that one screen, light and dark | one image |
-| 2 — New screen on an existing pattern | reference screen named + state gallery + gate | one sheet before, one after |
-| 3 — New visual direction | a skeleton of real components on fixture data with gallery captures first (Step 3b), then the full level-2 flow | direction first, then the gallery |
+| 2a — New screen from a catalog pattern | the pattern (the profile's `ui_patterns_ref` index) instantiated + state gallery + gate | one sheet before, one after |
+| 2b — New screen on a reference screen | reference screen of the app named + state gallery + gate | one sheet before, one after |
+| 3 — New visual direction (only this) | a skeleton of real components on fixture data with gallery captures first (Step 3b), then the full 2a/2b flow | direction first, then the gallery |
 
 Nothing is drawn at any level, save the target-form figure of Step 0. Level 3 starts
 from a skeleton of the project's real components; when the screen exists, the current page
@@ -151,6 +153,7 @@ blank cell is a state nobody decided about.
 | List | with data · empty · empty by filter · loading · error · no permission |
 | Form | initial · invalid · submitting · server error · read-only |
 | Modal or panel | open · submitting · error |
+| Dashboard | with data · loading · empty · one widget failed · no permission |
 
 Cross each state with light/dark and desktop/mobile wherever the screen is responsive.
 
@@ -168,8 +171,7 @@ the owner does not look):
 | mobile | only with responsive work in scope; an app with no responsive layout has no mobile variant (out of scope) |
 
 A cell in a variant nobody chose still reaches the owner if it changes without
-being part of the change — as a row marked unrequested, never as a gate summary.
-Light and dark are the only two modes rendered (harness contract § 3).
+being part of the change, as a row marked unrequested. Only light and dark render (harness contract § 3).
 
 A not-applicable cell carries its reason in words ("this list has no permission gate —
 the route itself is unauthenticated"), and the harness refuses a blank one at run time.
@@ -182,7 +184,7 @@ contract does not need a plan to exist. In a plan, that heading is what makes th
 phases UI phases for the evidence gate below. Five items, in this order. Nothing here is optional; an item with no answer is written as the
 open question it is.
 
-1. **Level** — 1, 2 or 3, with the one sentence that justifies it.
+1. **Level** — 1, 2a, 2b or 3, with the one sentence that justifies it.
 2. **Screen inventory and reference screen** — every screen the change reaches with its
    target form (Step 0), and the existing screen this one is modelled on, named by path or
    route. "None, this is new" is an answer, and it raises the level.
@@ -275,8 +277,7 @@ The word on its own is not a claim. A model looking at its own screenshots has a
    standing form of it: every predicate has a seeded defect it must catch, run before the
    galleries.
 
-Part 3 exists because three phases of the plan that built this contract each shipped a
-vacuous check under a green gate. **A new guard needs a RED control shown** — make it fail on purpose once, and
+**A new guard needs a RED control shown** — make it fail on purpose once, and
 record that it did. In a harness with a meta-suite that control is a new meta row, kept:
 a RED shown once and thrown away proves the guard once, a row proves it on every run.
 
@@ -289,9 +290,8 @@ header is the grammar to write (including `ui-surface: pending-owner`), and veri
 
 ## Gotchas
 
-- **A gallery page is not a demo page.** Demo/preview tooling lives only in the shared
-  template and does not propagate; the harness does. An app writes its own gallery
-  against the shared harness rather than copying a pattern page.
+- **A gallery page is not a demo page.** Demo tooling does not propagate, the harness
+  does: an app writes its own gallery against it, never copying a pattern page.
 - **Never run the gate with a snapshot update to make it green.** That is the one action
   that converts the whole mechanism into a rubber stamp. (It also skips the meta-suite's
   pixel rows, so its closing count is labelled "skipped" — not a gate run.)
@@ -301,7 +301,6 @@ header is the grammar to write (including `ui-surface: pending-owner`), and veri
 - **Pixel baselines only on gallery pages built from fixtures**, never on live-data
   pages — that is what keeps the comparison deterministic.
 - **A dev-only route can ship to production.** Guard the gallery route on a dev-only
-  build flag and assert in a production build that the route is gone; found missing in
-  a shared template, where the demo routes shipped to every authenticated user.
+  build flag and assert in a production build that the route is gone.
 - **The gate does not judge taste.** It catches overflow, contrast, layout churn and
   pixel drift. Whether the screen is *good* is the owner's call on the review surface.
