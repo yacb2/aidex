@@ -510,6 +510,8 @@ const brief = (x, n = 60) => String(x).replace(/\s+/g, ' ').trim().slice(0, n);
 // --- --invariants: the rendered-DOM invariants (tests/invariants/catalog.md) ---------------
 // Each predicate is keyed by its catalog id and returns detail strings, one per violation.
 const invariants = () => {
+  // composer.js questionHash(): the chrome the composer injects into an item (keep in step, test-invariants.sh checks)
+  const CHROME = '.kit-tag, .consult-proposal, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-more, .kit-provisional, .kit-marks-tile, .kit-marks-list, details.opts-more > summary';
   const t = s => (s || '').replace(/\s+/g, ' ').trim();
   const lc = s => t(s).toLowerCase();
   const brief = (s, n = 60) => t(s).slice(0, n);
@@ -534,6 +536,15 @@ const invariants = () => {
     // NAV-2: the composer never opens a details on rail navigation, so a closed one hides its target too
     for (const a of links) { const x = target(a); if (x && !shown(x) && !decidedTarget(x)) add('NAV-2', `rail entry "${brief(label(a))}" targets #${x.id}, which is not rendered`); }
     for (const a of links) { const x = target(a); if (x && decidedTarget(x)) add('NAV-8', `rail entry "${brief(label(a))}" targets #${x.id}, a decided item folded out of the index`); }
+    // NAV-9: every shown, unsettled item is a rail target. Composer exemption (itemLink): a proposal
+    // (data-decided + data-proposal) inside a consult-group gets no entry; an item in a group reached
+    // only through an id-less group gets none either, which is the defect this row catches.
+    const targetSet = new Set(links.map(target).filter(Boolean));
+    for (const el of items) {
+      if (!shown(el) || inClosedDetails(el) || (el.hasAttribute('data-decided') && !el.hasAttribute('data-proposal'))) continue;
+      if (el.hasAttribute('data-proposal') && el.closest('.consult-group')) continue;
+      if (!targetSet.has(el)) add('NAV-9', `item ${el.dataset.id || '?'} is not the target of any rail entry`);
+    }
     // NAV-3: adjacent pairs, the first one that precedes its predecessor names the break
     const resolved = links.map(a => ({ a, x: target(a) })).filter(p => p.x);
     const ordered = resolved.filter(p => !decidedTarget(p.x));   // a folded decided target has no place to be in order (NAV-8's)
@@ -596,7 +607,7 @@ const invariants = () => {
     // CON-3
     for (const el of items) {
       const c = el.cloneNode(true);
-      c.querySelectorAll('.consult-id, .fieldlabel, textarea, script, style, [class*="kit-"], .consult-clear').forEach(n => n.remove());
+      c.querySelectorAll('.consult-id, .fieldlabel, textarea, script, style, ' + CHROME).forEach(n => n.remove());
       const media = c.querySelector('input, img, svg, table, figure, canvas, video, pre, select');
       if (!t(c.textContent) && !media) add('CON-3', `item ${el.dataset.id || '?'} has no text beyond its id badge`);
     }
@@ -609,7 +620,10 @@ const invariants = () => {
   for (let n; (n = tw.nextNode());) {
     // all prose, folded details included (the composer folds every decided item into one); only an
     // authored [hidden] / display:none outside a details is exempt
-    const el = n.parentElement; if (!el || el.closest(skip) || el.closest('[hidden]') || (!shown(el) && !el.closest('details:not([open])'))) continue;
+    // ([hidden] alone is not a hiding: the kit's `.main > section { display:flex }` overrides it)
+    const el = n.parentElement;
+    const hid = el && el.closest('[hidden]');
+    if (!el || el.closest(skip) || (hid && getComputedStyle(hid).display === 'none') || (!shown(el) && !el.closest('details:not([open])'))) continue;
     const x = n.textContent;
     for (const m of x.matchAll(/:::|\{#/g)) spec.add(m[0] + ' in "' + brief(x.slice(Math.max(0, m.index - 15), m.index + 25), 40) + '"');
     for (const m of x.matchAll(/\*\*|`/g)) md.add(m[0] + ' in "' + brief(x.slice(Math.max(0, m.index - 15), m.index + 25), 40) + '"');

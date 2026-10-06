@@ -81,11 +81,23 @@ corpus
 gate probe-clean "$GREEN_STUBS"; out="$(<"$TMP/out")"
 [[ "$(sed -n 2p <<<"$out")" == "corpus: 0/0" && $rc -eq 1 ]] && ok "an empty corpus prints corpus: 0/0 and is RED" || bad "empty corpus: rc=$rc $out"
 
-echo "== all green =="
+echo "== the stub seam cannot fake a green run =="
 corpus clean
 gate probe-clean "$GREEN_STUBS"; out="$(<"$TMP/out")"
+[[ $rc -eq 1 && "$(grep -c '(override)$' <<<"$out")" == 5 ]] \
+  && ok "five overridden lines print (override) and the exit is 1 even at every minimum" || bad "override: rc=$rc $out"
+
+echo "== all green (main() with STUBS patched at the Python level) =="
+AIDEX_RENDER_PROBE="$TMP/probe-clean.sh" AIDEX_SPEC_CORPUS="$CORP" python3 - "$HERE" >"$TMP/out" 2>"$TMP/err" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1])
+import invariant_gate as g
+g.STUBS.update({"generated": "300/300", "rounds": "50/50", "mutations": "1/1", "galleries": "1/1", "hunts-clean": "2"})
+sys.exit(g.main([]))
+PY
+rc=$?; out="$(<"$TMP/out")"
 [[ $rc -eq 0 && "$(tail -n +2 <<<"$out" | tr '\n' ' ')" == "corpus: 1/1 generated: 300/300 rounds: 50/50 mutations: 1/1 galleries: 1/1 hunts-clean: 2 " ]] \
-  && ok "every line at its minimum exits 0" || bad "green: rc=$rc $out"
+  && ok "every line at its minimum exits 0, no override suffix" || bad "green: rc=$rc $out $(cat "$TMP/err")"
 
 echo "$PASS ok, $FAIL failed"
 [[ $FAIL -eq 0 ]]

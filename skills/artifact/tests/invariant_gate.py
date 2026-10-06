@@ -15,7 +15,9 @@ generated >= 300, rounds >= 50, mutations >= 1, galleries >= 1, hunts-clean >= 2
 Test seams (the gate's own test drives them, nothing else should):
   AIDEX_RENDER_PROBE      replaces scripts/render-probe.sh (a fake probe, no browser)
   AIDEX_INVARIANT_STUBS   comma list `key=value` replacing stub lines, e.g.
-                          `generated=300/300,rounds=50/50,mutations=1/1,galleries=1/1,hunts-clean=2`
+                          `generated=300/300,rounds=50/50,mutations=1/1,galleries=1/1,hunts-clean=2`.
+                          An overridden line prints with a ` (override)` suffix and the gate never
+                          exits 0 while one is active: the seam cannot fake a green run.
 
 The corpus is private (see goal-gate.sh): AIDEX_SPEC_CORPUS, else the workspace default
 `<workspace>/.context/research/2026-09-24-artifact-spec-corpus` when it exists, else
@@ -116,12 +118,14 @@ def main(argv):
     cline, cgreen = corpus_line(verbose)
     # STUBS, replaced by later units of LOOP-008 (generator, round runner, mutations,
     # ui-contract galleries, hunts). Each prints a zero so the gate cannot read as done.
-    stubs = dict(STUBS)
+    stubs, overridden = dict(STUBS), set()
     for kv in filter(None, os.environ.get("AIDEX_INVARIANT_STUBS", "").split(",")):
         k, _, v = kv.partition("=")
         if k in stubs:
             stubs[k] = v
-    lines = ["catalog: %d" % n, cline] + ["%s: %s" % (k, stubs[k]) for k in STUBS]
+            overridden.add(k)
+    lines = ["catalog: %d" % n, cline] + ["%s: %s%s" % (k, stubs[k], " (override)" if k in overridden else "")
+                                          for k in STUBS]
     print("\n".join(lines))
     green = n >= MIN["catalog"] and cgreen
     for k, v in stubs.items():
@@ -131,7 +135,7 @@ def main(argv):
             green = green and x == y and y >= MIN[k]
         else:
             green = green and v.isdigit() and int(v) >= MIN[k]
-    return 0 if green else 1
+    return 0 if green and not overridden else 1
 
 
 if __name__ == "__main__":
