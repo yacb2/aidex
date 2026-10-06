@@ -723,8 +723,10 @@ t="$(run 'phase=verify')"
 # Q0 is a DECIDED item: it leaves the question set but stays in the rail, which
 # is the index of the page and not a list of what is still owed. Q0 is decided,
 # so since v18 (BL-380) it has no entry of its own: the block is the way in.
-[[ "$t" == *"RAIL_ORDER=sec:#sec-ask,G:#G1,sub:#Q1,sub:#Q2,sec:#sec-ref,item:#notes"* ]] \
-  || fail "BL-247: the rail does not nest the block's items under the block (context once, decisions indented, loose notes after): $t"
+# The notes sit inside sec-ask, before sec-ref, and the rail lists them there
+# (kit 41, rail-order-loose-items): until then they were appended after sec-ref.
+[[ "$t" == *"RAIL_ORDER=sec:#sec-ask,G:#G1,sub:#Q1,sub:#Q2,item:#notes,sec:#sec-ref"* ]] \
+  || fail "BL-247: the rail does not nest the block's items under the block (context once, decisions indented, loose notes in body order): $t"
 # The trap: a fingerprint over the item's RAW textContent would include this
 # text, so a plain reload with no regeneration would already fail to match.
 [[ "$t" == *"CE=typed-into-contenteditable-789"* ]] \
@@ -810,6 +812,49 @@ tr="$(CHROME_WINDOW=1280,300 run 'phase=rail599')"
 [[ "$tr" == *"|CURTOP=1|"* ]] \
   || fail "BL-599: keeping the next entry in view scrolled the current entry's top out of the list: $tr"
 PAGE="$PAGE_SAVED"
+
+# ---- rail-order-loose-items / kit-hidden-section-visible ---------------------
+# The general notes sit in the body BEFORE a later section. The rail listed every
+# section first and appended loose items after a separator, so it disagreed with
+# the body on 28 of 84 real pages. And `.main > section { display:flex }` beat the
+# UA's [hidden] rule, so a section marked hidden stayed drawn. A hidden section
+# gets no rail entry either: drawn as nothing, its rect top is 0 and the scroll
+# spy marked it current while the reader was still in the section before it.
+ORD="$TMP/reports/railorder.html"
+cat > "$TMP/ordbody.html" <<'HTML'
+<meta name="consult-visual" content="none: a rail order probe, nothing to draw">
+<div class="page"><main class="main"><header><p class="eyebrow">PROBE</p><h1>Rail order probe</h1></header>
+<section class="consult-group" id="G1" data-id="G1" data-title="Uno"><div class="sec-head"><h2>Uno</h2></div><p>Contexto.</p>
+<section class="consult-item" data-id="Q1" data-title="Primera"><h3><span class="consult-id">Q1</span>¿Primera?</h3><div class="opts one"><label><input type="radio" name="Q1" data-label="Si"><span>Sí</span></label><label><input type="radio" name="Q1" data-label="No"><span>No</span></label></div><textarea></textarea></section>
+<section class="consult-item" data-id="Q2" data-title="Segunda"><h3><span class="consult-id">Q2</span>¿Segunda?</h3><div class="opts one"><label><input type="radio" name="Q2" data-label="Si"><span>Sí</span></label><label><input type="radio" name="Q2" data-label="No"><span>No</span></label></div><textarea></textarea></section>
+</section>
+<section class="consult-item consult-notes" data-id="notes" data-title="Notas generales"><h3><span class="consult-id">notas</span>Notas generales</h3><textarea></textarea></section>
+<section id="sec-after"><div class="sec-head"><h2>Después de las notas</h2></div><p>Una sección que el cuerpo pone tras las notas.</p><div aria-hidden="true" style="height:1400px"></div></section>
+<section id="sec-hid" hidden><div class="sec-head"><h2>Oculta</h2></div><p>Marcada hidden por el autor.</p></section>
+<section id="sec-end"><div class="sec-head"><h2>Al final</h2></div><p>Visible, tras la oculta.</p><div aria-hidden="true" style="height:1400px"></div></section>
+<div class="endbar"><button type="button" id="consult-copy-end">Copiar</button><span class="consult-status" id="consult-status-end"></span></div>
+</main><aside class="rail"><p class="railhead">Contenido</p><nav class="raillist" id="raillist"></nav><div class="consult-bar"><button type="button" id="consult-copy">Copiar</button><span class="consult-status" id="consult-status"></span></div></aside></div>
+<script>window.addEventListener('load', function () {
+  scrollTo(0, document.getElementById('sec-after').getBoundingClientRect().top + scrollY + 300);
+  dispatchEvent(new Event('scroll'));
+  var cur = document.querySelector('#raillist [aria-current]');
+  document.title = 'ORD|ORDER=' + [].map.call(document.querySelectorAll('#raillist a'), function (a) {
+      return a.getAttribute('href'); }).join(',')
+    + '|HID=' + getComputedStyle(document.getElementById('sec-hid')).display
+    + '|CUR=' + (cur ? cur.getAttribute('href') : 'none') + '|';
+});</script>
+HTML
+bash "$WRAP" --title "probe" --lang es --out "$ORD" < "$TMP/ordbody.html" > "$TMP/ord.log" 2>&1 \
+  || fail "rail-order-loose-items: the probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/ord.log" | sed -n 1,4p)"
+CHROME_WINDOW=1280,900 chrome_dump "$TMP/ord.dom" "file://$ORD" 45 || true
+to="$(grep -oE '<title>[^<]*</title>' "$TMP/ord.dom" | sed -n 1p)"
+[[ "$to" == *"ORD|"* ]] || fail "rail-order-loose-items: the order probe did not run: $to"
+[[ "$to" == *"|ORDER=#G1,#Q1,#Q2,#notes,#sec-after,#sec-end|"* ]] \
+  || fail "rail-order-loose-items: the rail does not follow the body's order, hidden section left out (want #G1,#Q1,#Q2,#notes,#sec-after,#sec-end): $to"
+[[ "$to" == *"|CUR=#sec-after|"* ]] \
+  || fail "kit-hidden-section-visible: scrolled into the section before a hidden one, the rail marks another entry current (want #sec-after): $to"
+[[ "$to" == *"|HID=none|"* ]] \
+  || fail "kit-hidden-section-visible: a section marked hidden is still drawn (want display none): $to"
 
 # ---- BL-532 / BL-535 / BL-536: dropped items, one copy bar, the table's first column
 # One small page: a decided item, a DROPPED one (never answered), an open one, a
