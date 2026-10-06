@@ -5,11 +5,12 @@
     corpus: X/Y      goal-gate corpus specs built with the current builder, run through
                      `render-probe.sh --invariants`; X = pages with zero violations,
                      a spec the builder refuses counts as a failing page
+    generated: X/Y   WIRED: tests/generated_gate.py (300 seeded specs from a fixed base seed; Y >= 300)
     mutations: X/Y   WIRED: tests/mutations_gate.py's own line; its `--expected` count is the
                      minimum Y, so a shrunk case set reads RED; no line reads `0/unknown`
-    generated / rounds / galleries / hunts-clean
-                     STUBS: later units replace them; until then they print 0/0, 0/0,
-                     0/0 and 0 and the gate stays RED (counts below the loop-spec minimums)
+    rounds / galleries / hunts-clean
+                     STUBS: later units replace them; until then they print 0/0, 0/0
+                     and 0 and the gate stays RED (counts below the loop-spec minimums)
 
 Every line has an explicit minimum, so a 0/0 never reads green: catalog >= 12, corpus total >= 1,
 generated >= 300, rounds >= 50, mutations >= 1, galleries >= 1, hunts-clean >= 2.
@@ -45,7 +46,7 @@ STUBS = {"generated": "0/0", "rounds": "0/0", "mutations": "0/0", "galleries": "
          "hunts-clean": "0"}
 # Lines measured by their own script (one stdout line `<key>: X/Y`); a pinned script also answers
 # `--expected` with its Y, which becomes that line's minimum so the case set cannot shrink unseen.
-WIRED = {"mutations": ("mutations_gate.py", True)}
+WIRED = {"mutations": ("mutations_gate.py", True), "generated": ("generated_gate.py", False)}
 LINE_SCRIPTS = os.environ.get("AIDEX_GATE_LINE_SCRIPTS") or HERE
 
 
