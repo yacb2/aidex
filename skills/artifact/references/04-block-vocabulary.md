@@ -583,6 +583,10 @@ series fill is `var(--sN)` and every rule and label is `currentColor`; there is 
 literal colour anywhere in the emitter, because the kit already declares those slots in
 four theme blocks and a fifth would only ever agree with one of them.
 
+A value is 0 or between 1e-300 and 1e+300 either side of 0 (`chart_svg.MIN_ABS`,
+`MAX_ABS`); one outside is refused on its row's line, because the axis arithmetic
+leaves a float's range there.
+
 ### `prose` — every page
 
 ```

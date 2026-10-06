@@ -60,7 +60,9 @@ sys.path.insert(0, SCRIPTS)
 sys.path.insert(0, os.path.join(SCRIPTS, "dash"))
 
 import contract_defects                          # noqa: E402
+import md_body                                    # noqa: E402
 import spec_build                                 # noqa: E402
+import spec_parser                                # noqa: E402
 from spec_build import SpecBuildError, build      # noqa: E402
 from spec_parser import SpecSyntaxError           # noqa: E402
 
@@ -1024,14 +1026,37 @@ try:
         ("an unknown block type", "::: chrt\nx\n:::\n", tmp),
         ("a `::: prose` fence", "::: prose\nx\n:::\n", tmp),
         ("an unclosed block", "::: note\nx\n", tmp),
+        # Rows that crashed the CLI with a raw traceback (LOOP-008 D1 and its
+        # review): a value past a float's range made the axis OverflowError, a
+        # nonzero value below 1e-300 a ZeroDivisionError or ValueError, and a
+        # markdown list nested ~500 deep exhausted md_body's recursion. Each also
+        # names what to change, not only the line. Fence depth is the parser's
+        # refusal (test_parser.py); its accept side is pinned below.
+        ("a chart value with 400 digits",
+         '::: chart {type="bar" title="c"}\na,1\nb,%s\n:::\n' % ("9" * 400),
+         tmp, "between 1e-300 and 1e+300"),
+        ("a positive and a negative value whose span overflows a float",
+         '::: chart {type="bar" title="c"}\na,-%s\nb,%s\n:::\n'
+         % ("9" * 308, "9" * 308), tmp, "between 1e-300 and 1e+300"),
+        ("a nonzero chart value below 1e-300",
+         '::: chart {type="bar" title="c"}\na,0\nb,0.%s5\n:::\n' % ("0" * 322),
+         tmp, "between 1e-300 and 1e+300"),
+        ("the smallest float above zero as a chart value",
+         '::: chart {type="bar" title="c"}\na,0\nb,0.%s5\n:::\n' % ("0" * 323),
+         tmp, "between 1e-300 and 1e+300"),
+        ("a markdown list nested 600 deep",
+         "::: masthead\n# T\n\n"
+         + "".join("  " * k + "- x\n" for k in range(600)) + ":::\n",
+         tmp, "nest at most"),
     ]
-    for label, spec, where in BAD:
+    for label, spec, where, *needle in BAD:
+        needle = needle[0] if needle else ""
         try:
             build(spec, base_dir=where)
         except (SpecSyntaxError, SpecBuildError) as exc:
             check("%s is refused as %s, with line %d"
-                  % (label, type(exc).__name__, exc.line), exc.line >= 1,
-                  exc.message)
+                  % (label, type(exc).__name__, exc.line),
+                  exc.line >= 1 and needle in exc.message, exc.message)
         except BaseException as exc:              # noqa: BLE001 — the claim
             fail("%s: raised %s(%s) — build() promises SpecSyntaxError or "
                  "SpecBuildError, and a SystemExit cannot even be caught by a "
@@ -1039,6 +1064,17 @@ try:
                  % (label, type(exc).__name__, exc))
         else:
             fail("%s: built without a word" % label)
+    # The accept side of the two limits: the largest chart value either side
+    # of 0, and fences nested exactly as deep as the parser allows, build
+    # without error — the cap must stay below the builder's recursion ceiling.
+    holds("a chart value of exactly 1e300 either side of 0 builds",
+          '::: chart {type="bar" title="c"}\na,-1%s\nb,1%s\n:::\n'
+          % ("0" * 300, "0" * 300), "<svg")
+    holds("notes nested exactly spec_parser.MAX_DEPTH deep, holding a list "
+          "nested exactly md_body.MAX_LIST_DEPTH deep, build",
+          "::: note\n" * spec_parser.MAX_DEPTH
+          + "".join("  " * k + "- x\n" for k in range(md_body.MAX_LIST_DEPTH))
+          + ":::\n" * spec_parser.MAX_DEPTH, "<li>x</li>")
 
     print()
     print("== an item's id is unique in the spec (group-item-id-collision) ==")
@@ -1599,6 +1635,17 @@ try:
     r = subprocess.run([sys.executable, BUILD, bad], capture_output=True, text=True)
     check("a malformed spec exits 1 and names <file>:<line>",
           r.returncode == 1 and ":3:" in r.stderr, r.stderr)
+    # A spec saved in another encoding was a UnicodeDecodeError traceback
+    # (LOOP-008 D3): refused like a missing file, naming the byte and its offset.
+    latin = os.path.join(tmp, "latin1.spec.md")
+    with open(latin, "wb") as fh:
+        fh.write(b"::: masthead\n# T\n\nS \xff\xfe\n:::\n")
+    r = subprocess.run([sys.executable, BUILD, latin], capture_output=True,
+                       text=True)
+    check("a spec that is not UTF-8 is refused naming the byte offset, not a "
+          "traceback", r.returncode == 2 and "Traceback" not in r.stderr
+          and r.stderr.startswith("spec-build: ") and "not UTF-8" in r.stderr
+          and "offset 20" in r.stderr, r.stderr)
     r = subprocess.run([sys.executable, BUILD, spec_path, "--check"],
                        capture_output=True, text=True)
     check("--check without -o is a usage error (exit 2)", r.returncode == 2,

@@ -777,6 +777,14 @@ try:
             "--verdict", V)
     check("a spec that is not there is a refusal, not a traceback",
           r.returncode == 1 and "cannot read the spec" in r.stderr, r.stderr)
+    latin = fresh("latin1", "")
+    with open(latin, "wb") as fh:
+        fh.write(b"::: masthead\n# T\n\nS \xff\xfe\n:::\n")
+    r = run("new-round", latin)
+    check("a spec that is not UTF-8 is a refusal naming the byte offset, not a "
+          "traceback (LOOP-008 D3)", r.returncode == 1
+          and "Traceback" not in r.stderr and "cannot read the spec" in r.stderr
+          and "not UTF-8" in r.stderr and "offset 20" in r.stderr, r.stderr)
     bad = fresh("unparseable", "prosa\n\n::: item {#a #b}\n:::\n")
     r = run("decide", bad, "--id", "Q1", "--verdict", V)
     check("a spec that does not parse is refused with its line",

@@ -1026,6 +1026,8 @@ silently drops input.
 | A quoted value whose closing `"` never arrives | `::: item {title="abc}`, `::: item {title="abc\"}` |
 | Text running straight on after a quoted value | `::: item {title="abc\\"x}` |
 | An attr item that is none of the three kinds | `::: item {big}` |
+| A fence opened more than 100 deep (`spec_parser.MAX_DEPTH`) | the 101st `::: note` inside 100 open ones |
+| A markdown list nested more than 50 deep (`md_body.MAX_LIST_DEPTH`; the builder's refusal, at the block's line) | a 51st `- x` indented under 50 others |
 | An HTML entity in an attr value or in prose (the builder's refusal, not the tokenizer's; code spans and fences exempt) | `heading="&quot;x&quot;"` (write `\"x\"`), `a &lt; b` (write `a < b`) |
 
 Not malformed, on purpose: an **unknown block type**, an **unknown attr key**, and a
