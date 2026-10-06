@@ -766,6 +766,10 @@ def apply_edit(spec_path, transform, out=None, lang="es"):
             old = fh.read()
     except OSError as exc:
         raise VerbError("cannot read the spec %s: %s" % (spec_path, exc))
+    except UnicodeDecodeError as exc:
+        raise VerbError("cannot read the spec %s: it is not UTF-8 (byte 0x%02x "
+                        "at offset %d) — save it as UTF-8"
+                        % (spec_path, exc.object[exc.start], exc.start))
 
     new = transform(old)
     base_dir = os.path.dirname(os.path.abspath(spec_path))

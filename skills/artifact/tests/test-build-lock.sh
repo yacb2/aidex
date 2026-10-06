@@ -179,6 +179,25 @@ for cell in "fresh:running" "300:running" "1150:running" "-1200.6:stale" "1260:s
   fi
 done
 
+# 11b. a reply that cannot be read is refused like the page, naming what to fix —
+#      not a traceback (LOOP-008 D4): a file that is not there, a file that is not
+#      UTF-8, the same bytes on stdin, a file with no read permission.
+printf 'Q1: ok \xff\xfe\n' > "$TMP/latin1-reply.md"
+printf 'Q1: ok\n' > "$TMP/locked-reply.md"; chmod 000 "$TMP/locked-reply.md"
+for cell in "missing:$TMP/no-such-reply.md" "latin1:$TMP/latin1-reply.md" \
+            "stdin:-" "unreadable:$TMP/locked-reply.md"; do
+  name="${cell%%:*}" arg="${cell#*:}"
+  if [[ $name == stdin ]]; then
+    out="$(bash "$SKILL/scripts/save-reply.sh" "$TMP/reports/other.html" - < "$TMP/latin1-reply.md" 2>&1)"; rc=$?
+  else
+    out="$(bash "$SKILL/scripts/save-reply.sh" "$TMP/reports/other.html" "$arg" 2>&1)"; rc=$?
+  fi
+  [[ $rc -eq 2 && "$out" != *Traceback* && "$out" == ERROR:* ]] \
+    && ok "save-reply refuses a $name reply with an ERROR, rc 2" \
+    || fail "save-reply with a $name reply (rc $rc): $out"
+done
+chmod 600 "$TMP/locked-reply.md"
+
 # 12. the hook keeps its own STALE_AFTER literal (it is shell and must not import
 #     check_artifact); pin it to BUILD_LOCK_STALE_AFTER so the two cannot drift (BL-563).
 hook_win="$(grep -E '^[[:space:]]*STALE_AFTER = ' "$SKILL/../../hooks/artifact-open-once.sh" | sed -n 1,1p)"

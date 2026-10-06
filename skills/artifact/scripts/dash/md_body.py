@@ -373,8 +373,22 @@ def _table(rows):
     return "".join(out)
 
 
-def _blocks(lines):
+# How deep a markdown list may nest. A sub-list is rendered by recursing, and a
+# few hundred levels (fewer inside nested spec fences) hit Python's recursion
+# limit (a RecursionError traceback, LOOP-008). Real lists nest 2-3 deep.
+MAX_LIST_DEPTH = 50
+
+
+class ListTooDeep(ValueError):
+    """A list nested past MAX_LIST_DEPTH; the message says what to change."""
+
+
+def _blocks(lines, depth=0):
     """Paragraph / list / table blocks from a run of body lines."""
+    if depth > MAX_LIST_DEPTH:
+        raise ListTooDeep("a markdown list nests %d levels deep — lists nest at "
+                          "most %d deep; flatten the deeper levels"
+                          % (depth, MAX_LIST_DEPTH))
     out, i = [], 0
     while i < len(lines):
         ln = lines[i]
@@ -439,7 +453,7 @@ def _blocks(lines):
                     break
                 i += 1
             out.append(f"<{tag}>"
-                       + "".join(f"<li>{_inline(x)}{''.join(_blocks(sub))}</li>"
+                       + "".join(f"<li>{_inline(x)}{''.join(_blocks(sub, depth + 1))}</li>"
                                  for x, sub in items)
                        + f"</{tag}>")
         elif HEADING.match(ln):

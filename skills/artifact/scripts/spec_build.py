@@ -1685,7 +1685,10 @@ def emit_node(node, ctx, parent=None):
             "unknown block type %r (known: %s)"
             % (node.block_type, ", ".join(sorted(EMITTERS))))
     _check_parent(node, parent)
-    html = EMITTERS[node.block_type](node, ctx)
+    try:
+        html = EMITTERS[node.block_type](node, ctx)
+    except md_body.ListTooDeep as exc:
+        raise SpecBuildError(node.line, str(exc))
     # LOOP-006 decision 3: a block the page contract fails as mixed content (a
     # paragraph with `contract_defects.FACTS_MIN` code tokens or clauses, file
     # paths listed in a sentence, prose in a code block) is refused here, by
@@ -2021,6 +2024,11 @@ def main(argv):
             spec_text = fh.read()
     except OSError as exc:
         sys.stderr.write("spec-build: %s\n" % exc)
+        return 2
+    except UnicodeDecodeError as exc:
+        sys.stderr.write("spec-build: %s is not UTF-8 (byte 0x%02x at offset %d) "
+                         "— save the spec as UTF-8\n"
+                         % (args.spec, exc.object[exc.start], exc.start))
         return 2
     if args.check and not args.out:
         sys.stderr.write("spec-build: --check needs -o <out.html>\n")

@@ -88,6 +88,13 @@ KINDS = ("bar", "line", "stacked")
 #   `1,5`   — the decimal comma. The corpus is Spanish pages, so this is the
 #             most likely wrong value in the file; it gets its own hint below.
 NUM = re.compile(r"^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$")
+# The magnitudes a nonzero value may have. Past ~1.8e308 `float()` gives `inf`, and
+# well before it the axis arithmetic does (a span of -x..x, a stacked total of 8
+# series, the tick rounding up): an OverflowError. Below ~1e-308 the value is
+# subnormal and the tick step divides by zero or takes log10(0): a
+# ZeroDivisionError or ValueError. 1e-300..1e300 leaves that arithmetic orders of
+# magnitude of headroom and refuses nothing a chart can mean.
+MIN_ABS, MAX_ABS = 1e-300, 1e300
 # A markdown separator row cell: `---`, `:--`, `--:`, `:-:`.
 SEP_CELL = re.compile(r"^:?-+:?$")
 
@@ -198,6 +205,12 @@ def _number(line_no, raw, column, stacked=False):
             "column %d of this data row is %r, which is not a number%s"
             % (column, raw, hint))
     value = float(raw)
+    if value and not MIN_ABS <= abs(value) <= MAX_ABS:
+        raise SpecSyntaxError(
+            line_no,
+            "column %d of this data row is out of a chart's range — a value is "
+            "0 or between %g and %g either side of 0; write it in another unit"
+            % (column, MIN_ABS, MAX_ABS))
     if stacked and value < 0:
         # A stacked bar lays its segments end to end and measures the bar on
         # its row's TOTAL scale: a negative segment would have to be laid

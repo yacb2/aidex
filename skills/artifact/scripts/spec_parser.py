@@ -303,6 +303,12 @@ def _parse_open(line_no, rest):
     return type_tok, classes, ident, attrs
 
 
+# How deep fences may nest. The parser itself is iterative, but the builder and
+# the verbs walk the tree recursively and hit Python's recursion limit at about
+# 500 levels (a RecursionError traceback, LOOP-008 D2). Real pages nest 3-4 deep.
+MAX_DEPTH = 100
+
+
 def parse(spec_text):
     """The spec as a list of top-level `BlockNode`s.
 
@@ -363,6 +369,11 @@ def parse(spec_text):
         m = OPEN.match(raw)
         if m:
             block_type, classes, ident, attrs = _parse_open(n, m.group(2).rstrip())
+            if len(stack) >= MAX_DEPTH:
+                raise SpecSyntaxError(
+                    n, "this `%s` opens at depth %d — fences nest at most %d "
+                    "deep; close the blocks above it before opening another"
+                    % (block_type, len(stack) + 1, MAX_DEPTH))
             node = BlockNode(n, block_type, attrs, classes, ident,
                              authored=True)
             body().append(node)

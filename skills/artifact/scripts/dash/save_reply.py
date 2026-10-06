@@ -271,11 +271,21 @@ def main(argv):
         print(f"ERROR: {page_path} is not a file", file=sys.stderr)
         return 2
     reply_arg = argv[1] if len(argv) > 1 else "-"
-    if reply_arg == "-":
-        reply_text = sys.stdin.read()
-    else:
-        with open(reply_arg, encoding="utf-8") as fh:
-            reply_text = fh.read()
+    where = "on stdin" if reply_arg == "-" else reply_arg
+    try:
+        if reply_arg == "-":
+            reply_text = sys.stdin.read()
+        else:
+            with open(reply_arg, encoding="utf-8") as fh:
+                reply_text = fh.read()
+    except OSError as exc:
+        print(f"ERROR: cannot read the reply {where}: {exc}", file=sys.stderr)
+        return 2
+    except UnicodeDecodeError as exc:
+        print(f"ERROR: the reply {where} is not UTF-8 (byte "
+              f"0x{exc.object[exc.start]:02x} at offset {exc.start}) — save it "
+              f"as UTF-8", file=sys.stderr)
+        return 2
     if not reply_text.strip():
         print("ERROR: the reply is empty — nothing to save", file=sys.stderr)
         return 2
