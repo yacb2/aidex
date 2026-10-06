@@ -76,6 +76,15 @@ not ask for, so they are a workaround, not the answer.
 - **Inside a code span the backslash is literal.** `` `a\_b` `` shows `a\_b`.
   CommonMark's rule, and the reason is that a path in backticks is the one place
   an author means the backslash they typed.
+- **A literal backtick in prose is a builder refusal, not an escape.** `` \` `` is
+  accepted by the renderer, but the page would show a raw backtick (invariant
+  CNT-2), so `spec_build` refuses it with the spec line, and refuses a backtick
+  with no partner the same way (the renderer leaves it raw too). Write `` `x` ``
+  for code; a literal backtick belongs inside a code span. Code spans are paired over the whole wrapped paragraph or list item, so a span
+  may wrap. Fenced code blocks and real code spans are code and are not checked; a
+  fence opens with exactly three backticks or tildes at the start of the line (a
+  four-backtick fence or a BOM before it is prose). A double-backtick span is not
+  supported, so ``` ``a`b`` ``` is refused as unmatched.
 - **Block markers are not escapable.** `#`, `-`, `|`, `:::` are read a layer
   above this one, by `_blocks` and by the tokenizer, and an escape here would
   arrive after they had already decided. A paragraph that must open with `- ` has
