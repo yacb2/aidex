@@ -329,7 +329,7 @@ the rows document declares them once and the reply parses back with `--rows` (SK
 "Verified" part 1). An empty `rows` (everything matched) means no gallery block on the page. The
 artifact kit's `gallery-items.sh` turns that document into consultation items
 (`/aidex:artifact`, `04-block-vocabulary.md` § `gallery` pins the shape). The board and
-the image remain the developer's lens while building.
+the image remain the developer's lens while building: nothing reads a page built from them, and a session never opens one in the owner's browser (BL-705); after a UI fix the owner is handed the consultation artifact.
 
 **A component-scoped consultation** (owner 2026-10-02): when only one component changes
 (a button's hover, tooltip, loading and disabled states; a dialog; a card; a section; a
@@ -394,4 +394,4 @@ the harness copies this table into its own record and edits the rows its setup c
 | **The lockstep test parses source by regex** | A reformat is a false red, not a false green — but it is still a red nobody caused. |
 | **Overflow does not see clipped or spilling boxes** | An `overflow: hidden`/`clip` box (a truncated label is wider than its box on purpose) and a visible-overflow child spilling out without growing any scroller are not findings; the pixels have to show them. |
 | **JS-driven animation is not frozen** | Freezing CSS motion and `reducedMotion` do not stop d3/unovis chart transitions; a cell whose `ready` resolves mid-animation gets a baseline of an intermediate frame and flakes. The chart's duration must be 0 under the gallery, or `ready` must mean the final frame (§ 1c). |
-| **Taste is not gated** | Overflow, contrast, layout churn and pixel drift, and nothing else. Whether the screen is good is the owner's call on the contact sheet. |
+| **Taste is not gated** | Overflow, contrast, layout churn and pixel drift, and nothing else. Whether the screen is good is the owner's call on the consultation page. |

@@ -8,14 +8,11 @@ model-policy: per-stage
 
 # UI contract
 
-> **Experimental (1.3.0).** Proven on projects whose harness the owner shaped; say so to
-> the user before relying on it.
-> Sketch mode (Step 0) was kept after readout 2026-10-04
-> (`research/2026-10-04-ui-contract-sketch-mode-readout.md`).
+> **Experimental (1.3.0).** Proven on projects whose harness the owner shaped; say so before relying on it.
 
 The contract for what "matches" means is a **state gallery rendered by the project's real
-components** against fixture data — one entry per state-matrix cell — reviewed through a
-contact sheet. Not a drawn mockup: a drawing cannot be checked against reality and shows
+components** against fixture data — one entry per state-matrix cell — reviewed by the owner
+through a consultation page. Not a drawn mockup: a drawing cannot be checked against reality and shows
 things the real components cannot do.
 
 Canon: ADR `2026-09-21-ui-contract-state-galleries-and-evidence-gate` (as amended).
@@ -27,7 +24,7 @@ Canon: ADR `2026-09-21-ui-contract-state-galleries-and-evidence-gate` (as amende
 | A screen is being designed and no plan exists yet | **Step 0**: the harness check, then the design discussion, ending in a standalone `ui-contract.md` |
 | A plan is being written and the work touches UI | the plan's **UI-contract section** (below), with the level proposed |
 | A UI phase is about to close | the three parts of **"verified"** in the Execution log |
-| A visual bug is being fixed | a before/after contact sheet as the proof the regression test cannot be |
+| A visual bug is being fixed | a before/after gallery consultation (`/aidex:artifact`) for the owner: the proof a regression test cannot be. The contact sheet, and any HTML built from it, is yours: never opened for the owner |
 
 If the work touches no screen, this skill owes nothing and costs nothing — say so in one
 line and stop.
@@ -266,8 +263,8 @@ The word on its own is not a claim. A model looking at its own screenshots has a
    and cells), every shown row carries a `look` line, and the reply parses back with
    `gallery-reply.sh`. Read `/aidex:artifact` § Gallery rows before building that page; it
    owns the row shapes and the reply rules. That page's path is written down, with the
-   owner's verdict per row. A generated board or composed image is the developer's lens
-   while building, never the owner's review. The owner is the final reviewer — never the model.
+   owner's verdict per row. A generated board or composed image is the developer's lens,
+   never the owner's review; the owner is the final reviewer, never the model.
 2. **The gate's closing line, from a run with NO snapshot update**, including the
    meta-suite's count as a **bare `meta: N/N`**. `meta: 0/0` means the predicates were
    never proven in that run, and a count labelled filtered or skipped is not a gate run

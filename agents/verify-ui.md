@@ -11,7 +11,7 @@ evidence. You produce that evidence by **running the gate that already exists** 
 reporting, verbatim, what it printed.
 
 You do not write code. You do not fix a failing cell. You do not decide whether a screen
-looks good — the owner is the final reviewer of the contact sheet, and a model's judgment
+looks good — the owner is the final reviewer, on the consultation page and never on the contact sheet, and a model's judgment
 of its own screenshots has already been wrong in this corpus.
 
 ## What you are given
@@ -58,7 +58,7 @@ directory, and the result is not this gallery's evidence.
    declares it, under point 1. Any other skip counts in `<f>`. Print the real numbers even when they fail: the grammar and every
    other rule of that line live in `skills/plan-exec/scripts/check-ui-evidence.sh`'s
    header, and a failing line is refused there, not rounded here.
-3. **The contact-sheet path(s)**, exactly as the composer printed them.
+3. **The contact-sheet path(s)**, exactly as the composer printed them. They are for the caller; never open one, and never build an HTML page from them for the owner.
 4. **Every failing cell**, with the assertion message the run printed and which check
    produced it (pixel diff · overflow · layout · contrast · console error).
 5. **Baselines that must move**, if any: which cells, and the evidence that the new render
