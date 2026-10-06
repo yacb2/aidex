@@ -126,22 +126,52 @@ def corpus_failures(page, fast, every):
     return out
 
 
+MIGRATED = "migrated"
+
+
 def corpus_specs():
     """[(abs spec path, abs project dir)] of the goal-gate sample, one per
     sampled page, or None when the sample cannot be read. The spec is named by
     goal-gate's own rule; a page whose spec is missing keeps its slot (it is
     judged `no spec`). The project is the sample row's first path segment under
     the sample's root — where the original page sits, and whose profile judges
-    it."""
+    it. A spec the builder refuses today may have an edited copy in
+    `<corpus>/migrated/` (one reason per file in `MIGRATIONS.md`); the original
+    is tried first and the copy is used ONLY while the original is refused (a
+    copy beside an original that builds is reported as `stale migration` on
+    stderr and ignored). The original stays untouched in `corpus-specs/`.
+    goal_gate.py reads `corpus-specs/` only, on purpose: it compares a spec with
+    its original page, and a migrated spec is not that page's source."""
     corpus = os.environ.get("AIDEX_SPEC_CORPUS", "")
     sample = os.path.join(corpus, "corpus-sample.json") if corpus else ""
     if not sample or not os.path.isfile(sample):
         return None
     data = json.load(open(sample, encoding="utf-8"))
     root = os.path.expanduser(data["root"])
-    return [(os.path.join(corpus, "corpus-specs", goal_gate.spec_name(p["path"])),
-             os.path.join(root, p["path"].split("/", 1)[0]))
-            for p in data["pages"]]
+    out = []
+    for p in data["pages"]:
+        name = goal_gate.spec_name(p["path"])
+        spec = os.path.join(corpus, "corpus-specs", name)
+        project = os.path.join(root, p["path"].split("/", 1)[0])
+        migrated = os.path.join(corpus, MIGRATED, name)
+        if os.path.isfile(migrated):
+            tree, reports = build_dir(project)
+            try:
+                builds, _ = build_spec(spec, reports)
+            finally:
+                shutil.rmtree(tree, ignore_errors=True)
+            if builds:
+                print("stale migration: %s (the original builds today; delete migrated/%s)"
+                      % (name, name), file=sys.stderr)
+            else:
+                spec = migrated
+        out.append((spec, project))
+    return out
+
+
+def is_migrated(spec):
+    """True when corpus_specs handed back a migrated copy (MIGRATIONS.md says why)."""
+    return os.path.basename(os.path.dirname(spec)) == MIGRATED
 
 
 def build_dir(project):
@@ -269,8 +299,10 @@ def main(argv):
             elif verbose:
                 print("  %s: %s" % (name, ", ".join(failed)), file=sys.stderr)
         total = len(specs) + len(rebuilt)
-        lines.append("corpus: %d/%d%s" % (clean, total,
-                                          " (source only)" if fast else ""))
+        nmig = sum(1 for sp, _ in specs if is_migrated(sp))
+        lines.append("corpus: %d/%d%s%s" % (clean, total,
+                                            " (%d migrated)" % nmig if nmig else "",
+                                            " (source only)" if fast else ""))
         corpus_ok = clean == total
 
     print("\n".join(lines))

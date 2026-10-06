@@ -760,6 +760,11 @@ rm -rf "$TMP/cproj"
   && ok "the default holds a built page to every render class" || bad "dirty render: $(gate "" probe-dirty | tail -1)"
 [[ "$(AIDEX_CORPUS_FAST=1 gate "" probe-dirty | tail -1)" == "corpus: 1/1 (source only)" ]] \
   && ok "AIDEX_CORPUS_FAST=1 reads source checks only and says so" || bad "fast: $(AIDEX_CORPUS_FAST=1 gate "" probe-dirty | tail -1)"
+corpus refused
+mkdir -p "$CORP/migrated"; cp "$SPECS/clean.spec.md" "$CORP/migrated/cproj__refused.spec.md"
+[[ "$(gate "" | tail -1)" == "corpus: 1/1 (1 migrated)" ]] \
+  && ok "a refused original with a migrated copy is built from the copy, counted and labelled" || bad "migrated: $(gate "" | tail -1)"
+corpus clean
 err="$(AIDEX_PROBE_TIMEOUT=1 AIDEX_RENDER_PROBE="$TMP/probe-slow.sh" AIDEX_DEFECT_REGISTRY= \
   AIDEX_SPEC_CORPUS="$CORP" bash "$HERE/defect-gate.sh" --verbose 2>&1)"
 grep -q "^corpus: 0/1$" <<<"$err" && grep -q "cproj__clean.spec.md: render-probe timeout" <<<"$err" \

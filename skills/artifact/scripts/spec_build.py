@@ -626,12 +626,19 @@ def _option(text):
 
 
 _OPT_PAREN = re.compile(r"\([^)]*\)")
+# A lone letter in parentheses points at another option ("Igual que (a), pero
+# al revés"): a reference, not a reason, so it is set aside before the read.
+_OPT_LETTER_REF = re.compile(r"\(\s*[A-Za-z]\s*\)")
 # What the kit already adds under every item ("Otra — lo explico en las notas",
 # "Todavía no — lo dejo para otra ronda"): a spec option saying the same shows
-# the choice twice.
+# the choice twice. A note is the kit's box when the option points AT it (a
+# locative: "en una nota", "in the notes", "add a note") or is just the word
+# ("Ver nota", "Notes"); "Una nota visible en su propio README" is something
+# being decided, so a bare mention in a longer sentence does not count.
 _OPT_KIT_DUP = re.compile(
-    r"\bnotas?\b|\bnotes?\b|^(otra|otro|other)\b|^(todav[ií]a|aún|aun) no\b"
-    r"|^not (yet|now)\b", re.I)
+    r"\b(en|in|into|to|a|al)\s+(?:\S+\s+){0,3}?(notas?|notes?)\b"
+    r"|^(otra|otro|other)\b|^(todav[ií]a|aún|aun) no\b|^not (yet|now)\b", re.I)
+_OPT_NOTE_WORD = re.compile(r"\b(notas?|notes?)\b", re.I)
 
 
 def _refuse_option_shape(node, opts):
@@ -641,16 +648,18 @@ def _refuse_option_shape(node, opts):
     A parenthetical reason in the label turns the option into a question of its
     own; the reason belongs in the item body. The kit adds Otra and Todavía no
     to every item, so a spec option for either (or one pointing at the notes
-    box) is shown twice. `{recommended}` is not a parenthesis, and code spans
-    are the author quoting, so both are set aside before the read.
+    box) is shown twice. `{recommended}` is not a parenthesis, code spans are the
+    author quoting, and a lone `(a)` points at another option, so all three
+    are set aside before the read.
     """
     for text in opts:
         label = _option(text)[0]
-        bare = re.sub(r"`[^`]*`", "", label).strip()
+        bare = _OPT_LETTER_REF.sub("", re.sub(r"`[^`]*`", "", label)).strip()
         why = None
         if _OPT_PAREN.search(bare):
             why = "carries a parenthetical"
-        elif _OPT_KIT_DUP.search(bare):
+        elif (_OPT_KIT_DUP.search(bare)
+              or (len(bare.split()) <= 3 and _OPT_NOTE_WORD.search(bare))):
             why = "duplicates an option the kit already adds"
         if why:
             raise SpecBuildError(

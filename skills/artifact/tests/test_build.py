@@ -822,6 +822,34 @@ try:
             ("a Todavía no option", "Todavía no", "already adds"),
             ("a Not yet option", "Not yet", "already adds")]:
         rejects("item option: %s is refused" % label, with_option(opt), 2, what)
+    # A letter in parentheses points at another option ("Igual que (a), pero
+    # al revés", corpus BL-054): it is a reference, not a reason, so it builds.
+    # A real reason in parentheses, even a short one, still refuses.
+    holds("item option: a reference to another option '(a)' is not a parenthetical",
+          with_option("Igual que (a), pero resolviendo al revés — más caro"),
+          'data-label="Igual que (a), pero resolviendo al revés"')
+    # "a note in the README" is a domain answer, not the kit's notes box
+    # (corpus open-decisions Q20); only the notes box refuses.
+    holds("item option: 'una nota' as the thing decided is not the notes box",
+          with_option("Una nota visible en su propio README — la ve quien abra la carpeta"),
+          'data-label="Una nota visible en su propio README"')
+    for label, opt in [
+            ("Ver nota", "Ver nota"), ("Anadir una nota", "Añadir una nota"),
+            ("Add a note", "Add a note"), ("Escribirlo en la nota", "Escribirlo en la nota"),
+            ("Lo pongo en una nota", "Lo pongo en una nota"),
+            ("Detallarlo en tus notas", "Detallarlo en tus notas"),
+            ("Responder en el campo de notas", "Responder en el campo de notas"),
+            ("Lo explico en el cuadro de notas", "Lo explico en el cuadro de notas"),
+            ("Write it in a note", "Write it in a note"), ("Leave a note", "Leave a note"),
+            ("See notes", "See notes"), ("Notas", "Notas"), ("Notes", "Notes")]:
+        rejects("item option: notes-box wording %r still refuses" % label,
+                with_option(opt), 2, "already adds")
+    rejects("item option: '(no)' is a two-letter parenthetical, not a letter reference",
+            with_option("Cerrar (no)"), 2, "parenthetical")
+    rejects("item option: 'Sí (recomendado)' is a parenthetical reason and still refuses",
+            with_option("Sí (recomendado)"), 2, "parenthetical")
+    rejects("item option: a letter reference beside a real reason still refuses",
+            with_option("Igual que (a) (más caro)"), 2, "parenthetical")
     rejects("item option: the message names the item, the option and the fix",
             with_option("Cerrar (conservarlas)"), 2,
             "item Q1 option 'Cerrar (conservarlas)'")

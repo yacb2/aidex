@@ -74,6 +74,21 @@ echo "== corpus: X/Y =="
 corpus clean refused
 gate probe-clean; out="$(<"$TMP/out")"
 [[ "$(sed -n 2p <<<"$out")" == "corpus: 1/2" ]] && ok "a spec the builder refuses is a failing page" || bad "refused: $(sed -n 2p <<<"$out")"
+# a spec the builder refuses reads its migrated copy (corpus/migrated/, same file name); the
+# original stays refused in corpus-specs/, Y stays the sample size, --verbose names the copy
+corpus clean refused
+mkdir "$CORP/migrated"; cp "$SPECS/clean.spec.md" "$CORP/migrated/cproj__refused.spec.md"
+gate probe-clean; out="$(<"$TMP/out")"
+[[ "$(sed -n 2p <<<"$out")" == "corpus: 2/2 (1 migrated)" ]] && ok "a refused spec with a migrated copy is built from the copy and the line says so" || bad "migrated: $(sed -n 2p <<<"$out")"
+AIDEX_RENDER_PROBE="$TMP/probe-clean.sh" AIDEX_SPEC_CORPUS="$CORP" bash "$GATE" --verbose >/dev/null 2>"$TMP/err"
+grep -q "migrated specs built.*cproj__refused.spec.md" "$TMP/err" && ok "--verbose prints the migrated spec's name" || bad "verbose: $(cat "$TMP/err")"
+grep -q "cproj__clean" "$TMP/err" && bad "--verbose named an unmigrated spec" || ok "--verbose names only the migrated ones"
+# a migrated copy beside an original that builds is stale: the original is used, the copy reported
+corpus clean
+mkdir "$CORP/migrated"; cp "$SPECS/flag.spec.md" "$CORP/migrated/cproj__clean.spec.md"
+gate probe-dup; out="$(<"$TMP/out")"
+[[ "$(sed -n 2p <<<"$out")" == "corpus: 1/1" ]] && grep -q "stale migration: cproj__clean.spec.md" "$TMP/err" \
+  && ok "a copy beside an original that builds is ignored and reported stale" || bad "stale: $(sed -n 2p <<<"$out") / $(cat "$TMP/err")"
 corpus clean flag
 gate probe-dup; out="$(<"$TMP/out")"
 [[ "$(sed -n 2p <<<"$out")" == "corpus: 1/2" ]] && ok "two INV lines on one page fail that one page, once" || bad "dup: $(sed -n 2p <<<"$out")"
