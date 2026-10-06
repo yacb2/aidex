@@ -72,7 +72,7 @@ diff_snap() {
   [[ -f "$before" ]] || die "snapshot not found: $before"
   local tmp=""
   if [[ -z "$after" ]]; then
-    tmp="$(mktemp)"; take "$tmp" >/dev/null 2>&1; after="$tmp"
+    tmp="$(mktemp "${TMPDIR:-/tmp}/aidex.XXXXXX")"; take "$tmp" >/dev/null 2>&1; after="$tmp"
   fi
   [[ -f "$after" ]] || die "snapshot not found: $after"
 

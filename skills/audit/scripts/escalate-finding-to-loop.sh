@@ -128,7 +128,7 @@ fi
 
 # Prefill the generated loop-spec: inject Goal + provenance + a gate TODO right
 # after their section headings (instructional comments are left in place).
-TMP="$(mktemp)"
+TMP="$(mktemp "${TMPDIR:-/tmp}/aidex.XXXXXX")"
 awk -v goal="$GOAL_TEXT" -v prov="$PROV_TEXT" -v gate="$GATE_TEXT" '
   /^## Goal$/ { print; print ""; print goal; print ""; print prov; next }
   /^## Stop condition \(the gate\)$/ { print; print ""; print gate; next }
@@ -142,7 +142,7 @@ mv "$TMP" "$LOOP_FILE"
 if grep -q '^origin_ref:' "$LOOP_FILE"; then
   sed -i.bak -E "s|^origin_ref: .*|origin_ref: $ORIGIN_REF|" "$LOOP_FILE" && rm -f "$LOOP_FILE.bak"
 else
-  TMP2="$(mktemp)"
+  TMP2="$(mktemp "${TMPDIR:-/tmp}/aidex.XXXXXX")"
   awk -v ref="$ORIGIN_REF" '
     /^---[[:space:]]*$/ { c++; if (c == 2) print "origin_ref: " ref }
     { print }

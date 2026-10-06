@@ -143,7 +143,7 @@ for f in "$DIR"/*.md; do
     continue
   fi
 
-  tmp="$(mktemp)"
+  tmp="$(mktemp "${TMPDIR:-/tmp}/aidex.XXXXXX")"
   awk -v new="$new" -v add_blocked="${has_blocked:+0}${has_blocked:-1}" -v blocked_val="$detected_blocked" '
     BEGIN { fm = 0; wrote_prio = 0; wrote_blocked = 0 }
     /^---$/ {

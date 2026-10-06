@@ -203,7 +203,7 @@ LOOP_FILE="$("$NEWLOOP" new "$SLUG")"
 # whole rather than injected heading-by-heading, because every section this spec
 # needs is filled -- an injected body would keep the template's blanks and TODO
 # prompts, which is exactly the hand-editing the spec must not need.
-TMP="$(mktemp)"
+TMP="$(mktemp "${TMPDIR:-/tmp}/aidex.XXXXXX")"
 awk '/^---[[:space:]]*$/ { c++ } { print } c == 2 { exit }' "$LOOP_FILE" > "$TMP"
 
 # engine is decided here, not left "undecided"; origin_ref back-links the run.
@@ -342,7 +342,7 @@ mv "$TMP" "$LOOP_FILE"
 # make the write-back vacuous. `doing` + a marker is what canon 03-lifecycle
 # requires of a finding whose work is under way (validate-audit enforces it).
 MARKER="loop/$(basename "$LOOP_FILE" .md)"
-TMP2="$(mktemp)"
+TMP2="$(mktemp "${TMPDIR:-/tmp}/aidex.XXXXXX")"
 awk -v marker="$MARKER" -v run="$RUN_SLUG" -v rundate="$RUN_DATE" '
   BEGIN { in_comment = 0 }
   {

@@ -76,7 +76,7 @@ if [[ -f .gitignore ]]; then
   OLD_RE="^!\\.context/(${alts#|})$"
   bpend=0; grep -q '^# BP-ROOT-WHITELIST:END' .gitignore && bpend=1
   have=0; grep -qx '!\.context/profiles/' .gitignore && have=1   # never add the whitelist twice
-  tmp="$(mktemp)"
+  tmp="$(mktemp "${TMPDIR:-/tmp}/aidex.XXXXXX")"
   awk -v re="$OLD_RE" -v done_init="$have" -v bpend="$bpend" '
     BEGIN { done = done_init }
     /^# BP-ROOT-WHITELIST:START/ { bp = 1 }

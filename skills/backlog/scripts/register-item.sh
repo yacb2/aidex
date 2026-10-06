@@ -617,7 +617,7 @@ regen_index() {
   # `sort`, which is line-oriented: a row carrying a real newline is torn apart and
   # its companions surface as orphan bullets under an unrelated entry. Links are
   # relative to the index, which lives in the backlog dir.
-  local COMP_TABLE; COMP_TABLE="$(mktemp)"
+  local COMP_TABLE; COMP_TABLE="$(mktemp "${TMPDIR:-/tmp}/aidex.XXXXXX")"
   local anc comp
   while IFS=$'\t' read -r anc comp; do
     [[ -n "$comp" && "${anc%.md}" == backlog/* ]] || continue

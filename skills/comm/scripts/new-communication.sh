@@ -218,7 +218,7 @@ if [[ "$SYNC" -eq 1 ]]; then
 else
   render_template "$TEMPLATES_DIR/$TEMPLATE" "$OUT" \
     CHANNEL="$CHANNEL" DIRECTION="$KIND" STATUS="$STATUS" SLUG="$SLUG" DATE="$DATE_ISO"
-  STYLE_TMP="$(mktemp)"
+  STYLE_TMP="$(mktemp "${TMPDIR:-/tmp}/aidex.XXXXXX")"
   style_block "$(resolve_profile "$ROOT/.context" communication || true)" > "$STYLE_TMP"
   inject_style "$OUT" "$STYLE_TMP"
   rm -f "$STYLE_TMP"

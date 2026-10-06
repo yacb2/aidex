@@ -381,7 +381,7 @@ if [ "$PARTITION" -eq 1 ]; then
     echo "partitionable=no"
     echo "partition_note=the target is a single file; there is nothing to split. Review it as it stands, or name a wider target."
   else
-    parts_tmp="$(mktemp)"
+    parts_tmp="$(mktemp "${TMPDIR:-/tmp}/aidex.XXXXXX")"
 
     # The `(root)` part: files sitting directly in the target. They are the target's
     # own files, already resolved under the target's own rules, so they are counted

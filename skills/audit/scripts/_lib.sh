@@ -166,7 +166,7 @@ extract_finding_row() {
 # Usage: mark_row_escalated <inventory> <finding_id> <ref>
 mark_row_escalated() {
   local inventory="$1" finding_id="$2" link="$3" tmp
-  tmp="$(mktemp)"
+  tmp="$(mktemp "${TMPDIR:-/tmp}/aidex.XXXXXX")"
   awk -v id="$finding_id" -v link="$link" -v today="$(today_iso)" '
     BEGIN { in_comment = 0 }
     {

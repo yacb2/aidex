@@ -76,7 +76,7 @@ if [[ "$LAYOUT" -eq 1 ]]; then
   # Normalize one inventory: legacy status cells -> base vocab; YYYYMMDD -> ISO.
   normalize_inventory() {
     local inv="$1" tmp
-    tmp="$(mktemp)"
+    tmp="$(mktemp "${TMPDIR:-/tmp}/aidex.XXXXXX")"
     awk -F'|' '
       {
         if ($0 ~ /^\|/ && NF >= 11) {
