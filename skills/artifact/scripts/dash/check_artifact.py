@@ -3003,6 +3003,49 @@ def _box_label(body):
     return False
 
 
+_NO_NAME_TYPES = {"hidden", "radio", "checkbox", "range", "button", "submit",
+                  "reset", "image", "file", "color"}
+
+
+def _unnamed_controls(body):
+    """BL-706: the labelled textarea/input/select of `body` that no assistive
+    technology can name, as (tag, label text) pairs. A control is labelled when a
+    `.fieldlabel` with text sits between the control before it and itself; it is
+    named when it has an `aria-label`, an `aria-labelledby` that resolves to THAT
+    label's id, or a `<label for=>` with text. A name pointing at some other
+    label of the item (the options' label on the notes box) is not its name."""
+    unnamed = []
+    ctl = re.compile(r'<(textarea|input|select)\b[^>]*>|contenteditable', re.I)
+    prev = 0
+    for m in ctl.finditer(body):
+        tag = m.group(0)
+        lo, prev = prev, m.end()
+        if not m.group(1):
+            continue
+        kind = m.group(1).lower()
+        if re.search(r'\bclass\s*=\s*["\'][^"\']*\bkit-marks\b', tag):
+            continue
+        if kind == "input" and (_tag_attr(tag, "type") or "text").lower() in _NO_NAME_TYPES:
+            continue
+        label = None
+        for lm in FIELDLABEL_OPEN.finditer(body, lo, m.start()):
+            text = re.sub(r'<[^>]+>', '', _subtree(body, lm.group(1), lm.end())).strip()
+            if text:
+                label = (lm.group(0), text)
+        if label is None:
+            continue
+        lid = _tag_attr(label[0], "id")
+        own = _tag_attr(tag, "id")
+        named = (bool((_tag_attr(tag, "aria-label") or "").strip())
+                 or bool(lid and lid in (_tag_attr(tag, "aria-labelledby") or "").split())
+                 or bool(own and re.search(
+                     r'<label\b[^>]*\bfor\s*=\s*["\']%s["\'][^>]*>\s*[^<\s]' % re.escape(own),
+                     body, re.I)))
+        if not named:
+            unnamed.append((kind, label[1]))
+    return unnamed
+
+
 def _strip_subtrees(fragment, opener):
     """fragment with every subtree opened by `opener` removed."""
     out, pos = [], 0
@@ -3146,6 +3189,12 @@ def check_shape(path, text):
             report(f"block '{ident}': its notes box has no visible label — a "
                    f"<p class=\"fieldlabel\"> with text before the <textarea>; "
                    f"a placeholder is not a label")
+        else:
+            for _kind, _lbl in _unnamed_controls(_subtree(body, gm.group(1), gm.end())):
+                report(f"block '{ident}': its notes box has a visible label but no "
+                       f"accessible name — give the <p class=\"fieldlabel\"> an id "
+                       f"and the <textarea> aria-labelledby=\"<that id>\" (wrap-report.sh "
+                       f"does it on every wrap; BL-706)")
     for m in ITEM_OPEN.finditer(text):
         toks = _class_tokens(m.group(0))
         if "consult-item" not in toks or "consult-group" in toks:
@@ -3157,6 +3206,13 @@ def check_shape(path, text):
             report(f"{what}: its notes box has no visible label — a "
                    f"<p class=\"fieldlabel\"> with text before the <textarea>; "
                    f"a placeholder is not a label (02-local-first-artifacts.md § 8.3)")
+        for kind, lbl in _unnamed_controls(body):
+            what = "the general-notes item" if "consult-notes" in toks else f"item '{ident}'"
+            field = "its notes box" if kind == "textarea" else f"its {kind} labelled '{lbl}'"
+            report(f"{what}: {field} has a visible label but no accessible "
+                   f"name — give the <p class=\"fieldlabel\"> an id and the "
+                   f"control aria-labelledby=\"<that id>\" (wrap-report.sh does "
+                   f"it on every wrap; BL-706)")
 
     # Every item lives inside a block — the general-notes item excepted, it is
     # the one item that answers to no context.

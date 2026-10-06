@@ -38,7 +38,7 @@ mkpage() {
     printf '@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --paper:#111; } }\n'
     printf ':root[data-theme="dark"] .consult-bar { background: #111; }\n'
     printf '</style>\n</head>\n<body>\n'
-    printf '%s\n' "$body"
+    printf '%s\n' "$body" | python3 "$(dirname "${BASH_SOURCE[0]}")/link_labels.py"
     printf '</body>\n</html>\n'
   } > "$out"
 }
@@ -1879,6 +1879,51 @@ rc="$(run "$TMP/does-not-exist.html" --prev "$TMP/t3-ok.html")"
 rc="$(bl701 t3-pagelabel "$gnotes" "$q1" '<section class="consult-item consult-notes" data-id="notes" data-title="General notes"><h3>General notes</h3><textarea placeholder="Notes for the whole page"></textarea></section>')"
 [[ "$rc" == "1" ]] && grep -q "the general-notes item: its notes box has no visible label" "$TMP/out" \
   || fail "12. a page notes box with only a placeholder passed (rc=$rc): $(cat "$TMP/out")"
+
+# BL-706: a visible label is not a name. The box passes the visible-label rule and
+# still fails when nothing ties the label to the textarea (a screen reader would
+# announce an unnamed text field). The fixtures below go through the raw writer, so
+# the mutation strips the link the helper added.
+rc="$(bl701 t3-unlinked-ok "$gnotes" "$q1" "$notesitem")"
+[[ "$rc" == "0" ]] || fail "12b. the linked three-level page failed: $(cat "$TMP/out")"
+grep -q 'aria-labelledby="fl-' "$TMP/t3-unlinked-ok.html" \
+  || fail "12b. the fixture helper stopped linking labels, so the mutations below prove nothing"
+sed -E 's/ aria-labelledby="[^"]*"//' "$TMP/t3-unlinked-ok.html" > "$TMP/t3-unlinked-all.html"
+rc="$(run "$TMP/t3-unlinked-all.html")"
+[[ "$rc" == "1" ]] && grep -q "item 'Q1': its notes box has a visible label but no accessible name" "$TMP/out" \
+  && grep -q "block 'G1': its notes box has a visible label but no accessible name" "$TMP/out" \
+  && grep -q "the general-notes item: its notes box has a visible label but no accessible name" "$TMP/out" \
+  || fail "12b. a notes box whose label is not programmatically linked passed (rc=$rc): $(cat "$TMP/out")"
+# An aria-labelledby that names an id nothing on the page carries is not a name either.
+sed -E 's/aria-labelledby="fl-[0-9]+"/aria-labelledby="nowhere"/' "$TMP/t3-unlinked-ok.html" > "$TMP/t3-dangling.html"
+rc="$(run "$TMP/t3-dangling.html")"
+[[ "$rc" == "1" ]] && grep -q "no accessible name" "$TMP/out" \
+  || fail "12b. an aria-labelledby pointing at nothing passed (rc=$rc): $(cat "$TMP/out")"
+# aria-label names the box too.
+sed -E 's/ aria-labelledby="[^"]*"/ aria-label="Notes"/' "$TMP/t3-unlinked-ok.html" > "$TMP/t3-arialabel.html"
+rc="$(run "$TMP/t3-arialabel.html")"
+[[ "$rc" == "0" ]] || fail "12b. aria-label on the notes box was rejected: $(cat "$TMP/out")"
+
+# BL-706 (review round): a name must be the control's OWN label. Template item c3
+# (label "The choice", select, label "Notes on this one", textarea) and c4 (label
+# "The value", input, label, textarea). The fixtures carry their own ids, so the
+# fixture linker leaves them as written.
+c3ok='<section class="consult-item" data-id="Q1" data-title="Pick one"><h3>Pick one</h3><p class="fieldlabel" id="lc">The choice</p><select aria-labelledby="lc"><option value="">none</option><option>First</option></select><p class="fieldlabel" id="ln">Notes on this one</p><textarea aria-labelledby="ln"></textarea></section>'
+rc="$(bl701 t3-c3-ok "$gnotes" "$c3ok" "$notesitem")"
+[[ "$rc" == "0" ]] || fail "12c. the correctly named select+notes item failed: $(cat "$TMP/out")"
+# (b) the notes box named by the label of the select above it
+sed -E 's|<textarea aria-labelledby="ln">|<textarea aria-labelledby="lc">|' "$TMP/t3-c3-ok.html" > "$TMP/t3-c3-wrong.html"
+rc="$(run "$TMP/t3-c3-wrong.html")"
+[[ "$rc" == "1" ]] && grep -q "item 'Q1': its notes box has a visible label but no accessible name" "$TMP/out" \
+  || fail "12c. a notes box named by the label of the control above it passed (rc=$rc): $(cat "$TMP/out")"
+# (c) c4: the value input with no link, the notes box linked correctly
+c4ok='<section class="consult-item" data-free data-id="Q1" data-title="A value"><h3>A value</h3><p class="fieldlabel" id="lv">The value</p><div class="row"><input type="text" aria-labelledby="lv"></div><p class="fieldlabel" id="ln">Notes on this one</p><textarea aria-labelledby="ln"></textarea></section>'
+rc="$(bl701 t3-c4-ok "$gnotes" "$c4ok" "$notesitem")"
+[[ "$rc" == "0" ]] || fail "12c. the correctly named value+notes item failed: $(cat "$TMP/out")"
+sed -E 's|<input type="text" aria-labelledby="lv">|<input type="text">|' "$TMP/t3-c4-ok.html" > "$TMP/t3-c4-unnamed.html"
+rc="$(run "$TMP/t3-c4-unnamed.html")"
+[[ "$rc" == "1" ]] && grep -q "item 'Q1': its input labelled 'The value' has a visible label but no accessible name" "$TMP/out" \
+  || fail "12c. a labelled value input with no accessible name passed (rc=$rc): $(cat "$TMP/out")"
 
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — the consultation contract counts items, accepts any reply surface, leaves a read alone, and warns without failing"

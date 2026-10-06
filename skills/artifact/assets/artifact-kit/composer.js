@@ -1822,6 +1822,7 @@
     function fallback() {
       var ta = document.createElement('textarea');
       ta.value = r.markdown;
+      ta.setAttribute('aria-label', L.copy);   /* BL-706: the one textarea the composer renders that the reader sees */
       ta.style.cssText = 'position:fixed;left:0;bottom:0;width:100%;height:9rem';
       document.body.appendChild(ta);
       ta.select();

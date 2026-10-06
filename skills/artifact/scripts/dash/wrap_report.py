@@ -531,6 +531,44 @@ def _warn_prose_only_language(ctx):
 
 
 
+_GAP = r'(?:\s|<!--(?:(?!-->).)*-->)*'
+# The label shapes check_artifact's FIELDLABEL_OPEN counts: any tag, `class =` with spaces.
+_LABELLED_CONTROL = re.compile(
+    r'(<(?P<tag>[a-z][\w:-]*)\b[^>]*\bclass\s*=\s*["\']?[^"\'>]*\bfieldlabel\b[^>]*>)'
+    r'((?:(?!</(?P=tag)\s*>).)*</(?P=tag)\s*>)'
+    r'(' + _GAP + r'(?:<div\b[^>]*>' + _GAP + r')?)'
+    r'(<(?:textarea|select|input(?![^>]*\btype\s*=\s*["\']?(?:hidden|radio|checkbox)))\b[^>]*>)',
+    re.I | re.S)
+
+
+def link_field_labels(body):
+    """BL-706: tie each visible `.fieldlabel` to the textarea/input/select right after it
+    (directly, or inside one wrapper div) and to no other control
+    (id on the label, aria-labelledby on the control), so a screen reader names
+    the note box. A control that already carries aria-label/aria-labelledby is left
+    alone; a label that already has an id keeps it."""
+    n = [0]
+
+    def one(m):
+        label, _tag, rest, gap, ctl = m.groups()
+        if re.search(r'\baria-label(?:ledby)?\s*=', ctl, re.I):
+            return m.group(0)
+        idm = re.search(r'(?<![\w-])id\s*=\s*["\']([^"\']+)["\']', label, re.I)
+        if idm:
+            ident = idm.group(1)
+        else:
+            while True:
+                n[0] += 1
+                ident = "fl-%d" % n[0]
+                if 'id="%s"' % ident not in body:
+                    break
+            label = label[:-1] + ' id="%s">' % ident
+        ctl = ctl[:-1].rstrip("/").rstrip() + ' aria-labelledby="%s">' % ident
+        return label + rest + gap + ctl
+
+    return _LABELLED_CONTROL.sub(one, body)
+
+
 def rail_aside(lang):
     return ('<aside class="rail">\n  <p class="railhead">%s</p>\n'
             '  <nav class="raillist" id="raillist"></nav>\n</aside>'
@@ -968,7 +1006,7 @@ def main():
               "not a full document", file=sys.stderr)
         return 2
     head_extra, body = split_head_style(content)
-    body = localize_chrome(inject_rail(body, lang), lang)
+    body = link_field_labels(localize_chrome(inject_rail(body, lang), lang))
     # Before the kit is injected: the composer script and the kit CSS both spell
     # `data-decided`, and only the AUTHOR's markup carries items (`data-id`).
     surface = bool(CONSULT_ITEM.search(body))

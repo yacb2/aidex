@@ -34,7 +34,7 @@ mkpage() {
     printf '@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --paper:#111; } }\n'
     printf ':root[data-theme="dark"] .consult-bar { background: #111; }\n'
     printf '</style>\n</head>\n<body>\n<div class="page"><main class="main">\n'
-    printf '%s\n' "$body"
+    printf '%s\n' "$body" | python3 "$(dirname "${BASH_SOURCE[0]}")/link_labels.py"
     printf '</main></div>\n<script>var blank = 0;</script>\n</body>\n</html>\n'
   } > "$out"
 }

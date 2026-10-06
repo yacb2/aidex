@@ -532,6 +532,7 @@ document.getElementById('consult-copy').addEventListener('click', function () {
   document.getElementById('consult-status').textContent = blank.length + ' still blank';
 });
 </script>"
+python3 "$(dirname "${BASH_SOURCE[0]}")/link_labels.py" < "$TMP/noviz.html" > "$TMP/noviz.linked" && mv "$TMP/noviz.linked" "$TMP/noviz.html"
 out="$(bash "$CHECK" "$TMP/noviz.html" 2>&1)"
 [[ "$out" == *"consult-visual"* ]] && ok "a consultation with neither a visual nor a reason is caught" \
                                   || bad "the missing-visual declaration was not caught: $out"

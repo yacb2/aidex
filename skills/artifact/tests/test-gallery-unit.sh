@@ -448,7 +448,7 @@ mkpage() {  # mkpage <out> <body>
     printf '@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --paper:#111; } }\n'
     printf ':root[data-theme="dark"] .consult-bar { background: #111; }\n'
     printf '</style>\n</head>\n<body>\n<div class="page"><main class="main">\n'
-    printf '%s\n' "$2"
+    printf '%s\n' "$2" | python3 "$(dirname "${BASH_SOURCE[0]}")/link_labels.py"
     printf '</main><aside class="rail"><nav class="raillist" id="raillist"></nav>%s</aside></div>\n' "$railbar"
     printf '<script>var blank = 0;</script>\n</body>\n</html>\n'
   } > "$1"

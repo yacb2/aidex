@@ -201,10 +201,84 @@ bash "$WRAP" --title "Kit es" --lang es --in "$TMP/body.html" > "$TMP/kit-es-chr
   || fail "the skeleton did not wrap --lang es to stdout"
 # Non-vacuous: the page is there and carries the Spanish kit strings the class
 # would otherwise pass for want of any chrome at all.
-for s in 'id="consult-copy">Copiar mis respuestas<' '<p class="fieldlabel">Notas sobre esta</p>' \
+for s in 'id="consult-copy">Copiar mis respuestas<' '>Notas sobre esta</p>' \
          'placeholder="Cualquier cosa que las opciones no cubran…"' '<p class="railhead">Contenido</p>'; do
   grep -qF "$s" "$TMP/kit-es-chrome.html" || fail "the skeleton wrapped --lang es lacks $s"
 done
+# BL-706: the notes textarea is named by ITS OWN label, whatever the id the wrap chose.
+# Asserted on the wrapped page itself, not through the linker's own helper.
+cat > "$TMP/named.py" <<'PY'
+import re, sys
+# Every .fieldlabel (any tag, spaced class=) whose text is `want` must name the
+# next `tag` control after it: its id is in that control's aria-labelledby.
+html = open(sys.argv[1], encoding="utf-8").read()
+want, tag = sys.argv[2], sys.argv[3]   # label text; textarea | select | input
+labels = [m for m in re.finditer(
+    r'<([a-z][\w:-]*)\b[^>]*\bclass\s*=\s*["\']?[^"\'>]*\bfieldlabel\b[^>]*>(.*?)</\1>', html, re.S | re.I)
+    if re.sub(r'<[^>]+>', '', m.group(2)).strip() == want]
+bad = 0
+for m in labels:
+    lid = re.search(r'(?<![\w-])id\s*=\s*["\']([^"\']+)["\']', m.group(0).split('>')[0], re.I)
+    c = re.compile(r'<%s\b[^>]*>' % tag, re.I).search(html, m.end())
+    ref = re.search(r'aria-labelledby\s*=\s*"([^"]*)"', c.group(0)) if c else None
+    if not (lid and ref and lid.group(1) in ref.group(1).split()):
+        bad += 1
+sys.exit(0 if labels and not bad else 1)
+PY
+grep -qF 'aria-labelledby' "$TMP/kit-es-chrome.html" \
+  && python3 "$TMP/named.py" "$TMP/kit-es-chrome.html" "Notas sobre esta" textarea \
+  || fail "BL-706: the wrapped es skeleton's notes textarea is not named by its 'Notas sobre esta' label"
+# The shipped template's item c3 (label, select, label, textarea) and c4 (label,
+# input, label, textarea): each control is named by the label right before it,
+# never by the label of the control above it.
+for c in c3 c4; do
+  python3 - "$SKILL/assets/templates/consultation-block.html.template" "$c" > "$TMP/tpl-$c.html" <<'PY'
+import re, sys
+t = open(sys.argv[1], encoding="utf-8").read()
+m = re.search(r'<section class="consult-item" data-id="%s".*?</section>' % sys.argv[2], t, re.S)
+print('<div class="page"><main class="main">' + m.group(0) + '</main></div>')
+PY
+  bash "$WRAP" --title "Tpl $c" --lang en --in "$TMP/tpl-$c.html" > "$TMP/tpl-$c.wrapped.html" 2>/dev/null
+done
+python3 "$TMP/named.py" "$TMP/tpl-c3.wrapped.html" "Notes on this one" textarea \
+  || fail "BL-706: template c3's notes textarea is not named by 'Notes on this one'"
+python3 "$TMP/named.py" "$TMP/tpl-c3.wrapped.html" "The choice" select \
+  || fail "BL-706: template c3's select is not named by 'The choice'"
+python3 "$TMP/named.py" "$TMP/tpl-c4.wrapped.html" "The value" input \
+  || fail "BL-706: template c4's input is not named by 'The value'"
+python3 "$TMP/named.py" "$TMP/tpl-c4.wrapped.html" "Notes on this one" textarea \
+  || fail "BL-706: template c4's notes textarea is not named by 'Notes on this one'"
+# BL-706 review 2: comments between a label and its control, and the label shapes the
+# check counts (any tag, spaced class=), not only <p class=>.
+wrapfrag() {  # wrapfrag <name> <html fragment> -> $TMP/<name>.wrapped.html
+  printf '<div class="page"><main class="main">%s</main></div>\n' "$2" > "$TMP/$1.in.html"
+  bash "$WRAP" --title "Frag" --lang en --in "$TMP/$1.in.html" > "$TMP/$1.wrapped.html" 2>/dev/null
+}
+radios='<div class="opts one"><label><input type="radio" name="Q" data-label="A"><span>A</span></label><label><input type="radio" name="Q" data-label="B"><span>B</span></label></div>'
+wrapfrag cm '<p class="fieldlabel">Options</p><!-- the options -->'"$radios"'<p class="fieldlabel">Notes on this one</p><!-- free text --><textarea></textarea>'
+python3 "$TMP/named.py" "$TMP/cm.wrapped.html" "Notes on this one" textarea \
+  || fail "BL-706: with HTML comments between label and control, the textarea is not named by 'Notes on this one'"
+python3 - "$SKILL/scripts/dash" <<'PY' || fail "BL-706: 30 adjacent comments after a label took 1 s or more to link (backtracking)"
+import signal, sys, time
+signal.alarm(5)   # exponential backtracking must fail the test, not hang it
+sys.path.insert(0, sys.argv[1])
+from wrap_report import link_field_labels
+t = time.time()
+link_field_labels('<p class="fieldlabel">Notes</p>' + '<!-- c -->' * 30 + '<p>x</p>')
+sys.exit(0 if time.time() - t < 1 else 1)
+PY
+shape_i=0
+while IFS= read -r shape; do
+  shape_i=$((shape_i + 1))
+  wrapfrag "shape$shape_i" "$(printf "$shape" 'Shape label')<textarea></textarea>"
+  python3 "$TMP/named.py" "$TMP/shape$shape_i.wrapped.html" "Shape label" textarea \
+    || fail "BL-706: label shape not linked by the wrap: $shape"
+done <<'SHAPES'
+<div class="fieldlabel">%s</div>
+<p class = "fieldlabel">%s</p>
+<p class="x fieldlabel y">%s</p>
+<span class='fieldlabel'>%s</span>
+SHAPES
 out="$(python3 "$SKILL/scripts/dash/contract_defects.py" --class ui-string-language \
        "$TMP/kit-es-chrome.html" 2>&1)" \
   || fail "the skeleton wrapped --lang es keeps English kit strings: $out"
@@ -212,7 +286,7 @@ out="$(python3 "$SKILL/scripts/dash/contract_defects.py" --class ui-string-langu
 # label on an en page is the author's own and is left as written.
 printf '<div class="page"><main class="main"><p class="fieldlabel">Notas sobre esta</p><textarea placeholder="Lo que sea…"></textarea></main></div>\n' \
   | bash "$WRAP" --title "Kit en" --lang en > "$TMP/kit-en-own.html" 2>/dev/null
-grep -qF '<p class="fieldlabel">Notas sobre esta</p>' "$TMP/kit-en-own.html" \
+grep -qF '>Notas sobre esta</p>' "$TMP/kit-en-own.html" \
   && grep -qF 'placeholder="Lo que sea…"' "$TMP/kit-en-own.html" \
   || fail "the wrap translated a non-English label on an en page: $(grep -o 'fieldlabel">[^<]*' "$TMP/kit-en-own.html")"
 
