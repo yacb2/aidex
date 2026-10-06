@@ -5,8 +5,10 @@
     corpus: X/Y      goal-gate corpus specs built with the current builder, run through
                      `render-probe.sh --invariants`; X = pages with zero violations,
                      a spec the builder refuses counts as a failing page
-    generated / rounds / mutations / galleries / hunts-clean
-                     STUBS: later units replace them; until then they print 0/0, 0/0, 0/0,
+    mutations: X/Y   WIRED: tests/mutations_gate.py's own line; its `--expected` count is the
+                     minimum Y, so a shrunk case set reads RED; no line reads `0/unknown`
+    generated / rounds / galleries / hunts-clean
+                     STUBS: later units replace them; until then they print 0/0, 0/0,
                      0/0 and 0 and the gate stays RED (counts below the loop-spec minimums)
 
 Every line has an explicit minimum, so a 0/0 never reads green: catalog >= 12, corpus total >= 1,
@@ -14,6 +16,7 @@ generated >= 300, rounds >= 50, mutations >= 1, galleries >= 1, hunts-clean >= 2
 
 Test seams (the gate's own test drives them, nothing else should):
   AIDEX_RENDER_PROBE      replaces scripts/render-probe.sh (a fake probe, no browser)
+  AIDEX_GATE_LINE_SCRIPTS replaces the directory the WIRED line scripts are read from
   AIDEX_INVARIANT_STUBS   comma list `key=value` replacing stub lines, e.g.
                           `generated=300/300,rounds=50/50,mutations=1/1,galleries=1/1,hunts-clean=2`.
                           An overridden line prints with a ` (override)` suffix and the gate never
@@ -40,6 +43,30 @@ MIN = {"catalog": 12, "corpus": 1, "generated": 300, "rounds": 50, "mutations": 
        "galleries": 1, "hunts-clean": 2}
 STUBS = {"generated": "0/0", "rounds": "0/0", "mutations": "0/0", "galleries": "0/0",
          "hunts-clean": "0"}
+# Lines measured by their own script (one stdout line `<key>: X/Y`); a pinned script also answers
+# `--expected` with its Y, which becomes that line's minimum so the case set cannot shrink unseen.
+WIRED = {"mutations": ("mutations_gate.py", True)}
+LINE_SCRIPTS = os.environ.get("AIDEX_GATE_LINE_SCRIPTS") or HERE
+
+
+def wired_line(key):
+    """`X/Y` from the line's own script, or `0/unknown` when it gives no such line."""
+    script, pinned = WIRED[key]
+    path = os.path.join(LINE_SCRIPTS, script)
+    r = subprocess.run([sys.executable, path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    m = re.fullmatch(r"%s: (\d+/\d+)\n?" % re.escape(key), r.stdout)
+    if not m or r.returncode not in (0, 1):
+        print("invariant-gate: %s gave no `%s: X/Y` line (rc=%d): %s"
+              % (script, key, r.returncode, (r.stderr.strip() or r.stdout.strip())[-300:]), file=sys.stderr)
+        return "0/unknown"
+    if pinned:
+        e = subprocess.run([sys.executable, path, "--expected"], stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE, text=True)
+        if e.returncode != 0 or not e.stdout.strip().isdigit():
+            print("invariant-gate: %s --expected gave no count" % script, file=sys.stderr)
+            return "0/unknown"
+        MIN[key] = max(MIN[key], int(e.stdout.strip()))
+    return m.group(1)
 
 
 def catalog_rows():
@@ -124,6 +151,9 @@ def main(argv):
         if k in stubs:
             stubs[k] = v
             overridden.add(k)
+    for k in WIRED:
+        if k not in overridden:
+            stubs[k] = wired_line(k)
     lines = ["catalog: %d" % n, cline] + ["%s: %s%s" % (k, stubs[k], " (override)" if k in overridden else "")
                                           for k in STUBS]
     print("\n".join(lines))
