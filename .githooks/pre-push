@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# pre-push — every push to main ships a version: new commits need a plugin.json
+# version different from the remote's, and its v<version> tag. aidex is an installable
+# plugin; without a bump, installs have nothing to update to (2026-10-06: 276 commits
+# went out under 1.4.0). Enable once per clone: git config core.hooksPath .githooks
+# Bypass for a deliberate exception: git push --no-verify
+Z=0000000000000000000000000000000000000000
+version_at() { git show "$1:.claude-plugin/plugin.json" 2>/dev/null | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p'; }
+
+while read -r _local_ref local_sha remote_ref remote_sha; do
+  [ "$remote_ref" = refs/heads/main ] || continue
+  [ "$local_sha" = "$Z" ] && continue
+  [ "$local_sha" = "$remote_sha" ] && continue
+  new="$(version_at "$local_sha")"
+  if [ "$remote_sha" != "$Z" ]; then
+    if ! git cat-file -e "$remote_sha" 2>/dev/null; then
+      echo "pre-push: remote main $remote_sha is not local; git fetch first" >&2; exit 1
+    fi
+    old="$(version_at "$remote_sha")"
+    if [ "$new" = "$old" ]; then
+      echo "pre-push: refused — $(git rev-list --count "$remote_sha..$local_sha") new commit(s) on main still at version $new." >&2
+      echo "  Bump .claude-plugin/plugin.json (and the README badge), commit chore(release): vX.Y.Z, tag it, push with --follow-tags." >&2
+      exit 1
+    fi
+  fi
+  if ! git rev-parse -q --verify "refs/tags/v$new" >/dev/null; then
+    echo "pre-push: refused — version $new has no tag v$new. Run: git tag -a v$new -m \"aidex v$new\"" >&2
+    exit 1
+  fi
+done
+exit 0
