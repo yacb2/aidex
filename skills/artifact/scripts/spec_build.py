@@ -312,6 +312,11 @@ def _classes(base, node):
     return " ".join([base] + list(node.classes))
 
 
+def _plain_text(html):
+    """Rendered inline HTML -> its visible text (tags dropped, entities decoded)."""
+    return htmllib.unescape(re.sub(r"<[^>]+>", "", html))
+
+
 def _unwrap_p(html):
     """`<p>x</p>` -> `x`, when that is the whole fragment.
 
@@ -929,9 +934,18 @@ def emit_item(node, ctx):
                 "decided point awaiting correction (decided=yes, or the verdict "
                 "itself)")
         flag += " data-proposal"
+    # The rail label is data-title, so it must be visible text of the item: when
+    # the h3 is a question (or a heading=) that is not the title, the title shows
+    # above it as a kicker, rendered inline like the body. data-title carries the
+    # marker-free text (no backticks in the rail label or the composed reply).
+    title_html = md_body._inline(a["title"])
+    title_plain = _plain_text(title_html)
     out = ['<section class="%s" data-id="%s" data-title="%s"%s>'
-           % (_classes("consult-item", node), esc(node.id), esc(a["title"]),
+           % (_classes("consult-item", node), esc(node.id), esc(title_plain),
               flag)]
+    if " ".join(_plain_text(question).split()).lower() != \
+            " ".join(title_plain.split()).lower():
+        out.append('  <p class="eyebrow consult-kicker">%s</p>' % title_html)
     out.append('  <h3><span class="consult-id">%s</span>%s</h3>'
                % (esc(node.id), question))
     out.extend("  " + p for p in parts)

@@ -322,6 +322,39 @@ try:
           H, 'data-title="Short name"',
           '<h3><span class="consult-id">Q1</span>Una oración larga que encabeza</h3>',
           '<p class="consult-lead">Contexto, no pregunta.</p>')
+    # LOOP-008 rail-label-invisible: the rail label is data-title, so a title
+    # the h3 does not show is printed above it as a kicker (NAV-4 stays strict).
+    holds("item: a question-headed item shows its title as a visible kicker above the h3",
+          ITEM, 'data-title="Short name"',
+          '<p class="eyebrow consult-kicker">Short name</p>\n'
+          '  <h3><span class="consult-id">Q1</span>¿La pregunta, preguntada?</h3>')
+    holds("item: a title with a code span gives a marker-free data-title and a code-span kicker",
+          ITEM.replace('title="Short name"', 'title="`RTK.md`"'),
+          'data-title="RTK.md"',
+          '<p class="eyebrow consult-kicker"><code>RTK.md</code></p>')
+    T = ITEM.replace("¿La pregunta, preguntada?", "El Sr. López lo pidió.")
+    check("item: a title-headed item gets no duplicate kicker",
+          "consult-kicker" not in build(T), build(T))
+    # ...fold branch, heading= and escaping (review of the kicker).
+    FOLD = ITEM.replace('title="Short name"', 'title="¿la  PREGUNTA, preguntada?"')
+    check("item: a title equal to the h3 only after whitespace and case folding gets no kicker",
+          "consult-kicker" not in build(FOLD), build(FOLD))
+    holds("item: heading= that differs from the title also gets the kicker",
+          H, '<p class="eyebrow consult-kicker">Short name</p>')
+    holds("item: a title with markup and special characters is escaped in data-title",
+          ITEM.replace('title="Short name"', 'title="**Bold** & <x> \\"q\\""'),
+          'data-title="Bold &amp; &lt;x&gt; &quot;q&quot;"')
+    # check_prev: a live round built before the title was stored marker-free
+    # (prev data-title="`x`") must not read as "id reused for a different claim".
+    import check_artifact
+    with tempfile.TemporaryDirectory() as ptmp:
+        pp, pn = (os.path.join(ptmp, n) for n in ("prev.html", "new.html"))
+        for path, t in ((pp, "`RTK.md`"), (pn, "RTK.md")):
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write('<section class="consult-item" data-id="Q1" data-title="%s"></section>' % t)
+        pf, _ = check_artifact.check_prev(pn, pp)
+        check("check_prev: a title that lost its inline markers is the same claim",
+              pf == [], str(pf))
     # ...but a one-sentence QUESTION still heads the item when it closes on
     # markup or punctuation: the paragraph is rendered HTML, so `**¿…?**` ends
     # in `</strong>` (asset_lab sweep 2026-10-01 Q10, Q11) and a quote in

@@ -982,6 +982,14 @@ becomes the situation lead (`.consult-lead`) under the h3, as for a title-headed
 Without `heading=` nothing changes. Adding `heading=` to an item on a live page changes its h3, so its `questionHash` changes once and typed-but-unsent text reads blank once (as BL-576). `heading=` follows the `title=` quoting rules and is
 not a retitle: `consult-ids` and `check_prev` read `data-title` only.
 
+**The title is shown, never hidden (LOOP-008, kit rail = `data-title`).** The rail lists an
+item by its `data-title`, so when the h3 is a question or a `heading=` that differs from the
+title, the builder prints the title above it as a kicker, `<p class="eyebrow consult-kicker">`,
+and the rail label is visible text of that item (NAV-4). A title that equals the h3 gets no
+kicker. The kicker renders the title as inline markdown (`title="`RTK.md`"` shows a code
+span); `data-title`, so the rail label and the composed reply, carries the plain text with
+no markers.
+
 ## An `item`'s option list: one choice or a set
 
 The first markdown list in an `item` body is its option list, and the `item` builder
