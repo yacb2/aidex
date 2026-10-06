@@ -229,10 +229,11 @@ exists because the first live run skipped exactly the step it reconciles (2026-0
 | verdicts **confirmed / plausible-unreachable / plausible-undetermined / refuted** | Step 3.3 | one run reported 7 plausible as one bucket, hiding that 5 were settleable in a disposable env |
 | **severity source: verifier** | Step 3.3 | the verifiers downgraded 4 of 16 and the report ranked by the finder anyway |
 | cost **floor / actual** | Step 2's floor | announced 132k, spent 2.2M |
+| lenses **run / not run**, each not-run lens named with its reason (`not asked`, `no signal`, `skipped`) | the four lenses | a two-lens run named the other two only 1 of 3 times (eval 2026-10-05); a lens the user did not ask for is still unreviewed |
 
 Then say plainly what was **not** covered: angles **dropped** (the cap cut them) and angles
-that **fell** (launched, returned nothing) as separate lines, lenses skipped, and for a
-split target, the modules not reviewed in this run.
+that **fell** (launched, returned nothing) as separate lines, every lens not run (including
+the ones the user did not ask for), and for a split target, the modules not reviewed in this run.
 
 ## Boundaries
 
