@@ -1,6 +1,6 @@
 /* artifact-kit — the composer.
  *
- * Builds the rail (sections, then the consultation items), tracks which items
+ * Builds the rail (sections and consultation items, in body order), tracks which items
  * are answered, and composes every reply surface in an item into one markdown
  * block the reader copies in a click.
  *
@@ -612,7 +612,8 @@
   // A BLOCK (`section.consult-group`, BL-247) is a section whose decisions are
   // listed right under it, indented — one entry for the context, its items
   // below, never a second entry for the same context elsewhere. Items outside
-  // any block (the general notes) follow after a separator.
+  // any block (the general notes) are listed where the body has them, after a
+  // separator.
   var links = new Array(items.length);
   /* Every id the composer assigns goes through here. An item's anchor is its
    * dataset.id, unless another element already holds that id (the block's own id,
@@ -636,6 +637,9 @@
      * index the reader asked to stop navigating. links[i] stays undefined,
      * which collect() already tolerates. */
     if (isDecided(el) && el.closest('.consult-group')) return;
+    /* Nor does anything under [hidden]: drawn as nothing, its rect top is 0 and
+     * the scroll spy would mark it current ahead of the section the reader is in. */
+    if (el.closest('[hidden]')) return;
     var cls = el.closest('.consult-group') ? 'railitem sub' : 'railitem';
     /* A row with a human heading (data-heading, a gallery row) lists by it and
      * without its slug id: the id stays the anchor and what a reply names. */
@@ -649,31 +653,49 @@
     function groupEntry(sec) {
       var h = sec.querySelector('h2, h3');
       if (!sec.id && sec.dataset.id) claimId(sec, sec.dataset.id);
-      list.appendChild(railLink('railitem sec grp', '#' + sec.id, '', h ? h.textContent : (sec.dataset.title || '')));
+      if (!sec.closest('[hidden]')) list.appendChild(railLink('railitem sec grp', '#' + sec.id, '', h ? h.textContent : (sec.dataset.title || '')));
       sec.querySelectorAll('.consult-item').forEach(itemLink);
     }
-    document.querySelectorAll('.main > section[id]').forEach(function (sec) {
-      if (sec.classList.contains('consult-group')) return groupEntry(sec);
+    function isLoose(el) {
+      return !el.closest('.consult-group') && !(decidedSection && decidedSection.contains(el)) &&
+             !(droppedSection && droppedSection.contains(el));
+    }
+    /* A loose item is listed where the body has it; the separator marks the
+     * boundary between a section or block entry and a run of loose items. */
+    function looseLink(el) {
+      var last = list.lastElementChild;
+      if (!el.closest('[hidden]') && last && (last.classList.contains('sec') || last.classList.contains('sub'))) {
+        var sep = document.createElement('div');
+        sep.className = 'railsep';
+        list.appendChild(sep);
+      }
+      itemLink(el);
+    }
+    /* ONE walk in document order, so the rail never disagrees with the body
+     * about what comes first (a loose item has no id until itemLink claims it,
+     * which is why the walk is not limited to `section[id]`). */
+    document.querySelectorAll('.main > section').forEach(function (sec) {
+      if (sec.id && sec.classList.contains('consult-group')) return groupEntry(sec);
+      if (sec.classList.contains('consult-item')) {
+        if (isLoose(sec)) looseLink(sec);
+        return;
+      }
       var h = sec.querySelector('h2');
-      if (!h) return;
-      list.appendChild(railLink('railitem sec', '#' + sec.id, '', h.textContent));
+      if (!h || !sec.id) return;
+      /* A hidden section gets no entry; its items still claim their ids below. */
+      if (!sec.hidden) list.appendChild(railLink('railitem sec', '#' + sec.id, '', h.textContent));
       /* The collapsed section gets ONE entry and stops there. Listing what it
        * holds would put every answered question back in the index the reader
        * asked to stop navigating (BL-373); the section itself is the way in. */
       if (sec === decidedSection || sec === droppedSection) return;
-      // Blocks wrapped in a container section still list under it.
-      sec.querySelectorAll('.consult-group').forEach(groupEntry);
+      // Blocks and loose items wrapped in a container section still list under it.
+      sec.querySelectorAll('.consult-group, .consult-item').forEach(function (el) {
+        if (el.classList.contains('consult-group')) groupEntry(el);
+        else if (isLoose(el)) looseLink(el);
+      });
     });
-    var loose = items.filter(function (el) {
-      return !el.closest('.consult-group') && !(decidedSection && decidedSection.contains(el)) &&
-             !(droppedSection && droppedSection.contains(el));
-    });
-    if (loose.length) {
-      var sep = document.createElement('div');
-      sep.className = 'railsep';
-      list.appendChild(sep);
-    }
-    loose.forEach(itemLink);
+    /* A loose item outside every listed section still gets its entry, last. */
+    items.forEach(function (el, i) { if (!links[i] && isLoose(el)) looseLink(el); });
   } else {
     items.forEach(function (el) { claimId(el, el.dataset.id); });
   }
@@ -714,7 +736,7 @@
       var de = document.documentElement;
       if (window.scrollY > 0 && window.scrollY + de.clientHeight >= de.scrollHeight - 2) {
         /* The last section in the PAGE, which is not always the last rail
-         * entry: loose items are listed after the sections. */
+         * entry: a loose item outside every section is still listed last. */
         found = spy.reduce(function (best, p) {
           return p.target.getBoundingClientRect().top > best.target.getBoundingClientRect().top ? p : best;
         });

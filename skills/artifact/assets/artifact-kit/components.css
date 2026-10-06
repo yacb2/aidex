@@ -53,7 +53,12 @@ p { margin: 0; }
 
 .main > header { display: flex; flex-direction: column; gap: 0.9rem; padding-bottom: 2rem; border-bottom: 1px solid var(--rule); }
 .main > section { display: flex; flex-direction: column; gap: 1rem; padding: 2.4rem 0; border-bottom: 1px solid var(--rule); }
-.main > section:last-of-type { border-bottom: none; }
+/* The last VISIBLE section: with :last-of-type a trailing hidden section left
+   the rule under the section the reader sees last. */
+.main > section:not(:has(~ section:not([hidden]))) { border-bottom: none; }
+/* The attribute wins over every kit display rule: `.main > section` (0,1,1)
+   beat the UA's [hidden] (0,1,0) and kept a hidden section drawn. */
+[hidden] { display: none !important; }
 .sec-head { display: flex; flex-direction: column; gap: 0.35rem; }
 
 code, .mono:where(:not(svg *)) { font-family: var(--mono); font-size: 0.86em; }
