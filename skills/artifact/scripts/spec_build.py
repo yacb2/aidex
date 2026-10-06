@@ -565,6 +565,13 @@ def chosen_labels(node):
             if _option(t)[3]]
 
 
+def option_labels(node):
+    """The labels of an `item`'s options, `{recommended}`/`{chosen}` stripped
+    (for `spec_verbs.decide`, which refuses a verdict that is none of them)."""
+    return [_option(t)[0] for c in node.children if c.block_type == "prose"
+            for t in _split_options(list(c.raw_body), node.line)[1]]
+
+
 def has_options(node):
     """Whether an `item` node offers options, read the way `emit_item` reads
     them (the first top-level `-` list of its prose, code fences tracked). For
@@ -2073,6 +2080,42 @@ def page_title(spec_text):
     return ""
 
 
+def resolve_lang(spec_text, lang, out):
+    """The page's language: the masthead's `lang=`, else `lang` (the caller's
+    flag), else the language of the project profile found from where `out`
+    lands, else es. The builder CLI and the spec verbs share it, so a verb
+    rebuild never answers differently from `spec_build.py -o` (M3, case 75)."""
+    # Only the primary subtag, as lang-follows-profile compares it.
+    profile = (wrap_report.profile_language(wrap_report.find_context_dir(
+        os.path.dirname(os.path.abspath(out)) if out else os.getcwd()))
+        or "").split("-")[0].lower()
+    return spec_lang(spec_text) or lang or profile or "es"
+
+
+def hand_edit_defect(out):
+    """A message when the built page at `out` differs from what the last wrap
+    landed (the `.aidex-artifact-prev/<page>` baseline), else None. A rebuild
+    over it would silently overwrite the hand edit (M3, case 51). No page or no
+    baseline (a page that predates baselines) is nothing to compare."""
+    baseline = os.path.join(os.path.dirname(os.path.abspath(out)),
+                            ".aidex-artifact-prev", os.path.basename(out))
+    try:
+        with open(out, "rb") as fh:
+            page = fh.read()
+        with open(baseline, "rb") as fh:
+            built = fh.read()
+    except OSError:
+        return None
+    if page == built:
+        return None
+    return ("%s differs from %s, what the last build wrote: it was "
+            "hand-edited, restored from git, or left by an unfinished build, "
+            "and a rebuild would overwrite it. The page is an output: make the change in the spec (or "
+            "with the `add-item` / `decide` / `new-round` verbs) and rebuild; "
+            "to discard the hand edit on purpose, delete %s and build again"
+            % (out, baseline, out))
+
+
 # --- CLI ---------------------------------------------------------------------
 def main(argv):
     p = argparse.ArgumentParser(
@@ -2120,10 +2163,7 @@ def main(argv):
         # A silent spec follows the profile the wrap and lang-follows-profile
         # read, looked up from where the page lands (as the wrap does).
         # Only the primary subtag, as lang-follows-profile compares it.
-        profile = (wrap_report.profile_language(wrap_report.find_context_dir(
-            os.path.dirname(os.path.abspath(args.out))
-            if args.out else os.getcwd())) or "").split("-")[0].lower()
-        lang = spec_lang(spec_text) or args.lang or profile or "es"
+        lang = resolve_lang(spec_text, args.lang, args.out)
         body = build(spec_text, lang=lang,
                      base_dir=os.path.dirname(os.path.abspath(args.spec)),
                      page=args.out)
@@ -2135,6 +2175,10 @@ def main(argv):
     if not args.out:
         sys.stdout.write(body)
         return 0
+    defect = hand_edit_defect(args.out)
+    if defect:
+        sys.stderr.write("spec-build: %s\n" % defect)
+        return 1
     if not title:
         sys.stderr.write("spec-build: no document title — give the masthead a "
                          "title, or pass --title\n")

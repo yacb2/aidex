@@ -146,7 +146,7 @@ La consulta de hoy: qué escribe el agente cuando la página cambia.
 # The verdict a verb records on an item WITH options: the chosen option's label.
 # `yes` there would ship the author's {recommended} option as the verdict
 # whatever the reader chose, so the verb refuses it (below).
-V = "Fences"
+V = "Fences de Pandoc"
 
 LEDGERED = PAGE.replace(
     "::: group {#G1",
@@ -198,21 +198,21 @@ print("== decide: the attr, and only the attr ==")
 one = decide(PAGE, "Q1", V)
 check("the verdict lands as `decided=` on the item's own fence, and the "
       "author's spacing inside the braces is left where it was",
-      '::: item {#Q1   title="Fences o YAML"    decided="Fences"}' in one, one)
+      '::: item {#Q1   title="Fences o YAML"    decided="Fences de Pandoc"}' in one, one)
 added, removed = diff_shape(PAGE, one)
 check("decide changes exactly one line", (added, removed) == (1, 1),
       "%d added, %d removed" % (added, removed))
 check("no other fence gains a verdict",
-      one.replace('decided="Fences"', "", 1).count("decided") == 1)
+      one.replace('decided="Fences de Pandoc"', "", 1).count("decided") == 1)
 check("decide is idempotent for the same verdict — byte-identical spec",
       decide(one, "Q1", V) == one)
-two = decide(one, "Q1", "no, se reabre")
+two = decide(one, "Q1", "YAML anidado")
 check("a DIFFERENT verdict overwrites (the `owner-changed` case)",
-      'decided="no, se reabre"' in two and 'decided="Fences"' not in two, two)
+      'decided="YAML anidado"' in two and 'decided="Fences de Pandoc"' not in two, two)
 check("...and still changes exactly one line", diff_shape(one, two) == (1, 1))
 check("an existing bare verdict is replaced in place, not appended",
-      decide(PAGE, "Q2", "no").count("decided") == 1
-      and 'decided="no"' in decide(PAGE, "Q2", "no"))
+      decide(PAGE, "Q2", "No, un atributo nuevo").count("decided") == 1
+      and 'decided="No, un atributo nuevo"' in decide(PAGE, "Q2", "No, un atributo nuevo"))
 refuses("decide refuses an id the spec does not carry",
         lambda: decide(PAGE, "Q9", V), "#Q9")
 refuses("...and lists the items it does carry",
@@ -243,7 +243,7 @@ check("new-round only ADDS lines", removed == 0 and added == 4,
 check("new-round is idempotent — a key already in the ledger is not written "
       "twice", new_round(rnd) == rnd)
 check("a spec with nothing decided comes back byte-identical",
-      new_round(decide(PAGE, "Q2", V).replace(' decided="Fences"', ""))
+      new_round(decide(PAGE, "Q2", "Sí, `---:` es markdown estándar").replace(' decided="Sí, ---: es markdown estándar"', ""))
       == PAGE.replace(" decided=yes", ""))
 # BL-692: a proposal lasts one round, and expires only if the reader SAW it: it carried
 # data-proposal on the saved answered snapshot. One written this turn (absent from it)
@@ -266,21 +266,21 @@ check("with no snapshot nothing expires (a mid-round --drop/--retitle)",
 check("...whether or not a retitle rides along",
       new_round(two, retitled=["Q1"]).count("proposal=yes") == 2)
 # decide after new-round must move the ledger row's verdict as well.
-settled = new_round(decide(PAGE, "Q1", "Pandoc, cerrado"))
-redecided = decide(settled, "Q1", "Lista")
+settled = new_round(decide(PAGE, "Q1", "Fences de Pandoc"))
+redecided = decide(settled, "Q1", "YAML anidado")
 check("decide updates the item's ledger row, not only its decided= attr",
-      "- Q1 — Fences o YAML (Lista)" in redecided
-      and "(Pandoc, cerrado)" not in redecided, redecided)
+      "- Q1 — Fences o YAML (YAML anidado)" in redecided
+      and "(Fences de Pandoc)" not in redecided, redecided)
 # ...but a hand-written row is left byte-identical, and the caller is told.
 import contextlib
 import io
-hand = new_round(decide(PAGE, "Q1", "Pandoc, cerrado")).replace(
-    "- Q1 — Fences o YAML (Pandoc, cerrado)", "- Q1 — **Fences**, cerrado por el dueño")
+hand = new_round(decide(PAGE, "Q1", "Fences de Pandoc")).replace(
+    "- Q1 — Fences o YAML (Fences de Pandoc)", "- Q1 — **Fences**, cerrado por el dueño")
 err = io.StringIO()
 with contextlib.redirect_stderr(err):
-    hand2 = decide(hand, "Q1", "Lista")
+    hand2 = decide(hand, "Q1", "YAML anidado")
 check("decide leaves a hand-written ledger row byte-identical",
-      "- Q1 — **Fences**, cerrado por el dueño" in hand2 and "(Lista)" not in hand2.split("::: group")[0],
+      "- Q1 — **Fences**, cerrado por el dueño" in hand2 and "(YAML anidado)" not in hand2.split("::: group")[0],
       hand2)
 check("...and prints that the row is hand-written",
       "ledger row for Q1 is hand-written; update it yourself" in err.getvalue(), err.getvalue())
@@ -298,9 +298,9 @@ check("an existing ledger is APPENDED to, its own rows untouched",
       "- d1 — **Hecho.** La gramática vive en `03-spec-grammar.md`." in existing
       and "- Q2 — Marcador de columna" in existing
       and diff_shape(LEDGERED, existing) == (1, 0), existing)
-verdicted = new_round(decide(PAGE, "Q1", "Pandoc, cerrado"))
-check("a TEXT verdict travels into the row beside the title",
-      "- Q1 — Fences o YAML (Pandoc, cerrado)" in verdicted, verdicted)
+verdicted = new_round(decide(PAGE, "Q1", "Fences de Pandoc"))
+check("an option-label verdict travels into the row beside the title",
+      "- Q1 — Fences o YAML (Fences de Pandoc)" in verdicted, verdicted)
 check("...and `yes` does not, because it says nothing a row should repeat",
       "- Q2 — Marcador de columna\n" in verdicted)
 check("an author's rewritten row is left alone — the KEY is what is compared",
@@ -438,12 +438,33 @@ print()
 print("== the file half: refuse without writing, or write and rebuild ==")
 tmp = tempfile.mkdtemp(prefix="spec-verbs-test-")
 try:
-    def fresh(name, text=PAGE):
+    def first_build(path, page=None, reply=b"Q1: Fences de Pandoc\n"):
+        """The first build of `path`, plus the reader's saved reply (a decision
+        needs it, BL-569). Fails loudly when either step fails: a spec that does
+        not build is made with `fresh(..., build=False)`."""
+        page = page or os.path.join(os.path.dirname(path), "page.html")
+        done = subprocess.run([sys.executable, BUILD, path, "-o", page],
+                              capture_output=True, text=True)
+        if done.returncode != 0:
+            fail("first_build: %s did not build: %s" % (path, done.stderr))
+            return page
+        saved = subprocess.run(["bash", os.path.join(SCRIPTS, "save-reply.sh"),
+                                page, "-"], input=reply, capture_output=True)
+        if saved.returncode != 0:
+            fail("first_build: save-reply failed: %r" % saved.stderr)
+        return page
+
+    def fresh(name, text=PAGE, build=True):
+        """A spec in its own dir. `decide` and `new-round` need a built page
+        (M3 52), so by default the first build is done here, the way a real
+        project has one; a spec that does not build simply has no page."""
         d = os.path.join(tmp, name)
         os.makedirs(d)
         path = os.path.join(d, "page.spec.md")
         with open(path, "w", encoding="utf-8") as fh:
             fh.write(text)
+        if build:
+            first_build(path)
         return path
 
     def run(*argv):
@@ -480,16 +501,15 @@ try:
     page = os.path.join(os.path.dirname(spec), "page.html")
     r = run("decide", spec, "--id", "Q1", "--verdict", V)
     check("decide exits 0", r.returncode == 0, r.stdout + r.stderr)
-    check("...the SPEC records the verdict", 'decided="Fences"' in read(spec))
+    check("...the SPEC records the verdict", 'decided="Fences de Pandoc"' in read(spec))
     built = read(page)
     check("...and the PAGE marks the item decided, bare as the kit reads it",
           re.search(r'<section class="consult-item" data-id="Q1"[^>]*'
                     r'\sdata-decided\b', built) is not None, built[:2000])
-    r = run("decide", spec, "--id", "Q1", "--verdict",
-            "Fences de Pandoc, cerrado")
-    check("a text verdict reaches the page as the value of data-decided",
+    r = run("decide", spec, "--id", "Q1", "--verdict", "YAML anidado")
+    check("a label verdict reaches the page as the value of data-decided",
           r.returncode == 0
-          and 'data-decided="Fences de Pandoc, cerrado"' in read(page),
+          and 'data-decided="YAML anidado"' in read(page),
           r.stdout + r.stderr)
 
     spec = fresh("cli-round")
@@ -585,9 +605,20 @@ try:
     WEDGE = PAGE.replace(' decided=yes', '').replace(
         "::: group {#G1",
         "::: ledger\n- Q2 — Marcador de columna\n:::\n\n::: group {#G1", 1)
-    spec = fresh("contract-gate", WEDGE)
+    # A never-built wedged spec: decide refuses for the missing page, not the wedge.
+    nb = fresh("contract-gate-never-built", WEDGE, build=False)
+    nb_bytes = read(nb, "rb")
+    r = run("decide", nb, "--id", "Q2", "--verdict", "No, un atributo nuevo")
+    check("decide on a never-built wedged spec refuses: not been built",
+          r.returncode == 1 and "not been built" in r.stderr
+          and read(nb, "rb") == nb_bytes, r.stdout + r.stderr)
+    # A page that was built from a valid spec, then the spec wedged by hand.
+    spec = fresh("contract-gate", PAGE.replace(" decided=yes", ""))
+    first_build(spec, reply=b"Q1: Fences de Pandoc\nQ2: No, un atributo nuevo\n")
+    with open(spec, "w", encoding="utf-8") as fh:
+        fh.write(WEDGE)
     page = os.path.join(os.path.dirname(spec), "page.html")
-    spec_bytes = read(spec, "rb")
+    spec_bytes, page_bytes = read(spec, "rb"), read(page, "rb")
     r = run("add-item", spec, "--group", "G1", "--id", "Q3", "--title", "Ruta")
     check("an edit whose result fails the contract exits non-zero",
           r.returncode == 1, r.stdout + r.stderr)
@@ -596,16 +627,18 @@ try:
           and "the spec was written" not in r.stderr, r.stderr)
     check("...and the SPEC is byte-identical afterwards",
           read(spec, "rb") == spec_bytes, read(spec))
-    check("...and no page was written at all", not os.path.exists(page))
+    check("...and the PAGE is byte-identical afterwards",
+          read(page, "rb") == page_bytes)
     check("...and no trial file was left beside the spec",
-          sorted(os.listdir(os.path.dirname(spec))) == ["page.spec.md"],
+          not [f for f in os.listdir(os.path.dirname(spec))
+               if "trial" in f or f.endswith(".tmp")],
           str(os.listdir(os.path.dirname(spec))))
     # ...and the spec is not wedged: the edit that REPAIRS the contract passes
     # the same gate and is written. A gate that refused this too would have
     # traded a wedge for a dead end.
-    r = run("decide", spec, "--id", "Q2", "--verdict", V)
+    r = run("decide", spec, "--id", "Q2", "--verdict", "No, un atributo nuevo")
     check("the repairing edit is accepted — the spec is refused, not frozen",
-          r.returncode == 0 and 'decided="Fences"' in read(spec),
+          r.returncode == 0 and 'decided="No, un atributo nuevo"' in read(spec),
           r.stdout + r.stderr)
 
     print()
@@ -626,7 +659,7 @@ try:
              "`section` may only appear in the document"),
             ("png-no-alt", '::: figure {src="shot.png" title="Pantalla"}\n:::',
              'needs alt="')):
-        spec = fresh("as-it-stands-" + name, UNIT % fence)
+        spec = fresh("as-it-stands-" + name, UNIT % fence, build=False)
         subprocess.run([sys.executable, os.path.join(HERE, "png_fixture.py"),
                         os.path.join(os.path.dirname(spec), "shot.png"),
                         "40", "30"], check=True)
@@ -670,13 +703,14 @@ try:
     os.makedirs(link_dir)
     link = os.path.join(link_dir, "page.spec.md")
     os.symlink(real, link)
+    first_build(link)
     r = run("decide", link, "--id", "Q1", "--verdict", V)
     check("the verb edits a symlinked spec", r.returncode == 0,
           r.stdout + r.stderr)
     check("...the path is still a symlink — `os.replace` did not fork the file",
           os.path.islink(link), str(os.listdir(link_dir)))
     check("...and what changed is the file the link names",
-          'decided="Fences"' in read(real))
+          'decided="Fences de Pandoc"' in read(real))
 
     # --- no verb writes HTML -------------------------------------------------
     print()
@@ -738,7 +772,8 @@ try:
     check("...and calls no emitter: the only spec_build names it touches are "
           "the ones a caller may",
           touched == ["HINT_SEP", "LANGS", "PLAIN", "build", "chosen_labels",
-                     "has_options", "main", "page_title"],
+                     "hand_edit_defect", "has_options", "main",
+                     "option_labels", "page_title", "resolve_lang"],
           str(touched))
     writes = re.findall(r'open\(([^,]+), "w"', source)
     check("...and the only file it opens for writing is the spec's own temp",
@@ -749,7 +784,7 @@ try:
     # A gallery copies its captures beside the page it goes into and refuses a
     # body with no page (img-src-portable). The verb's pre-check built with no
     # page, so every verb on a gallery spec died before writing anything.
-    gspec = fresh("gallery", PAGE.replace(
+    gspec = fresh("gallery", build=False, text=PAGE.replace(
         '::: notes {title="Notas generales"}',
         '::: gallery {#E title="Galería" rows="rows.json" root="caps"}\n:::\n\n'
         '::: notes {title="Notas generales"}', 1))
@@ -763,6 +798,7 @@ try:
                  '[{"cell": "with-data", "variant": "light-desktop", '
                  '"kind": "review", "look": "the table", "after": "%s"}]}' % rel)
     try:
+        first_build(gspec)
         gout = spec_verbs.decide_file(gspec, "Q1", V)
         check("decide on a gallery spec returns the page it rebuilt",
               gout == os.path.join(gdir, "page.html"), gout)
@@ -777,7 +813,7 @@ try:
             "--verdict", V)
     check("a spec that is not there is a refusal, not a traceback",
           r.returncode == 1 and "cannot read the spec" in r.stderr, r.stderr)
-    latin = fresh("latin1", "")
+    latin = fresh("latin1", "", build=False)
     with open(latin, "wb") as fh:
         fh.write(b"::: masthead\n# T\n\nS \xff\xfe\n:::\n")
     r = run("new-round", latin)
@@ -785,7 +821,7 @@ try:
           "traceback (LOOP-008 D3)", r.returncode == 1
           and "Traceback" not in r.stderr and "cannot read the spec" in r.stderr
           and "not UTF-8" in r.stderr and "offset 20" in r.stderr, r.stderr)
-    bad = fresh("unparseable", "prosa\n\n::: item {#a #b}\n:::\n")
+    bad = fresh("unparseable", "prosa\n\n::: item {#a #b}\n:::\n", build=False)
     r = run("decide", bad, "--id", "Q1", "--verdict", V)
     check("a spec that does not parse is refused with its line",
           r.returncode == 1 and "line 3" in r.stderr, r.stderr)
@@ -793,15 +829,16 @@ try:
     check("no verb prints the usage and exits 2", r.returncode == 2)
     spec = fresh("outflag")
     elsewhere = os.path.join(tmp, "outflag", "otra.html")
+    first_build(spec, elsewhere)
     r = run("decide", spec, "--id", "Q1", "--verdict", V,
             "--out", elsewhere)
     check("--out chooses the page", r.returncode == 0
           and os.path.isfile(elsewhere), r.stdout + r.stderr)
-    r = run("decide", spec, "--id", "Q1", "--verdict", "no", "--out", spec)
+    r = run("decide", spec, "--id", "Q1", "--verdict", V, "--out", spec)
     check("--out pointed at the spec itself is refused",
           r.returncode == 1 and "is the spec itself" in r.stderr, r.stderr)
     check("...and the spec was not written first",
-          'decided="Fences"' in read(spec))
+          'decided="Fences de Pandoc"' in read(spec))
 
     print()
     print("== decide: several --id/--verdict pairs in one call (BL-497) ==")
@@ -823,11 +860,9 @@ try:
                 re.findall(r'data-id="(Q\d)"[^>]*data-decided="[^"]*"'
                            r'[^>]*data-decided-round="(\d+)"', html))
 
-    r = run("decide", mspec, "--id", "Q1", "--verdict", "A")
-    check("(setup) the first decide builds the page at round 1",
-          r.returncode == 0 and rounds(mpage)[0] == ["1"], r.stdout + r.stderr)
+    check("(setup) the first build is at round 1", rounds(mpage)[0] == ["1"])
     saved = subprocess.run(["bash", os.path.join(SCRIPTS, "save-reply.sh"),
-                            mpage, "-"], input="Q1: A\nQ2: No, un atributo nuevo\nQ3: A\nQ4: B\n", text=True,
+                            mpage, "-"], input="Q1: Fences de Pandoc\nQ2: No, un atributo nuevo\nQ3: A\nQ4: B\n", text=True,
                            capture_output=True)
     check("(setup) the reader's reply is saved", saved.returncode == 0,
           saved.stdout + saved.stderr)
@@ -847,23 +882,23 @@ try:
           sorted(q for q, n in stamps if n == "2") == ["Q2", "Q3", "Q4"],
           str(stamps))
     before = read(mspec)
-    r = run("decide", mspec, "--id", "Q1", "--id", "Q2", "--verdict", "A")
+    r = run("decide", mspec, "--id", "Q1", "--id", "Q2", "--verdict", V)
     check("a --id with no matching --verdict is refused, spec untouched",
           r.returncode == 2 and "one --verdict per --id" in r.stderr
           and read(mspec) == before, r.stdout + r.stderr)
-    r = run("decide", mspec, "--id", "Q1", "--verdict", "B",
+    r = run("decide", mspec, "--id", "Q1", "--verdict", V,
             "--id", "Q9", "--verdict", "A")
     check("one unknown id refuses the whole call, nothing written (Q1 is not "
           "left at B)",
           r.returncode == 1 and "#Q9" in r.stderr and read(mspec) == before,
           r.stdout + r.stderr)
-    r = run("decide", mspec, "--id", "Q1", "--verdict", "A",
-            "--id", "Q1", "--verdict", "B")
+    r = run("decide", mspec, "--id", "Q1", "--verdict", V,
+            "--id", "Q1", "--verdict", "YAML anidado")
     check("a repeated --id in one call is refused, spec untouched",
           r.returncode == 2 and "repeats" in r.stderr and read(mspec) == before,
           r.stdout + r.stderr)
-    r = run("decide", mspec, "--id", "Q1", "--verdict", "A",
-            "--id", "#Q1", "--verdict", "B")
+    r = run("decide", mspec, "--id", "Q1", "--verdict", V,
+            "--id", "#Q1", "--verdict", "YAML anidado")
     check("...and so is the same id written once with its `#`, spec untouched "
           "(the guard compares ids, not argv spellings)",
           r.returncode == 2 and "repeats" in r.stderr and read(mspec) == before,
@@ -1039,7 +1074,7 @@ Contexto dos.
 ::: notes {title="Notas generales"}
 :::
 '''
-    rspec2 = fresh("restructure", ROUND1)
+    rspec2 = fresh("restructure", ROUND1, build=False)
     rdir = os.path.dirname(rspec2)
     rpage = os.path.join(rdir, "page.html")
     os.makedirs(os.path.join(rdir, "caps", "shots"))
@@ -1055,7 +1090,8 @@ Contexto dos.
                      '"kind": "review", "look": "la tabla", "after": '
                      '"shots/%s"}]}' % (cell, png))
     rows_json("with-data", "a.png")
-    r = run("new-round", rspec2)
+    r = subprocess.run([sys.executable, BUILD, rspec2, "-o", rpage],
+                       capture_output=True, text=True)
     check("BL-612 fixture: round 1 builds (G1 with Q1, G2, gallery row)",
           r.returncode == 0 and 'data-id="%s"' % R1 in read(rpage),
           r.stdout + r.stderr)
@@ -1118,6 +1154,142 @@ Contexto dos.
           r.returncode == 1 and "Q2" in r.stdout + r.stderr
           and "id reused for a different claim" in r.stdout + r.stderr,
           r.stdout + r.stderr)
+
+    # --- M3: the verb-layer mistakes the mutation gate catches ---------------
+    print()
+    print("== M3: no page yet, a verdict that is no option, the page language, "
+          "a hand-edited page ==")
+    # 52/52b: decide and new-round on a spec whose page was never built refuse,
+    # and write nothing (no round-1 page appears from nowhere).
+    for verb_args in (("decide", "--id", "Q1", "--verdict", "Fences de Pandoc"),
+                      ("new-round",)):
+        nb = fresh("nobuild-" + verb_args[0], build=False)
+        nb_spec_before = read(nb)
+        r = run(verb_args[0], nb, *verb_args[1:])
+        check("M3 52: %s before any build refuses naming the missing build"
+              % verb_args[0],
+              r.returncode == 1 and re.search(
+                  r"before.*build|no page|not built|first build",
+                  r.stderr) is not None, r.stdout + r.stderr)
+        check("...and writes neither the page nor the spec",
+              not os.path.exists(os.path.join(os.path.dirname(nb), "page.html"))
+              and read(nb) == nb_spec_before)
+
+    # 54: a verdict that is none of the item's options is refused, naming both;
+    # an option label (any spelling of the markup) and an item without options
+    # still take any text.
+    refuses("M3 54: decide refuses a verdict that is no option of the item",
+            lambda: decide(PAGE, "Q1", "Opción inventada"), "verdict")
+    refuses("...and lists the options it does have",
+            lambda: decide(PAGE, "Q1", "Opción inventada"), "Fences de Pandoc")
+    check("...an option label is still recorded",
+          'decided="YAML anidado"' in decide(PAGE, "Q1", "YAML anidado"))
+    check("...and so is an item with no options, with free text",
+          'decided="se queda así"' in decide(
+              PAGE.replace("- Fences de Pandoc — prosa con marcas mínimas "
+                           "{recommended}\n- YAML anidado — estructura explícita\n",
+                           ""), "Q1", "se queda así"))
+
+    # The documented free-text route: the saved reply answers the id with the
+    # kit's Other choice, or with an option plus a note. A bare line is not it.
+    OTHER_REPLY = ("### Q1 · Fences o YAML\n\n- Otra — lo explico en las notas"
+                   "\n\nMejor usar X\n")
+    NOTE_REPLY = "### Q1 · Fences o YAML\n\n- YAML anidado\n\nSolo si es opcional\n"
+    CHAT_OTHER = "Q1: Otra — lo explico en las notas\nMejor usar X\n"
+    BARE_REPLY = "Q1: Opción inventada que no existe\n"
+    NOT_NOW_REPLY = ("### Q1 · Fences o YAML\n\n- Todavía no — lo dejo para otra "
+                     "ronda\n\nluego\n")
+    OPTION_ONLY = "### Q1 · Fences o YAML\n\n- YAML anidado\n"
+    for label, reply in (("Other + note", OTHER_REPLY),
+                         ("an option + a note", NOTE_REPLY),
+                         ("chat-form Other + note", CHAT_OTHER)):
+        check("M3 54: a verdict that is no option is recorded when the saved "
+              "reply says %s" % label,
+              'decided="Usar X"' in decide(PAGE, "Q1", "Usar X", reply))
+    for label, reply in (("a bare reply line", BARE_REPLY),
+                         ("Todavía no + a note", NOT_NOW_REPLY),
+                         ("an option and no note", OPTION_ONLY),
+                         ("no saved reply", None)):
+        refuses("M3 54: ...and refused when the saved reply is %s" % label,
+                lambda reply=reply: decide(PAGE, "Q1", "Usar X", reply),
+                "none of its options")
+    refuses("...an Other for ANOTHER id does not open Q1",
+            lambda: decide(PAGE, "Q1", "Usar X",
+                           OTHER_REPLY.replace("Q1", "Q2")), "none of its options")
+    fs = fresh("free-text", build=False)
+    first_build(fs, reply=OTHER_REPLY.encode("utf-8"))
+    r = run("decide", fs, "--id", "Q1", "--verdict", "Usar X")
+    check("M3 54: the CLI reads the saved reply.md: Other + note, exit 0, "
+          "decided=\"Usar X\"", r.returncode == 0 and 'decided="Usar X"'
+          in read(fs), r.stdout + r.stderr)
+    bare = fresh("free-text-bare", build=False)
+    first_build(bare, reply=BARE_REPLY.encode("utf-8"))
+    before_bare = read(bare, "rb")
+    r = run("decide", bare, "--id", "Q1", "--verdict", "Opción inventada que no existe")
+    check("...and the bare invented reply exits 1 'none of its options', spec "
+          "untouched", r.returncode == 1 and "none of its options" in r.stderr
+          and read(bare, "rb") == before_bare, r.stdout + r.stderr)
+    # the verdict is written in the label's own spelling
+    check("M3: a verdict matching a label case-insensitively records the label's "
+          "own text", 'decided="YAML anidado"' in decide(PAGE, "Q1", "yaml ANIDADO"))
+    # select=one has ONE winner: a comma list is two, so refused; select=many
+    # reads the set longest-first (a label may hold a comma).
+    refuses("M3: select=one refuses two labels joined by a comma",
+            lambda: decide(PAGE, "Q1", "Fences de Pandoc, YAML anidado"),
+            "none of its options")
+    MANY = PAGE.replace('{#Q1   title="Fences o YAML"    }',
+                        '{#Q1 title="F" select=many}').replace(
+        "- Fences de Pandoc — prosa con marcas mínimas {recommended}\n"
+        "- YAML anidado — estructura explícita",
+        "- Uno, dos\n- Uno\n- Tres")
+    check("M3: select=many records two labels joined by ', '",
+          'decided="Uno, Tres"' in decide(MANY, "Q1", "uno, tres"))
+    check("...and a label that holds a comma is read whole, longest first",
+          'decided="Uno, dos, Tres"' in decide(MANY, "Q1", "Uno, dos, Tres"))
+    refuses("...and a part that is no label still refuses",
+            lambda: decide(MANY, "Q1", "Uno, Cuatro"), "none of its options")
+
+    # 75: the rebuild follows the project profile when the masthead is silent
+    # (the builder CLI's rule), instead of a hard-coded --lang es.
+    en = fresh("profile-en")
+    ctx = os.path.join(os.path.dirname(en), ".context", "profiles")
+    os.makedirs(ctx)
+    with open(os.path.join(ctx, "artifact.md"), "w", encoding="utf-8") as fh:
+        fh.write("## Language\n\n- language: en\n")
+    r = run("decide", en, "--id", "Q1", "--verdict", "YAML anidado")
+    check("M3 75: decide in an en-profile project with a silent masthead exits "
+          "0", r.returncode == 0, r.stdout + r.stderr)
+    built_en = read(os.path.join(os.path.dirname(en), "page.html")) \
+        if r.returncode == 0 else ""
+    check("...and the page is <html lang=\"en\"> with the item decided",
+          '<html lang="en"' in built_en and 'data-decided="YAML anidado"'
+          in built_en, built_en[:200])
+
+    # 51: a hand edit to the built page survives a rebuild by refusal, from the
+    # builder and from a verb, with the hand-edited bytes left in place.
+    he = fresh("hand-edit")
+    he_page = os.path.join(os.path.dirname(he), "page.html")
+    r = subprocess.run([sys.executable, BUILD, he, "-o", he_page],
+                       capture_output=True, text=True)
+    check("M3 51 setup: the first build lands", r.returncode == 0,
+          r.stdout + r.stderr)
+    edited = read(he_page).replace("<h1>", "<h1><!--HAND-EDIT-->", 1)
+    check("...the edit applied", "HAND-EDIT" in edited)
+    with open(he_page, "w", encoding="utf-8") as fh:
+        fh.write(edited)
+    r = subprocess.run([sys.executable, BUILD, he, "-o", he_page],
+                       capture_output=True, text=True)
+    check("M3 51: rebuilding over a hand-edited page refuses naming the hand "
+          "edit", r.returncode == 1 and re.search(
+              r"hand[- ]edit|diverg", r.stderr) is not None, r.stdout + r.stderr)
+    check("...and the hand-edited page is left in place", read(he_page) == edited)
+    he_spec = read(he)
+    r = run("decide", he, "--id", "Q1", "--verdict", "YAML anidado")
+    check("M3 51: a verb over the hand-edited page refuses too, naming it",
+          r.returncode == 1 and re.search(r"hand[- ]edit|diverg", r.stderr)
+          is not None, r.stdout + r.stderr)
+    check("...leaving the page and the spec as they were",
+          read(he_page) == edited and read(he) == he_spec)
 
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
