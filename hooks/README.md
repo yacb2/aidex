@@ -353,7 +353,7 @@ hook decides as `systemMessage`; it is never an answer of its own. Printing it
 separately and falling through wrote two objects on stdout, which parse as neither —
 and the verdict in the second one was lost.
 
-**Tests:** `python3 test-artifact-open-once.py` — 49 checks, self-contained. The refusal
+**Tests:** `python3 test-artifact-open-once.py` — 76 checks, self-contained. The refusal
 cells are the cheap half; the allow cells are the point (consultation loop, a different
 page, a URL, a non-`open` command, a stale lock, and five fail-open paths). The
 producing half of the lock is `skills/artifact/tests/test-build-lock.sh`.

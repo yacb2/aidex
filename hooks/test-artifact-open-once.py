@@ -81,6 +81,169 @@ def check(label, got, want):
         print("  FAIL %s: got %r, want %r" % (label, got, want))
 
 
+def event(name, home, tr, session="w1", **extra):
+    """Feed the hook a real PostToolUse / Stop event; return (rc, stdout)."""
+    payload = {"hook_event_name": name, "session_id": session,
+               "transcript_path": tr, "cwd": home}
+    payload.update(extra)
+    env = dict(os.environ, HOME=home)
+    p = subprocess.run(["sh", HOOK], input=json.dumps(payload),
+                       capture_output=True, text=True, env=env)
+    return p.returncode, p.stdout
+
+
+def decision(out):
+    try:
+        return json.loads(out).get("decision", "")
+    except ValueError:
+        return ""
+
+
+def wrap_post(home, tr, page, **extra):
+    cmd = "bash skills/artifact/scripts/wrap-report.sh --title T --in b.html --out %s" % page
+    return event("PostToolUse", home, tr, tool_name="Bash",
+                 tool_input={"command": cmd}, **extra)
+
+
+def wrap_cells():
+    """BL-678: a page wrapped in a turn must be opened in that turn; Stop blocks once.
+
+    Pages live under the repo, not a temp dir: the hook exempts temp dirs, and HOME
+    here is one.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    with tempfile.TemporaryDirectory() as home, \
+            tempfile.TemporaryDirectory(dir=here) as pages:
+        page = os.path.join(pages, "wrapped.html")
+        open(page, "w").write("<p>x</p>")
+        tr = os.path.join(home, "t.jsonl")
+        transcript(tr, 1)
+
+        rc, out = event("Stop", home, tr)
+        check("Stop with no wrap passes", (rc, out.strip()), (0, ""))
+
+        wrap_post(home, tr, page)
+        rc, out = event("Stop", home, tr)
+        check("wrap never opened: Stop blocks", (rc, decision(out)), (0, "block"))
+        check("the block names the page and the open command",
+              page in out and "open " in json.loads(out or "{}").get("reason", ""), True)
+        rc, out = event("Stop", home, tr)
+        check("second Stop in the same turn passes (blocks once)", (rc, out.strip()), (0, ""))
+
+        transcript(tr, 2)
+        wrap_post(home, tr, page)
+        rc, out = event("Stop", home, tr, stop_hook_active=True)
+        check("stop_hook_active passes even with a pending wrap", (rc, out.strip()), (0, ""))
+        rc, out = event("Stop", home, tr)
+        check("...and the next plain Stop still blocks", decision(out), "block")
+
+        transcript(tr, 3)
+        wrap_post(home, tr, page)
+        rc, d, _ = run("open %s" % page, home, session="w1", transcript_path=tr)
+        check("the open itself is allowed", (rc, d), (0, ""))
+        rc, out = event("Stop", home, tr)
+        check("wrap then open: no block", (rc, out.strip()), (0, ""))
+
+        transcript(tr, 4)
+        wrap_post(home, tr, page)
+        transcript(tr, 5)
+        rc, out = event("Stop", home, tr)
+        check("a wrap from an earlier turn does not block", (rc, out.strip()), (0, ""))
+
+        def exempt_cell(label, sess, do_exempt):
+            """Exempt wrap passes Stop, AND a normal wrap in the same session blocks:
+            the control proves recording works, so the pass is not vacuous."""
+            transcript(tr, 20)
+            do_exempt(sess)
+            rc, out = event("Stop", home, tr, session=sess)
+            check(label, (rc, out.strip()), (0, ""))
+            wrap_post(home, tr, page, session=sess)
+            rc, out = event("Stop", home, tr, session=sess)
+            check(label + " (control wrap blocks)", decision(out), "block")
+
+        exempt_cell("a subagent wrap is exempt", "x1",
+                    lambda se: wrap_post(home, tr, page, session=se, agent_id="sub1"))
+        tmpage = os.path.join(tempfile.gettempdir(), "aidex-wrapcell-%d.html" % os.getpid())
+        open(tmpage, "w").write("<p>x</p>")
+        try:
+            exempt_cell("a wrap under a temp dir is exempt", "x2",
+                        lambda se: wrap_post(home, tr, tmpage, session=se))
+        finally:
+            os.unlink(tmpage)
+        transcript(tr, 21)
+        rc, out = event("Stop", home, tr, session="x3", agent_id="sub1")
+        check("a subagent Stop is exempt", (rc, out.strip()), (0, ""))
+
+        # wrap and open in ONE command, new page: PreToolUse sees no file yet.
+        newpage = os.path.join(pages, "new.html")
+        both = "bash wrap-report.sh --title T --in b.html --out %s && open %s" % (newpage, newpage)
+        transcript(tr, 22)
+        rc, d, _ = run(both, home, session="c1", transcript_path=tr)
+        check("compound wrap+open of a new page passes Pre", (rc, d), (0, ""))
+        open(newpage, "w").write("<p>x</p>")
+        event("PostToolUse", home, tr, session="c1", tool_name="Bash",
+              tool_input={"command": both})
+        rc, out = event("Stop", home, tr, session="c1")
+        check("compound wrap+open of a new page: Stop does not block", (rc, out.strip()), (0, ""))
+        os.unlink(newpage)
+
+        # Relative --out: hook process runs in `home`, the event cwd is the pages dir.
+        def spawn(payload, proc_cwd):
+            payload = dict(payload, session_id="r1", transcript_path=tr, cwd=pages)
+            p = subprocess.run(["sh", HOOK], input=json.dumps(payload), capture_output=True,
+                               text=True, env=dict(os.environ, HOME=home), cwd=proc_cwd)
+            return p.returncode, p.stdout
+
+        def relcase(open_arg, session_tr):
+            transcript(tr, session_tr)
+            cmd = "bash wrap-report.sh --title T --in b.html --out a.html && open %s" % open_arg
+            ev = {"tool_name": "Bash", "tool_input": {"command": cmd}}
+            spawn(dict(ev, hook_event_name="PreToolUse"), home)
+            open(os.path.join(pages, "a.html"), "w").write("<p>x</p>")
+            spawn(dict(ev, hook_event_name="PostToolUse"), home)
+            rc, out = spawn({"hook_event_name": "Stop"}, home)
+            os.unlink(os.path.join(pages, "a.html"))
+            return rc, out.strip()
+
+        check("relative --out and open a.html: no block", relcase("a.html", 30), (0, ""))
+        rc, out = relcase("sub/a.html", 31)
+        check("control: opening a different relative path still blocks", decision(out), "block")
+
+        # A cwd the hook cannot enter must not crash it.
+        locked = os.path.join(home, "locked")
+        os.mkdir(locked)
+        os.chmod(locked, 0)
+        try:
+            p = subprocess.run(["sh", HOOK], capture_output=True, text=True,
+                               input=json.dumps({"hook_event_name": "Stop", "cwd": locked,
+                                                 "session_id": "r2", "transcript_path": tr}),
+                               env=dict(os.environ, HOME=home))
+            check("an unreadable cwd fails open, no traceback",
+                  (p.returncode, p.stdout.strip(), "Traceback" in p.stderr), (0, "", False))
+        finally:
+            os.chmod(locked, 0o700)
+
+        # stdin that is valid JSON but not an event object fails open.
+        for raw in ("null", "[]", '"x"', "1"):
+            env = dict(os.environ, HOME=home)
+            p = subprocess.run(["sh", HOOK], input=raw, capture_output=True,
+                               text=True, env=env)
+            check("stdin %s fails open" % raw, (p.returncode, p.stdout.strip()), (0, ""))
+
+        transcript(tr, 8)
+        cmd = "wrap-report.sh --building --title T --in b.html --out %s" % page
+        event("PostToolUse", home, tr, tool_name="Bash", tool_input={"command": cmd})
+        rc, out = event("Stop", home, tr)
+        check("a --building wrap is not recorded", (rc, out.strip()), (0, ""))
+
+        rc, out = event("Stop", home, "/nonexistent/t.jsonl")
+        check("Stop with no transcript fails open", (rc, out.strip()), (0, ""))
+        env = dict(os.environ, HOME=home)
+        p = subprocess.run(["sh", HOOK], input="{not json", capture_output=True,
+                           text=True, env=env)
+        check("malformed event fails open", (p.returncode, p.stdout.strip()), (0, ""))
+
+
 def main():
     if not os.path.exists(HOOK):
         print("no hook at %s" % HOOK)
@@ -296,6 +459,8 @@ def main():
         check("a lock further ahead than the window is stale", (rc, d), (0, ""))
         check("and the stale notice carries no negative age", "-1 minutes" in out, False)
         os.unlink(lock)
+
+    wrap_cells()
 
     print("%s — artifact open-once: %d passed, %d failed"
           % ("FAIL" if FAIL else "OK", PASS, FAIL))

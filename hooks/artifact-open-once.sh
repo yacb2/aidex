@@ -36,6 +36,19 @@
 #
 # State: ~/.claude/aidex/open-once/<session>.tsv, one "<turn>\t<path>" line per open.
 # Fails open on every path: no python3, no transcript, malformed JSON -> silent exit 0.
+#
+# THE OTHER DIRECTION (BL-678, owner decision 2026-10-06). The same turn counter also
+# enforces that a wrap ENDS in an open: pages written or updated and never opened were
+# about 20 prompts of USAGE-31. Two more events reach this script, keyed on
+# `hook_event_name` (an event without one is the PreToolUse of above):
+#   PostToolUse (Bash) records the --out path of every successful, final
+#     `wrap-report.sh` run in <session>.wraps.tsv, as "<turn>\t<path>". Not `--building`
+#     (a delegated build is opened after its hand-back) and not `--done`.
+#   Stop: a page wrapped in THIS turn with no open of it in this turn blocks the stop,
+#     naming the path and the `open` command, ONCE per turn ("<turn>\tBLOCKED" in the
+#     same file, plus stop_hook_active as a second guard). It never blocks twice.
+# Exempt: any event carrying agent_id (only the main session opens pages) and a page
+# under a temp dir (tests and evals wrap there). Fail open on any error.
 
 command -v python3 >/dev/null 2>&1 || exit 0
 
@@ -81,9 +94,181 @@ def candidates(arg):
             out_paths.append(p)
     return out_paths
 
+def user_turn(transcript):
+    """Count of real user messages: a `type: user` entry that is not a tool result
+    and not meta. Counting tool results would make every tool call look like a new
+    turn, which switches the whole hook off silently."""
+    turn = 0
+    with open(transcript) as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except ValueError:
+                continue
+            if entry.get("type") != "user" or entry.get("isMeta"):
+                continue
+            content = (entry.get("message") or {}).get("content")
+            if isinstance(content, str):
+                turn += 1
+            elif isinstance(content, list) and not any(
+                    isinstance(c, dict) and c.get("type") == "tool_result"
+                    for c in content):
+                turn += 1
+    return turn
+
+
+def state_files(data):
+    session = str(data.get("session_id") or data.get("sessionId") or "unknown")
+    session = "".join(c for c in session if c.isalnum() or c in "-_") or "unknown"
+    state_dir = os.path.join(os.path.expanduser("~"), ".claude", "aidex", "open-once")
+    return state_dir, os.path.join(state_dir, session + ".tsv"), \
+        os.path.join(state_dir, session + ".wraps.tsv")
+
+
+def in_temp_dir(path):
+    import tempfile
+    roots = ["/tmp", "/private/tmp", "/var/tmp", "/var/folders", "/private/var/folders",
+             tempfile.gettempdir()]
+    real = os.path.realpath(path)
+    return any(real == os.path.realpath(r) or
+               real.startswith(os.path.realpath(r) + os.sep) for r in roots)
+
+
+def open_paths(command):
+    """Every path an `open` segment of `command` names, in all its spellings."""
+    segments = [command]
+    for sep in ["\n", ";", "&&", "||", "|", "&"]:
+        segments = [piece for seg in segments for piece in seg.split(sep)]
+    found = []
+    for seg in segments:
+        try:
+            tokens = shlex.split(seg)
+        except ValueError:
+            continue
+        if not tokens or not (tokens[0] == "open" or tokens[0].endswith("/open")):
+            continue
+        args, i = tokens[1:], 0
+        while i < len(args):
+            if args[i] in ("-a", "-b", "--args"):
+                i += 2
+                continue
+            if not args[i].startswith("-"):
+                found.extend(candidates(args[i]))
+            i += 1
+    return found
+
+
+def wrapped_outs(command, cwd):
+    """The --out paths of the final `wrap-report.sh` invocations in `command`."""
+    segments = [command]
+    for sep in ["\n", ";", "&&", "||", "|", "&"]:
+        segments = [piece for seg in segments for piece in seg.split(sep)]
+    outs = []
+    for seg in segments:
+        try:
+            tokens = shlex.split(seg)
+        except ValueError:
+            continue
+        idx = [i for i, t in enumerate(tokens)
+               if t == "wrap-report.sh" or t.endswith("/wrap-report.sh")]
+        if not idx or "--building" in tokens or "--done" in tokens:
+            continue
+        args = tokens[idx[0] + 1:]
+        out = None
+        for i, a in enumerate(args):
+            if a == "--out" and i + 1 < len(args):
+                out = args[i + 1]
+            elif a.startswith("--out="):
+                out = a[len("--out="):]
+        if out:
+            outs.append(os.path.abspath(os.path.join(cwd, os.path.expanduser(out))))
+    return outs
+
+
+def wrap_events(data):
+    """PostToolUse records a wrap; Stop blocks once when it was never opened.
+    Returns after answering; every error propagates to the fail-open of the caller."""
+    if data.get("agent_id"):
+        return
+    event = data.get("hook_event_name")
+    state_dir, opens, wraps = state_files(data)
+    if event == "Stop" and (data.get("stop_hook_active") or not os.path.isfile(wraps)):
+        return
+    command = (data.get("tool_input") or {}).get("command") or ""
+    if event == "PostToolUse" and (data.get("tool_name") != "Bash"
+                                   or "wrap-report.sh" not in command):
+        return
+    transcript = data.get("transcript_path") or ""
+    if not transcript or not os.path.isfile(transcript):
+        return
+    turn = user_turn(transcript)
+    if event == "PostToolUse":
+        outs = [p for p in wrapped_outs(command, os.getcwd()) if not in_temp_dir(p)]
+        if outs:
+            os.makedirs(state_dir, exist_ok=True)
+            # `wrap ... --out P && open P`: PreToolUse ran before P existed, so it
+            # could not record that open. The same command opens it, so count it.
+            opened = [p for p in open_paths(command) if p in outs]
+            with open(wraps, "a") as fh:
+                for p in outs:
+                    fh.write("%d\t%s\n" % (turn, p))
+            if opened:
+                with open(opens, "a") as fh:
+                    for p in dict.fromkeys(opened):
+                        fh.write("%d\t%s\n" % (turn, p))
+        return
+    if event != "Stop":
+        return
+
+    def rows(path):
+        found = []
+        if os.path.isfile(path):
+            with open(path) as fh:
+                for line in fh:
+                    parts = line.rstrip("\n").split("\t", 1)
+                    if len(parts) == 2 and parts[0] == str(turn):
+                        found.append(parts[1])
+        return found
+
+    if "BLOCKED" in rows(wraps):
+        return
+    opened = set(rows(opens))
+    pending = [p for p in dict.fromkeys(rows(wraps))
+               if p != "BLOCKED" and p not in opened and os.path.isfile(p)]
+    if not pending:
+        return
+    with open(wraps, "a") as fh:
+        fh.write("%d\tBLOCKED\n" % turn)
+    lines = ["A page was wrapped in this turn and never opened:", ""]
+    lines += ["  " + p for p in pending]
+    lines += ["", "If it is ready, open it and say so in your reply:", ""]
+    lines += ["  open " + shlex.quote(p) for p in pending]
+    lines += ["", "If it is still being graded or revised, or should not be opened, "
+                  "stop again and say so; this check blocks only once per turn."]
+    out({"decision": "block", "reason": "\n".join(lines)})
+
+
 try:
     data = json.loads(sys.stdin.read())
 except Exception:
+    sys.exit(0)
+
+if not isinstance(data, dict):
+    sys.exit(0)
+try:
+    if isinstance(data.get("cwd"), str) and os.path.isdir(data["cwd"]):
+        os.chdir(data["cwd"])
+except OSError:
+    pass
+
+if data.get("hook_event_name") in ("PostToolUse", "Stop"):
+    try:
+        wrap_events(data)
+    except Exception:
+        pass
     sys.exit(0)
 
 try:
@@ -216,33 +401,8 @@ try:
     if not transcript or not os.path.isfile(transcript):
         sys.exit(0)
 
-    # A user turn is a `type: user` entry that is not a tool result and not meta.
-    # Counting tool results here would make every tool call look like a new turn,
-    # which switches the whole hook off silently.
-    turn = 0
-    with open(transcript) as fh:
-        for line in fh:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entry = json.loads(line)
-            except ValueError:
-                continue
-            if entry.get("type") != "user" or entry.get("isMeta"):
-                continue
-            content = (entry.get("message") or {}).get("content")
-            if isinstance(content, str):
-                turn += 1
-            elif isinstance(content, list) and not any(
-                    isinstance(c, dict) and c.get("type") == "tool_result"
-                    for c in content):
-                turn += 1
-
-    session = str(data.get("session_id") or data.get("sessionId") or "unknown")
-    session = "".join(c for c in session if c.isalnum() or c in "-_") or "unknown"
-    state_dir = os.path.join(os.path.expanduser("~"), ".claude", "aidex", "open-once")
-    state = os.path.join(state_dir, session + ".tsv")
+    turn = user_turn(transcript)
+    state_dir, state, _ = state_files(data)
 
     seen = set()
     if os.path.isfile(state):
