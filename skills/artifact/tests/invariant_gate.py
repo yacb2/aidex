@@ -140,7 +140,9 @@ def corpus_line(verbose):
             print("  %s: %s" % (name, ", ".join(sorted({v[0] for v in vs}))), file=sys.stderr)
         for i, n in sorted(per.items()):
             print("  %s fires on %d page(s)" % (i, n), file=sys.stderr)
-    return "corpus: %d/%d" % (clean, total), clean == total and total >= MIN["corpus"]
+    nmig = sum(1 for sp, _ in specs if defect_gate.is_migrated(sp))
+    return ("corpus: %d/%d%s" % (clean, total, " (%d migrated)" % nmig if nmig else ""),
+            clean == total and total >= MIN["corpus"])
 
 
 def main(argv):

@@ -631,11 +631,14 @@ _OPT_PAREN = re.compile(r"\([^)]*\)")
 _OPT_LETTER_REF = re.compile(r"\(\s*[A-Za-z]\s*\)")
 # What the kit already adds under every item ("Otra — lo explico en las notas",
 # "Todavía no — lo dejo para otra ronda"): a spec option saying the same shows
-# the choice twice. "The notes" means the box; "una nota" in the README is
-# something being decided, so only the plural after a preposition or article counts.
+# the choice twice. A note is the kit's box when the option points AT it (a
+# locative: "en una nota", "in the notes", "add a note") or is just the word
+# ("Ver nota", "Notes"); "Una nota visible en su propio README" is something
+# being decided, so a bare mention in a longer sentence does not count.
 _OPT_KIT_DUP = re.compile(
-    r"\b(en|in|to|las|the|mis|my)\s+(notas|notes)\b|^(otra|otro|other)\b|^(todav[ií]a|aún|aun) no\b"
-    r"|^not (yet|now)\b", re.I)
+    r"\b(en|in|into|to|a|al)\s+(?:\S+\s+){0,3}?(notas?|notes?)\b"
+    r"|^(otra|otro|other)\b|^(todav[ií]a|aún|aun) no\b|^not (yet|now)\b", re.I)
+_OPT_NOTE_WORD = re.compile(r"\b(notas?|notes?)\b", re.I)
 
 
 def _refuse_option_shape(node, opts):
@@ -655,7 +658,8 @@ def _refuse_option_shape(node, opts):
         why = None
         if _OPT_PAREN.search(bare):
             why = "carries a parenthetical"
-        elif _OPT_KIT_DUP.search(bare):
+        elif (_OPT_KIT_DUP.search(bare)
+              or (len(bare.split()) <= 3 and _OPT_NOTE_WORD.search(bare))):
             why = "duplicates an option the kit already adds"
         if why:
             raise SpecBuildError(

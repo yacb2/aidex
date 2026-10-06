@@ -135,9 +135,13 @@ def corpus_specs():
     goal-gate's own rule; a page whose spec is missing keeps its slot (it is
     judged `no spec`). The project is the sample row's first path segment under
     the sample's root — where the original page sits, and whose profile judges
-    it. A spec the builder's rules refuse today has an edited copy in
-    `<corpus>/migrated/` (one reason per file in `MIGRATIONS.md`); that copy is
-    what is built, and the original stays untouched in `corpus-specs/`."""
+    it. A spec the builder refuses today may have an edited copy in
+    `<corpus>/migrated/` (one reason per file in `MIGRATIONS.md`); the original
+    is tried first and the copy is used ONLY while the original is refused (a
+    copy beside an original that builds is reported as `stale migration` on
+    stderr and ignored). The original stays untouched in `corpus-specs/`.
+    goal_gate.py reads `corpus-specs/` only, on purpose: it compares a spec with
+    its original page, and a migrated spec is not that page's source."""
     corpus = os.environ.get("AIDEX_SPEC_CORPUS", "")
     sample = os.path.join(corpus, "corpus-sample.json") if corpus else ""
     if not sample or not os.path.isfile(sample):
@@ -148,9 +152,20 @@ def corpus_specs():
     for p in data["pages"]:
         name = goal_gate.spec_name(p["path"])
         spec = os.path.join(corpus, "corpus-specs", name)
+        project = os.path.join(root, p["path"].split("/", 1)[0])
         migrated = os.path.join(corpus, MIGRATED, name)
-        out.append((migrated if os.path.isfile(migrated) else spec,
-                    os.path.join(root, p["path"].split("/", 1)[0])))
+        if os.path.isfile(migrated):
+            tree, reports = build_dir(project)
+            try:
+                builds, _ = build_spec(spec, reports)
+            finally:
+                shutil.rmtree(tree, ignore_errors=True)
+            if builds:
+                print("stale migration: %s (the original builds today; delete migrated/%s)"
+                      % (name, name), file=sys.stderr)
+            else:
+                spec = migrated
+        out.append((spec, project))
     return out
 
 
@@ -284,8 +299,10 @@ def main(argv):
             elif verbose:
                 print("  %s: %s" % (name, ", ".join(failed)), file=sys.stderr)
         total = len(specs) + len(rebuilt)
-        lines.append("corpus: %d/%d%s" % (clean, total,
-                                          " (source only)" if fast else ""))
+        nmig = sum(1 for sp, _ in specs if is_migrated(sp))
+        lines.append("corpus: %d/%d%s%s" % (clean, total,
+                                            " (%d migrated)" % nmig if nmig else "",
+                                            " (source only)" if fast else ""))
         corpus_ok = clean == total
 
     print("\n".join(lines))

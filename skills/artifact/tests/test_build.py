@@ -833,8 +833,19 @@ try:
     holds("item option: 'una nota' as the thing decided is not the notes box",
           with_option("Una nota visible en su propio README — la ve quien abra la carpeta"),
           'data-label="Una nota visible en su propio README"')
-    rejects("item option: 'en las notas' still refuses",
-            with_option("Lo digo en las notas"), 2, "already adds")
+    for label, opt in [
+            ("Ver nota", "Ver nota"), ("Anadir una nota", "Añadir una nota"),
+            ("Add a note", "Add a note"), ("Escribirlo en la nota", "Escribirlo en la nota"),
+            ("Lo pongo en una nota", "Lo pongo en una nota"),
+            ("Detallarlo en tus notas", "Detallarlo en tus notas"),
+            ("Responder en el campo de notas", "Responder en el campo de notas"),
+            ("Lo explico en el cuadro de notas", "Lo explico en el cuadro de notas"),
+            ("Write it in a note", "Write it in a note"), ("Leave a note", "Leave a note"),
+            ("See notes", "See notes"), ("Notas", "Notas"), ("Notes", "Notes")]:
+        rejects("item option: notes-box wording %r still refuses" % label,
+                with_option(opt), 2, "already adds")
+    rejects("item option: '(no)' is a two-letter parenthetical, not a letter reference",
+            with_option("Cerrar (no)"), 2, "parenthetical")
     rejects("item option: 'Sí (recomendado)' is a parenthetical reason and still refuses",
             with_option("Sí (recomendado)"), 2, "parenthetical")
     rejects("item option: a letter reference beside a real reason still refuses",
