@@ -135,6 +135,11 @@
       markCancel: 'Cancel',
       markAdd: 'Mark a region',
       markAddTitle: 'Draft a region from the keyboard: arrows move it, Shift+arrows resize it, Enter adds its note, Esc drops it',
+      marksTitle: 'Region notes',
+      marksEmpty: 'No region notes yet: open a capture and use Mark a region to add one.',
+      marksNoNote: '(no note)',
+      marksOpen: 'Open this region on its capture',
+      marksRemove: 'Remove',
       markKeys: 'Arrows: move the region \u00b7 Shift+arrows: resize it \u00b7 Enter: add its note \u00b7 Esc: drop it'
     },
     es: {
@@ -255,6 +260,11 @@
       markCancel: 'Cancelar',
       markAdd: 'Marcar zona',
       markAddTitle: 'Dibuja una zona con el teclado: las flechas la mueven, May\u00fas+flechas cambian su tama\u00f1o, Intro a\u00f1ade su nota, Esc la descarta',
+      marksTitle: 'Notas de zona',
+      marksEmpty: 'A\u00fan no hay notas de zona: abre una captura y usa Marcar zona para a\u00f1adir una.',
+      marksNoNote: '(sin nota)',
+      marksOpen: 'Abrir esta zona en su captura',
+      marksRemove: 'Quitar',
       markKeys: 'Flechas: mover la zona \u00b7 May\u00fas+flechas: cambiar su tama\u00f1o \u00b7 Intro: a\u00f1adir su nota \u00b7 Esc: descartarla'
     }
   };
@@ -1119,7 +1129,7 @@
      * the item, so leaving it in would change every fingerprint the moment the
      * kit gained these controls, and every answer stored by a reader mid-thread
      * would read as "the question changed" and be dropped on the upgrade. */
-    clone.querySelectorAll('.kit-tag, .consult-proposal, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-more, .kit-provisional, .kit-marks-tile').forEach(function (c) { c.remove(); });
+    clone.querySelectorAll('.kit-tag, .consult-proposal, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-more, .kit-provisional, .kit-marks-tile, .kit-marks-list').forEach(function (c) { c.remove(); });
     /* The generator's own <details> keeps its radios in the question (a row
      * built before it existed hashed them flat), but its summary word is chrome:
      * left in, every stored gallery answer would read as a changed question. */
@@ -2472,8 +2482,8 @@
       if (!ta) return [];
       return ta.value.split('\n').map(function (l) {
         var m = MARK_LINE.exec(l.trim());
-        return m ? { tile: m[1], x: +m[2], y: +m[3], w: +m[4], h: +m[5], note: m[6] || '' } : null;
-      }).filter(Boolean);
+        return m ? { n: 0, tile: m[1], x: +m[2], y: +m[3], w: +m[4], h: +m[5], note: m[6] || '' } : null;
+      }).filter(Boolean).map(function (k, i) { k.n = i + 1; return k; });
     }
 
     function markLine(k) {
@@ -2501,6 +2511,7 @@
         b.style.width = k.w + '%';
         b.style.height = k.h + '%';
         if (k.note) b.title = k.note;   /* an attribute, never text: the hash reads text */
+        b.setAttribute('data-n', k.n);  /* components.css draws it: the number locates the note in the row's list */
         layer.appendChild(b);
       });
     }
@@ -2528,8 +2539,80 @@
     }) : null;
     if (ro) { ro.observe(img); ro.observe(stack); }
 
+    /* The row's visible list of region notes. Built here, so a page with
+     * scripts off gains no markup. Spans and buttons only: it is chrome
+     * (questionHash drops it) and never a field readItem could paste, so a
+     * note reaches the reply once, from the hidden textarea. */
+    function drawList(row, marks) {
+      var box = row.querySelector('.kit-marks-list');
+      if (!marksBox(row) || (isDecided(row) && !marks.length)) { if (box) box.remove(); return; }
+      if (!box) {
+        box = document.createElement('div');
+        box.className = 'kit-marks-list';
+        var anchor = row.querySelector('figure[data-tile]');
+        if (anchor && anchor.parentNode) anchor.parentNode.insertAdjacentElement('afterend', box);
+        else row.appendChild(box);
+      }
+      box.textContent = '';
+      var h = document.createElement('p');
+      h.className = 'kit-marks-title';
+      h.textContent = L.marksTitle;
+      box.appendChild(h);
+      if (!marks.length) {
+        var e = document.createElement('p');
+        e.className = 'kit-marks-empty';
+        e.textContent = L.marksEmpty;
+        box.appendChild(e);
+        return;
+      }
+      var ol = document.createElement('ol');
+      marks.forEach(function (k) {
+        var li = document.createElement('li');
+        li.setAttribute('data-n', k.n);
+        var go = document.createElement('button');
+        go.type = 'button';
+        go.className = 'kit-marks-go';
+        go.title = L.marksOpen;
+        var num = document.createElement('b');
+        num.textContent = k.n + '.';
+        var tile = document.createElement('span');
+        tile.className = 'kit-marks-tile-name';
+        tile.textContent = k.tile;
+        var note = document.createElement('span');
+        note.className = 'kit-marks-text';
+        note.textContent = k.note || L.marksNoNote;
+        [num, tile, note].forEach(function (n) { go.appendChild(n); });
+        go.addEventListener('click', function () { openMark(row, k); });
+        li.appendChild(go);
+        if (!isDecided(row)) {
+          var rm = document.createElement('button');
+          rm.type = 'button';
+          rm.className = 'kit-marks-rm';
+          rm.textContent = L.marksRemove;
+          rm.addEventListener('click', function () {
+            var cur = readMarks(row);
+            cur.splice(k.n - 1, 1);
+            writeMarks(row, cur);
+          });
+          li.appendChild(rm);
+        }
+        ol.appendChild(li);
+      });
+      box.appendChild(ol);
+    }
+
+    /* The zoom on the mark's tile, that mark outlined. */
+    function openMark(row, k) {
+      var fig = row.querySelector('figure[data-tile="' + k.tile + '"]');
+      if (!fig) return;
+      open(fig);
+      var b = mlayer.querySelector('.kit-mark[data-n="' + k.n + '"]');
+      if (b) b.classList.add('hot');
+    }
+
     function drawRow(row) {
       var marks = readMarks(row);
+      drawList(row, marks);
       row.querySelectorAll('figure[data-tile]').forEach(function (fig) {
         var mine = marks.filter(function (k) { return k.tile === fig.getAttribute('data-tile'); });
         var layer = fig.querySelector('.kit-marks-tile');

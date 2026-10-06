@@ -83,5 +83,16 @@ check 'd["noteEsc"]["zoom"] and not d["noteEsc"]["note"] and d["noteEsc"]["draft
 check 'not d["closeEnter"]["zoom"] and not d["closeEnter"]["note"] and d["closeEnter"]["drafts"] == 0 and d["closeEnter"]["marks"] == ""' \
   "a real Enter on the focused Close button during a draft presses Close, never saves the region"
 
+check 'd["listEmpty"]["items"] == [] and "Marcar zona" in d["listEmpty"]["empty"]' \
+  "a row with no region note says how to add one (es)"
+check 'len(d["listAdded"]["items"]) == 1 and "breadcrumb wraps" in d["listAdded"]["items"][0] and "before" in d["listAdded"]["items"][0] and d["listAdded"]["items"][0].startswith("1.") and d["listAdded"]["inputs"] == 0 and d["listAdded"]["imageText"] == ""' \
+  "a saved region note is listed under the row's tiles (number, tile, text), is no input, and the image carries no note text"
+check 'len(d["listReload"]["items"]) == 1 and "breadcrumb wraps" in d["listReload"]["items"][0]' \
+  "the listed region note survives a reload"
+check 'd["reply"].count("breadcrumb wraps") == 1' \
+  "the region note reaches the composed reply exactly once"
+check 'd["listRemoved"]["items"] == [] and d["listRemoved"]["empty"] != ""' \
+  "the list's remove control deletes the note and brings the empty state back"
+
 if (( failures )); then echo "$failures failure(s)"; exit 1; fi
 echo "ok: real Esc, Enter and arrows on the zoom dialog's keyboard marks"

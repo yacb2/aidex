@@ -74,7 +74,7 @@ builder refuses each one by name with the inline spelling attached
   (`wrap` and `tablewrap` are pre-kit ancestors of `.page` and `.tw`), not things an
   author would ever *mean*. The build emits the kit's own wrappers; an author never asks
   for one.
-- **`compare` and the G1 marks** (`kit-compare`, `kit-marks-layer`, `kit-mark`) — named
+- **`compare` and the G1 marks** (`kit-compare`, `kit-marks-layer`, `kit-mark`, and since kit 39 the row's numbered `kit-marks-list` of region notes, BL-708) — named
   in the plan alongside the gallery unit, but they are **runtime behaviours of the
   composer's zoom dialog**, created by `composer.js`, never written by an author and
   never present in a page's authored source. They are reachable *because* a `gallery`

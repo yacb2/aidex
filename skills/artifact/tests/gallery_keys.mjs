@@ -52,5 +52,40 @@ await page.keyboard.press('ArrowRight');
 const next = await tile();
 await page.keyboard.press('ArrowLeft');
 out.states = { next, back: await tile() };
+// BL-708: a saved region note is listed under the row's tiles, survives a reload,
+// reaches the reply once, and the list's remove control deletes it.
+const ROW = '[data-id="audit-with-data-light-desktop"]';
+const list = () => page.evaluate((row) => {
+  const r = document.querySelector(row);
+  const box = r.querySelector('.kit-marks-list');
+  return { items: [...r.querySelectorAll('.kit-marks-list li')].map(li => li.textContent.replace(/\s+/g, ' ').trim()),
+           empty: box && box.querySelector('.kit-marks-empty') ? box.querySelector('.kit-marks-empty').textContent : '',
+           inputs: r.querySelectorAll('.kit-marks-list input, .kit-marks-list textarea').length,
+           imageText: [...r.querySelectorAll('.kit-marks-tile')].map(t => t.textContent).join('') };
+}, ROW);
+await page.reload();
+await page.evaluate(() => localStorage.clear());
+await page.reload();
+out.listEmpty = await list();
+await page.click(ROW + ' figure[data-tile="before"]');
+await page.click('.kit-zoom-mark');
+await page.keyboard.press('Enter');
+await page.keyboard.type('breadcrumb wraps');
+await page.keyboard.press('Enter');
+await page.waitForTimeout(300);
+await page.keyboard.press('Escape');
+await page.waitForTimeout(300);
+out.listAdded = await list();
+await page.reload();
+out.listReload = await list();
+await page.evaluate(() => {
+  window.__copied = [];
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: (t) => { window.__copied.push(t); return Promise.resolve(); } } });
+});
+await page.click('#consult-copy');
+await page.waitForTimeout(300);
+out.reply = await page.evaluate(() => window.__copied.join('\n'));
+await page.click(ROW + ' .kit-marks-rm', { timeout: 2000 }).catch(() => {});
+out.listRemoved = await list();
 console.log(JSON.stringify(out));
 await browser.close();

@@ -479,6 +479,22 @@ figure[data-viewer] figcaption { text-align: center; }
 .kit-mark { position: absolute; box-sizing: border-box; pointer-events: auto;
             border: 2px solid var(--accent); box-shadow: 0 0 0 1px var(--paper); }
 .kit-mark.drawing { border-style: dashed; }
+.kit-mark[data-n]::after { content: attr(data-n); position: absolute; top: 0; left: 0;
+            font: 700 0.7rem/1 var(--sans, inherit); padding: 0.1rem 0.25rem;
+            background: var(--accent); color: var(--paper); }
+.kit-mark.hot { border-width: 4px; }
+/* The row's list of region notes (BL-708). */
+.kit-marks-list:where(:not(svg *)) { margin: 0.6rem 0 0; font-size: 0.9rem; }
+.kit-marks-title:where(:not(svg *)) { margin: 0 0 0.25rem; font-weight: 700; }
+.kit-marks-empty:where(:not(svg *)) { margin: 0; color: var(--muted, inherit); }
+.kit-marks-list:where(:not(svg *)) ol { margin: 0; padding: 0; list-style: none; }
+.kit-marks-list:where(:not(svg *)) li { display: flex; gap: 0.5rem; align-items: baseline; padding: 0.15rem 0; }
+.kit-marks-go:where(:not(svg *)) { all: unset; cursor: pointer; display: flex; gap: 0.4rem; flex: 1; }
+.kit-marks-go:where(:not(svg *)):focus-visible { outline: 2px solid var(--accent); }
+.kit-marks-tile-name:where(:not(svg *)) { color: var(--muted, inherit); }
+.kit-marks-rm:where(:not(svg *)) { font: inherit; font-size: 0.8rem; cursor: pointer; padding: 0.1rem 0.5rem;
+                 border: 1px solid var(--rule); border-radius: 4px;
+                 background: var(--paper); color: var(--ink); }
 dialog.kit-mark-note { border: 1px solid var(--rule); border-radius: 6px; padding: 0.8rem;
                        background: var(--paper); color: var(--ink);
                        font-family: var(--sans); font-size: 0.85rem; }
