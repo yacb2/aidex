@@ -42,11 +42,13 @@ def run(home, stdin):
     return p.returncode, p.stdout
 
 
-def call(home, path, tool="Write", session="s1", agent=None):
+def call(home, path, tool="Write", session="s1", agent=None, agent_type=None):
     ev = {"tool_name": tool, "session_id": session,
           "tool_input": {"file_path": path, "content": "x"}}
     if agent is not None:
         ev["agent_id"] = agent
+    if agent_type is not None:
+        ev["agent_type"] = agent_type
     code, out = run(home, json.dumps(ev))
     decision, reason = "allow", ""
     if out.strip():
@@ -92,6 +94,21 @@ check("main of e1 is denied", call(home, new("tests/test_m.py"), session="e1")[1
 check("agent_id \"\" is not main: denied on its own",
       call(home, new("tests/test_n.py"), session="e1", agent="")[1] == "deny")
 check("... once", call(home, new("tests/test_o.py"), session="e1", agent="")[1] == "allow")
+
+# An agent whose definition preloads the testing skill already has the core in context
+# (r4 sweep 2026-10-06: a builder was denied although aidex:testing was preloaded).
+agents_dir = os.path.join(home, ".claude", "agents")
+os.makedirs(agents_dir, exist_ok=True)
+with open(os.path.join(agents_dir, "builder.md"), "w") as fh:
+    fh.write("---\nname: builder\nmodel: sonnet\nskills: [aidex:testing]\n---\n# Builder\n")
+with open(os.path.join(agents_dir, "plain.md"), "w") as fh:
+    fh.write("---\nname: plain\nskills: [aidex:coverage]\n---\n# Plain (testing in body only)\n")
+check("an agent whose definition preloads aidex:testing is not denied",
+      call(home, new("tests/test_p1.py"), session="pre", agent="b1", agent_type="builder")[1] == "allow")
+check("an agent whose skills do not include testing is still denied",
+      call(home, new("tests/test_p2.py"), session="pre", agent="b2", agent_type="plain")[1] == "deny")
+check("an agent type with no definition found is still denied",
+      call(home, new("tests/test_p3.py"), session="pre", agent="b3", agent_type="nowhere")[1] == "deny")
 
 # Missing session_id: no key to hold the budget under, so allow and write nothing.
 home2 = tempfile.mkdtemp()

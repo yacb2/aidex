@@ -53,6 +53,21 @@ try:
     session = "".join(c for c in str(ev.get("session_id") or "") if c.isalnum() or c in "-_")
     if not session:
         sys.exit(0)
+    # An agent whose definition preloads the testing skill (`skills: [aidex:testing]`)
+    # already has the core in context: denying it costs a turn and teaches nothing.
+    atype = str(ev.get("agent_type") or "")
+    if atype:
+        plugin, _, name = atype.rpartition(":")
+        cands = [os.path.join(os.path.expanduser("~"), ".claude", "agents", name + ".md"),
+                 os.path.join(ev.get("cwd") or os.getcwd(), ".claude", "agents", name + ".md")]
+        if plugin == "aidex":
+            cands = [os.path.join(os.environ["HOOK_DIR"], "..", "agents", name + ".md")]
+        for c in cands:
+            if os.path.isfile(c):
+                head = open(c).read().split("\n---", 1)[0]
+                if any(l.startswith("skills:") and "testing" in l for l in head.splitlines()):
+                    sys.exit(0)
+                break
     key = "main" if "agent_id" not in ev else "agent:" + str(ev["agent_id"])
     state_dir = os.path.join(os.path.expanduser("~"), ".claude", "aidex", "first-test-write")
     os.makedirs(state_dir, exist_ok=True)
