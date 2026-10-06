@@ -100,6 +100,10 @@ def corpus_line(verbose):
     names = {os.path.basename(pg) for pg in pages}          # distinct pages, not distinct lines
     clean = len(names - set(fired))
     if verbose:
+        mig = sorted(os.path.basename(sp) for sp, _ in specs if defect_gate.is_migrated(sp))
+        if mig:
+            print("  migrated specs built (corpus MIGRATIONS.md): %s" % ", ".join(mig),
+                  file=sys.stderr)
         for name, why in sorted(failed.items()):
             print("  %s: %s" % (name, why), file=sys.stderr)
         per = {}

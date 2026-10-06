@@ -126,22 +126,37 @@ def corpus_failures(page, fast, every):
     return out
 
 
+MIGRATED = "migrated"
+
+
 def corpus_specs():
     """[(abs spec path, abs project dir)] of the goal-gate sample, one per
     sampled page, or None when the sample cannot be read. The spec is named by
     goal-gate's own rule; a page whose spec is missing keeps its slot (it is
     judged `no spec`). The project is the sample row's first path segment under
     the sample's root — where the original page sits, and whose profile judges
-    it."""
+    it. A spec the builder's rules refuse today has an edited copy in
+    `<corpus>/migrated/` (one reason per file in `MIGRATIONS.md`); that copy is
+    what is built, and the original stays untouched in `corpus-specs/`."""
     corpus = os.environ.get("AIDEX_SPEC_CORPUS", "")
     sample = os.path.join(corpus, "corpus-sample.json") if corpus else ""
     if not sample or not os.path.isfile(sample):
         return None
     data = json.load(open(sample, encoding="utf-8"))
     root = os.path.expanduser(data["root"])
-    return [(os.path.join(corpus, "corpus-specs", goal_gate.spec_name(p["path"])),
-             os.path.join(root, p["path"].split("/", 1)[0]))
-            for p in data["pages"]]
+    out = []
+    for p in data["pages"]:
+        name = goal_gate.spec_name(p["path"])
+        spec = os.path.join(corpus, "corpus-specs", name)
+        migrated = os.path.join(corpus, MIGRATED, name)
+        out.append((migrated if os.path.isfile(migrated) else spec,
+                    os.path.join(root, p["path"].split("/", 1)[0])))
+    return out
+
+
+def is_migrated(spec):
+    """True when corpus_specs handed back a migrated copy (MIGRATIONS.md says why)."""
+    return os.path.basename(os.path.dirname(spec)) == MIGRATED
 
 
 def build_dir(project):

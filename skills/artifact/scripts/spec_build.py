@@ -620,11 +620,15 @@ def _option(text):
 
 
 _OPT_PAREN = re.compile(r"\([^)]*\)")
+# A lone letter in parentheses points at another option ("Igual que (a), pero
+# al revés"): a reference, not a reason, so it is set aside before the read.
+_OPT_LETTER_REF = re.compile(r"\(\s*[A-Za-z]\s*\)")
 # What the kit already adds under every item ("Otra — lo explico en las notas",
 # "Todavía no — lo dejo para otra ronda"): a spec option saying the same shows
-# the choice twice.
+# the choice twice. "The notes" means the box; "una nota" in the README is
+# something being decided, so only the plural after a preposition or article counts.
 _OPT_KIT_DUP = re.compile(
-    r"\bnotas?\b|\bnotes?\b|^(otra|otro|other)\b|^(todav[ií]a|aún|aun) no\b"
+    r"\b(en|in|to|las|the|mis|my)\s+(notas|notes)\b|^(otra|otro|other)\b|^(todav[ií]a|aún|aun) no\b"
     r"|^not (yet|now)\b", re.I)
 
 
@@ -635,12 +639,13 @@ def _refuse_option_shape(node, opts):
     A parenthetical reason in the label turns the option into a question of its
     own; the reason belongs in the item body. The kit adds Otra and Todavía no
     to every item, so a spec option for either (or one pointing at the notes
-    box) is shown twice. `{recommended}` is not a parenthesis, and code spans
-    are the author quoting, so both are set aside before the read.
+    box) is shown twice. `{recommended}` is not a parenthesis, code spans are the
+    author quoting, and a lone `(a)` points at another option, so all three
+    are set aside before the read.
     """
     for text in opts:
         label = _option(text)[0]
-        bare = re.sub(r"`[^`]*`", "", label).strip()
+        bare = _OPT_LETTER_REF.sub("", re.sub(r"`[^`]*`", "", label)).strip()
         why = None
         if _OPT_PAREN.search(bare):
             why = "carries a parenthetical"
