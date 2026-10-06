@@ -1112,10 +1112,6 @@ try:
           ".context/worklists/_archive/*-report.md")
     check("…and the escaped text carries no <em>",
           "<em>" not in BUILT[-1][1], BUILT[-1][1])
-    holds("a backslash escapes a backtick, so no code span opens",
-          "::: note\nejecutó \\`0013\\`.\n:::", "ejecutó `0013`.")
-    check("…and no <code> was opened by the escaped pair",
-          "<code>" not in BUILT[-1][1], BUILT[-1][1])
     holds("inside a code span the backslash is literal (CommonMark)",
           "::: note\n`a\\_b`\n:::", "<code>a\\_b</code>")
     holds("an UNescaped backtick pair still makes a code span",
@@ -1401,6 +1397,49 @@ try:
             "data:")
 
     print()
+    print("== a literal backtick in prose is refused, with its line (03 § Backslash escapes) ==")
+    # work_hours_ws company-holiday spec line 37: `nunca ejecutó \`0013\`.` (a
+    # shell-heredoc habit) built, and the reader saw raw backticks (CNT-2).
+    ITEM = ('::: item {#Q1 title="T"}\n?\n\n%s\n:::\n')
+    rejects("an escaped backtick pair in a paragraph names its line",
+            "uno\n\nnunca ejecut\u00f3 \\`0013\\`.\n", 3, "escaped backtick")
+    rejects("an escaped backtick in an option is refused",
+            ITEM % "- a \\`x\\`\n- b", 4, "escaped backtick")
+    rejects("an escaped backtick in a title= is refused",
+            '::: group {#G1 title="a \\`b\\`"}\nx\n:::\n', 1, "escaped backtick")
+    rejects("an unmatched backtick in prose renders raw, so it is refused too",
+            "uno\n\nuna ` suelta\n", 3, "unmatched")
+    rejects("an unmatched backtick in a list item is refused",
+            "- uno\n- dos ` tres\n", 2, "unmatched")
+    holds("a code span wrapped across two paragraph lines is a real span",
+          "uno\n\nla `a -\nb` sigue\n", "<code>a - b</code>")
+    holds("a code span wrapped across a list item's continuation is a span",
+          "- la `a -\n  b` sigue\n", "<li>la <code>a - b</code> sigue</li>")
+    holds("a wrapped line that starts with 25. stays in the item's code span",
+          "1. see `a\n   25. b` c\n", "<code>a 25. b</code>")
+    holds("an indented # line continues a paragraph, so its span pairs",
+          "a `b\n  # h` c\n", "<code>b # h</code>")
+    holds("an indented ::: line is prose, not a fence line",
+          "a `b\n  ::: s`\n", "<code>b ::: s</code>")
+    holds("a column-0 `:::word` with no space is prose, not a fence line",
+          "a `b\n:::item c` d\n", "<code>b :::item c</code>")
+    rejects("a backtick opened in one item and closed in the next is unmatched",
+            "- a `x\n- y` b\n", 1, "unmatched")
+    rejects("an unmatched backtick inside a wrapped paragraph names its own line",
+            "uno\n\ndos\ntres ` cuatro\n", 4, "unmatched")
+    rejects("a CRLF spec: the fence closes, so the prose after it is checked",
+            "```\r\nx\r\n```\r\nuna ` suelta\r\n", 4, "unmatched")
+    holds("a CRLF fence closes and holds its backticks as code",
+          "```\r\nnunca \\`0013\\`\r\n```\r\n", "nunca")
+    rejects("a four-backtick fence is prose, and the advice says what a fence is",
+            "````\nx \\`y\\`\n````\n", 2, "exactly three backticks")
+    holds("an escaped backtick inside an inline code span is literal content",
+          "Usa `\\` y `x`.", "<code>\\</code>")
+    holds("a backslash-backtick inside a code fence is code",
+          "```\nnunca \\`0013\\`\n```\n", "nunca \\`0013\\`")
+    holds("a real code span next to prose still builds",
+          "ejecut\u00f3 `0013` ya.", "<code>0013</code>")
+
     print("== an HTML entity in a spec is refused, with its line (03 § Attrs) ==")
     # echo_lab_ws 84edd64: `heading="¿&quot;es-419&quot; o …?"` built, and the
     # reader saw a literal `&quot;` — text is escaped once, so an entity is data.
