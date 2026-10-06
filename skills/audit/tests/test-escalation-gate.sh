@@ -39,8 +39,8 @@ kit_page() { # <out.html> <id>...
   { printf '<meta name="consult-visual" content="none: a fixture has no shape to draw">\n<div class="page"><main class="main">\n<header><h1>Probe</h1><p class="standfirst">Findings.</p></header>\n'
     printf '<section class="consult-group" id="G1" data-id="G1" data-title="Findings"><div class="sec-head"><h2>Findings</h2></div><p>Shared context.</p>\n'
     local i=0 id; for id in "$@"; do i=$((i+1))
-      printf '<section class="consult-item" data-id="c%s" data-free data-title="Escalate %s"><h3>Escalate %s?</h3><textarea></textarea></section>\n' "$i" "$id" "$id"; done
-    printf '</section>\n<section class="consult-item consult-notes" data-id="notes" data-title="Notes"><h3>Notes</h3><textarea></textarea></section>\n'
+      printf '<section class="consult-item" data-id="c%s" data-free data-title="Escalate %s"><h3>Escalate %s?</h3><p class="fieldlabel">Why</p><textarea></textarea></section>\n' "$i" "$id" "$id"; done
+    printf '<div class="group-notes"><p class="fieldlabel">Block notes</p><textarea></textarea></div></section>\n<section class="consult-item consult-notes" data-id="notes" data-title="Notes"><h3>Notes</h3><p class="fieldlabel">Anything else</p><textarea></textarea></section>\n'
     printf '<div class="endbar"><button type="button" id="consult-copy-end">Copy</button><span class="consult-status" id="consult-status-end"></span></div>\n'
     printf '<aside class="rail"><div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div></aside>\n'
     printf '<section id="sec-ref"><div class="sec-head"><h2>Source</h2></div><p>Measured.</p></section>\n</main><aside class="rail"><p class="railhead">Contents</p><nav class="raillist" id="raillist"></nav></aside></div>\n'
