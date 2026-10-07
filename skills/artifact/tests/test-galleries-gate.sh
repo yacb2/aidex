@@ -420,7 +420,10 @@ mkdir -p "$TMP/noprojects" "$TMP/nomanifest"
 AIDEX_RENDER_PROBE="$TMP/probe-clean.sh" AIDEX_GALLERIES_PROJECTS="$TMP/noprojects" AIDEX_GALLERIES_MANIFEST="$TMP/nomanifest" python3 "$GATE" --verbose >"$TMP/out" 2>"$TMP/err"; rc=$?
 [[ "$(wc -l <"$TMP/out")" -eq 1 && "$(cat "$TMP/out")" =~ ^galleries:\ [0-9]+/[0-9]+\ \(pin\ [0-9]+\)$ ]] && ok "stdout is exactly one line: galleries: X/Y (pin P) when the manifest is empty" || bad "stdout: $(cat "$TMP/out")"
 [[ $rc -eq 1 ]] && ok "an empty manifest exits 1 (below the pin), never green" || bad "exit $rc"
-grep -q "CLASSES" "$TMP/err" && grep -q "replay:" "$TMP/err" && grep -q "source:" "$TMP/err" && ok "--verbose names each failing gallery with source, reason and replay command" || bad "stderr: $(head -20 "$TMP/err")"
+# The failing unit is injected by the probe, so this check does not depend on the builder having a red.
+printf '#!/usr/bin/env bash\nshift\necho "INV NAV-4 rebuilt000.html label x"; echo "INVARIANTS pages=$# violations=1"; exit 1\n' > "$TMP/probe-flag.sh"; chmod +x "$TMP/probe-flag.sh"
+AIDEX_RENDER_PROBE="$TMP/probe-flag.sh" AIDEX_GALLERIES_PROJECTS="$TMP/noprojects" AIDEX_GALLERIES_MANIFEST="$TMP/nomanifest" python3 "$GATE" --verbose >/dev/null 2>"$TMP/err-flag"
+grep -q "INV:NAV-4" "$TMP/err-flag" && grep -q "replay:" "$TMP/err-flag" && grep -q "source:" "$TMP/err-flag" && ok "--verbose names each failing gallery with source, reason and replay command" || bad "stderr: $(head -20 "$TMP/err-flag")"
 grep -q "0 gallery spec(s) on disk not in the manifest" "$TMP/err" && ok "the census line is on stderr" || bad "no census: $(head -5 "$TMP/err")"
 ! grep -q "Traceback" "$TMP/err" && ok "no traceback from the gate itself" || bad "traceback on stderr"
 AIDEX_RENDER_PROBE="$TMP/probe-clean.sh" AIDEX_GALLERIES_PROJECTS="$TMP/noprojects" AIDEX_GALLERIES_MANIFEST="$TMP/nomanifest" python3 "$GATE" --only gen:bad-json >"$TMP/out" 2>/dev/null; rc=$?

@@ -1344,5 +1344,85 @@ assert P.crop(png(0, b"not zlib at all"), 0, 0, 2, 2) is None, "corrupt idat"
 assert P.crop(png(0, raw, ihdr=b"\0\0"), 0, 0, 2, 2) is None, "short ihdr"
 PY
 
+echo "== look, note and title are prose; a decision is not independent rows =="
+mkdir -p "$TMP/pr"
+prrun() {  # prrun <name> <python expr editing d["rows"]>
+  python3 - "$TMP/rows.json" "$TMP/pr/$1.json" "$2" <<'PY2'
+import json, sys
+d = json.load(open(sys.argv[1])); exec(sys.argv[3]); json.dump(d, open(sys.argv[2], "w"))
+PY2
+  bash "$GEN" "$TMP/pr/$1.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/pr/$1.out" 2> "$TMP/pr/$1.err"
+}
+prrun look "d['rows'][0]['look'] = 'Look **here**, see [the spec](https://example.test/x).'"; rc=$?
+if [[ $rc == 0 ]] && grep -qF '<a href="https://example.test/x">the spec</a>' "$TMP/pr/look.out" \
+    && grep -qF '<strong>here</strong>' "$TMP/pr/look.out" && ! grep -qF '](https' "$TMP/pr/look.out"; then
+  ok "a look line renders its link as <a> and its bold as <strong>"
+else fail "look markup: exit $rc, $(grep -o 'gal-look[^\n]*' "$TMP/pr/look.out" | head -1) $(cat "$TMP/pr/look.err")"; fi
+prrun note "d['rows'][0]['note'] = ['First **point**', 'Then \`code\` and [a link](https://example.test/y)']"; rc=$?
+if [[ $rc == 0 ]] && grep -qF '<li>First <strong>point</strong></li>' "$TMP/pr/note.out" \
+    && grep -qF '<code>code</code>' "$TMP/pr/note.out" \
+    && grep -qF '<a href="https://example.test/y">a link</a>' "$TMP/pr/note.out"; then
+  ok "a note line renders bold, code and a link"
+else fail "note markup: exit $rc, $(cat "$TMP/pr/note.err")"; fi
+prrun title "d['rows'][0]['title'] = 'A **bold** title with \`code\`'"; rc=$?
+if [[ $rc == 0 ]] && grep -qF '<h3>A <strong>bold</strong> title with <code>code</code></h3>' "$TMP/pr/title.out" \
+    && grep -qF 'data-heading="A bold title with code"' "$TMP/pr/title.out" \
+    && ! grep -qF '**' "$TMP/pr/title.out"; then
+  ok "a row title renders its markers in the heading and keeps them out of data-heading"
+else fail "title markers: exit $rc, $(grep -o '<h3>[^<]*' "$TMP/pr/title.out" | head -2) $(cat "$TMP/pr/title.err")"; fi
+prrun tlink "d['rows'][0]['title'] = 'See [the spec](https://example.test/x)'"; rc=$?
+if [[ $rc == 2 && ! -s "$TMP/pr/tlink.out" ]] && grep -q "row 'empty'.*raw-link" "$TMP/pr/tlink.err"; then
+  ok "a link in a row title is refused (raw-link), naming the row"
+else fail "title link: exit $rc, $(cat "$TMP/pr/tlink.err")"; fi
+SINGLE="{'cell': 'EXTRA', 'variant': 'light-desktop', 'kind': 'review', 'look': 'x', 'after': 'actual/light-desktop/audit-new-state.png'}"
+mkdir -p "$TMP/pr/spec"; cp -R "$ROOT/shots" "$ROOT/actual" "$TMP/pr/spec/"
+cat > "$TMP/pr/spec/p.spec.md" <<MD
+::: masthead {eyebrow="Fixture" byline="Fuente: fixture" visual="none: fixture"}
+# Galería
+
+Filas de prueba.
+:::
+
+::: gallery {#G title="Revisión" rows="rows.json" root="$ROOT"}
+:::
+
+::: notes {title="Notas generales"}
+:::
+MD
+specrun() {  # specrun <name> <python expr editing d["rows"]>
+  prrun "$1" "$2" >/dev/null 2>&1
+  cp "$TMP/pr/$1.json" "$TMP/pr/spec/rows.json"
+  ( cd "$TMP/pr/spec" && python3 "$SKILL/scripts/spec_build.py" p.spec.md -o "$1.html" > "$TMP/pr/$1.sb" 2>&1 )
+}
+specrun props "d['rows'] = [dict($SINGLE, cell=c) for c in ('a', 'b', 'hoy')]"; rc=$?
+if [[ $rc != 0 && ! -f "$TMP/pr/spec/props.html" ]] && grep -q '`gallery`' "$TMP/pr/props.sb" \
+    && grep -q "alternatives" "$TMP/pr/props.sb" && grep -q "noBefore" "$TMP/pr/props.sb"; then
+  ok "several single-capture rows with no noBefore are refused by the spec build, naming gallery, alternatives and noBefore"
+else fail "proposals as rows: rc $rc, $(tail -3 "$TMP/pr/props.sb")"; fi
+specrun onesingle "d['rows'] = [dict($SINGLE, cell='a')]"; rc=$?
+[[ $rc == 0 && -f "$TMP/pr/spec/onesingle.html" ]] && ok "ONE single-capture row with no noBefore (a plain new screen) still builds from a spec" \
+  || fail "one new screen: rc $rc, $(tail -3 "$TMP/pr/onesingle.sb")"
+specrun states "d['rows'] = [dict($SINGLE, cell=c) for c in ('loading', 'empty', 'error')]"; rc=$?
+[[ $rc == 0 && -f "$TMP/pr/spec/states.html" ]] && ok "several single-capture STATE rows (loading, empty, error: the manifest shape) still build from a spec" \
+  || fail "state rows: rc $rc, $(tail -3 "$TMP/pr/states.sb")"
+specrun hoyalone "d['rows'] = [dict($SINGLE, cell='hoy')]"; rc=$?
+[[ $rc == 0 && -f "$TMP/pr/spec/hoyalone.html" ]] && ok "one bare 'hoy' row alone builds" || fail "hoy alone: rc $rc, $(tail -3 "$TMP/pr/hoyalone.sb")"
+specrun hoya "d['rows'] = [dict($SINGLE, cell=c) for c in ('hoy', 'a')]"; rc=$?
+[[ $rc != 0 && ! -f "$TMP/pr/spec/hoya.html" ]] && grep -q "current state" "$TMP/pr/hoya.sb" && grep -q "before" "$TMP/pr/hoya.sb" \
+  && ok "'hoy' + one more bare cell is refused, telling to make it the before" || fail "hoy + a: rc $rc, $(tail -3 "$TMP/pr/hoya.sb")"
+specrun hoydec "d['rows'] = [dict($SINGLE, cell='hoy', decided='Hoy se queda'), dict($SINGLE, cell='b')]"; rc=$?
+[[ $rc == 0 && -f "$TMP/pr/spec/hoydec.html" ]] && ok "a DECIDED 'hoy' row beside one bare row builds" || fail "hoy decided: rc $rc, $(tail -3 "$TMP/pr/hoydec.sb")"
+specrun hoyvars "d['variants'] = ['light-desktop', 'dark-desktop']; d['rows'] = [dict($SINGLE, cell='hoy'), dict($SINGLE, cell='hoy', variant='dark-desktop')]"; rc=$?
+[[ $rc == 0 && -f "$TMP/pr/spec/hoyvars.html" ]] && ok "one 'hoy' cell in two variants is one screen and builds" || fail "hoy two variants: rc $rc, $(tail -3 "$TMP/pr/hoyvars.sb")"
+specrun uistates "d['rows'] = [dict($SINGLE, cell=c) for c in ('before-submit', 'today-empty', 'current-user-menu', 'now-playing')]"; rc=$?
+[[ $rc == 0 && -f "$TMP/pr/spec/uistates.html" ]] && ok "state cells before-submit, today-empty, current-user-menu, now-playing build" || fail "ui states: rc $rc, $(tail -3 "$TMP/pr/uistates.sb")"
+prrun jslink "d['rows'][0]['look'] = 'See [x](javascript:alert(1)) now'"; rc=$?
+if [[ $rc == 0 ]] && ! grep -qF 'href="javascript' "$TMP/pr/jslink.out" && grep -qF 'x (javascript:alert(1))' "$TMP/pr/jslink.out"; then
+  ok "a javascript: link in a look is never an href, it shows as 'x (javascript:alert(1))'"
+else fail "javascript link: exit $rc, $(grep -o 'gal-look[^\n]*' "$TMP/pr/jslink.out" | head -1)"; fi
+specrun manynb "d['rows'] = [dict($SINGLE, cell=c, noBefore='new screen') for c in ('a', 'b', 'hoy')]"; rc=$?
+[[ $rc == 0 && -f "$TMP/pr/spec/manynb.html" ]] && ok "several single-capture rows each with a noBefore reason still build from a spec" \
+  || fail "several noBefore: rc $rc, $(tail -3 "$TMP/pr/manynb.sb")"
+
 if (( failures )); then echo "$failures failure(s)"; exit 1; fi
 echo "ok: the gallery unit — generator, refusals, wrapped page and every RED control"
