@@ -206,6 +206,26 @@ def strip_html_comments(text):
     return re.sub(r"<!--.*?-->", " ", text, flags=re.S)
 
 
+# BL-647: an HTML comment only in markup context. Group 1 is a raw-text element
+# (its body is not markup), group 3 a whole tag, read quote-aware so a ">"
+# inside an attribute value does not end it (an attribute value is not
+# markup), else a comment, ended where the HTML parser ends it: "<!-->",
+# "<!--->" and "--!>" close it too.
+MARKUP_COMMENT = re.compile(
+    r'(<(script|style|textarea|title|xmp|noembed|noframes|noscript|iframe)\b[^>]*>.*?</\2\s*>)'
+    r'|(<[a-z](?:[^>"\x27]|"[^"]*"|\x27[^\x27]*\x27)*>)|<!--(?:-?>|.*?--!?>)', re.S | re.I)
+
+
+def strip_item_markup(text):
+    """What the item walkers read: script/style out, then the comments the
+    browser sees as comments, so a stray "<!--" in a string, an attribute or
+    `<!-->` cannot swallow the live items up to the next "-->"."""
+    return MARKUP_COMMENT.sub(
+        lambda m: (" " if m.group(2) and m.group(2).lower() in ("script", "style")
+                   else m.group(0)) if (m.group(1) or m.group(3)) else " ",
+        text)
+
+
 # --- lang: the body must speak the language <html lang> declares (BL-279) -------
 # Stopword sets and thresholds mirror validate.py's body-language heuristic; a
 # page whose dominant language disagrees with its lang attribute is the shape
@@ -389,6 +409,7 @@ def consult_items(text):
     The unit is the ITEM, never the box count: v1 counted `<textarea`
     occurrences against data-id, which told a radio-only page it had ids for
     boxes that did not exist."""
+    text = strip_item_markup(text)   # a commented-out item is not one
     items = []
     for m in ITEM_OPEN.finditer(text):
         # A block (`.consult-group`) carries data-id/data-title so --prev can
@@ -417,6 +438,7 @@ def consult_items(text):
 def group_ids(text):
     """The data-ids of the blocks (`.consult-group`), which `consult_items`
     skips: a context, not a claim (BL-612)."""
+    text = strip_item_markup(text)   # a commented-out item is not one
     return {next(g for g in m.groups()[1:] if g is not None)
             for m in ITEM_OPEN.finditer(text) if GROUP_CLASS.search(m.group(0))}
 
@@ -535,6 +557,7 @@ def consult_item_bodies(text):
     """[(id, body)] for every data-id item. A second walk rather than a wider
     return from `consult_items`: that one answers the contract in booleans and
     is read by the failure path, and warnings must not be able to change it."""
+    text = strip_item_markup(text)   # a commented-out item is not one
     out = []
     for m in ITEM_OPEN.finditer(text):
         ident = next(g for g in m.groups()[1:] if g is not None)
@@ -2731,10 +2754,8 @@ def check_file(path):
     # it: "<!-->", "<!--->" and "--!>" close it too, else the regex would run on
     # to the next "-->" past a live load. Known limit, accepted: content:"/*"
     # inside a <style> can still swallow the rules that follow it.
-    sflat = flatten(re.sub(
-        r'(<(script|style|textarea|title|xmp|noembed|noframes|noscript|iframe)\b[^>]*>.*?</\2\s*>)|(<[a-z][^>]*>)|<!--(?:-?>|.*?--!?>)',
-        lambda m: m.group(0) if (m.group(1) or m.group(3)) else ' ',
-        text, flags=re.S | re.I))
+    sflat = flatten(MARKUP_COMMENT.sub(
+        lambda m: m.group(0) if (m.group(1) or m.group(3)) else ' ', text))
     sflat = re.sub(
         r'(<style\b[^>]*>)(.*?)(</style)',
         lambda m: m.group(1) + re.sub(r'/\*.*?\*/', ' ', m.group(2), flags=re.S)
@@ -3906,6 +3927,8 @@ def check_marker_duties(new_path):
         stack_eligible = markset - NO_STACK_MARKERS
         stacked = len(stack_eligible) >= 3
         if stacked or "show-me" in markset:
+            # consult_item_bodies already dropped comments and script/style: a
+            # visual in either is not one the reader sees.
             if not VISUAL_TAG.search(new_body):
                 fails.append(("consult-marker-duties", name,
                     f"{ident} was marked [show-me]"
@@ -3953,8 +3976,11 @@ def check_marker_duties(new_path):
     # warnings as a marker above; an unreadable paste has no row to judge.
     try:
         import save_reply
+        # The states the reader ticked against are the answered page's: without
+        # them a partial tick on a states row owes nothing (save_reply passes them).
         gallery = save_reply.gallery_duties_for(
-            paste, ordinary_item_ids(text) | ordinary_item_ids(answered_text))
+            paste, ordinary_item_ids(text) | ordinary_item_ids(answered_text),
+            save_reply.states_in_page(answered_text))
     except Exception as e:                          # noqa: BLE001 — fail closed
         return fails + [("consult-marker-duties", name,
                          f"the gallery-row scan did not run ({e})")], warns
@@ -3989,6 +4015,7 @@ def waiting_rows(text):
     """{data-id: item id} of gallery rows marked `data-waits-on` (BL-690): rows
     that depend on a consult item still open. They ask nothing and are not
     decided."""
+    text = strip_item_markup(text)   # a commented-out item is not one
     out = {}
     for m in ITEM_OPEN.finditer(text):
         w = re.search(r'\bdata-waits-on\s*=\s*(?:"([^"]*)"|\x27([^\x27]*)\x27|([^\s>]+))',
@@ -4003,6 +4030,7 @@ def decided_ids(text):
     """The `data-id`s of items carrying `data-decided` (BL-359's own mark). An
     item decided in the round being checked left the question set, so a
     marker duty against it is answered and exempt (BL-504)."""
+    text = strip_item_markup(text)   # a commented-out item is not one
     out = set()
     for m in ITEM_OPEN.finditer(text):
         if ITEM_DECIDED.search(m.group(0)):
@@ -4051,6 +4079,7 @@ def check_spec_items(path):
 
 def dropped_ids(text):
     """The `data-id`s of items carrying `data-dropped` (a spec `dropped=`)."""
+    text = strip_item_markup(text)   # a commented-out item is not one
     out = set()
     for m in ITEM_OPEN.finditer(text):
         if re.search(r"\bdata-dropped\b(?!-)", m.group(0), re.I):
@@ -4061,6 +4090,7 @@ def dropped_ids(text):
 def proposal_ids(text):
     """The `data-id`s of items carrying `data-proposal` (a spec `proposal=yes`,
     BL-692): decided by the writer this round, awaiting the reader's correction."""
+    text = strip_item_markup(text)   # a commented-out item is not one
     out = set()
     for m in ITEM_OPEN.finditer(text):
         if re.search(r"\bdata-proposal\b(?!-)", m.group(0), re.I):
