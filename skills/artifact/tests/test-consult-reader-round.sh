@@ -190,11 +190,14 @@ Ana opens the list and sees no filter.
 SPEC
 SPB="$TMP/reports/blk.html"
 python3 "$BUILD" "$SP2" -o "$SPB" >/dev/null 2>&1 || fail "(f) the block-notes spec build failed"
-REPLY_B=$'## G1 \xc2\xb7 One\n\nthis whole block is fine\n\n### Q1 \xc2\xb7 Pick\n\n- Keep it\n\n## G2 \xc2\xb7 Two\n\n- [show-me]\n\n### Q2 \xc2\xb7 Pick again\n\n- Skip it\n'
+REPLY_B=$'## G1 \xc2\xb7 One\n\nthis whole block is fine\n\n### Q1 \xc2\xb7 Pick\n\n- Keep it\n\nnot sure yet\n\n## G2 \xc2\xb7 Two\n\n- [show-me]\n\n### Q2 \xc2\xb7 Pick again\n\n- Skip it\n'
 out="$(printf '%s' "$REPLY_B" | bash "$SAVE" "$SPB" - 2>&1)"; rc=$?
 [[ $rc -eq 0 && "$out" != *Q1* ]] \
   && ok "(f) a block note with a marker-shaped line is not charged to the item before it" \
   || fail "(f) save-reply charged the G2 note's [show-me] to Q1 (rc=$rc): $out"
+# the reader picked Q2 and asked nothing back: a round that opens must decide it.
+# Q1 (option + note) stays open so G2's [show-me] could still be wrongly charged to it.
+sed -i.bak 's/{#Q2 title="Pick again"}/{#Q2 title="Pick again" decided="Skip it"}/' "$SP2"
 python3 "$BUILD" "$SP2" -o "$SPB" --new-round >/dev/null 2>&1 && [[ "$(round_of "$SPB")" == "2" ]] \
   && ok "(f) the round after a reply with block notes opens" \
   || fail "(f) the round after a reply with block notes did not open (got '$(round_of "$SPB")')"

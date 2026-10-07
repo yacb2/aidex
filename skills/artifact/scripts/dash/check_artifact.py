@@ -4003,6 +4003,105 @@ def check_decided_trace(path):
             for i in sorted(gap) if not _reply_has_answer(reply_text, i, page_ids)]
 
 
+_ROUND_META = re.compile(r'<meta\b[^>]*\bname\s*=\s*["\']?consult-round["\']?'
+                         r'[^>]*\bcontent\s*=\s*["\']?(\d+)', re.I)
+_OTHER_PICK = re.compile(r"^-[ \t]+(?:Other|Otra)\b", re.I)
+
+
+def _round_of(text):
+    m = _ROUND_META.search(text)
+    return int(m.group(1)) if m else 0
+
+
+def _picked_only(reply_text, ident, ids):
+    """The option lines of the LAST reply block for `ident` when the reader
+    only PICKED: every non-blank line is a `- option` bullet, none an ask
+    marker, none the `Other` label. Notes, free text, a chat-form answer or
+    a question back make it not a bare pick -> None."""
+    alts = "|".join(re.escape(i) for i in sorted(set(ids) | {ident},
+                                                 key=len, reverse=True))
+    head_any = re.compile(r"^(?:[ \t]*#{2,3}[ \t]|<!--|[ \t]*(?:" + alts
+                          + r")(?![\w-])[ \t]*[:·])")
+    head = re.compile(r"^[ \t]*#{2,3}[ \t]+" + re.escape(ident)
+                      + r"(?![\w-])[ \t]*[:·]", re.M)
+    lines = reply_text.split("\n")
+    picked = None
+    for k, line in enumerate(lines):
+        if not head.match(line):
+            continue
+        block = []
+        for nxt in lines[k + 1:]:
+            if head_any.match(nxt):
+                break
+            block.append(nxt)
+        body = [b.strip() for b in block if b.strip()]
+        picked = None
+        if (body and all(b.startswith("- ") for b in body)
+                and not any(t in _ASK_MARKERS for t in _MARK_TOKEN.findall("\n".join(body)))
+                and not any(_OTHER_PICK.match(b) for b in body)):
+            picked = [b[2:].strip() for b in body]
+    return picked
+
+
+def check_round_pick_open(path, strict=False):
+    """FAILs the 225f968e shape (round-open-pick-not-decided): a page of round
+    N+1 leaves OPEN an item whose saved round-N reply only PICKED an option —
+    nothing was asked back, so the reader's answer was dropped and the item is
+    shown again. Other / option+note / a question / an item absent from the
+    reply stay open legitimately. Applies only when the page's `consult-round`
+    is past the round of `.aidex-artifact-prev/<stem>.answered.html`; a page
+    claiming round > 1 with no answered snapshot or no saved reply FAILS
+    rather than passing unchecked.
+
+    `strict` (check-artifact `--new-round`, which the wrap passes on the build
+    that OPENS a round): every bare pick must be decided. Without it (the
+    decide verbs rebuild one item at a time, the round advancing on the first)
+    a page that decided any item the reader had open is a round in progress."""
+    name = os.path.basename(path)
+    if not os.path.isfile(path):
+        return []
+    prev_dir = os.path.join(os.path.dirname(os.path.abspath(path)),
+                            ".aidex-artifact-prev")
+    stem = os.path.splitext(name)[0]
+    answered = os.path.join(prev_dir, stem + ".answered.html")
+    reply = os.path.join(prev_dir, stem + ".reply.md")
+    read = lambda p: open(p, encoding="utf-8", errors="replace").read()
+    text = read(path)
+    rnd = _round_of(text)
+    if rnd <= 1 or not any(i != "notes" for i in ordinary_item_ids(text)):
+        return []                       # round 1, or no question item (a plain read)
+    if not (os.path.isfile(answered) and os.path.isfile(reply)):
+        return [("consult-round-pick", name,
+                 f"the page is round {rnd} but the previous round's saved "
+                 f"reply or answered snapshot is missing from "
+                 f".aidex-artifact-prev/ — cannot check that the owner's picks "
+                 f"were decided; run save-reply.sh on the previous round's reply")]
+    old = read(answered)
+    if rnd <= _round_of(old):
+        return []                       # the page the reader answered, or a rebuild of it
+    reply_text = _live_reply(read(reply))
+    ids = {i for i, *_ in consult_items(text)} | {i for i, *_ in consult_items(old)}
+    was_open = {i for i, *_ in consult_items(old)} - decided_ids(old)
+    live = ordinary_item_ids(text) - dropped_ids(text) - proposal_ids(text)
+    picks = {}
+    for i in sorted(was_open & live):         # gallery rows have their own verdict duties
+        picked = _picked_only(reply_text, i, ids)
+        if picked:
+            picks[i] = picked
+    still_open = [i for i in picks if i not in decided_ids(text)]
+    if not still_open:
+        return []
+    if not strict and was_open & decided_ids(text) - dropped_ids(text) - proposal_ids(text):
+        return []       # decide verbs rebuild one item at a time: round in progress
+    why = ("this build opens the round, so every bare pick must be decided"
+           if strict else "the round decided nothing the reader had open")
+    return [("consult-round-pick", name,
+             f"{i} is still OPEN but the saved reply answered it with "
+             f"{'; '.join(picks[i])} and asked nothing back, and {why} — "
+             f"decide it (spec_verbs decide) instead of showing it again")
+            for i in still_open]
+
+
 def check_prev(new_path, prev_path):
     """Requirement 1 across regenerations: an id kept between two versions
     still names the same claim, and no id disappears. A SHIFT is an id whose
@@ -4376,6 +4475,7 @@ def main(argv):
     prev = None
     census = False
     census_arg = None
+    new_round = False
     files = []
     args = list(argv)
     while args:
@@ -4385,6 +4485,8 @@ def main(argv):
                 print("ERROR: --prev needs a file", file=sys.stderr)
                 return 2
             prev = args.pop(0)
+        elif a == "--new-round":
+            new_round = True
         elif a == "--census":
             census = True
             if args and not args[0].startswith("--"):
@@ -4433,6 +4535,7 @@ def main(argv):
         failures.extend(spec_fails)
         warnings.extend(spec_warns)
         failures.extend(check_decided_trace(f))
+        failures.extend(check_round_pick_open(f, strict=new_round))
 
     for check, name, msg in failures:
         print(f"  FAIL [{check}] {name}: {msg}")
