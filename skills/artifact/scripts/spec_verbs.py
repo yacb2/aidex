@@ -431,7 +431,9 @@ def _reply_answer(reply, item_id, ids, labels=(), many=False):
                 real.append(t)           # a real option, whatever it starts with
             elif t.lower().startswith(_OTHER_LABELS):
                 other = True
-        else:
+        elif re.search(r"\w", t):
+            # a note has words: a separator or a lone mark (`---`, `.`) is no
+            # note, so it opens no free-text verdict (mutations case 54b)
             notes.append(t)
     return real, notes, other, marked
 

@@ -29,7 +29,8 @@ SKIPPED (a row or variant that cannot be expressed as an input; listed here, nev
     59 (variant)  save-reply.sh "during a build lock": needs a live concurrent build to hold the lock
                   (save_reply.py:282-306); the missing-page and empty-reply variants are cases 59/59b.
     16 (variant)  "a lone context list with no real options is silently taken AS the options"
-                  is case x-ctxlist; the "intent" half (which list was meant) is not machine-decidable.
+                  is case x-ctxlist, relaxed to `either` with no meaning predicate (owner Q6,
+                  2026-10-07): which list was meant is not machine-decidable.
     46 (variant)  the CLI `--lang fr` is argparse's own refusal; only the masthead `lang=` is a case.
     63/65/66      one case per named variant of the row; the row's remaining words are the same code path.
 
@@ -200,10 +201,11 @@ case("15", "options indented under the question", mut((OPTS1, "  - Sí {recommen
      expect="either", names=r"Q1.*option|option.*Q1", count=[(r'<input type="radio" name="Q1"', 2)])
 case("16", "a context list before the real options",
      mut((OPTS1, "- contexto uno\n- contexto dos\n\nTexto entre listas.\n\n" + OPTS1)), names=r"second `-` list")
-# x-ctxlist: a list of evidence and no options; the bullets must not become the options
+# x-ctxlist: a list of evidence and no options. "- dato uno / - dato dos" is shape-identical to a
+# bare options list, so the bullets becoming the options is accepted (owner, LOOP-008 Q6,
+# 2026-10-07): a refusal or a valid page both pass; no grammar marker separates the two.
 case("x-ctxlist", "an item whose only list is evidence (first list becoming options)",
-     mut((OPTS1, "- dato uno\n- dato dos")), expect="either", names=r"Q1.*option|option.*Q1",
-     lacks=[r'data-label="dato'])
+     mut((OPTS1, "- dato uno\n- dato dos")), expect="either", names=r"Q1.*option|option.*Q1")
 case("17", "hint separated by ' - ' instead of ' — '", mut(("{recommended} — pista uno", "{recommended} - pista uno")),
      expect="either", names=r"hint|separator|dash", lacks=[r'data-label="[^"]* - '], has=HINT_OK)
 case("17b", "hint separated by '--'", mut(("{recommended} — pista uno", "{recommended} -- pista uno")),
@@ -331,6 +333,12 @@ case("53c", "decide with an empty verdict", steps=(B, REPLY, decide("Q1", "")), 
 case("53d", "decide yes on an item with options", steps=(B, REPLY, decide("Q1", "yes")), names=r"'yes' would record")
 case("54", "decide with a verdict that is no option", steps=(B, ("save", "Q1: Opción inventada que no existe\n"), decide("Q1", "Opción inventada que no existe")),
      expect="either", names=r"verdict.*option|option.*verdict", lacks=[r"Opción inventada"])
+# 54b (owner, LOOP-008 Q7): the reply carries a real option AND an extra line with no words, so
+# the invented verdict cannot hide behind a one-line reply (case 54 passed while "option + any
+# line" let it through). A worded note ("Gracias") is the documented free-text route and passes.
+case("54b", "decide with an invented verdict beside a real option and a wordless extra line",
+     steps=(B, ("save", "Q1: No\n\n---\n"), decide("Q1", "Opción inventada que no existe")),
+     expect="either", names=r"verdict.*option|option.*verdict", lacks=[r"Opción inventada"])
 # 55: a question added to the spec after the reply was saved, then decided through the verb
 case("55", "decide a question added after the saved reply",
      steps=(B, REPLY, ("edit_spec", Q2, Q2 + Q3), B, decide("Q3", "Alfa")), names=r"#Q3|Q3 is shown as Decided")
@@ -440,7 +448,7 @@ case("h4", "hand edit: an item's options removed", steps=(B, ("edit_html", LAB, 
 
 # Y is pinned: a case dropped from the table must not read as green. The wiring in invariant_gate.py
 # sets MIN["mutations"] to this number (`python3 mutations_gate.py --expected` prints it).
-EXPECTED_CASES = 154
+EXPECTED_CASES = 155
 if len(CASES) != EXPECTED_CASES:
     raise SystemExit("mutations_gate: %d cases, EXPECTED_CASES is %d" % (len(CASES), EXPECTED_CASES))
 
