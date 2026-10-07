@@ -2181,6 +2181,11 @@ def build(spec_text, lang=None, base_dir=".", page=None):
     _refuse_title_links(tree)
     _refuse_item_id_collisions(tree)
     answerable = any(n.block_type in ANSWERABLE for n in _walk(tree))
+    mastheads = [n for n in tree if n.block_type == "masthead"]
+    if len(mastheads) > 1:
+        raise SpecBuildError(
+            mastheads[1].line, "second masthead: a page has exactly one "
+            "(the first is at line %d)" % mastheads[0].line)
 
     head = []
     for node in tree:
@@ -2218,6 +2223,11 @@ def build(spec_text, lang=None, base_dir=".", page=None):
 
     body = [emit_node(n, ctx) for n in tree if not _blank_prose(n)]
 
+    # check_artifact's masthead rule reads this: a page built WITH a masthead must
+    # keep exactly one. A spec without one (a fragment, or a page titled by --title)
+    # carries no stamp, so its page is held to nothing it never had.
+    if mastheads:
+        head.append('<meta name="spec-built" content="1">')
     out = list(head)
     out.append('<div class="page">')
     out.append('<main class="main">')
@@ -2240,7 +2250,40 @@ def build(spec_text, lang=None, base_dir=".", page=None):
         out.append("  </div>")
     out.append("</aside>")
     out.append("</div>")
-    return "\n".join(out) + "\n"
+    page = "\n".join(out) + "\n"
+    # A masthead that DECLARES lang= over a body written in the other language is
+    # a mixed page the contract's `lang` rule would fail. Refused here with the
+    # checker's own stopword reading, at a lower floor (3 foreign hits, no
+    # native ones to speak of): a short spec is below the checker's 10, and the
+    # mixed page it builds is still mixed. A silent masthead follows the profile.
+    declared = spec_lang(spec_text)
+    if declared:
+        # The AUTHOR's words: the page's chrome is already in the declared
+        # language and would answer for a body that is not.
+        prose = re.sub(r"(?ms)^(```|~~~).*?^\1", " ", spec_text)
+        # data blocks quote data (commit subjects, commands), not prose
+        prose = re.sub(r"(?ms)^:::\s*(ledger|table|chart|diagram|graph|figure"
+                       r"|verdict|video)\b.*?^:::\s*$", " ", prose)
+        prose = md_body.CODE.sub(" ", prose)
+        prose = re.sub(r"https?://\S+", " ", prose)
+        # an attribute brace keeps only its quoted values (titles are prose);
+        # its keys and bare values (`lang=es`) are syntax
+        prose = re.sub(r"\{[^}\n]*\}",
+                       lambda m: " ".join(re.findall(r'"([^"]*)"', m.group(0))),
+                       prose)
+        words = check_artifact.WORD_RE_LANG.findall(prose.lower())
+        es = sum(1 for w in words if w in check_artifact.SPANISH_STOPWORDS)
+        en = sum(1 for w in words if w in check_artifact.ENGLISH_STOPWORDS)
+        own, other = (es, en) if declared == "es" else (en, es)
+        if other >= 3 and other >= check_artifact.LANG_RATIO * own:
+            node = next(n for n in tree if n.block_type == "masthead"
+                        and n.attrs.get("lang"))
+            raise SpecBuildError(
+                node.line, "`masthead` lang=%s but the body reads %s (%d Spanish "
+                "vs %d English stopwords): a mixed-language page. Write the body "
+                "in the declared language, or declare the one it is written in"
+                % (declared, "en" if declared == "es" else "es", es, en))
+    return page
 
 
 def page_title(spec_text):

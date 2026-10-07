@@ -343,6 +343,10 @@ fixed at the builder's `es` default they built into `<html lang="es">` over an
 English body — which `check_artifact`'s `lang` rule fails (BL-279), on pages whose
 originals pass.
 
+- A second `masthead` is refused ("second masthead"): a page has exactly one.
+- A page built from a spec with a `masthead` carries `<meta name="spec-built">`; check-artifact then fails it if a hand edit leaves zero or two mastheads. A spec with no `masthead` (a fragment, or a page titled by `--title`) carries no stamp. The CLI still refuses an answerable spec with neither a masthead nor `--title` ("no document title").
+- A `lang=` that contradicts the body is refused as a mixed-language page: 3 or more stopwords of the other language and at least 3 times the declared language's, counted over rendered prose only (code, attribute keys, URLs and data blocks are left out).
+
 The declaration WINS over `--lang` and over `build(lang=…)`, which are the default
 for a spec that stays silent. One owner per fact: the language belongs to the page,
 not to the command that builds it.
