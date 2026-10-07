@@ -115,6 +115,7 @@ Exit 0 = every file passes. Exit 1 = at least one violation (each printed).
 Exit 2 = usage error.
 """
 import hashlib
+import shlex
 import html as _html
 import xml.etree.ElementTree as _ET
 import os
@@ -3155,6 +3156,62 @@ def _ledger_shape(body):
     return ", ".join(dict.fromkeys(bad))
 
 
+def _spec_index(path):
+    """({("id", id) | ("heading", text): line}, spec file name) of the
+    `<stem>.spec.md` beside the page, or ({}, "") when there is none or it does
+    not parse. The same sibling `check_spec_items` reads, used here only to put
+    a spec LINE in a refusal: a hint, never a verdict, so any failure is silence
+    and the message falls back to the page's own line."""
+    spec = os.path.splitext(os.path.abspath(path))[0] + ".spec.md"
+    if not os.path.isfile(spec):
+        return {}, ""
+    try:
+        here = os.path.dirname(os.path.abspath(__file__))
+        sys.path.insert(0, here)
+        sys.path.insert(0, os.path.join(here, os.pardir))
+        import spec_parser
+        tree = spec_parser.parse(open(spec, encoding="utf-8").read())
+    except Exception:                               # noqa: BLE001 — a hint only
+        return {}, ""
+    index = {}
+
+    def walk(nodes):
+        for nd in nodes:
+            if nd.id:
+                index.setdefault(("id", nd.id), nd.line)
+            if nd.attrs.get("dropped-ids"):
+                index[("dropped-ids", "")] = nd.attrs["dropped-ids"].split()
+            heading = nd.attrs.get("heading")
+            if heading:
+                index.setdefault(("heading", " ".join(heading.split())), nd.line)
+            walk(nd.children)
+    walk(tree)
+    return index, os.path.basename(spec)
+
+
+def _where(index, spec_name, text, kind, key, pos):
+    """`<name>.spec.md:<line>` when the spec beside the page declares the block,
+    else the page's own `line <n>` of `pos`, else ''."""
+    line = index.get((kind, key))
+    if line:
+        return f"{spec_name}:{line}"
+    return "" if pos is None else f"line {text.count(chr(10), 0, pos) + 1}"
+
+
+def _PROSE_FIX(spec_name):
+    """The one-sentence remedy for prose outside a block (before or between)."""
+    if spec_name:
+        return ("Fix: move this `::: section` below the `::: notes` fence "
+                "(reference material), or fold its text into the group whose "
+                "decision needs it")
+    return ("Fix: move this section after the general-notes item (reference "
+            "material), or fold its text into the block whose decision needs it")
+
+
+def _at(ref):
+    return f" ({ref})" if ref else ""
+
+
 SPEC_BUILT = re.compile(r'<meta\b[^>]*\bname\s*=\s*["\']?spec-built\b', re.I)
 MASTHEAD_OPEN = re.compile(
     r'<header\b[^>]*\bclass\s*=\s*["\'][^"\']*\bmasthead\b', re.I)
@@ -3167,6 +3224,8 @@ def check_shape(path, text):
 
     def report(msg):
         fails.append(("consult-shape", os.path.basename(path), msg))
+
+    spec_index, spec_name = _spec_index(path)
 
     # A consultation page opens with ONE masthead (a hand edit that removed it
     # or pasted a second one leaves the page without, or with two, openings).
@@ -3241,20 +3300,45 @@ def check_shape(path, text):
             continue
         ident = next(g for g in m.groups()[1:] if g is not None)
         if not in_group(m.start()):
-            report(f"item '{ident}' sits outside any block — every decision "
-                   f"lives inside a <section class=\"consult-group\"> with "
-                   f"the context it comes from (02-local-first-artifacts.md "
-                   f"§ 8.4). A block may carry one decision or several")
+            ref = _where(spec_index, spec_name, text, "id", ident, m.start())
+            fix = ("move this `::: item` inside the `::: group` whose context "
+                   "it needs, or wrap it in a new `::: group {#G… title=\"…\"}`"
+                   if spec_name else
+                   "move it inside the consult-group of the context it comes "
+                   "from, or wrap it in a new one")
+            report(f"item '{ident}'{_at(ref)} sits outside any block — every "
+                   f"decision lives inside a <section class=\"consult-group\"> "
+                   f"with the context it comes from (02-local-first-artifacts.md "
+                   f"§ 8.4). A block may carry one decision or several. Fix: {fix}")
 
     # Every block carries a decision: a context with nothing to answer is the
     # old preamble wearing a class.
-    for ident, _, a, b in groups:
-        if not any(a <= m.start() < b and not GROUP_CLASS.search(m.group(0))
-                   for m in ITEM_OPEN.finditer(text)):
-            report(f"block '{ident}' carries no decision — a context with "
-                   f"nothing to answer is prose. Move it into the block whose "
-                   f"decisions need it, or after the questions if it is "
-                   f"reference material")
+    def has_decision(a, b):
+        return any(a <= m.start() < b and not GROUP_CLASS.search(m.group(0))
+                   for m in ITEM_OPEN.finditer(text))
+
+    for ident, start, a, b in groups:
+        if not has_decision(a, b):
+            ref = _where(spec_index, spec_name, text, "id", ident, start)
+            # The block whose decision this context most likely belongs to:
+            # the next block that has one, else the last one before it.
+            deciding = [g for g in groups if g[0] != ident and has_decision(g[2], g[3])]
+            nxt = [g for g in deciding if g[1] > start] or deciding[::-1][:1]
+            near = ""
+            if nxt:
+                nref = _where(spec_index, spec_name, text, "id", nxt[0][0], nxt[0][1])
+                near = (f" (#{nxt[0][0]} at {nref})" if spec_name else
+                        f" ({nxt[0][0]}, {nref})")
+            fix = ("put a decision in it (a `::: item` inside this `::: group`), "
+                   "or, if it is only context, rewrite it as `::: section "
+                   "{#id heading=\"…\"}` below the `::: notes` fence, or fold its "
+                   "text into the group whose decision needs it"
+                   if spec_name else
+                   "put a decision in it, or, if it is only context, make it a "
+                   "plain <section id=\"…\"> after the general-notes item, or "
+                   "fold its text into the block whose decision needs it")
+            report(f"block '{ident}'{_at(ref)} carries no decision — a context "
+                   f"with nothing to answer is prose. Fix: {fix}{near}")
 
     # The general-notes item closes the question set (BL-457): no block and no
     # item after it. Reference sections after it stay allowed — they carry no
@@ -3283,9 +3367,12 @@ def check_shape(path, text):
     # Nothing but blocks between the first block and the general notes.
     for m in H2.finditer(text, first, end):
         if not in_group(m.start()):
-            report(f"prose between blocks: \"{_h2_text(m.group(0))}\" — the "
-                   f"context a decision needs sits in its block, above the "
-                   f"decision; there is no place for a section between blocks")
+            label = _h2_text(m.group(0))
+            ref = _where(spec_index, spec_name, text, "heading",
+                         " ".join(_html.unescape(label).split()), m.start())
+            report(f"prose between blocks: \"{label}\"{_at(ref)} — the context "
+                   f"a decision needs sits in its block, above the decision; "
+                   f"there is no place for a section between blocks. {_PROSE_FIX(spec_name)}")
 
     # Before the first block: the header, a visual section, the ledger, and the
     # section that merely contains the blocks. Anything else is the preamble
@@ -3313,11 +3400,16 @@ def check_shape(path, text):
                        f"the block that needs it or after the questions")
         rest = _strip_subtrees(rest, LEDGER_SUB)
         if PROSE.search(rest):
-            report(f"prose before the first block: \"{label}\" — "
+            h = H2.search(fragment)
+            ref = _where(spec_index, spec_name, text, "heading",
+                         " ".join(_html.unescape(label).split()),
+                         text.find(h.group(0)) if h and h.group(0) in text else None)
+            report(f"prose before the first block: \"{label}\"{_at(ref)} — "
                    f"before the blocks only the header (title + standfirst), "
                    f"a figure and the ledger may appear. The strongest claim "
                    f"goes in the standfirst; context goes in the block that "
-                   f"needs it; reference material goes after the questions")
+                   f"needs it; reference material goes after the questions. "
+                   f"{_PROSE_FIX(spec_name)}")
 
     # The region before the first block that sits in NO section: the report
     # pages put the title, the standfirst and the ledger straight under <main>,
@@ -4134,6 +4226,44 @@ def check_round_pick_open(path, strict=False):
             for i in still_open]
 
 
+def gallery_row_ids(text):
+    """The data-ids of gallery ROWS (`consult-gallery` items): never spec nodes,
+    so `spec_verbs new-round --retitle` refuses them."""
+    return {next(g for g in m.groups()[1:] if g is not None)
+            for m in ITEM_OPEN.finditer(text)
+            if "consult-gallery" in _class_tokens(m.group(0))}
+
+
+def _next_free_id(ident, taken):
+    """A new id for a different question next to `ident`: `Q4` for `Q1` on a page
+    with Q1-Q3 (the highest number of that prefix plus one), `<id>-2` for an id
+    that does not end in digits. Never one in `taken`."""
+    m = re.match(r'^(.*?)(\d+)$', ident)
+    if m:
+        pref = m.group(1)
+        nums = [int(n.group(2)) for t in taken
+                for n in [re.match(r'^(.*?)(\d+)$', t)]
+                if n and n.group(1) == pref]
+        return f"{pref}{max(nums) + 1}"
+    cand, k = f"{ident}-2", 2
+    while cand in taken:
+        k += 1
+        cand = f"{ident}-{k}"
+    return cand
+
+
+def _spec_verb_cmd(new_path, flag, ids):
+    """The paste-ready `spec_verbs.py new-round` line, or '' when no spec sits
+    beside the page. Plain ids (the verb strips a `#`): `#` starts a shell comment."""
+    spec = os.path.splitext(os.path.abspath(new_path))[0] + ".spec.md"
+    if not ids or not os.path.isfile(spec):
+        return ""
+    verbs = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                         "spec_verbs.py")
+    return (f"python3 {shlex.quote(verbs)} new-round {shlex.quote(spec)} "
+            + " ".join(f"{flag} {shlex.quote(i)}" for i in ids))
+
+
 def check_prev(new_path, prev_path):
     """Requirement 1 across regenerations: an id kept between two versions
     still names the same claim, and no id disappears. A SHIFT is an id whose
@@ -4171,10 +4301,31 @@ def check_prev(new_path, prev_path):
     groups = group_ids(new_page) & group_ids(
         open(prev_path, encoding="utf-8", errors="replace").read())
     dropped = sorted(set(old) - set(new))
+    spec_index, spec_name = _spec_index(new_path)
+    spec_base = os.path.basename(os.path.splitext(os.path.abspath(new_path))[0]
+                                 + ".spec.md")
+    rows = gallery_row_ids(open(prev_path, encoding="utf-8", errors="replace").read())
     if dropped:
         new_text = open(new_path, encoding="utf-8", errors="replace").read()
         declared = dropped_declaration(new_text)
         if not surfaces_declaration(new_text):
+            undeclared = [i for i in dropped if i not in declared]
+            # ONE command for every id: the verb merges drops, and a list grown
+            # one id per refusal is the loop this message exists to end.
+            cmd = _spec_verb_cmd(new_path, "--drop",
+                                 [i for i in undeclared if i not in rows])
+            row_ids = [i for i in undeclared if i in rows]
+            tail = (f"; gallery row ids ({', '.join(row_ids)}) are not spec "
+                    f"items, add `--drop <row id>` for each only if its row "
+                    f"really left the rows file" if cmd and row_ids else "")
+            how = (f"To keep it, restore it in {spec_base} as an item marked "
+                   f"decided=\"…\" or dropped=\"reason\". To drop on purpose, "
+                   f"run `{cmd}` (every dropped spec id of this page){tail}"
+                   if cmd else
+                   f'To keep it, restore it on the page marked decided or '
+                   f'closed. To drop on purpose, declare every dropped id '
+                   f'(<meta name="consult-dropped" content="'
+                   f'{" ".join(undeclared)}">)')
             for i in dropped:
                 if i in declared:
                     notes.append(("consult-ids", os.path.basename(new_path),
@@ -4184,11 +4335,8 @@ def check_prev(new_path, prev_path):
                 fails.append(("consult-ids", os.path.basename(new_path),
                               f'id dropped between rounds — {i} ("{old[i]}") '
                               f'was on the previous version and is not on this '
-                              f'one. Ids are never removed: keep the item and '
-                              f'mark it decided or closed; a round that really '
-                              f'drops it says so (spec_verbs new-round --drop), '
-                              f'and a page declaring '
-                              f'consult-surfaces: none may drop ids'))
+                              f'one. Ids are never removed. {how}. A page '
+                              f'declaring consult-surfaces: none may drop ids'))
     # BL-323: a TRANSLATION changes every title by definition, and that is not
     # the failure this check exists for. On a real 12-item page it produced 12
     # FAILs at once, and the remedy the message proposes — append a new id — is
@@ -4203,6 +4351,21 @@ def check_prev(new_path, prev_path):
     # because a translation is also the easiest place to change a claim without
     # noticing. And the discriminant is the LANGUAGE PAIR: within one language
     # this is a failure exactly as before.
+    # The ids this loop will refuse: the reworded-on-purpose command must list
+    # them together with the ones already declared, because the verb REPLACES
+    # the page's list.
+    refused_moved = [i for i in moved if not translated and i not in groups
+                     and i not in retitled]
+    # BL-611: a declaration lasts ONE round, so an earlier round's retitle that
+    # did not move again is not renewed; row ids are not spec nodes.
+    reword_cmd = _spec_verb_cmd(
+        new_path, "--retitle",
+        sorted(i for i in (retitled & set(moved)) | set(refused_moved)
+               if i not in rows))
+    # A dropped id is gone from both pages but still taken: the page's
+    # consult-dropped declaration and the spec masthead's dropped-ids.
+    taken = (set(old) | set(new) | dropped_declaration(new_page)
+             | set(spec_index.get(("dropped-ids", ""), [])))
     for i in moved:
         if translated:
             notes.append(("consult-ids", os.path.basename(new_path),
@@ -4223,11 +4386,20 @@ def check_prev(new_path, prev_path):
                           f'was "{old[i]}", now "{new[i]}". The id stays; '
                           f'check the claim behind it did not change'))
         else:
+            ref = _where(spec_index, spec_name, "", "id", i, None)
+            same = (f"Same question reworded: run `{reword_cmd}` (every "
+                    f"reworded id of this page)" if reword_cmd else
+                    f'Same question reworded: declare it on the page '
+                    f'(<meta name="consult-retitled" content="'
+                    f'{" ".join(refused_moved)}">)')
+            fresh = _next_free_id(i, taken)
+            taken.add(fresh)
             fails.append(("consult-ids", os.path.basename(new_path),
                           f'id reused for a different claim — {i}: was '
-                          f'"{old[i]}", now "{new[i]}". Append a new id '
-                          f'instead; a reply about that id now points '
-                          f'somewhere else'))
+                          f'"{old[i]}", now "{new[i]}"{_at(ref)}. {same}. '
+                          f'A different question: give it a new id (next free: '
+                          f'{fresh}) and keep {i} as it was; a reply about {i} '
+                          f'would point somewhere else'))
     return fails, notes
 
 
