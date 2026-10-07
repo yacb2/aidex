@@ -24,7 +24,7 @@ import tempfile
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import md_body  # noqa: E402
-from _usage import UsageParser, usage_exit  # noqa: E402
+from _usage import UsageParser, read_stdin, usage_exit  # noqa: E402
 sys.path.insert(0, os.path.join(__file__.rsplit("/", 1)[0], "..", "..", "..", "conventions", "scripts"))
 import profiles  # noqa: E402  the one profile resolver
 from _shell import document, esc  # noqa: E402
@@ -969,10 +969,12 @@ def main():
 
     if args.infile and not os.path.exists(args.infile):
         usage_exit(WRAP_FORM, "--in %s: no such file" % args.infile)
-    content = (open(args.infile, encoding="utf-8").read() if args.infile
-               else sys.stdin.read())
+    if args.infile:
+        content = open(args.infile, encoding="utf-8").read()
+    else:
+        content = read_stdin(WRAP_FORM, blank_is_empty=True)
     if not content.strip():
-        print("ERROR: no content on stdin (nothing to wrap)", file=sys.stderr)
+        print("ERROR: no content in %s (nothing to wrap)" % args.infile, file=sys.stderr)
         return 2
     # A `.md` input is the close-out case (BL-345): the run already wrote a
     # durable markdown report and what is missing is the page. Keyed on the

@@ -10,3 +10,8 @@ toolu_013KHDdDRV5uBYZxAFKBZzrp	spec_verbs.py	decide {FIX}/x.spec.md --id c1 --ve
 toolu_01JzG96ChhUWiqD3Ro93ignB	render-probe.sh	--shots {FIX}/page.html		usage:render-probe.sh ;; --shots takes a directory
 toolu_01TA7xHZSg8vkMR73Dbn6nYd	render-probe.sh	--viewport 390 {FIX}/page.html		usage:render-probe.sh ;; unknown flag --viewport
 toolu_01K5aaymi4Y3z79j5SJZmwQD	gallery-items.sh	{FIX}/rows.json --root /abs --group-id g --group-title T		usage:gallery-items.sh ;; required: --page
+toolu_01QHGgV9X2YLQVjWuhsD6t9J	wrap-report.sh	--title T --lang es --out {TMP}/p.html		usage:wrap-report.sh --title ;; [--in <file>] ;; no content on stdin
+nc-stdin-save-reply	save-reply.sh	{FIX}/page.html		usage:save-reply.sh <page.html> ;; pipe the reply on stdin ;; no content on stdin
+nc-stdin-gallery-reply	gallery-reply.sh			usage:gallery-reply.sh ;; pipe the reply on stdin ;; no content on stdin
+nc-stdin-gallery-reply-blank	gallery-reply.sh		blank.txt	usage:gallery-reply.sh ;; no content on stdin
+nc-stdin-wrap-blank	wrap-report.sh	--title T --lang es --out {TMP}/p.html	blank.txt	usage:wrap-report.sh --title ;; no content on stdin
