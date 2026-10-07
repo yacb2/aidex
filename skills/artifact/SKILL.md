@@ -65,7 +65,10 @@ page as the reader answered it, then prints one DUTY line per marked item;
 paste that list into the rewrite brief verbatim. Pass `--new-round` to the FIRST
 build (`spec_build.py` or `wrap-report.sh`) of a round opened over a reply (only the first; later wraps of that
 round, including a delegated `--building` build's, omit it): it fails, naming
-`save-reply.sh`, if no reply was saved. A `[show-me]` duty is
+`save-reply.sh`, if no reply was saved. On the spec route, edit the spec for every
+duty FIRST, then run the verbs: any rebuild after `save-reply.sh` opens the round,
+a verb's included, so when a verb (`decide`, `new-round`) is the first rebuild, no
+`--new-round` follows it (it would refuse: the round is already open). A `[show-me]` duty is
 fulfilled by a `diagram` block (`tree`, `compare`) in the page brief, or by launching
 `figure-sonnet` (wireframes only) or `verify-browser-opus` BEFORE the page brief, never by writing more prose. `check-artifact --prev` then FAILS a wrap
 that does not carry out a printed duty — no bypass
