@@ -262,11 +262,18 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/spec_verbs.py" add-item <name>.spec.md \
 attr span and leaving the other bytes of the line alone. Idempotent for the same verdict;
 a different verdict overwrites, because a reader revising an earlier answer is one of the
 four documented round labels. The verdict is the chosen option's label: `yes` is refused on an
-item with options (§ Worked example, `decided=yes`).
+item with options (§ Worked example, `decided=yes`). On such an item any other text is refused
+too, unless the saved reply (`save-reply.sh`) answers that id with the kit's Other choice
+("Otra — lo explico en las notas" / "Other — see my notes") or with an option plus a note: then
+the outcome that is no single option is recorded as written. "Todavía no" never qualifies, and
+a select=many verdict is the labels joined by `, `. `decide` and `new-round` need a built page
+(build it first with `spec_build.py -o`); every verb refuses a rebuild over a page that differs
+from what the last build wrote (hand-edited, restored from git, or left by an unfinished
+build), and takes the page language from the masthead `lang=`, else the project profile.
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/spec_verbs.py" decide <name>.spec.md \
-  --id Q1 --verdict "Fences"
+  --id Q1 --verdict "Fences de Pandoc"
 ```
 
 One reader reply that decides several items is ONE call: repeat the pair
