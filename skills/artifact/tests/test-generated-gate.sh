@@ -254,7 +254,7 @@ AIDEX_RENDER_PROBE="$TMP/probe-flag-first.sh" python3 "$GATE" --count 6 --verbos
   && ok "a flagged page shows in X/Y, still one stdout line" || bad "out: $(cat "$TMP/out")"
 grep -q "FAIL seed=[0-9]* INV:NAV-4" "$TMP/err" && ok "--verbose names each failure with its seed and invariant id" || bad "verbose: $(cat "$TMP/err")"
 grep -q "CLASSES" "$TMP/err" && ok "--verbose groups failures into classes" || bad "no CLASSES: $(cat "$TMP/err")"
-seed="$(sed -n 's/.*FAIL seed=\([0-9]*\) .*/\1/p' "$TMP/err" | head -1)"
+seed="$(sed -n 's/.*FAIL seed=\([0-9]*\) .*/\1/p' "$TMP/err" | sed -n 1p)"
 if [[ -n "$seed" && -f "$TMP/shr/$seed.spec.md" ]]; then
   orig="$(python3 "$GEN" "$seed" | wc -c)"; got="$(wc -c <"$TMP/shr/$seed.spec.md")"
   [[ "$got" -gt 0 && "$got" -lt "$orig" ]] && ok "--shrink-dir writes <seed>.spec.md, smaller than the generated spec ($orig -> $got bytes)" || bad "shrunk file $got vs $orig bytes"

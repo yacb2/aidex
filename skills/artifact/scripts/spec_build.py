@@ -1130,7 +1130,7 @@ def emit_gallery(node, ctx):
             html = gallery_items.render(doc, os.path.normpath(root), node.id,
                                         a["title"], lang, page=ctx.page,
                                         require_look=True, lead=lead_html,
-                                        items=items)
+                                        items=items, refuse_bare_rows=True)
     except SystemExit:
         said = [ln for ln in err.getvalue().splitlines() if ln.strip()]
         raise SpecBuildError(

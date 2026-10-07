@@ -1823,6 +1823,11 @@ is emitted only while at least one single-capture row has no `noBefore`. `noBefo
 blank or non-string value, or on a not-applicable or alternatives row (it would be dropped silently)
 is refused naming the cell; a dropped row does not read it. When a plain single-capture row sits beside
 a `noBefore` row, the intro sentence is qualified ("…, salvo donde la fila dice por qué no hay antes").
+The spec build refuses two or more distinct bare single-capture cells (not decided, dropped or
+waiting, no `noBefore`) when one is named `hoy` or `baseline` as a whole `-` token: that row is a
+`before` shown as a new screen, so make it the `before` of its pair, use one `kind: "alternatives"`
+row, or give each new screen a `noBefore` reason. `look`, `note` and `title` render inline markup; a link
+in a `title` is refused.
 
 **A row carries its "decidido, corrígeme si no" text in `decided_note`.** An optional row key, a
 non-empty string, rendered as the kit's `callout` after the row's variant line, under the captures and

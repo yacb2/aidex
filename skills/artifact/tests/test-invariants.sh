@@ -35,7 +35,7 @@ ids="$(awk -F'|' '/^\| [A-Z]+-[0-9]+ \|/ { gsub(/ /, "", $2); print $2 }' "$CATA
 [[ -n "$ids" ]] && ok "catalog lists $(wc -l <<<"$ids" | tr -d ' ') invariants" || bad "no catalog rows"
 
 echo "== the probe's composer-chrome list is composer.js's questionHash list =="
-want="$(grep -o "querySelectorAll('\.kit-tag, [^']*'" "$HERE/../assets/artifact-kit/composer.js" | head -1 | sed "s/querySelectorAll('//; s/'$//")"
+want="$(grep -o "querySelectorAll('\.kit-tag, [^']*'" "$HERE/../assets/artifact-kit/composer.js" | sed -n 1p | sed "s/querySelectorAll('//; s/'$//")"
 grep -qF "const CHROME = '$want, details.opts-more > summary';" "$SCRIPTS/render-probe.mjs" \
   && ok "CHROME list matches composer.js" || bad "CHROME list drifted from composer.js questionHash: [$want]"
 
@@ -43,7 +43,7 @@ echo "== wrap every fixture with the kit =="
 # A fixture whose first line is `<!-- wrap-lang: en -->` is wrapped in that language, else es.
 for f in "$FIX"/*.html; do
   n="$(basename "$f" .html)"; lang=es
-  head -1 "$f" | grep -q '^<!-- wrap-lang: en -->' && lang=en
+  sed -n 1p "$f" | grep >/dev/null '^<!-- wrap-lang: en -->' && lang=en
   ( cd "$TMP" && bash "$SCRIPTS/wrap-report.sh" --title "$n" --lang "$lang" --in "$f" > "$TMP/$n.html" 2>/dev/null ) \
     || bad "wrap-report failed on $n"
 done
