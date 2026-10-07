@@ -1,7 +1,7 @@
 ---
 name: backlog-reader
 description: Launched by /aidex:backlog detect-resolved; not for direct use. Reads one backlog item and the paths and commits it cites, and returns a verdict (resolved / partially / not) with a cited path or commit. Read-only; never closes or edits an item.
-model: sonnet
+model: haiku
 tools: Read, Grep, Glob, Bash
 effort: low
 user-invocable: false
