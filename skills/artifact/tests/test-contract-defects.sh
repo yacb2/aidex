@@ -726,8 +726,10 @@ bash "$HERE/../scripts/wrap-report.sh" --title "Clean page" --lang en --in "$TMP
 SPECS="$TMP/specs"; mkdir -p "$SPECS"
 printf '::: masthead {eyebrow="Test" lang=en}\n# Clean page\n\nA short report with one paragraph.\n:::\n\n## Findings\n\nNothing to decide here.\n' \
   > "$SPECS/clean.spec.md"
-# The builder refuses it: an item outside any group, and no notes item.
-printf '::: masthead {eyebrow="Test" lang=en}\n# Loose item\n\nOne question with no block around it.\n:::\n\n::: item {#q1 title="Pick one"}\nWhich?\n\n- **A.** This\n- **B.** That\n:::\n' \
+# The builder refuses it: an item outside any group (consult-shape). It declares
+# visual= so the build's earlier masthead-visual refusal (LOOP-009) does not fire
+# first; the missing notes item is added by the builder since LOOP-009.
+printf '::: masthead {eyebrow="Test" lang=en visual="none: a test page"}\n# Loose item\n\nOne question with no block around it.\n:::\n\n::: item {#q1 title="Pick one"}\nWhich?\n\n- **A.** This\n- **B.** That\n:::\n' \
   > "$SPECS/refused.spec.md"
 CORP="$TMP/corpus"
 corpus() {   # corpus [PROJ/]SPEC... -> rows PROJ/<SPEC>.html, specs PROJ__<SPEC>.spec.md (PROJ: cproj)
