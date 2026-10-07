@@ -36,6 +36,17 @@ def _phases_overview(text):
     return []
 
 
+def _phase_counts(row, base_dir):
+    """(done, total) task checkboxes of the phase file a Phases Overview row
+    links, or None when the row links no existing file."""
+    m = _LINK.search(row[1] if len(row) > 1 else "")
+    if m:
+        pf = os.path.join(base_dir, m.group(1))
+        if os.path.isfile(pf):
+            return P.checkbox_counts(P.read_text(pf))
+    return None
+
+
 def _rollup(root, plans_dir):
     pd = glob.escape(plans_dir)  # the workspace path is data, not a pattern (foo-[bl-9] roots)
     plans = []
@@ -78,8 +89,17 @@ def _rollup(root, plans_dir):
         if status not in ("complete", "done", "closed", "dropped"):
             open_n += 1
         text = P.read_text(path)
-        n_phases = len(_phases_overview(text))
-        done, total = P.checkbox_counts(text)
+        over = _phases_overview(text)
+        n_phases = len(over)
+        # The phase files the Phases Overview links (the canon keeps checkboxes
+        # out of the index); a plan whose table links no existing file counts
+        # its own checkboxes.
+        counts = [c for c in (_phase_counts(r, os.path.dirname(path)) for r in over)
+                  if c is not None]
+        if counts:
+            done, total = sum(c[0] for c in counts), sum(c[1] for c in counts)
+        else:
+            done, total = P.checkbox_counts(text)
         rows.append([
             S.esc(fm.get("title", slug)),
             S.pill(status or "—", STATUS_TONE.get(status, "")),
@@ -121,14 +141,8 @@ def _progress(root, plans_dir, slug):
     if over:
         for r in over:
             phase = r[0] if len(r) > 0 else ""
-            file_cell = r[1] if len(r) > 1 else ""
             desc = r[2] if len(r) > 2 else ""
-            m = _LINK.search(file_cell)
-            done = total = 0
-            if m:
-                pf = os.path.join(base_dir, m.group(1))
-                if os.path.isfile(pf):
-                    done, total = P.checkbox_counts(P.read_text(pf))
+            done, total = _phase_counts(r, base_dir) or (0, 0)
             tot_done += done
             tot_all += total
             if total and done == total:

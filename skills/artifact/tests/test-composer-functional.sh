@@ -5027,5 +5027,56 @@ cs="${ts#*|COPY=}"; cp_="${tp#*|COPY=}"
 [[ "$cs" == "$cp_" && "$cs" == *"Q1"* ]] \
   || fail "BL-715: the copied reply for the same pick must be byte-identical on a study page and a plain page: study=$cs plain=$cp_"
 
+# ---- C-c08: a short-value box is any text-like <input>, not only a literal type="text" ----
+# check_artifact accepts an <input> with no type as an item's reply surface, but the composer read
+# only input[type="text"]: a value typed into a typeless or number box was not counted, pasted or
+# stored. Layer: browser, because what counts as answered, what the copy carries and what a reload
+# gives back are the composer's calls. V3 (type="text") is the control.
+SV="$TMP/sv"; mkdir -p "$SV"
+{
+  printf '%s\n' '<meta name="consult-visual" content="none: a layout probe, nothing to draw">' \
+    '<div class="page"><main class="main"><header><p class="eyebrow">PROBE</p><h1>Short values</h1></header>' \
+    '<section id="sec-ask"><div class="sec-head"><h2>Questions</h2></div>'
+  printf '<section class="consult-group" data-id="G1" data-title="Valores"><p>Contexto</p>\n'
+  for v in 'V1|<input name="v1">' 'V2|<input name="v2" type="number">' 'V3|<input name="v3" type="text">'; do
+    printf '<section class="consult-item" data-id="%s" data-title="Valor %s" data-free><h3><span class="consult-id">%s</span>Valor?</h3>\n%s\n<p class="fieldlabel">Notas</p><textarea></textarea></section>\n' \
+      "${v%%|*}" "${v%%|*}" "${v%%|*}" "${v#*|}"
+  done
+  printf '</section>\n'
+  printf '%s\n' '<div class="endbar"><button type="button" id="consult-copy-end">Copy</button><span class="consult-status" id="consult-status-end"></span></div>' \
+    '<section class="consult-item consult-notes" data-id="notes" data-title="Notas generales"><h3>Notas generales</h3><textarea></textarea></section>' \
+    '</section></main><aside class="rail"><p class="railhead">Contenido</p><nav class="raillist" id="raillist"></nav>' \
+    '<div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div></aside></div>'
+  cat <<'PROBE'
+<script>window.addEventListener("load", function () {
+  var box = function (n) { return document.querySelector('input[name="' + n + '"]'); };
+  var has = function (id) { return document.querySelector('[data-id="' + id + '"]').classList.contains("has-answer") ? 1 : 0; };
+  var cap = null;
+  Object.defineProperty(navigator, "clipboard", { configurable: true,
+    value: { writeText: function (s) { cap = s; return Promise.resolve(); } } });
+  var copy = function () { cap = null; document.getElementById("consult-copy").click(); return (cap || "NONE").replace(/[|<>]/g, " ").replace(/\n/g, "~"); };
+  if (location.search.indexOf("phase=reload") === -1) {
+    [["v1", "42"], ["v2", "7"], ["v3", "hola"]].forEach(function (p) {
+      box(p[0]).value = p[1]; box(p[0]).dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  }
+  document.title = "SV|VALS=" + box("v1").value + "/" + box("v2").value + "/" + box("v3").value
+    + "|HAS=" + has("V1") + has("V2") + has("V3")
+    + "|STAT=" + document.getElementById("consult-status").textContent + "|REPLY=" + copy() + "|";
+});</script>
+PROBE
+} > "$SV/body.html"
+bash "$WRAP" --title "sv" --lang es --out "$TMP/reports/sv.html" < "$SV/body.html" > "$SV/wrap.log" 2>&1 \
+  || fail "C-c08: the short-value probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$SV/wrap.log" | sed -n 1,4p)"
+rm -rf "$TMP/profile"
+chrome_dump "$SV/dom.html" "file://$TMP/reports/sv.html" 45 || true
+tsv="$(grep -oE '<title>[^<]*</title>' "$SV/dom.html" | sed -n 1p)"
+[[ "$tsv" == *"|HAS=111|"* && "$tsv" == *"|REPLY="*"### V1"*"42"*"### V2"*"7"*"### V3"*"hola"* ]] \
+  || fail "C-c08: a value typed into a typeless or number <input> must make its item answered and reach the reply like a type=\"text\" one (want HAS=111 and V1 42, V2 7, V3 hola in REPLY): $tsv"
+chrome_dump "$SV/dom2.html" "file://$TMP/reports/sv.html?phase=reload" 45 || true
+tsv2="$(grep -oE '<title>[^<]*</title>' "$SV/dom2.html" | sed -n 1p)"
+[[ "$tsv2" == *"|VALS=42/7/hola|HAS=111|"* ]] \
+  || fail "C-c08: a value typed into a typeless or number <input> must survive a reload like a type=\"text\" one (want VALS=42/7/hola|HAS=111): $tsv2"
+
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other, the not-now choice, the multi-select item built from a spec, the ask row and the provisional state, the explicit theme, v4 answer sets, the all-decided page, the half-answered block, the gallery zoom dialog with its keyboard walk, the block filters that never reach the paste, the light/dark compare with its slider kept out of the paste, and the localised chrome included"

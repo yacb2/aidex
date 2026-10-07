@@ -84,6 +84,20 @@ save "$TMP/alt" "$ALT"
 [[ "$out" != *"nothing owed"* && "$out" == *"x-full-light-desktop ["* && "$out" != *"unreadable"* ]] \
   && ok "alternatives row (no --rows) parses; other rows still listed" || fail "alt: $out"
 
+# D-c01: with no --rows the labels are unknown, so a first paragraph of two
+# bullets on an unpicked alternatives row is notes; it must not crash the save
+# (a TypeError escaped gallery_duties_for) or read as unreadable.
+ALT2="$ES
+### x-alt-light-desktop-alternatives · x · alt · light-desktop
+
+- point one
+- point two
+"
+save "$TMP/alt2" "$ALT2"
+[[ "$out" != *"Traceback"* && "$out" != *"[unreadable]"* && "$out" == *"x-full-light-desktop ["* ]] \
+  && ok "two note bullets on an unpicked alternatives row (no --rows): no crash, other rows still listed" \
+  || fail "alt2: $out"
+
 BAD='### x-full-light-desktop · x · full · light-desktop
 
 - Necesita cambios

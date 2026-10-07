@@ -68,7 +68,9 @@ def md_table(lines):
             s = s[1:]
         if s.endswith("|"):
             s = s[:-1]
-        return [c.strip() for c in s.split("|")]
+        # A literal pipe inside a cell is escaped as `\|` (GFM, and the audit
+        # canon); split only on unescaped pipes, then unescape.
+        return [c.strip().replace("\\|", "|") for c in re.split(r"(?<!\\)\|", s)]
 
     headers, rows, in_table = [], [], False
     for line in lines:
