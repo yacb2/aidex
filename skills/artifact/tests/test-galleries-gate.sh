@@ -187,9 +187,9 @@ Ds, shtml = decl(st), open(st["page"], encoding="utf-8").read()
 check(gg.check_page(st["page"], Ds) == [], "a real states page passes", gg.check_page(st["page"], Ds))
 check("CELL:content" in [c for c, _ in gg.check_page(swapped(st, "swap-st", tile_src(shtml, Ds[0][0]["id"], "empty"), tile_src(shtml, Ds[0][0]["id"], "loaded")), Ds)],
       "two states' images exchanged (states[i].capture) is CELL:content")
-# an identical before/after pair is valid input ("unchanged"): never judged
+# a live identical before/after pair is refused by the builder (owner, LOOP-008 Q8)
 same = build(by_tag["gen:identical-pair"])
-check(same["kind"] == "built" and gg.check_page(same["page"], decl(same)) == [], "a before/after pair with identical bytes passes (it means unchanged)", gg.check_page(same["page"], decl(same)) if same["page"] else same["kind"])
+check(same["kind"] == "refused" and "pixel-identical" in same.get("out", ""), "a live before/after pair with identical bytes is refused", same["kind"])
 
 # the same after capture in two rows of one gallery
 def dup_unit(tag, **kw):

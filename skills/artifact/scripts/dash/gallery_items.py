@@ -885,6 +885,40 @@ def check_redundant_regions(root, doc, variants, alts, require_look):
         seen.append((r, shape, [None]))
 
 
+def full_pixels(root, path, w, h):
+    try:
+        with open(os.path.join(root or "/", path.lstrip("/")), "rb") as fh:
+            return png_pixels.crop(fh.read(), 0, 0, w, h)
+    except OSError:
+        return None          # the render loop refuses the missing capture itself
+
+
+def check_identical_pairs(root, doc, variants, alts, require_look):
+    """Refuse a live row whose before and after hold the same pixels (owner,
+    LOOP-008 Q8): its look line says something changed and the pair shows
+    nothing. Same tolerance as the redundant-region check; a decided or dropped
+    row is settled and kept, and a capture this reader cannot decode keeps its row."""
+    for n, row in enumerate(doc["rows"], 1):
+        r = check_row(row, variants, n, alts, require_look)
+        if r["kind"] not in ("review", "unrequested") or "decided" in r or "dropped" in r \
+                or not r.get("before") or not r.get("after"):
+            continue
+        same = r["before"].lstrip("/") == r["after"].lstrip("/")
+        if not same:
+            size = png_size(root, r["after"], r["cell"], "after")
+            if png_size(root, r["before"], r["cell"], "before") != size:
+                continue
+            a = full_pixels(root, r["after"], *size)
+            b = full_pixels(root, r["before"], *size)
+            same = a is not None and b is not None and same_pixels([a], [b])
+        if same:
+            die("row '%s': its before and after are pixel-identical, so the pair "
+                "shows the reader no change while the row asks them to review one. "
+                "Re-capture the before from the code without the change, or show "
+                "the screen as kind: sample (one capture, nothing to answer)"
+                % row_name(r))
+
+
 def pct(v):
     return ("%.3f" % v).rstrip("0").rstrip(".") + "%"
 
@@ -1165,6 +1199,7 @@ def render(doc, root, group_id, group_title, lang, page=None,
         add('  <p class="gal-intro">%s <span class="gal-intro-narrow">%s</span></p>'
             % (e(intro), e(NARROW_HINT[lang])))
     check_redundant_regions(root, doc, variants, alts, require_look)
+    check_identical_pairs(root, doc, variants, alts, require_look)
     if refuse_bare_rows:
         check_not_proposals_as_rows(doc, variants, alts, require_look, items)
     seen, unrequested, ids = {}, {}, {}

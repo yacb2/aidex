@@ -33,9 +33,8 @@ A unit PASSES when it builds and
      states[i].capture), each tile's image file exists with real size and is not hidden, each
      caption is visible), an alternatives or states row never shows two tiles with the same
      image CONTENT, no two shown rows of one gallery share an after-capture content hash, and no
-     section with tiles is undeclared. A before/after pair with identical bytes is valid input
-     ("unchanged") and is not judged: whether the builder should refuse an identical pair whose
-     look line claims a change is an OPEN OWNER QUESTION, pending an owner ruling.
+     section with tiles is undeclared. A live before/after pair with identical pixels is refused
+     by the builder (owner, LOOP-008 Q8, 2026-10-07): case identical-pair is refusal-only.
 or it is refused loudly (non-zero exit, a message, no traceback, no page, no residue) and its
 INTENT allows that: `valid` may not be refused; `refusal-only` (invalid input) must be refused
 with a message naming the `gallery` block (or the case's own `expect`).
@@ -88,6 +87,7 @@ MIGRATED_EXPECT = {
     "echo_lab_ws__.context__plans__2026-10-01-access-delivery__s3-review": _PAREN,
     "echo_lab_ws__.context__plans__2026-10-01-access-delivery__s5-review": _HL,
     "echo_lab_ws__.context__research__2026-10-03-voice-pairs-page__r2-consulta": _PAREN,
+    "dashboard_template_ws___tmp__ui-contract__consult-patterns-lfm__patrones-lfm": "its before and after are pixel-identical",
 }
 BUILD_TIMEOUT = 120
 PROBE_TIMEOUT = 900
@@ -115,11 +115,13 @@ def manifest_dir():
 # ---- the generated set -------------------------------------------------------------------
 
 def png(k, w=160, h=90):
-    """A flat PNG whose colour is `k`, so every tile of a case is a different image."""
+    """A flat PNG whose colour is `k`, so every tile of a case is a different image. Consecutive
+    k are spread far apart in two channels: the builder treats channel values within 4 of 255 as
+    the same pixel (identical pairs, repeated regions), so k and k+1 must differ by more."""
     def chunk(kind, data):
         return (struct.pack(">I", len(data)) + kind + data
                 + struct.pack(">I", zlib.crc32(kind + data) & 0xffffffff))
-    px = bytes([k % 256, (k // 256) % 256, 128])
+    px = bytes([(k * 53) % 256, (k * 101) % 256, 128])
     raw = b"".join(b"\x00" + px * w for _ in range(h))
     return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
             + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
@@ -211,7 +213,8 @@ def generated_cases():
     c.row("changed", pair=True)
     c.row("moved", kind="unrequested", also=["dark-desktop"], look="This moved without being asked.")
     c.row("fresh", pair=False, noBefore="the screen did not exist")
-    c = new("identical-pair")
+    c = new("identical-pair", "refusal-only")    # Q8: a live pair showing no change is refused
+    c.expect = "pixel-identical"
     same = c.cap()
     c.row("unchanged", before=same, after=same)
     c = new("decision-waits")                                       # a row built on an open item

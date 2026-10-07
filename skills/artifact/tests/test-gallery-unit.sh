@@ -43,14 +43,16 @@ TILES='light-desktop dark-desktop light-mobile dark-mobile'
 # "before"; a cell that moved outside the change set is `kind: "unrequested"`.
 # The generator opens every capture, so the checkout is real: tiny PNGs written
 # here, at a desktop and a phone aspect.
-png() {  # png <path under ROOT> <width> <height>
+png() {  # png <path under ROOT> <width> <height> [grey]
   mkdir -p "$(dirname "$ROOT/$1")"
-  python3 "$SKILL/tests/png_fixture.py" "$ROOT/$1" "$2" "$3"
+  python3 "$SKILL/tests/png_fixture.py" "$ROOT/$1" "$2" "$3" ${4:-}
 }
-png shots/light-desktop/audit-empty.png 160 90
+# A before differs from its after (grey 96 vs the default 128): a live pair with identical
+# pixels is refused (LOOP-008 Q8).
+png shots/light-desktop/audit-empty.png 160 90 96
 png actual/light-desktop/audit-empty.png 160 90
 png actual/light-desktop/audit-new-state.png 160 90
-png shots/dark-mobile/audit-loaded.png 39 84
+png shots/dark-mobile/audit-loaded.png 39 84 96
 png actual/dark-mobile/audit-loaded.png 39 84
 cat > "$TMP/rows.json" <<'JSON'
 {
@@ -1176,6 +1178,40 @@ bash "$GEN" "$TMP/rr-decided.json" --root "$ROOT" --page "$PAGE" --group-id E --
 [[ $rc == 2 ]] && grep -q "skeleton-sin-entregas" "$TMP/rr-dec.err" \
   && ok "BL-693 a sample repeating the region of an already decided row is refused" \
   || fail "BL-693 decided prior: exit $rc, $(cat "$TMP/rr-dec.err")"
+
+# -- a live before/after pair with identical pixels is refused (owner, LOOP-008 Q8) --
+mkpair() {  # mkpair <beforeDir/file> <afterDir/file> <out> [decided]
+  python3 - "$1" "$2" "$3" "${4:-}" <<'PY'
+import json, sys
+row = {"cell": "inicial", "variant": "light-desktop", "kind": "review", "look": "Antes se asomaba el fondo; ahora no.",
+       "highlight": "@avisos", "before": "shots/%s.png" % sys.argv[1], "after": "shots/%s.png" % sys.argv[2]}
+if sys.argv[4]:
+    row["decided"] = sys.argv[4]
+json.dump({"gallery": "g", "variants": ["light-desktop"], "rows": [row]}, open(sys.argv[3], "w"))
+PY
+}
+mkpair flat100/a flat100/b "$TMP/pair-same.json"
+bash "$GEN" "$TMP/pair-same.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/pair-same.out" 2> "$TMP/pair-same.err"; rc=$?
+[[ $rc == 2 && ! -s "$TMP/pair-same.out" ]] && grep -q "inicial" "$TMP/pair-same.err" && grep -qi "identical" "$TMP/pair-same.err" \
+  && ok "Q8 a live review row whose before and after are pixel-identical is refused naming the row" \
+  || fail "Q8 identical pair: exit $rc, $(cat "$TMP/pair-same.err")"
+mkpair flat100/a flat100/a "$TMP/pair-file.json"
+bash "$GEN" "$TMP/pair-file.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T >/dev/null 2>"$TMP/pair-file.err"; rc=$?
+[[ $rc == 2 ]] && grep -qi "identical" "$TMP/pair-file.err" \
+  && ok "Q8 before and after naming the same file are refused" || fail "Q8 same file: exit $rc, $(cat "$TMP/pair-file.err")"
+mkpair flat200/a flat100/b "$TMP/pair-diff.json"
+bash "$GEN" "$TMP/pair-diff.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T >/dev/null 2>"$TMP/pair-diff.err" \
+  && ok "Q8 a pair whose pixels differ builds" || fail "Q8 differing pair refused: $(cat "$TMP/pair-diff.err")"
+mkdir -p "$ROOT/shots/pg1" "$ROOT/shots/pg2"
+python3 "$SKILL/tests/png_fixture.py" "$ROOT/shots/pg1/a.png" 1400 900 100
+python3 "$SKILL/tests/png_fixture.py" "$ROOT/shots/pg2/b.png" 1400 900 100 "300,400,6,10,200"
+printf '{"avisos":{"x":10,"y":10,"w":1312,"h":800}}' > "$ROOT/shots/pg2/b.regions.json"
+mkpair pg1/a pg2/b "$TMP/pair-glyph.json"
+bash "$GEN" "$TMP/pair-glyph.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T >/dev/null 2>"$TMP/pair-glyph.err" \
+  && ok "Q8 a pair differing by one 6x10 block builds" || fail "Q8 one-glyph pair refused: $(cat "$TMP/pair-glyph.err")"
+mkpair flat100/a flat100/b "$TMP/pair-dec.json" "Aprobada"
+bash "$GEN" "$TMP/pair-dec.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T >/dev/null 2>"$TMP/pair-dec.err" \
+  && ok "Q8 a decided row with an identical pair is settled and builds" || fail "Q8 decided pair refused: $(cat "$TMP/pair-dec.err")"
 
 # -- the redundancy check: boundary, which row to drop, unreadable PNGs (BL-693) --
 mkdir -p "$ROOT/shots/big1" "$ROOT/shots/big2" "$ROOT/shots/mix1" "$ROOT/shots/mix2"
