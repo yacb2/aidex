@@ -22,7 +22,7 @@ import _shell as S
 # addition is additive rather than a fail-loud break.
 BACKLOG_SCHEMA = "backlog-fm/2"
 
-CONSUMED_FIELDS = ("id", "title", "status", "priority", "type", "estimate", "origin_ref")
+CONSUMED_FIELDS = ("id", "title", "status", "priority", "type", "estimate")
 
 STATUS_TONE = {"doing": "warn", "open": "", "done": "ok", "dropped": "plain",
                "deferred": "plain", "blocked": "warn"}
@@ -48,7 +48,6 @@ def _items(backlog_dir):
             "priority": fm.get("priority", ""),
             "type": fm.get("type", ""),
             "estimate": fm.get("estimate", ""),
-            "origin_ref": fm.get("origin_ref", ""),
         })
     return items, skipped
 

@@ -35,21 +35,20 @@ from html.parser import HTMLParser
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import md_body  # noqa: E402
 from _usage import usage_exit  # noqa: E402
+from contract_defects import VOID  # noqa: E402
 
 SCRIPTS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WRAP = os.path.join(SCRIPTS, "wrap-report.sh")
 
-VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link",
-        "meta", "param", "source", "track", "wbr"}
 OPAQUE = {"pre", "script", "style", "textarea", "svg"}
 
 HEADING = re.compile(r"<h[1-6][^>]*>(.*?)</h[1-6]>", re.S | re.I)
 TAGS = re.compile(r"<[^>]*>", re.S)
 
 
-def die(msg, code=1):
+def die(msg):
     sys.stderr.write("artifact-item: " + msg + "\n")
-    raise SystemExit(code)
+    raise SystemExit(1)
 
 
 class Unit:

@@ -117,7 +117,7 @@ def render(root, methodology):
     for sev in ["P0", "P1", "P2", "P3"]:
         n = sev_counts.get(sev, 0)
         if n:
-            prio.append({"label": sev, "pct": (100 * n / peak) if peak else 0, "n": n})
+            prio.append({"label": sev, "pct": 100 * n / peak, "n": n})
 
     cols = [("ID", "s"), ("Type", "s"), ("Module", "s"),
             ("Severity", "s"), ("Status", "s"), ("Summary", "s")]

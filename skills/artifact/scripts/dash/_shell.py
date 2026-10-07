@@ -9,7 +9,7 @@ Public surface:
   page(title, sections, generated_by)   -> full HTML string
   tiles(items)                          -> stat-tile grid block
   card(eyebrow, inner, search_id=None)  -> titled card section
-  table(tid, cols, rows, mod_first=True)-> sortable/filterable table block
+  table(tid, cols, rows)-> sortable/filterable table block
   bar(pct, kind, title)                 -> inline share bar
   pill(text, tone)                      -> status pill
   prio_rows(rows)                       -> priority-bar rows block
@@ -247,8 +247,7 @@ def bar(pct, kind="u", title=""):
     'e' e2e/amber). `pct` is clamped to 0..100."""
     w = _clamp(pct)
     t = f' title="{esc(title)}"' if title else ""
-    cls = kind if kind in ("u", "e") else "u"
-    return f'<span class="bar"{t}><i class="{cls}" style="width:{w:g}%"></i></span>'
+    return f'<span class="bar"{t}><i class="{kind}" style="width:{w:g}%"></i></span>'
 
 
 def pill(text, tone=""):
@@ -287,10 +286,10 @@ def card(eyebrow, inner, search_id=None):
     )
 
 
-def table(tid, cols, rows, mod_first=True):
+def table(tid, cols, rows):
     """Sortable table. cols: list of (label, type) where type is 's' or 'n'.
     rows: list of lists of pre-built cell HTML strings. First column is bolded
-    (class 'mod') when mod_first."""
+    (class 'mod')."""
     ths = []
     for i, (label, typ) in enumerate(cols):
         t = "n" if typ == "n" else "s"
@@ -299,7 +298,7 @@ def table(tid, cols, rows, mod_first=True):
     for r in rows:
         tds = []
         for i, cell in enumerate(r):
-            cls = ' class="mod"' if (i == 0 and mod_first) else ""
+            cls = ' class="mod"' if i == 0 else ""
             tds.append(f"<td{cls}>{cell}</td>")
         trs.append("<tr>" + "".join(tds) + "</tr>")
     return (
@@ -312,18 +311,15 @@ def table(tid, cols, rows, mod_first=True):
 
 
 def prio_rows(rows):
-    """Priority bars. rows: list of dicts {label, pct, n, note?}."""
+    """Priority bars. rows: list of dicts {label, pct, n}."""
     out = ['<div class="prio-rows">']
     for r in rows:
         w = _clamp(r.get("pct", 0))
-        note = ""
-        if r.get("note"):
-            note = f' <small style="color:var(--muted)">({esc(r["note"])})</small>'
         out.append(
             '<div class="prio">'
             f'<span class="pl">{esc(r["label"])}</span>'
             f'<span class="pt"><i style="width:{w:g}%"></i></span>'
-            f'<span class="pn">{esc(r["n"])}{note}</span>'
+            f'<span class="pn">{esc(r["n"])}</span>'
             "</div>"
         )
     out.append("</div>")

@@ -444,7 +444,7 @@ def check_decision_page_not_interactive(path, html_text):
 
 # --- 3. mixed-content-types -----------------------------------------------------
 
-FACTS_MIN = 4           # check_artifact.FACTS_MIN (consult-facts warning, BL-270)
+FACTS_MIN = 4           # check_artifact.FACTS_MIN reuses this (consult-facts warning, BL-270)
 PROSE_SENTENCES = 3
 # A source line ("Fuente: ..." / "Source: ..."): it may list several file paths
 # (BL-643), so the <code> count and the path run skip it. check_artifact's
