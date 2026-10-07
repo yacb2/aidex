@@ -84,6 +84,7 @@ sys.path.insert(0, os.path.join(HERE, "dash"))
 import check_artifact                                       # noqa: E402
 import contract_defects                                     # noqa: E402
 import md_body                                              # noqa: E402
+from _usage import UsageParser, usage_exit                  # noqa: E402
 import spec_build                                           # noqa: E402
 import spec_parser                                          # noqa: E402
 from spec_build import SpecBuildError                       # noqa: E402
@@ -1116,11 +1117,17 @@ def new_round_file(spec_path, out=None, lang=None, dropped=(), retitled=()):
 
 # --- CLI ---------------------------------------------------------------------
 def main(argv):
-    p = argparse.ArgumentParser(
+    tail = " [--out <page.html>] [--lang es|en]"
+    nr_form = ("spec_verbs.py new-round <spec.md> [--drop <#id>]... "
+               "[--retitle <#id>]..." + tail)
+    hints = {"--drop": nr_form, "--retitle": nr_form}
+    p = UsageParser(
         prog="spec_verbs.py",
+        form="spec_verbs.py add-item|decide|new-round <spec.md> [options]  "
+             "(spec_verbs.py <verb> -h lists a verb's options)",
         description="Edit a page SPEC and rebuild its page. The verbs never "
                     "touch the built HTML.")
-    subs = p.add_subparsers(dest="verb", metavar="<verb>")
+    subs = p.add_subparsers(dest="verb", metavar="<verb>", parser_class=UsageParser)
 
     def common(sp):
         sp.add_argument("spec", metavar="<spec.md>")
@@ -1132,7 +1139,9 @@ def main(argv):
                              "default: the project profile's, else es")
         return sp
 
-    a = common(subs.add_parser("add-item", help="add an item to a group"))
+    a = common(subs.add_parser("add-item", help="add an item to a group",
+        form="spec_verbs.py add-item <spec.md> --group <#id> --id <#id> --title <title> [--body <text>] [--option <line>]..." + tail,
+        hints=hints))
     a.add_argument("--group", required=True, metavar="<#id>")
     a.add_argument("--id", required=True, dest="ident", metavar="<#id>")
     a.add_argument("--title", required=True)
@@ -1140,7 +1149,9 @@ def main(argv):
     a.add_argument("--option", action="append", default=[], dest="options",
                    help="one option line; repeat it")
 
-    d = common(subs.add_parser("decide", help="record an item's verdict"))
+    d = common(subs.add_parser("decide", help="record an item's verdict",
+        form="spec_verbs.py decide <spec.md> --id <#id> --verdict <label> [--id <#id> --verdict <label>]..." + tail,
+        hints=hints))
     d.add_argument("--id", required=True, action="append", dest="ident",
                    metavar="<#id>", help="repeat --id/--verdict to record "
                    "several items from one reply; the page rebuilds once")
@@ -1153,7 +1164,8 @@ def main(argv):
                         "the reader's) and fails the build on one without")
 
     n = common(subs.add_parser(
-        "new-round", help="sync the ledger to the decided items and rebuild"))
+        "new-round", help="sync the ledger to the decided items and rebuild",
+        form=nr_form))
     n.add_argument("--drop", action="append", default=[], dest="dropped",
                    metavar="<#id>", help="any id this round removed: an item, "
                    "a group, or a gallery row id (only refused while still in "
@@ -1165,10 +1177,11 @@ def main(argv):
                    "this round reworded; its id is recorded on the masthead so "
                    "the title may change (repeat for several)")
 
-    args = p.parse_args(argv)
+    args, extra = p.parse_known_args(argv)
     if not args.verb:
-        p.print_help(sys.stderr)
-        return 2
+        p.error("a verb is required")
+    if extra:  # name the form of the verb the caller used, not the generic one
+        subs.choices[args.verb].error("unrecognized arguments: " + " ".join(extra))
 
     try:
         if args.verb == "add-item":
@@ -1178,9 +1191,9 @@ def main(argv):
         elif args.verb == "decide":
             idents = [i.lstrip("#") for i in args.ident]
             if len(set(idents)) != len(idents):
-                p.error("decide repeats an --id: one verdict per item per call")
+                subs.choices["decide"].error("decide repeats an --id: one verdict per item per call")
             if len(idents) != len(args.verdict):
-                p.error("decide needs one --verdict per --id (got %d and %d)"
+                subs.choices["decide"].error("decide needs one --verdict per --id (got %d and %d)"
                         % (len(idents), len(args.verdict)))
             out = decide_many_file(
                 args.spec, list(zip(idents, args.verdict)),

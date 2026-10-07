@@ -1,0 +1,12 @@
+id	script	args	stdin	expect
+toolu_01AdWXVfn1f2eEvBLwewAxEk	wrap-report.sh	--done --out {TMP}/p.html --title T --in {FIX}/body.html		usage:wrap-report.sh --done --out ;; unrecognized arguments: --title
+toolu_01V63wuWh8jwf9vJtZaghjxL	artifact-item.sh	get {TMP}/nope.html c1		usage:artifact-item.sh get ;; no such page
+toolu_01FuihpoS9wbbUu6e76rLDSE	artifact-item.sh	get {FIX}/page.html		usage:artifact-item.sh get ;; got 1 argument(s)
+toolu_01RQDfybiQ5QFU8TAcrPpPJD	artifact-item.sh			usage:artifact-item.sh list ;; no action given
+toolu_01TPmuUTfdQ9zUHNpPDUGZsa	artifact-item.sh	list		usage:artifact-item.sh list ;; got 0 argument(s)
+toolu_01TXYYvwvmwSKnUH7qaRJrfc	wrap-report.sh	--lang en --in {FIX}/body.md --out {TMP}/c.html		usage:wrap-report.sh --title ;; required: --title
+toolu_01HENWgewn4Y1JzPk4UfiBPv	spec_build.py	{FIX}/x.spec.md -o {TMP}/x.html --new-round		accept
+toolu_013KHDdDRV5uBYZxAFKBZzrp	spec_verbs.py	decide {FIX}/x.spec.md --id c1 --verdict v --drop A1		usage:spec_verbs.py decide <spec.md> ;; [--out <page.html>] [--lang es|en] ;; --drop is taken by: spec_verbs.py new-round
+toolu_01JzG96ChhUWiqD3Ro93ignB	render-probe.sh	--shots {FIX}/page.html		usage:render-probe.sh ;; --shots takes a directory
+toolu_01TA7xHZSg8vkMR73Dbn6nYd	render-probe.sh	--viewport 390 {FIX}/page.html		usage:render-probe.sh ;; unknown flag --viewport
+toolu_01K5aaymi4Y3z79j5SJZmwQD	gallery-items.sh	{FIX}/rows.json --root /abs --group-id g --group-title T		usage:gallery-items.sh ;; required: --page

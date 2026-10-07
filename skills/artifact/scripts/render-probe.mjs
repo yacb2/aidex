@@ -44,18 +44,25 @@ import path from 'node:path';
 const CONTRACT = ['text-style-drift', 'figure-text-contrast', 'svg-label-outside-its-box'];
 const USAGE = `usage: render-probe.sh [--shots <dir>] [--contract <${CONTRACT.join('|')}>] [--invariants] <page.html>...`;
 const args = process.argv.slice(2);
+const usage = why => { console.error(USAGE + (why ? `  -- ${why}` : '')); process.exit(2); };
+if (args.includes('-h') || args.includes('--help')) { console.log(USAGE); process.exit(0); }
 let shots = null, only = null, inv = false;
 const files = [];
 for (let i = 0; i < args.length; i++) {
-  if (args[i] === '--shots') { shots = args[++i]; if (!shots) { console.error(USAGE); process.exit(2); } }
+  if (args[i] === '--shots') {
+    shots = args[++i];
+    if (!shots) usage('--shots needs a directory');
+    if (/\.html?$/i.test(shots)) usage(`--shots takes a directory, got the page ${shots}`);
+  }
   else if (args[i] === '--invariants') inv = true;
-  else if (args[i] === '--contract') { only = args[++i]; if (!CONTRACT.includes(only)) { console.error(USAGE); process.exit(2); } }
-  else if (args[i].startsWith('-')) { console.error(USAGE); process.exit(2); }
+  else if (args[i] === '--contract') { only = args[++i]; if (!CONTRACT.includes(only)) usage(`--contract takes one of ${CONTRACT.join(', ')}`); }
+  else if (args[i].startsWith('-')) usage(`unknown flag ${args[i]}`);
   else files.push(args[i]);
 }
-if (!files.length) { console.error(USAGE); process.exit(2); }
-if (inv && (shots || only)) { console.error('render-probe: --invariants is its own mode and takes no --shots or --contract'); process.exit(2); }
-for (const f of files) if (!fs.existsSync(f)) { console.error(`render-probe: no such file: ${f}`); process.exit(2); }
+if (!files.length) usage('no page given');
+if (inv && (shots || only)) usage('--invariants is its own mode and takes no --shots or --contract');
+for (const f of files) if (!fs.existsSync(f)) usage(`no such file: ${f}`);
+if (process.env.AIDEX_PROBE_ARGS_ONLY) process.exit(0);
 
 let chromium;
 try {

@@ -44,6 +44,13 @@ command -v node >/dev/null 2>&1 || {
   exit 3
 }
 
+# Arguments are validated before Playwright is looked up: a misuse is exit 2 with the
+# usage line whatever the machine has installed. -h is answered by the probe itself.
+for a in "$@"; do
+  [[ "$a" == -h || "$a" == --help ]] && exec node "$SCRIPT_DIR/render-probe.mjs" "$@"
+done
+AIDEX_PROBE_ARGS_ONLY=1 node "$SCRIPT_DIR/render-probe.mjs" "$@" || exit $?
+
 module=""
 if [[ -n "${AIDEX_PLAYWRIGHT_DIR:-}" && -f "$AIDEX_PLAYWRIGHT_DIR/node_modules/playwright/package.json" ]]; then
   module="$AIDEX_PLAYWRIGHT_DIR/node_modules/playwright"
@@ -56,4 +63,4 @@ if [[ -z "$module" ]]; then
   exit 3
 fi
 
-AIDEX_PLAYWRIGHT_MODULE="$(dirname "$module")" exec node "$SCRIPT_DIR/render-probe.mjs" "$@"
+AIDEX_PROBE_ARGS_ONLY= AIDEX_PLAYWRIGHT_MODULE="$(dirname "$module")" exec node "$SCRIPT_DIR/render-probe.mjs" "$@"
