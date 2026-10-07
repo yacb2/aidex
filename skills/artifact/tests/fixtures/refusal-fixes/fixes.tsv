@@ -1,0 +1,2 @@
+check	kind	test_cmd
+consult	autofix	bash skills/artifact/tests/test-refusal-fix-consult.sh
