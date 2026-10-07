@@ -3156,6 +3156,14 @@ def _ledger_shape(body):
 
 
 SPEC_BUILT = re.compile(r'<meta\b[^>]*\bname\s*=\s*["\']?spec-built\b', re.I)
+# The masthead profiles a page may declare (BL-714). Mirrors spec_build.PROFILES;
+# test_build.py asserts the two stay equal.
+PROFILES = ("study",)
+# A whole-attribute, case-sensitive read: `data-name=` and `name="consult-profile-x"`
+# are not the profile meta.
+PROFILE_META = re.compile(
+    r'<meta(?=\s)(?=[^>]*\sname\s*=\s*["\']consult-profile["\'])'
+    r'[^>]*\scontent\s*=\s*["\']([^"\']*)["\']')
 MASTHEAD_OPEN = re.compile(
     r'<header\b[^>]*\bclass\s*=\s*["\'][^"\']*\bmasthead\b', re.I)
 
@@ -3280,9 +3288,16 @@ def check_shape(path, text):
     first = min(s for _, s, _, _ in groups)
     end = notes_m.start() if notes_m else len(text)
 
+    # BL-714: a study page (masthead profile="study") puts each check after the
+    # teaching section it tests, so ONLY the two prose rules below are lifted for
+    # it; the ledger-shape rule, items-in-blocks and notes-last still apply. The
+    # meta is read from the live markup (not a comment, not a script string).
+    study = any(m_.group(1) in PROFILES for m_ in PROFILE_META.finditer(
+        strip_html_comments(strip_script_style(text))))
+
     # Nothing but blocks between the first block and the general notes.
     for m in H2.finditer(text, first, end):
-        if not in_group(m.start()):
+        if not study and not in_group(m.start()):
             report(f"prose between blocks: \"{_h2_text(m.group(0))}\" — the "
                    f"context a decision needs sits in its block, above the "
                    f"decision; there is no place for a section between blocks")
@@ -3312,7 +3327,7 @@ def check_shape(path, text):
                        f".k/.v rows, never a table; anything else goes into "
                        f"the block that needs it or after the questions")
         rest = _strip_subtrees(rest, LEDGER_SUB)
-        if PROSE.search(rest):
+        if not study and PROSE.search(rest):
             report(f"prose before the first block: \"{label}\" — "
                    f"before the blocks only the header (title + standfirst), "
                    f"a figure and the ledger may appear. The strongest claim "
