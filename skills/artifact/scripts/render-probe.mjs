@@ -518,7 +518,7 @@ const brief = (x, n = 60) => String(x).replace(/\s+/g, ' ').trim().slice(0, n);
 // Each predicate is keyed by its catalog id and returns detail strings, one per violation.
 const invariants = () => {
   // composer.js questionHash(): the chrome the composer injects into an item (keep in step, test-invariants.sh checks)
-  const CHROME = '.kit-tag, .consult-proposal, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-defect, .kit-more, .kit-provisional, .kit-marks-tile, .kit-marks-list, .consult-kicker, details.opts-more > summary';
+  const CHROME = '.kit-tag, .consult-proposal, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-defect, .kit-feedback, .kit-more, .kit-provisional, .kit-marks-tile, .kit-marks-list, .consult-kicker, details.opts-more > summary';
   const t = s => (s || '').replace(/\s+/g, ' ').trim();
   const lc = s => t(s).toLowerCase();
   const brief = (s, n = 60) => t(s).slice(0, n);

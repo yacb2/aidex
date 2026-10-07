@@ -57,6 +57,8 @@
       notRec: 'Not recommended',
       recSuffix: ' (recommended)',
       notRecSuffix: ' (not recommended)',
+      correct: 'Correct',
+      notQuite: 'Not quite',
       other: 'Other — see my notes',
       otherHint: 'None of the above; the answer is in the notes box below.',
       notNow: 'Not now \u2014 leave it for another round',
@@ -182,6 +184,8 @@
       notRec: 'No recomendada',
       recSuffix: ' (recomendada)',
       notRecSuffix: ' (no recomendada)',
+      correct: 'Correcto',
+      notQuite: 'No exactamente',
       other: 'Otra — lo explico en las notas',
       otherHint: 'Ninguna de las anteriores; la respuesta va en la caja de notas de abajo.',
       notNow: 'Todav\u00eda no \u2014 lo dejo para otra ronda',
@@ -1172,7 +1176,7 @@
      * the item, so leaving it in would change every fingerprint the moment the
      * kit gained these controls, and every answer stored by a reader mid-thread
      * would read as "the question changed" and be dropped on the upgrade. */
-    clone.querySelectorAll('.kit-tag, .consult-proposal, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-defect, .kit-more, .kit-provisional, .kit-marks-tile, .kit-marks-list, .consult-kicker').forEach(function (c) { c.remove(); });
+    clone.querySelectorAll('.kit-tag, .consult-proposal, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-defect, .kit-feedback, .kit-more, .kit-provisional, .kit-marks-tile, .kit-marks-list, .consult-kicker').forEach(function (c) { c.remove(); });
     /* The generator's own <details> keeps its radios in the question (a row
      * built before it existed hashed them flat), but its summary word is chrome:
      * left in, every stored gallery answer would read as a changed question. */
@@ -1443,6 +1447,65 @@
       if (hint) hint.parentNode.insertBefore(tag, hint);
       else (lab.querySelector('span') || lab).appendChild(tag);
     });
+  }
+
+  /* Answerable checks on a study page (BL-715). The recommended badge and the
+   * option hints say which answer is right, so on a page that teaches and then
+   * asks (`<meta name="consult-profile" content="study">`) they stay hidden
+   * until the reader picks; `hidden` removes them from the accessible text
+   * too, and `.kit-unanswered` drops the recommended option's tinted background. A pick shows them, plus one verdict line when the item has a
+   * recommended option; Clear hides them again. The copied reply is not
+   * touched: it is built from `data-label`, not from this chrome. Every other
+   * page never enters here. */
+  function isStudy() {
+    var m = document.querySelector('meta[name="consult-profile"]');
+    return !!m && m.getAttribute('content') === 'study';
+  }
+  function quizInputs(el) {
+    return [].filter.call(el.querySelectorAll('.opts input[type="radio"], .opts input[type="checkbox"]'),
+      function (i) { return !i.closest('.kit-other, .kit-notnow'); });
+  }
+  function updateQuiz(el) {
+    if (!isStudy() || isDecided(el)) return;
+    var ins = quizInputs(el);
+    if (!ins.length) return;
+    var picked = ins.filter(function (i) { return i.checked; });
+    var on = picked.length > 0;
+    var many = ins[0].type === 'checkbox';
+    var rec = ins.filter(function (i) {
+      var r = i.getAttribute('data-recommended');
+      return r !== null && String(r).toLowerCase() !== 'no';
+    });
+    /* One choice: the pick is right when it is any recommended option (an open
+     * item may recommend two). A set: right only when the ticked set EQUALS the
+     * recommended set, so "Other" ticked beside the right set is not right. */
+    var ok = false;
+    if (on && rec.length) {
+      if (many) {
+        var other = el.querySelector('.kit-other input:checked, input[data-other]:checked');
+        ok = !other && picked.length === rec.length && rec.every(function (i) { return i.checked; });
+      } else {
+        ok = rec.indexOf(picked[0]) > -1;
+      }
+    }
+    el.classList.toggle('kit-unanswered', !on);
+    /* A set shows the badges only once it is complete (they would give the
+     * missing box away) and the hints of the ticked options only. */
+    ins.forEach(function (i) {
+      var lab = i.closest('label');
+      if (!lab) return;
+      lab.querySelectorAll('.kit-tag').forEach(function (n) { n.hidden = many ? !ok : !on; });
+      lab.querySelectorAll('.hint').forEach(function (n) { n.hidden = many ? !i.checked : !on; });
+    });
+    var old = el.querySelector('.kit-feedback');
+    if (old) old.remove();
+    if (!on || !rec.length) return;
+    var v = document.createElement('p');
+    v.className = 'kit-feedback ' + (ok ? 'ok' : 'no');
+    v.setAttribute('role', 'status');
+    v.textContent = ok ? L.correct : L.notQuite;
+    var opts = el.querySelector('.opts');
+    opts.parentNode.insertBefore(v, opts.nextSibling);
   }
 
   /* The "other" choice, appended to every option group (BL-268). A radio set
@@ -1741,6 +1804,7 @@
       el.querySelectorAll(kind.q).forEach(function (x) { setFreeValue(x, ''); });
     });
     delete copied[el.dataset.id];
+    updateQuiz(el);                   /* BL-715: study-page feedback is chrome drawn from the answer; keep before refresh() */
     syncDefects();
     redrawMarks();                    /* the marks were in a textarea: cleared too */
     // save() rebuilds the whole store from the page, so an emptied item drops
@@ -3050,9 +3114,14 @@
     }
     watchStaleTab();
     markRecommendations();
+    items.forEach(updateQuiz);
     addClearControls();
     document.addEventListener('input', function () { refresh(); save(); });
-    document.addEventListener('change', function () { openFilledMore(); refresh(); save(); });
+    document.addEventListener('change', function (ev) {
+      var q = ev.target && ev.target.closest ? ev.target.closest('.consult-item') : null;
+      if (q) updateQuiz(q);
+      openFilledMore(); refresh(); save();
+    });
     refresh();
     buttons.forEach(function (b) { b.addEventListener('click', copy); });
   }
