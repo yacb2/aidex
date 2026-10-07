@@ -242,6 +242,21 @@ rc="$(run "$R/page.html" --prev "$R/.aidex-artifact-prev/page.html")"
 [[ "$rc" == "0" ]] && ok "A6c. 3+ stacked asks, reframed AND figured, PASSES" \
   || fail "A6c: rc=$rc $(cat "$TMP/out")"
 
+# ---- A6d. a [show-me] answered by a figure the reader cannot see FAILS -------
+# A visual tag inside a comment or a script string is not a figure on the page
+# (the same stripping _example_count does for [more-examples]).
+save_reply '' '### Q1 · Q1
+
+- [show-me]'
+for hidden in '<!-- <svg viewBox="0 0 10 10"></svg> -->' \
+              '<script>var s = "<img src=x>";</script>'; do
+  page "$R/page.html" "<p>A changed answer.</p>$hidden"
+  rc="$(run "$R/page.html" --prev "$R/.aidex-artifact-prev/page.html")"
+  [[ "$rc" == "1" ]] && grep -q 'consult-marker-duties.*Q1.*show-me' "$TMP/out" \
+    && ok "A6d. [show-me] with only a hidden visual ($hidden) FAILS" \
+    || fail "A6d: hidden=$hidden rc=$rc $(cat "$TMP/out")"
+done
+
 # ---- A7. an item decided in the new round is exempt --------------------------
 save_reply '' '### Q1 · Q1
 
@@ -254,6 +269,26 @@ decided_page "$R/page.html"        # Q1 now carries data-decided, no figure
 rc="$(run "$R/page.html" --prev "$R/.aidex-artifact-prev/page.html")"
 [[ "$rc" == "0" ]] && ok "A7. an item decided this round is exempt from its own marked duty" \
   || fail "A7: rc=$rc $(cat "$TMP/out")"
+
+# A7b. ...but a decided copy of Q1 left in a COMMENT decides nothing: the live
+# Q1 still owes its figure.
+save_reply '' '### Q1 · Q1
+
+- [show-me]'
+decided_page "$TMP/decided-q1.html"
+page "$R/page.html" '<p>A changed answer.</p>'
+python3 - "$TMP/decided-q1.html" "$R/page.html" <<'PY'
+import sys
+d, p = open(sys.argv[1]).read(), open(sys.argv[2]).read()
+a = d.index('<section class="consult-item" data-decided')
+old = d[a:d.index("</section>", a) + len("</section>")]
+b = p.index('<section class="consult-item" data-id="Q1"')
+open(sys.argv[2], "w").write(p[:b] + "<!-- " + old + " -->\n" + p[b:])
+PY
+rc="$(run "$R/page.html" --prev "$R/.aidex-artifact-prev/page.html")"
+[[ "$rc" == "1" ]] && grep -q 'consult-marker-duties.*Q1.*show-me' "$TMP/out" \
+  && ok "A7b. a commented-out decided copy of Q1 does not exempt the live Q1" \
+  || fail "A7b: rc=$rc $(cat "$TMP/out")"
 
 # ============================================================================
 # Part C — save-reply.sh: writes both files verbatim and prints the DUTIES
