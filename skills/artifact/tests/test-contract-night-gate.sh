@@ -89,10 +89,10 @@ for label in nonexistent afile no-calls no-review; do
   eq "[$label] exit 2" "$rc" 2
   eq "[$label] stdout empty" "$out" ""
   check "[$label] one stderr line naming AIDEX_SCRIPT_CENSUS" \
-    "$([ "$(printf '%s\n' "$err" | wc -l | tr -d ' ')" -eq 1 ] && printf '%s' "$err" | grep -q AIDEX_SCRIPT_CENSUS && echo 1 || echo 0)" "$err"
+    "$([ "$(printf '%s\n' "$err" | wc -l | tr -d ' ')" -eq 1 ] && printf '%s' "$err" | grep >/dev/null AIDEX_SCRIPT_CENSUS && echo 1 || echo 0)" "$err"
 done
-check "[no-calls] names what is lacking" "$(printf '%s' "$(AIDEX_SCRIPT_CENSUS="$tmp/c-no-calls/census" bash "$GATE" 2>&1)" | grep -q 'lacks calls.tsv' && echo 1 || echo 0)"
-check "[no-review] names what is lacking" "$(printf '%s' "$(AIDEX_SCRIPT_CENSUS="$tmp/c-no-review/census" bash "$GATE" 2>&1)" | grep -q 'lacks review.tsv' && echo 1 || echo 0)"
+check "[no-calls] names what is lacking" "$(printf '%s' "$(AIDEX_SCRIPT_CENSUS="$tmp/c-no-calls/census" bash "$GATE" 2>&1)" | grep >/dev/null 'lacks calls.tsv' && echo 1 || echo 0)"
+check "[no-review] names what is lacking" "$(printf '%s' "$(AIDEX_SCRIPT_CENSUS="$tmp/c-no-review/census" bash "$GATE" 2>&1)" | grep >/dev/null 'lacks review.tsv' && echo 1 || echo 0)"
 
 for label in calls-no-cls calls-no-script calls-no-id review-no-class; do
   scenario "col-$label"
@@ -106,7 +106,7 @@ for label in calls-no-cls calls-no-script calls-no-id review-no-class; do
   eq "F10 [$label] exit 2" "$rc" 2
   eq "F10 [$label] stdout empty" "$out" ""
   check "F10 [$label] one line naming the column" \
-    "$([ "$(printf '%s\n' "$err" | wc -l | tr -d ' ')" -eq 1 ] && printf '%s' "$err" | grep -q 'AIDEX_SCRIPT_CENSUS.*lacks column' && echo 1 || echo 0)" "$err"
+    "$([ "$(printf '%s\n' "$err" | wc -l | tr -d ' ')" -eq 1 ] && printf '%s' "$err" | grep >/dev/null 'AIDEX_SCRIPT_CENSUS.*lacks column' && echo 1 || echo 0)" "$err"
 done
 
 echo "== everything green: five lines in order, exit 0 =="
@@ -126,7 +126,7 @@ scenario mis-rc; mcase "$S" bad.sh '' '' accept
 run "$S" --verbose
 eq "accept with rc 1 is not matched" "$(line 1)" "misuse: 0/1"
 eq "exit 1" "$rc" 1
-check "verbose names the id and rc" "$(printf '%s' "$out" | grep -q 'm1: rc=1' && echo 1 || echo 0)" "$out"
+check "verbose names the id and rc" "$(printf '%s' "$out" | grep >/dev/null 'm1: rc=1' && echo 1 || echo 0)" "$out"
 scenario mis-nocase; printf 'id\tscript\targs\tstdin\texpect\n' > "$S/fx/misuse-replay/cases.tsv"
 run "$S"; eq "id without a case counts against" "$(line 1)" "misuse: 0/1"
 scenario mis-nofile; rm "$S/fx/misuse-replay/cases.tsv"
@@ -168,8 +168,8 @@ scenario mis-norm2; printf '%s\n' 'import sys; sys.exit(0)' > "$S/scripts/artifa
 run "$S"; eq "F6 artifact-item.sh matches artifact_item.py" "$(line 1)" "misuse: 1/1"
 scenario mis-nostdin; mcase "$S" ok.sh '' nope.txt accept ok.sh
 run "$S" --verbose; eq "F9 missing stdin file is unmatched" "$(line 1)" "misuse: 0/1"
-check "F9 no traceback, reason shown" "$(printf '%s' "$out $err" | grep -q 'Traceback' && echo 0 || echo 1)" "$out"
-check "F9 reason names the stdin file" "$(printf '%s' "$out" | grep -q 'stdin file not found' && echo 1 || echo 0)"
+check "F9 no traceback, reason shown" "$(printf '%s' "$out $err" | grep >/dev/null 'Traceback' && echo 0 || echo 1)" "$out"
+check "F9 reason names the stdin file" "$(printf '%s' "$out" | grep >/dev/null 'stdin file not found' && echo 1 || echo 0)"
 scenario mis-stdin-ok; printf 'data\n' > "$S/fx/misuse-replay/in.txt"; printf '%s\n' '#!/usr/bin/env bash' 'grep -q data' > "$S/scripts/rd.sh"; mcase "$S" rd.sh '' in.txt accept rd.sh
 run "$S"; eq "stdin file is piped" "$(line 1)" "misuse: 1/1"
 scenario mis-X; printf 'id\tclass\treason\nm1\ttool-misuse\tr\nm2\ttool-misuse\tr\nm3\ttool-misuse\tr\n' > "$S/census/review.tsv"
@@ -191,7 +191,7 @@ eq "empty check is not classified" "$(line 2)" "refusal-split: 9/10"
 echo "== top-refusals =="
 scenario top-fail; printf 'check\tkind\ttest_cmd\nA\tmessage\tbash skills/artifact/tests/pass.sh\nB\tautofix\tbash skills/artifact/tests/fail.sh\n' > "$S/fx/refusal-fixes/fixes.tsv"
 run "$S" --verbose; eq "a failing test_cmd does not count" "$(line 3)" "top-refusals: 1/2"; eq "exit 1" "$rc" 1
-check "verbose names the check lacking a fix" "$(printf '%s' "$out" | grep -q 'without a passing fix: B' && echo 1 || echo 0)"
+check "verbose names the check lacking a fix" "$(printf '%s' "$out" | grep >/dev/null 'without a passing fix: B' && echo 1 || echo 0)"
 scenario top-nofix; printf 'check\tkind\ttest_cmd\n' > "$S/fx/refusal-fixes/fixes.tsv"
 run "$S"; eq "no fixes at all" "$(line 3)" "top-refusals: 0/2"
 scenario top-kind; printf 'check\tkind\ttest_cmd\nA\tmessage\tbash skills/artifact/tests/pass.sh\nB\tshrug\tbash skills/artifact/tests/pass.sh\n' > "$S/fx/refusal-fixes/fixes.tsv"

@@ -176,7 +176,7 @@ bars='<div class="endbar"><button type="button" id="consult-copy-end">Copy</butt
 pre='<section id="sec-intro"><div class="sec-head"><h2>What changed this round</h2></div><p>Context the questions depend on.</p></section>'
 mkpage "$D/hand.html" "$visual$header$pre$group$notes$bars"
 bash "$CHECK" "$D/hand.html" > "$TMP/build.out" 2>&1; rc=$?
-hl="$(grep -n 'What changed this round' "$D/hand.html" | head -1 | cut -d: -f1)"
+hl="$(grep -n 'What changed this round' "$D/hand.html" | sed -n 1p | cut -d: -f1)"
 refused "5. hand-written page" consult-shape "$rc" "prose before the first block" "line $hl" \
   && ! grep -q "spec.md" "$TMP/fails" \
   && ok "5. a page with no spec beside it names its HTML line and no spec file" \
@@ -224,7 +224,7 @@ refused "7. dropped ids" consult-ids "$rc" "id dropped between rounds — Q2" \
   "id dropped between rounds — Q3" "--drop G2" "--drop Q2" "--drop Q3" \
   "restore it in dropped.spec.md" \
   && ok "7. dropped ids: still refused, one paste-ready command lists every dropped id"
-[[ "$(grep -m1 -o 'restore it in\|new-round' "$TMP/fails" | head -1)" == "restore it in" ]] \
+[[ "$(grep -o 'restore it in\|new-round' "$TMP/fails" | sed -n 1p)" == "restore it in" ]] \
   && ok "7a. the message offers restoring the item before the --drop command" \
   || fail "7a. restore does not come first: $(head -1 "$TMP/fails")"
 run_named --drop > "$TMP/verb.out" 2>&1 \
