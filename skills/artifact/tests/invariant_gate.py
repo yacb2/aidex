@@ -133,7 +133,15 @@ def corpus_line(verbose):
     finally:
         for t in trees:
             shutil.rmtree(t, ignore_errors=True)
-    total = len(specs)
+    # Class evidence (owner, LOOP-008 Q5): a spec named in <corpus>/class-evidence.txt is kept
+    # red on purpose (MIGRATIONS.md, D7). It leaves Y only while the builder still refuses it;
+    # once it builds it is counted like any other spec and reported stale.
+    listed = class_evidence()
+    evidence = sorted(n for n in failed if n in listed)
+    for n in sorted(listed - set(failed)):
+        if any(os.path.basename(sp) == n for sp, _ in specs):
+            print("invariant-gate: stale class evidence: %s builds today" % n, file=sys.stderr)
+    total = len(specs) - len(evidence)
     names = {os.path.basename(pg) for pg in pages}          # distinct pages, not distinct lines
     clean = len(names - set(fired))
     if verbose:
@@ -151,8 +159,18 @@ def corpus_line(verbose):
         for i, n in sorted(per.items()):
             print("  %s fires on %d page(s)" % (i, n), file=sys.stderr)
     nmig = sum(1 for sp, _ in specs if defect_gate.is_migrated(sp))
-    return ("corpus: %d/%d%s" % (clean, total, " (%d migrated)" % nmig if nmig else ""),
+    notes = (["%d migrated" % nmig] if nmig else []) + (["%d class evidence" % len(evidence)] if evidence else [])
+    return ("corpus: %d/%d%s" % (clean, total, " (%s)" % ", ".join(notes) if notes else ""),
             clean == total and total >= MIN["corpus"])
+
+
+def class_evidence():
+    """Spec file names listed in <corpus>/class-evidence.txt (one per line, `#` comments)."""
+    path = os.path.join(os.environ.get("AIDEX_SPEC_CORPUS", ""), "class-evidence.txt")
+    if not os.path.isfile(path):
+        return set()
+    with open(path, encoding="utf-8") as f:
+        return {ln.split("#", 1)[0].strip() for ln in f} - {""}
 
 
 def main(argv):

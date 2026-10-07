@@ -104,6 +104,28 @@ mkdir "$CORP/migrated"; cp "$SPECS/flag.spec.md" "$CORP/migrated/cproj__clean.sp
 gate probe-dup; out="$(<"$TMP/out")"
 [[ "$(sed -n 2p <<<"$out")" == "corpus: 1/1" ]] && grep -q "stale migration: cproj__clean.spec.md" "$TMP/err" \
   && ok "a copy beside an original that builds is ignored and reported stale" || bad "stale: $(sed -n 2p <<<"$out") / $(cat "$TMP/err")"
+# class evidence (owner, LOOP-008 Q5): a spec named in <corpus>/class-evidence.txt that the
+# builder still refuses leaves Y and the line says so; a listed spec that builds is counted
+# like any other and reported stale; an unlisted refused spec still fails
+corpus clean refused
+printf '# kept red on purpose\ncproj__refused.spec.md\n' > "$CORP/class-evidence.txt"
+gate probe-clean; out="$(<"$TMP/out")"
+[[ "$(sed -n 2p <<<"$out")" == "corpus: 1/1 (1 class evidence)" ]] \
+  && ok "a listed spec the builder refuses leaves Y as class evidence" || bad "evidence: $(sed -n 2p <<<"$out")"
+corpus clean flag
+printf 'cproj__clean.spec.md\n' > "$CORP/class-evidence.txt"
+gate probe-dup; out="$(<"$TMP/out")"
+[[ "$(sed -n 2p <<<"$out")" == "corpus: 1/2" ]] && grep -q "stale class evidence: cproj__clean.spec.md" "$TMP/err" \
+  && ok "a listed spec that builds is counted and reported stale" || bad "stale evidence: $(sed -n 2p <<<"$out") / $(cat "$TMP/err")"
+corpus refused
+printf 'cproj__other.spec.md\n' > "$CORP/class-evidence.txt"
+gate probe-clean; out="$(<"$TMP/out")"
+[[ "$(sed -n 2p <<<"$out")" == "corpus: 0/1" ]] && ok "an unlisted refused spec still fails" || bad "unlisted: $(sed -n 2p <<<"$out")"
+corpus refused
+printf 'cproj__refused.spec.md\n' > "$CORP/class-evidence.txt"
+gate probe-clean; out="$(<"$TMP/out")"
+[[ "$(sed -n 2p <<<"$out")" == "corpus: 0/0 (1 class evidence)" && $rc -eq 1 ]] \
+  && ok "a corpus made only of class evidence is RED (0/0)" || bad "all evidence: $(sed -n 2p <<<"$out") rc=$rc"
 corpus clean flag
 gate probe-dup; out="$(<"$TMP/out")"
 [[ "$(sed -n 2p <<<"$out")" == "corpus: 1/2" ]] && ok "two INV lines on one page fail that one page, once" || bad "dup: $(sed -n 2p <<<"$out")"
