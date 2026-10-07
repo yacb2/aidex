@@ -732,6 +732,38 @@ try:
     holds("notes (en): the page-level box is labelled as the page's",
           '::: masthead {lang="en"}\n# T\n\nS\n:::\n::: notes {title="N"}\n:::',
           '<p class="fieldlabel">Notes for the whole page</p>')
+    # The masthead is the page's one opening, and its lang= is the body's.
+    rejects("masthead: a second masthead is refused",
+            '::: masthead {title="A"}\nS\n:::\n\n::: masthead {title="B"}\nS\n:::\n',
+            5, "second masthead")
+    rejects("masthead: one after content is refused",
+            '::: masthead {title="A"}\nS\n:::\n\n::: notes {title="N"}\n:::\n\n'
+            '::: masthead {title="B"}\nS\n:::\n', 8, "second masthead")
+    rejects("masthead: lang=en over a Spanish body is a mixed page",
+            '::: masthead {title="Informe" lang=en}\nUna frase de apertura.\n:::\n\n'
+            'La pregunta es una de las que se hace cada uno.\n',
+            1, "mixed-language")
+    # The language floor, at its boundary: 3 foreign stopwords AND 3x the native.
+    LM = '::: masthead {title="Prueba" lang=es}\nResumen.\n:::\n\n'
+    for label, body, builds in (
+            ("es 0 / en 2", "xyz the and", True),
+            ("es 0 / en 3", "xyz the and of", False),
+            ("es 2 / en 5", "el la the and of to in", True),
+            ("es 2 / en 6", "el la the and of to in is", False),
+            ("English words inside code spans do not count",
+             "Renombrado: `is_valid_for_the_user` pasa a `has_access_to_the_page`.", True),
+            ("English commit subjects in a ledger do not count",
+             "::: ledger\n- c1 — fix the bug in the app\n- c2 — add the test and the docs\n"
+             "- c3 — remove it from the page\n:::", True)):
+        if builds:
+            holds("masthead lang=es, %s: builds" % label, LM + body + "\n",
+                  '<header class="masthead">')
+        else:
+            rejects("masthead lang=es, %s: refused" % label, LM + body + "\n",
+                    1, "mixed-language")
+    rejects("an answerable spec with no masthead is refused",
+            '::: group {#G1 title="Bloque"}\n::: item {#Q1 title="Tema"}\n'
+            '¿Cuál?\n\n- A\n- B\n:::\n:::\n', 1, "masthead")
     holds("ledger: a grid of .k/.v rows and nothing else",
           "::: ledger\n- d4 — **Hecho.** T-100.\n- d12 — Plantilla.\n:::",
           '<div class="ledger">',

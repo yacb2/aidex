@@ -1925,5 +1925,23 @@ rc="$(run "$TMP/t3-c4-unnamed.html")"
 [[ "$rc" == "1" ]] && grep -q "item 'Q1': its input labelled 'The value' has a visible label but no accessible name" "$TMP/out" \
   || fail "12c. a labelled value input with no accessible name passed (rc=$rc): $(cat "$TMP/out")"
 
+# ---- 13. the masthead is the page's ONE opening -----------------------------
+# A hand edit that deletes the masthead of a built page, or pastes a second one,
+# used to pass every check. Two fail on any consult page; none fails only on a
+# page the spec builder stamped (the block template and hand pages have none).
+mh='<header class="masthead"><h1>Title</h1><p class="standfirst">Opening.</p></header>'
+stamp='<meta name="spec-built" content="1">'
+sed -E "s|<body>|<body>$mh|" "$TMP/t3-c4-ok.html" > "$TMP/mh-one.html"
+rc="$(run "$TMP/mh-one.html")"
+[[ "$rc" == "0" ]] || fail "13. a page with one masthead failed: $(cat "$TMP/out")"
+sed -E "s|<body>|<body>$mh$mh|" "$TMP/t3-c4-ok.html" > "$TMP/mh-two.html"
+rc="$(run "$TMP/mh-two.html")"
+[[ "$rc" == "1" ]] && grep -q "FAIL \[consult-shape\].*second masthead" "$TMP/out" \
+  || fail "13. a page with two mastheads passed (rc=$rc): $(cat "$TMP/out")"
+sed -E "s|<head>|<head>$stamp|" "$TMP/t3-c4-ok.html" > "$TMP/mh-none-built.html"
+rc="$(run "$TMP/mh-none-built.html")"
+[[ "$rc" == "1" ]] && grep -q "FAIL \[consult-shape\].*no masthead" "$TMP/out" \
+  || fail "13. a spec-built page with no masthead passed (rc=$rc): $(cat "$TMP/out")"
+
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — the consultation contract counts items, accepts any reply surface, leaves a read alone, and warns without failing"
