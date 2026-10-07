@@ -436,6 +436,61 @@ try:
     rejects("item: {chosen} with decided=\"**\" is refused as not decided",
             ITEM.replace("decided=yes", 'decided="**"').replace(
                 "{recommended}", "{chosen}"), 2, "not decided")
+    # M1 (mutations 21, 21b, 21c): a negative word is not a verdict. `decided=no`
+    # used to ship `data-decided="no"`, which the fold shows as the answer "no".
+    for word in ("no", "false", "0"):
+        rejects("item: decided=%s is refused, not read as a verdict" % word,
+                ITEM.replace(" {recommended}", "").replace(
+                    "decided=yes", "decided=%s" % word), 2, "decided=%s" % word)
+    rejects("item: decided=no is refused even when an option is labelled No (the case differs)",
+            ITEM.replace(" {recommended}", "").replace(
+                "- No, uno cambia el resultado", "- No").replace("decided=yes", "decided=no"),
+            2, "decided=no")
+    holds("item: decided=No stays legal when an option is labelled No (decide --verdict No)",
+          ITEM.replace(" {recommended}", "").replace(
+              "- No, uno cambia el resultado", "- No").replace("decided=yes", 'decided="No"'), 'data-decided="No"')
+    # M1 (mutations 23, 23b, 23c): free takes yes or true, like proposal.
+    FREE = ('::: group {#G1 title="T"}\n'
+            '::: item {#H1 title="t" free=yes}\n¿Qué opinas?\n:::\n:::\n')
+    for word in ("YES", "1", "maybe"):
+        rejects("item: free=%s is refused (it takes yes, true)" % word,
+                FREE.replace("free=yes", "free=%s" % word), 2, "free='%s'" % word)
+    holds("item: free=true is the same flag as free=yes",
+          FREE.replace("free=yes", "free=true"), 'data-free>')
+    # M1 (mutation 11): ids that differ only by case collide in the composer's keys.
+    rejects("item: ids differing only by case are refused, naming both",
+            '::: group {#G1 title="T"}\n'
+            '::: item {#Q1 title="a"}\n?\n\n- A {recommended}\n- B\n:::\n'
+            '::: item {#q1 title="b"}\n?\n\n- A {recommended}\n- B\n:::\n:::\n',
+            8, "differs only by case from #Q1")
+    holds("an item #C1 and a chart #c1 may coexist (case-fold is items only)",
+          '::: group {#G1 title="T"}\n::: item {#C1 title="a"}\n?\n\n- A {recommended}\n- B\n:::\n:::\n\n'
+          '::: chart {#c1 type=bar}\nA,1\nB,2\n:::\n', 'data-id="C1"')
+    rejects("item: decided=\"**no**\" is refused like decided=no",
+            ITEM.replace(" {recommended}", "").replace("decided=yes", 'decided="**no**"'), 2, "decided=")
+    holds("item: a bold option label **No** may be the verdict No",
+          ITEM.replace(" {recommended}", "").replace("- No, uno cambia el resultado", "- **No**")
+              .replace("decided=yes", 'decided="No"'), 'data-decided="No"')
+    # M1 (mutations 17, 17b): the hint separator is ` — `; another dash would
+    # otherwise become part of the label the reply pastes.
+    for dash in ("-", "--"):
+        rejects("item: an option hint separated by %r is refused, naming the separator" % dash,
+                ITEM.replace("— los doce", "%s los doce" % dash), 2, "separator is ' — '")
+    holds("item: a hyphen inside a word or a code span is not a separator",
+          ITEM.replace("- No, uno cambia el resultado",
+                       "- Usar `--force` y el sub-paso"), "sub-paso")
+    # M1 (mutations 43, 43b): the pill and chip tones are a closed set.
+    for tag in (".pill .1x", ".chip .zz"):
+        rejects("a span {%s} is refused, naming the tone" % tag,
+                ITEM.replace("¿La pregunta", "[x]{%s} ¿La pregunta" % tag), 3,
+                tag.split()[1][1:])
+    holds("a span with a corpus tone builds", ITEM.replace(
+        "¿La pregunta", "[x]{.chip .soft} ¿La pregunta"), 'class="chip soft"')
+    # M1 (mutation 44): `.warn` and `.wide` are the block classes.
+    rejects("a block with an invented class is refused",
+            ITEM.replace("::: item {", "::: item {.evil ", 1), 2, ".evil")
+    holds("note {.warn} stays legal", PAGE, 'class="note warn"')
+
     # Two checked radios in one name group: the parser keeps the last, and the
     # fold shows that one as the verdict with nothing on the page saying so.
     rejects("item: decided=yes on a select=one item with two {recommended} "

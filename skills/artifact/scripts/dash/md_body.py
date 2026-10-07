@@ -174,6 +174,16 @@ SPAN = re.compile(r"\[([^\]\n]+)\]\{([^}\n]*)\}")
 ESCAPE = re.compile(r"\\([\\`*_\[])")
 SPAN_TYPES = ("pill", "chip")
 SPAN_CLASS = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*$")
+# The tones a `pill` or `chip` span may carry: the kit's styled ones plus every
+# tone the spec corpus writes (2026-10-07). `spec_build` refuses a span whose
+# tone is outside this set (`bad_spans`); the renderers here still pass any
+# well-formed span through, so a backlog title is never refused.
+SPAN_TONES = frozenset("""
+acc chip-est chip-gate chip-id chip-kill chip-ready chip-stale chip--crit
+chip--high chip--med chip--ok crit done flat ghost high info keep kill live
+loc low med merge move ok orig s soft split stop wait warn watch xs
+""".split())
+SPAN_TAG = re.compile(r"\[([^\]\n]+)\]\{(\s*\.(?:pill|chip)\b[^}\n]*)\}")
 # A right-aligned column in a pipe table's separator row (`---:`). Standard
 # markdown alignment, read here as the `num` marker of the block vocabulary:
 # right-aligned, `tabular-nums`. The kit did NOT style `.num` when this was
@@ -254,6 +264,26 @@ def _span_classes(attr_text):
     if not classes or classes[0] not in SPAN_TYPES:
         return None
     return classes
+
+
+def bad_spans(text):
+    """`(type, token)` for each pill/chip span in one line whose tone is refused.
+
+    Refused: a malformed tone (`{.pill .1x}`) or one outside SPAN_TONES. Code
+    spans are skipped; `token` is the offending class as written.
+    """
+    out = []
+    for m in SPAN_TAG.finditer(CODE.sub(" ", text)):
+        toks = m.group(2).split()
+        kind = toks[0][1:]
+        classes = _span_classes(m.group(2))
+        if classes is None:
+            out.append((kind, next(
+                (t for t in toks[1:] if not SPAN_CLASS.match(t.lstrip(".")[5 if t.startswith("tone=") else 0:])),
+                m.group(2).strip())))
+        else:
+            out.extend((kind, c) for c in classes[1:] if c not in SPAN_TONES)
+    return out
 
 
 def _inline(text):
