@@ -174,7 +174,7 @@ def parse_answer(ident, para, extra=(), alt=False, many=False):
         elif many and (extra is None or label in extra):
             checked.append(label)
         elif (alt and extra is None and not verdict) \
-                or label in (extra if alt else ANSWERS):
+                or label in ((extra or ()) if alt else ANSWERS):
             if verdict:
                 die("line %d: row '%s' has more than one answer ('%s' on "
                     "line %d, '%s' here) — the page lets you pick one"
@@ -319,9 +319,11 @@ def main(argv):
         try:
             with open(path, encoding="utf-8") as fh:
                 doc = json.load(fh)
-            labels[doc["gallery"]] = {a["label"].strip() for a in
-                                      doc.get("alternatives", [])} \
-                | {pair[0] for pair in NONE_OF_THEM.values()}
+            # Merged, not assigned: a states row and an alternatives row of
+            # one gallery come in two documents with the same slug.
+            labels.setdefault(doc["gallery"], set()).update(
+                {a["label"].strip() for a in doc.get("alternatives", [])}
+                | {pair[0] for pair in NONE_OF_THEM.values()})
             for r in doc["rows"]:
                 if r.get("kind") == "states" and "states" in r:
                     states[row_id(doc["gallery"], r["cell"], r["variant"],
