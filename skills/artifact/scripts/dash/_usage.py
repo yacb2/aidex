@@ -35,3 +35,15 @@ class UsageParser(argparse.ArgumentParser):
             if flag in message:
                 usage_exit(self.form, "%s (%s is taken by: %s)" % (message, flag, form))
         usage_exit(self.form, message)
+
+
+def read_stdin(form, binary=False, blank_is_empty=False):
+    """The bytes (or text) piped on stdin. Nothing piped, or a terminal that would
+    block waiting for input, is a usage error naming the valid form: exit 2, one
+    line. With `blank_is_empty`, whitespace-only input counts as nothing too."""
+    if sys.stdin is None or sys.stdin.isatty():
+        usage_exit(form, "no content on stdin (stdin is a terminal)")
+    data = sys.stdin.buffer.read() if binary else sys.stdin.read()
+    if not (data.strip() if blank_is_empty else data):
+        usage_exit(form, "no content on stdin")
+    return data

@@ -73,6 +73,7 @@ import json
 import re
 import sys
 
+from _usage import read_stdin
 from reply_defect import blank_defects
 from gallery_items import KINDS, NONE_OF_THEM, OTHER, VERDICTS, row_id
 
@@ -87,6 +88,8 @@ ANSWERS = {label for pairs in VERDICTS.values() for label, _ in pairs} \
     | set(OTHER)
 MARKER = re.compile(r"^\[[a-z-]+\]$")
 PROVISIONAL = " [provisional]"
+GALLERY_REPLY_FORM = ('gallery-reply.sh [--rows <rows.json>]... [--tiles "<t1> <t2> ..."] '
+                      "[<reply.md>|-]  (or pipe the reply on stdin)")
 
 
 def die(msg):
@@ -306,7 +309,7 @@ def main(argv):
     args = ap.parse_args(argv)
     try:
         if args.reply == "-":
-            text = sys.stdin.buffer.read().decode("utf-8-sig")
+            text = read_stdin(GALLERY_REPLY_FORM, binary=True, blank_is_empty=True).decode("utf-8-sig")
         else:
             with open(args.reply, encoding="utf-8-sig") as fh:
                 text = fh.read()
