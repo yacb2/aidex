@@ -1225,6 +1225,8 @@ def main():
     # OLD code left failing at `--out`, which is a violating document with no
     # baseline beside it. It becomes the baseline as soon as one wrap passes.
     cmd = ["bash", checker, args.outfile]
+    if args.new_round:
+        cmd += ["--new-round"]      # the build that opens a round: picks must be decided
     prev_for_check = baseline if os.path.isfile(baseline) else prev_snapshot
     if prev_for_check:
         cmd += ["--prev", prev_for_check]
