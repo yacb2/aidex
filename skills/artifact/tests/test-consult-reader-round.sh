@@ -149,7 +149,26 @@ for pg in "$PG" "$BP" "$SPG"; do
     && ok "(e) $(basename "$pg"): the rail round ($(shown_of "$pg")) equals consult-round" \
     || fail "(e) $(basename "$pg"): rail round '$(shown_of "$pg")' != consult-round '$(round_of "$pg")'"
 done
-ES="$TMP/reports/es.spec.md"; sed 's/lang="en"/lang="es"/' "$SP" > "$ES"
+# The Spanish spec carries a Spanish body: since 25fb616a the builder refuses a
+# masthead language over a body written in the other one.
+ES="$TMP/reports/es.spec.md"
+cat > "$ES" <<'SPEC'
+::: masthead {lang="es" visual="none: consultation"}
+# Ruta del spec
+:::
+
+::: group {#G1 title="Uno"}
+::: item {#Q1 title="Elegir"}
+Ana abre el proyecto y no ve el botón de borrar.
+
+- Permitirlo {recommended}
+- Dejarlo como está
+:::
+:::
+
+::: notes {title="Algo más"}
+:::
+SPEC
 ESG="$TMP/reports/es.html"
 python3 "$BUILD" "$ES" -o "$ESG" >/dev/null 2>&1; printf 'Q1: bien\n' | bash "$SAVE" "$ESG" - >/dev/null 2>&1
 python3 "$BUILD" "$ES" -o "$ESG" --new-round >/dev/null 2>&1
