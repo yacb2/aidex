@@ -75,7 +75,8 @@ import sys
 
 from _usage import read_stdin
 from reply_defect import blank_defects
-from gallery_items import KINDS, NONE_OF_THEM, OTHER, VERDICTS, row_id
+from gallery_items import (KINDS, MARKER_LABEL, NONE_OF_THEM, OTHER, VERDICTS,
+                           na_row_id, row_id)
 
 NUM = r"(\d{1,3}\.\d)"
 MARK = re.compile(r"^\[mark (\S+) %s,%s %sx%s\](?: (.*))?$"
@@ -86,7 +87,6 @@ MARK = re.compile(r"^\[mark (\S+) %s,%s %sx%s\](?: (.*))?$"
 # gallery_items, which is also what refuses an alternative named like it.
 ANSWERS = {label for pairs in VERDICTS.values() for label, _ in pairs} \
     | set(OTHER)
-MARKER = re.compile(r"^\[[a-z-]+\]$")
 PROVISIONAL = " [provisional]"
 GALLERY_REPLY_FORM = ('gallery-reply.sh [--rows <rows.json>]... [--tiles "<t1> <t2> ..."] '
                       "[<reply.md>|-]  (or pipe the reply on stdin)")
@@ -136,7 +136,7 @@ def gallery_key(ident, title, n):
     parts = title.split(" · ")
     if len(parts) == 2 and all(parts):
         # A not-applicable row has no variant; its id carries the suffix.
-        if ident == "%s-%s-not-applicable" % tuple(parts):
+        if ident == na_row_id(*parts):
             return parts + ["", "not-applicable"]
         # `<gallery>-<cell>` alone is the OLD light/dark matrix row: its
         # verdict was given on four captures, and reading it as a row of this
@@ -168,7 +168,7 @@ def parse_answer(ident, para, extra=(), alt=False, many=False):
         if label.endswith(PROVISIONAL):
             label = label[:-len(PROVISIONAL)]
             provisional = True
-        if MARKER.match(label):
+        if MARKER_LABEL.match(label):
             asks.append(label)
         elif many and label in OTHER:
             # The composer adds "Other" to every `.opts` group: it is the
