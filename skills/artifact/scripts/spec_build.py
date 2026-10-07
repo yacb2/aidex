@@ -70,6 +70,7 @@ import diagram_svg                              # noqa: E402
 import gallery_items                            # noqa: E402
 import graph_svg                                # noqa: E402
 import md_body                                  # noqa: E402
+from _usage import UsageParser, usage_exit      # noqa: E402
 import wrap_report                              # noqa: E402
 import spec_parser                                # noqa: E402
 from spec_parser import SpecSyntaxError, parse   # noqa: E402,F401
@@ -2359,8 +2360,10 @@ def hand_edit_defect(out):
 
 # --- CLI ---------------------------------------------------------------------
 def main(argv):
-    p = argparse.ArgumentParser(
+    p = UsageParser(
         prog="spec_build.py",
+        form="spec_build.py <spec.md> [-o <out.html> [--check] [--new-round]] "
+             "[--lang es|en] [--title <title>]",
         description="Build a page spec into artifact-kit HTML.")
     p.add_argument("spec", metavar="<spec.md>", help="the page spec")
     p.add_argument("-o", dest="out", metavar="<out.html>",
@@ -2389,16 +2392,14 @@ def main(argv):
         with open(args.spec, encoding="utf-8") as fh:
             spec_text = fh.read()
     except OSError as exc:
-        sys.stderr.write("spec-build: %s\n" % exc)
-        return 2
+        usage_exit(p.form, "cannot read the spec: %s" % exc)
     except UnicodeDecodeError as exc:
         sys.stderr.write("spec-build: %s is not UTF-8 (byte 0x%02x at offset %d) "
                          "— save the spec as UTF-8\n"
                          % (args.spec, exc.object[exc.start], exc.start))
         return 2
     if args.check and not args.out:
-        sys.stderr.write("spec-build: --check needs -o <out.html>\n")
-        return 2
+        usage_exit(p.form, "--check needs -o <out.html>")
 
     try:
         # A silent spec follows the profile the wrap and lang-follows-profile

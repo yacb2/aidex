@@ -24,6 +24,7 @@ import tempfile
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import md_body  # noqa: E402
+from _usage import UsageParser, usage_exit  # noqa: E402
 sys.path.insert(0, os.path.join(__file__.rsplit("/", 1)[0], "..", "..", "..", "conventions", "scripts"))
 import profiles  # noqa: E402  the one profile resolver
 from _shell import document, esc  # noqa: E402
@@ -901,6 +902,9 @@ def held_round(outfile):
     return 0
 
 
+WRAP_FORM = "wrap-report.sh --title <title> [--lang <l>] [--favicon <e>] [--in <file>] [--out <page.html>] [--building] [--new-round]  |  wrap-report.sh --done --out <page.html>"
+
+
 def end_build(argv):
     """`--done --out <page>`: the build is over. Removes the lock, wraps nothing.
 
@@ -909,8 +913,10 @@ def end_build(argv):
     contract and was opened as final — so no property of a wrap can stand in for
     completion. The agent has to say it, once, as its own step.
     """
-    p = argparse.ArgumentParser(prog="wrap-report.sh --done",
-                                description="End a build: remove the page build lock")
+    p = UsageParser(prog="wrap-report.sh --done",
+                    form="wrap-report.sh --done --out <page.html>  (--done takes no other flag; "
+                         "--title/--in/--lang belong to the wrap form: wrap-report.sh --title <title> ...)",
+                    description="End a build: remove the page build lock")
     p.add_argument("--done", action="store_true", required=True)
     p.add_argument("--out", dest="outfile", required=True,
                    help="the page whose build is finished")
@@ -929,7 +935,8 @@ def end_build(argv):
 
 
 def main():
-    p = argparse.ArgumentParser(description="Wrap report content in the document envelope")
+    p = UsageParser(prog="wrap-report.sh", form=WRAP_FORM,
+                    description="Wrap report content in the document envelope")
     p.add_argument("--title", required=True, help="document title (browser tab)")
     p.add_argument("--lang", default=None,
                    help="BCP-47 language of the content. Default: the `language:` field of "
@@ -957,10 +964,11 @@ def main():
     # anyway would produce the one state the flag exists to prevent: output that looks
     # finished while the build runs.
     if args.building and not args.outfile:
-        print("ERROR: --building needs --out <page> — the build lock is a file beside "
-              "the page, and a wrap to stdout has no page", file=sys.stderr)
-        return 2
+        usage_exit(WRAP_FORM, "--building needs --out <page> — the build lock is a file "
+                   "beside the page, and a wrap to stdout has no page")
 
+    if args.infile and not os.path.exists(args.infile):
+        usage_exit(WRAP_FORM, "--in %s: no such file" % args.infile)
     content = (open(args.infile, encoding="utf-8").read() if args.infile
                else sys.stdin.read())
     if not content.strip():
