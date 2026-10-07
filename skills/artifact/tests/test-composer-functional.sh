@@ -4810,5 +4810,153 @@ t2="$(wtg_page wtg2 "$WTG/rows2.json")"
 [[ "$t2" == *"|WAITING=1|INSEC=0|INFOLD=0|Q14FIRST=1|CLEAR=0|Q14CLEAR=1|CLOSED=1|"* ]] \
   || fail "BL-690: beside a row decided in an earlier round, the waiting unrequested row must stay out of the decided section and its fold, as a closed details (want INSEC=0|INFOLD=0|CLOSED=1): $t2"
 
+# ---- BL-715: on a study page an answerable check gives feedback AFTER the pick, not before ----
+# The recommended badge and the option hints showed the answer before the reader answered
+# ("me estás marcando las respuestas"). Layer: browser, because what is visible/accessible and
+# what a pick reveals are the composer's calls on a built page. The SAME spec without
+# profile="study" is the guard: its badge and hints stay shown and its copied reply is the same.
+STQ="$TMP/stq"; mkdir -p "$STQ"
+stq_page() {  # stq_page <name> <masthead-attrs> <section block, study pages only>; prints the probe's titles
+  local n="$1"
+  cat > "$STQ/$n.spec.md" <<SPEC
+::: masthead {title="Study" eyebrow="Study 01" lang="es" $2 visual="none: a study probe"}
+Una guía corta.
+:::
+
+$3
+:::: group {#G1 title="Check 1" heading="Check"}
+Responde tras leer.
+
+::: item {#Q1 title="Sobrevive una variable local"}
+¿Conserva \`let x = 0\` su valor?
+
+- Sí — se conserva
+- No — se pierde {recommended}
+:::
+
+::: item {#Q2 title="Qué quedó oscuro"}
+¿Qué te quedó oscuro?
+
+- Estado — pista uno
+- Efectos — pista dos
+:::
+
+::: item {#Q3 title="Dos válidas"}
+¿Cuál sirve?
+
+- Ta — pista ta {recommended}
+- Tb — pista tb {recommended}
+- Tc — pista tc
+:::
+
+::: item {#Q4 title="Conjunto" select=many}
+¿Cuáles son ciertas?
+
+- Uno — pista uno {recommended}
+- Dos — pista dos {recommended}
+- Tres — pista tres
+:::
+::::
+
+::: notes {title="Notas"}
+:::
+SPEC
+  python3 "$SKILL/scripts/spec_build.py" "$STQ/$n.spec.md" > "$STQ/$n.body.html" 2> "$STQ/$n.build.log" \
+    || fail "BL-715: the study probe spec $n failed to build: $(head -3 "$STQ/$n.build.log")"
+  cat >> "$STQ/$n.body.html" <<'HTML'
+<script>
+window.addEventListener('load', function () {
+  var Q = function (id) { return document.querySelector('[data-id="' + id + '"]'); };
+  var q1 = Q('Q1'), q2 = Q('Q2'), q3 = Q('Q3'), q4 = Q('Q4');
+  var verdict = function (el) { var v = el.querySelector('.kit-feedback'); return v ? v.textContent.trim() : '-'; };
+  if (location.search.indexOf('phase=reload') > -1) {
+    var c = q1.querySelector('.opts input:checked');
+    document.title = 'STQR|Q1=' + (c ? c.getAttribute('data-label') : '-') + '|V=' + verdict(q1) + '|';
+    return;
+  }
+  var vis = function (el, sel) { var c = 0;
+    [].forEach.call(el.querySelectorAll(sel), function (x) { if (x.checkVisibility() && getComputedStyle(x).display !== 'none') c++; }); return c; };
+  var tags = function (el) { return vis(el, '.kit-tag.rec'); };
+  var hints = function (el) { return vis(el, '.opts label:not(.kit-other):not(.kit-notnow) .hint'); };
+  var set = function (el, sel, on) { var i = el.querySelector(sel); i.checked = on; i.dispatchEvent(new Event('change', { bubbles: true })); };
+  var pick = function (el, label, on) { set(el, '.opts input[data-label^="' + label + '"]', on !== false); };
+  var bg = function (i) { return getComputedStyle(q1.querySelectorAll('.opts label')[i]).backgroundColor; };
+  var out = [];
+  out.push('PRE=' + tags(q1) + '/' + hints(q1) + '/' + hints(q2) + '/' + verdict(q1) + '/TINT=' + (bg(0) === bg(1) ? 0 : 1));
+  pick(q1, 'Sí');
+  out.push('WRONG=' + tags(q1) + '/' + hints(q1) + '/' + verdict(q1));
+  pick(q1, 'No');
+  out.push('RIGHT=' + tags(q1) + '/' + verdict(q1));
+  q1.querySelector('.consult-clear').click();
+  out.push('CLEAR=' + tags(q1) + '/' + hints(q1) + '/' + verdict(q1));
+  pick(q2, 'Estado');
+  out.push('OPEN=' + hints(q2) + '/' + verdict(q2));
+  pick(q3, 'Ta'); var t1 = verdict(q3);
+  pick(q3, 'Tb'); var t2 = verdict(q3);
+  pick(q3, 'Tc');
+  out.push('TWO=' + t1 + '/' + t2 + '/' + verdict(q3));
+  pick(q4, 'Tres');
+  out.push('MANY1=' + verdict(q4) + '/' + tags(q4) + '/' + hints(q4));
+  pick(q4, 'Tres', false); pick(q4, 'Uno');
+  out.push('MANY2=' + verdict(q4) + '/' + tags(q4) + '/' + hints(q4));
+  pick(q4, 'Dos');
+  out.push('MANY3=' + verdict(q4) + '/' + tags(q4) + '/' + hints(q4));
+  set(q4, '.kit-other input', true);
+  out.push('MANY4=' + verdict(q4) + '/' + tags(q4) + '/' + hints(q4));
+  q4.querySelector('.consult-clear').click();
+  set(q4, '.kit-other input', true);
+  out.push('MANY5=' + verdict(q4) + '/' + tags(q4) + '/' + hints(q4));
+  set(q4, '.kit-notnow input', true);
+  out.push('MANY6=' + verdict(q4) + '/' + tags(q4) + '/' + hints(q4));
+  q4.querySelector('.consult-clear').click();
+  pick(q1, 'No');
+  var cap = '';
+  Object.defineProperty(navigator, 'clipboard', { configurable: true,
+    value: { writeText: function (x) { cap = x; return Promise.resolve(); } } });
+  document.getElementById('consult-copy').click();
+  out.push('COPY=' + encodeURIComponent(cap).replace(/%/g, '~'));
+  document.title = 'STQ|' + out.join('|') + '|';
+});
+</script>
+HTML
+  bash "$WRAP" --title "stq" --lang es --out "$TMP/reports/$n.html" < "$STQ/$n.body.html" > "$STQ/$n.wrap.log" 2>&1 \
+    || fail "BL-715: the study probe page $n failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$STQ/$n.wrap.log" | sed -n 1,4p)"
+  rm -rf "$TMP/profile"
+  CHROME_WINDOW=1280,900 chrome_dump "$STQ/$n.dom.html" "file://$TMP/reports/$n.html" 45 || true
+  grep -oE '<title>[^<]*</title>' "$STQ/$n.dom.html" | sed -n 1p
+}
+ts="$(stq_page study 'profile="study"' $'::: section {#S1 eyebrow="1" heading="Estado"}\nUn componente es una función.\n:::\n')"
+# The same page again, same profile dir (so localStorage carries the pick): Q1 must come back checked WITH its verdict.
+CHROME_WINDOW=1280,900 chrome_dump "$STQ/study.rdom.html" "file://$TMP/reports/study.html?phase=reload" 45 || true
+tr="$(grep -oE '<title>[^<]*</title>' "$STQ/study.rdom.html" | sed -n 1p)"
+[[ "$ts" == *"|PRE=0/0/0/-/TINT=0|"* ]] \
+  || fail "BL-715: on a study page the recommended badge and the option hints must be hidden (not accessible either) before a pick (want PRE=0/0/0/-/TINT=0; TINT is the recommended option's tinted background): $ts"
+[[ "$ts" == *"|WRONG=1/2/No exactamente|"* ]] \
+  || fail "BL-715: a wrong pick must show 'No exactamente', the recommended badge (1) and the hints (2) (want WRONG=1/2/No exactamente): $ts"
+[[ "$ts" == *"|RIGHT=1/Correcto|"* ]] \
+  || fail "BL-715: the right pick must show 'Correcto' and keep the badge (want RIGHT=1/Correcto): $ts"
+[[ "$ts" == *"|CLEAR=0/0/-|"* ]] \
+  || fail "BL-715: Clear must hide the feedback, the badge and the hints again (want CLEAR=0/0/-): $ts"
+[[ "$ts" == *"|OPEN=2/-|"* ]] \
+  || fail "BL-715: an item with no recommended option must reveal its hints after a pick but show no verdict line (want OPEN=2/-): $ts"
+[[ "$ts" == *"|TWO=Correcto/Correcto/No exactamente|"* ]] \
+  || fail "BL-715: a radio item with two recommended options must read Correcto for either and No exactamente for a third (want TWO=Correcto/Correcto/No exactamente): $ts"
+[[ "$ts" == *"|MANY1=No exactamente/0/1|"* && "$ts" == *"|MANY2=No exactamente/0/1|"* ]] \
+  || fail "BL-715: a select=many item with a partial set must say No exactamente, show NO recommended badge (it would give the missing box away) and only the hints of the ticked boxes (want MANY1=No exactamente/0/1, MANY2=No exactamente/0/1): $ts"
+[[ "$ts" == *"|MANY3=Correcto/2/2|"* ]] \
+  || fail "BL-715: a select=many item whose ticked set equals the recommended set must read Correcto with both badges (want MANY3=Correcto/2/2): $ts"
+[[ "$ts" == *"|MANY4=No exactamente/0/2|"* ]] \
+  || fail "BL-715: the right set plus 'Other' is no longer the recommended set: No exactamente, badges hidden again (want MANY4=No exactamente/0/2): $ts"
+[[ "$ts" == *"|MANY5=-/0/0|"* && "$ts" == *"|MANY6=-/0/0|"* ]] \
+  || fail "BL-715: 'Other' alone or 'Not now' alone must reveal nothing (want MANY5=-/0/0, MANY6=-/0/0): $ts"
+[[ "$tr" == "<title>STQR|Q1=No|V=Correcto|</title>" ]] \
+  || fail "BL-715: after a reload the picked option must come back WITH its verdict (stored answers must not see the feedback line: want STQR|Q1=No|V=Correcto): $tr"
+tp="$(stq_page plain '' '')"
+[[ "$tp" == *"|PRE=1/2/2/-/TINT=1|"* && "$tp" == *"|WRONG=1/2/-|"* && "$tp" == *"|OPEN=2/-|"* && "$tp" == *"|TWO=-/-/-|"* && "$tp" == *"|MANY3=-/2/3|"* ]] \
+  || fail "BL-715: without profile=\"study\" the badge and hints must show before and after a pick and no verdict line may appear (want PRE=1/2/2/-/TINT=1, WRONG=1/2/-, TWO=-/-/-, MANY3=-/2/3): $tp"
+cs="${ts#*|COPY=}"; cp_="${tp#*|COPY=}"
+[[ "$cs" == "$cp_" && "$cs" == *"Q1"* ]] \
+  || fail "BL-715: the copied reply for the same pick must be byte-identical on a study page and a plain page: study=$cs plain=$cp_"
+
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other, the not-now choice, the multi-select item built from a spec, the ask row and the provisional state, the explicit theme, v4 answer sets, the all-decided page, the half-answered block, the gallery zoom dialog with its keyboard walk, the block filters that never reach the paste, the light/dark compare with its slider kept out of the paste, and the localised chrome included"

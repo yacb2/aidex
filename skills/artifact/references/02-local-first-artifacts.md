@@ -245,6 +245,10 @@ meets them; the rail lists them in that body order. Every other rule still appli
 (each item inside a block, the notes item last, the ledger before the first block
 still a real `.k`/`.v` ledger). The meta is read exactly: only `content="study"`. Unknown values are refused, naming
 the valid ones (`study`). A page without the attribute keeps the rule above unchanged.
+On a study page the composer also withholds the answer: the `{recommended}` badge and the option
+hints stay hidden (not in the accessible text either) until the reader picks. A pick shows them plus
+one `Correcto` / `No exactamente` line (`Correct` / `Not quite` in English) when the item has a
+recommended option; Clear hides them again. The copied reply is unchanged.
 
 ### The verbs: editing a page that already exists
 
