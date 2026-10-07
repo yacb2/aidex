@@ -230,6 +230,28 @@ for flag in ("yes", "TRUE", "1", " yes "):
             "pass the chosen option's label")
 check("...and records a label verdict on the same item",
       'decided="Fences de Pandoc"' in decide(PAGE, "Q1", "Fences de Pandoc"))
+# An option LABELLED `Yes` (mutations_gate's English `Sí`): the builder reads
+# decided=Yes as the settled flag and checks the {chosen} option, else the
+# {recommended} one. When the {chosen} one is labelled Yes, the verdict is the
+# reader's own choice and is recorded; otherwise the page could check another
+# option, so the refusal must say what to do, not ask for the label it was
+# given (u5-verbs B-c18).
+YES_OPTS = "- Fences de Pandoc — prosa con marcas mínimas {recommended}\n" \
+           "- YAML anidado — estructura explícita"
+try:
+    got = decide(PAGE.replace(YES_OPTS, "- Yes {chosen}\n- No"), "Q1", "Yes")
+except VerbError as exc:
+    got = str(exc)
+check("decide records 'Yes' when it is the label of the {chosen} option",
+      'decided="Yes"' in got, got)
+refuses("decide refuses 'Yes' when the builder would check another option",
+        lambda: decide(PAGE.replace(YES_OPTS, "- Yes\n- No {recommended}"),
+                       "Q1", "Yes"),
+        "mark the 'Yes' option {chosen} first")
+refuses("...and reads the verdict in its plain form, as the builder does",
+        lambda: decide(PAGE.replace(YES_OPTS, "- Yes\n- No {recommended}"),
+                       "Q1", "**Yes**"),
+        "mark the 'Yes' option {chosen} first")
 
 PREFIXED = ('::: masthead {title="T" visual="none: x"}\nUna.\n:::\n\n'
             '::: group {#G1 title="G"}\n'
@@ -348,6 +370,28 @@ refuses("...and reads the compound key by TOKEN, not whole-string",
         "already used by a ledger row")
 check("...while an id no ledger token names is still accepted",
       '::: item {#Q8 title="Otra"}' in add_item(SETTLED, "G1", "Q8", "Otra"))
+
+# A row with no ` — ` has no KEY: `emit_ledger` ships it as a `.v` cell alone
+# and `check_artifact.ledger_ids` reads no id out of it. Its words are prose,
+# so they name no settled item (u5-verbs B-c17).
+FREE_ROW = PAGE.replace(
+    "::: notes",
+    "::: ledger\n- Se cerró Q2 en la reunión general\n:::\n\n::: notes", 1)
+check("new-round still files a decided item a KEY-LESS row mentions in prose",
+      "- Q2 — Marcador de columna\n" in new_round(FREE_ROW), new_round(FREE_ROW))
+try:
+    free_add = add_item(FREE_ROW, "G1", "general", "Otra")
+except VerbError as exc:
+    free_add = str(exc)
+check("...and add-item accepts an id that is only a word of a key-less row",
+      '::: item {#general title="Otra"}' in free_add, free_add)
+BARE_ROW = PAGE.replace("::: notes", "::: ledger\n- Q2\n:::\n\n::: notes", 1)
+bare_rows = [ln for ln in decide(new_round(BARE_ROW), "Q2",
+                                 "No, un atributo nuevo").split("\n")
+             if ln.startswith("- Q2 — ")]
+check("...and decide moves the row new-round wrote, not a key-less `- Q2` row",
+      len(bare_rows) == 1 and bare_rows[0].endswith("(No, un atributo nuevo)"),
+      str(bare_rows))
 
 NESTED_LEDGER = PAGE.replace(
     "::: item {#Q1",
