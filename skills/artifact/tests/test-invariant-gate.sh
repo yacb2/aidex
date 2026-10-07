@@ -56,6 +56,12 @@ cat > "$LINES/rounds_gate.py" <<'PY'
 import os
 print(os.environ.get("FAKE_ROUNDS", "rounds: 0/0"))
 PY
+cat > "$LINES/galleries_gate.py" <<'PY'
+import os, sys
+if "--expected" in sys.argv:
+    print(os.environ.get("FAKE_GAL_EXP", "1")); sys.exit(0)
+print(os.environ.get("FAKE_GAL", "galleries: 0/0"))
+PY
 export AIDEX_GATE_LINE_SCRIPTS="$LINES"
 GREEN_STUBS='generated=300/300,rounds=50/50,mutations=1/1,galleries=1/1,hunts-clean=2'
 gate() {   # gate PROBE [STUBS] -> $TMP/out; exit code in $rc; stderr in $TMP/err
@@ -134,9 +140,13 @@ FAKE_MUT="" gate probe-clean "$GN"; out="$(<"$TMP/out")"
 FAKE_MUT="mutations: 3/3 extra" gate probe-clean "$GN"; out="$(<"$TMP/out")"
 [[ "$(sed -n 5p <<<"$out")" == "mutations: 0/unknown" ]] && ok "a malformed line reads 0/unknown" || bad "malformed: $out"
 
+FAKE_GAL="galleries: 5/6 (2 migrated)" FAKE_GAL_EXP=6 gate probe-clean "hunts-clean=2"; out="$(<"$TMP/out")"
+[[ "$(sed -n 6p <<<"$out")" == "galleries: 5/6 (2 migrated)" && $rc -eq 1 ]] && ok "galleries: is its script's own line, migrated suffix kept" || bad "wired gal: $out"
+FAKE_GAL="galleries: 6/6 (2 migrated)" FAKE_GAL_EXP=7 gate probe-clean "hunts-clean=2"; out="$(<"$TMP/out")"
+[[ $rc -eq 1 ]] && ok "galleries 6/6 below its pinned --expected 7 is RED" || bad "gal pin: rc=$rc $out"
 echo "== all green (main() with STUBS patched at the Python level) =="
 for exp in 4 3; do
-  FAKE_ROUNDS="rounds: 50/50" FAKE_GEN="generated: 300/300" FAKE_MUT="mutations: 3/3" FAKE_EXP=$exp AIDEX_RENDER_PROBE="$TMP/probe-clean.sh" AIDEX_SPEC_CORPUS="$CORP" python3 - "$HERE" >"$TMP/out" 2>&1 <<'PY'
+  FAKE_GAL="galleries: 1/1" FAKE_ROUNDS="rounds: 50/50" FAKE_GEN="generated: 300/300" FAKE_MUT="mutations: 3/3" FAKE_EXP=$exp AIDEX_RENDER_PROBE="$TMP/probe-clean.sh" AIDEX_SPEC_CORPUS="$CORP" python3 - "$HERE" >"$TMP/out" 2>&1 <<'PY'
 import sys
 sys.path.insert(0, sys.argv[1])
 import invariant_gate as g
@@ -147,7 +157,7 @@ PY
   if [[ $exp == 4 ]]; then [[ $rc -eq 1 ]] && ok "3/3 below the pinned --expected 4 is RED" || bad "shrunk Y read green: $(<"$TMP/out")"
   else [[ $rc -eq 0 ]] && ok "3/3 at the pinned --expected 3 is green" || bad "pinned green: rc=$rc $(<"$TMP/out")"; fi
 done
-FAKE_ROUNDS="rounds: 50/50" FAKE_GEN="generated: 300/300" FAKE_MUT="mutations: 1/1" AIDEX_RENDER_PROBE="$TMP/probe-clean.sh" AIDEX_SPEC_CORPUS="$CORP" python3 - "$HERE" >"$TMP/out" 2>"$TMP/err" <<'PY'
+FAKE_GAL="galleries: 1/1" FAKE_ROUNDS="rounds: 50/50" FAKE_GEN="generated: 300/300" FAKE_MUT="mutations: 1/1" AIDEX_RENDER_PROBE="$TMP/probe-clean.sh" AIDEX_SPEC_CORPUS="$CORP" python3 - "$HERE" >"$TMP/out" 2>"$TMP/err" <<'PY'
 import sys
 sys.path.insert(0, sys.argv[1])
 import invariant_gate as g

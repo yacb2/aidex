@@ -9,7 +9,8 @@
     mutations: X/Y   WIRED: tests/mutations_gate.py's own line; its `--expected` count is the
                      minimum Y, so a shrunk case set reads RED; no line reads `0/unknown`
     rounds: X/Y      WIRED: tests/rounds_gate.py (50 seeded round sequences; Y >= 50)
-    galleries / hunts-clean
+    galleries: X/Y   WIRED: tests/galleries_gate.py (frozen manifest + generated cases; pinned by --expected)
+    hunts-clean
                      STUBS: later units replace them; until then they print 0/0 and 0 and the gate stays RED (counts below the loop-spec minimums)
 
 Every line has an explicit minimum, so a 0/0 never reads green: catalog >= 12, corpus total >= 1,
@@ -47,7 +48,8 @@ STUBS = {"generated": "0/0", "rounds": "0/0", "mutations": "0/0", "galleries": "
 # Lines measured by their own script (one stdout line `<key>: X/Y`); a pinned script also answers
 # `--expected` with its Y, which becomes that line's minimum so the case set cannot shrink unseen.
 WIRED = {"mutations": ("mutations_gate.py", True), "generated": ("generated_gate.py", False),
-         "rounds": ("rounds_gate.py", False)}
+         "rounds": ("rounds_gate.py", False), "galleries": ("galleries_gate.py", True)}
+SUFFIX = {}   # key -> " (N migrated)" when the line's script reports migrated units
 LINE_SCRIPTS = os.environ.get("AIDEX_GATE_LINE_SCRIPTS") or HERE
 
 
@@ -56,7 +58,7 @@ def wired_line(key):
     script, pinned = WIRED[key]
     path = os.path.join(LINE_SCRIPTS, script)
     r = subprocess.run([sys.executable, path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    m = re.fullmatch(r"%s: (\d+/\d+)\n?" % re.escape(key), r.stdout)
+    m = re.fullmatch(r"%s: (\d+/\d+)( \(\d+ migrated\))?\n?" % re.escape(key), r.stdout)
     if not m or r.returncode not in (0, 1):
         print("invariant-gate: %s gave no `%s: X/Y` line (rc=%d): %s"
               % (script, key, r.returncode, (r.stderr.strip() or r.stdout.strip())[-300:]), file=sys.stderr)
@@ -68,6 +70,7 @@ def wired_line(key):
             print("invariant-gate: %s --expected gave no count" % script, file=sys.stderr)
             return "0/unknown"
         MIN[key] = max(MIN[key], int(e.stdout.strip()))
+    SUFFIX[key] = m.group(2) or ""
     return m.group(1)
 
 
@@ -162,7 +165,7 @@ def main(argv):
     for k in WIRED:
         if k not in overridden:
             stubs[k] = wired_line(k)
-    lines = ["catalog: %d" % n, cline] + ["%s: %s%s" % (k, stubs[k], " (override)" if k in overridden else "")
+    lines = ["catalog: %d" % n, cline] + ["%s: %s%s%s" % (k, stubs[k], SUFFIX.get(k, ""), " (override)" if k in overridden else "")
                                           for k in STUBS]
     print("\n".join(lines))
     green = n >= MIN["catalog"] and cgreen
