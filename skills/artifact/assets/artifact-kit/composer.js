@@ -326,6 +326,14 @@
   /* Not a chip and never ticked: a qualifier the composer appends to a chosen
    * option when an ask sits beside it. See isProvisional. */
   var PROVISIONAL = '[provisional]';
+  /* A short-value box: any text-like <input>, not only a literal type="text".
+   * check_artifact accepts an <input> with no type as a reply surface, and an
+   * attribute selector never matches an attribute that is not written, so a
+   * typeless or number box was neither counted, pasted nor stored (C-c08).
+   * Enumerated rather than "not radio/checkbox": the kit's own range slider is
+   * an <input> too and is not an answer. */
+  var SHORT_VALUE = 'input:not([type]), input[type="text"], input[type="number"], ' +
+    'input[type="date"], input[type="email"], input[type="url"]';
 
   // Built with DOM nodes rather than innerHTML: the id and the title are author
   // text, and a title carrying an angle bracket would otherwise be parsed as
@@ -884,7 +892,7 @@
   }
 
   function answerValues(el) {
-    return [].slice.call(el.querySelectorAll('select, input[type="text"]'))
+    return [].slice.call(el.querySelectorAll('select, ' + SHORT_VALUE))
       .filter(function (x) { return String(x.value || '').trim() !== ''; });
   }
 
@@ -916,7 +924,7 @@
     el.querySelectorAll('select').forEach(function (s) {
       if (s.value) parts.push(s.options[s.selectedIndex].text.trim() + (prov ? ' ' + PROVISIONAL : ''));
     });
-    el.querySelectorAll('input[type="text"]').forEach(function (i) {
+    el.querySelectorAll(SHORT_VALUE).forEach(function (i) {
       if (i.value.trim()) parts.push(i.value.trim() + (prov ? ' ' + PROVISIONAL : ''));
     });
     el.querySelectorAll('[contenteditable]').forEach(function (c) {
@@ -1112,7 +1120,7 @@
    * array from a v18 page simply matches nothing on restore. */
   var FREE = [
     { k: 's', q: 'select' },
-    { k: 't', q: 'input[type="text"]' },
+    { k: 't', q: SHORT_VALUE },
     { k: 'c', q: '[contenteditable]' },
     { k: 'a', q: 'textarea:not(.kit-defect-text)' },
     { k: 'd', q: 'textarea.kit-defect-text' }
