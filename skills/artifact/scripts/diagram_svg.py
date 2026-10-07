@@ -72,6 +72,7 @@ sys.path.insert(0, os.path.join(_HERE, "dash"))
 sys.path.insert(0, _HERE)
 from _shell import esc                             # noqa: E402
 import diagram_layout as dl                        # noqa: E402
+from chart_svg import _num                          # noqa: E402,F401
 
 # --- Excalidraw architect-mode values ---------------------------------------
 # Read from github.com/excalidraw/excalidraw (master, 2026-09-29): "architect"
@@ -112,22 +113,6 @@ MONO = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
 SWAP_CSS = ("figure svg.dg-narrow{display:none}"
             "@media (max-width: 48rem){figure svg.dg-wide{display:none}"
             "figure svg.dg-narrow{display:block}}")
-
-
-def _num(x):
-    """A float as the shortest stable decimal string.
-
-    The same function `chart_svg.py` carries, for the same reason: `repr()` of
-    a float has a tail that differs between inputs that draw identically, and
-    `-0.0` prints a minus sign for a value that is zero. Two decimals is finer
-    than a pixel at this size, and it is what makes two builds byte-identical.
-    """
-    v = round(float(x), 2)
-    if v == 0:
-        v = 0.0
-    s = "%.2f" % v
-    s = s.rstrip("0").rstrip(".")
-    return s or "0"
 
 
 def _path(points):

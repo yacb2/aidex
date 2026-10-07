@@ -83,6 +83,7 @@ sys.path.insert(0, os.path.join(HERE, "dash"))
 
 import check_artifact                                       # noqa: E402
 import contract_defects                                     # noqa: E402
+import gallery_items                                        # noqa: E402
 import md_body                                              # noqa: E402
 from _usage import UsageParser, usage_exit                  # noqa: E402
 import spec_build                                           # noqa: E402
@@ -162,8 +163,6 @@ def _ledger_keys(ledger):
     """The KEY half of each row of `ledger` — the text before the hint
     separator, exactly the span `spec_build.emit_ledger` turns into `.k`."""
     out = []
-    if ledger is None:
-        return out
     for child in ledger.children:
         for ln in child.raw_body:
             if md_body.MARKER.match(ln):
@@ -214,19 +213,6 @@ def _parse(text, where):
     except SpecSyntaxError as exc:
         raise VerbError("%s does not parse (line %d: %s) — fix the spec before "
                         "a verb can edit it" % (where, exc.line, exc.message))
-
-
-def _quotable(value):
-    """An attr value spelled for a fence line, escapes included.
-
-    `spec_parser.quote_value` and nothing else: this file WRITES the syntax the
-    tokenizer reads, and a second opinion here about which characters need a
-    backslash is how the two stop agreeing. It used to REFUSE a value holding a
-    double quote, because the grammar had no escape for one; it has had `\\"`
-    since the corpus conversion (`03-spec-grammar.md` § Values and quoting), so
-    a title the author really wrote now round-trips instead of being rejected.
-    """
-    return spec_parser.quote_value(value)
 
 
 def _blankish(lines, index):
@@ -288,7 +274,7 @@ def add_item(spec_text, group_id, item_id, title, body="", options=()):
                         "has are: %s" % (group_id,
                                          ", ".join("#" + i for i in known)
                                          or "(none)"))
-    block = ['::: item {#%s title=%s}' % (item_id, _quotable(title))]
+    block = ['::: item {#%s title=%s}' % (item_id, spec_parser.quote_value(title))]
     body_lines = [ln for ln in body.split("\n")] if body else []
     while body_lines and not body_lines[-1].strip():
         body_lines.pop()
@@ -383,7 +369,7 @@ def _match_labels(said, labels, many):
     return ", ".join(got)
 
 
-_OTHER_LABELS = ("otra — lo explico en las notas", "other — see my notes")
+_OTHER_LABELS = tuple(o.lower() for o in gallery_items.OTHER)
 
 
 def _reply_answer(reply, item_id, ids, labels=(), many=False):
@@ -612,6 +598,16 @@ def decide(spec_text, item_id, verdict, reply=None):
     return "\n".join(lines)
 
 
+def _ledger_row(item_id, title, verdict):
+    """The ledger row `new-round` writes for a decided item. `yes`/`true` is
+    the plain "this is settled" mark and says nothing a row should repeat; any
+    other value is the verdict TEXT the author wrote and belongs in the row
+    beside the title. `_update_ledger_row` rebuilds the same row to find it."""
+    v = verdict.strip()
+    return "- %s%s%s" % (item_id, SEP, title if v in ("yes", "true", "")
+                         else "%s (%s)" % (title, v))
+
+
 def _update_ledger_row(lines, tree, node, old_verdict, verdict):
     """A verdict recorded after `new-round` already filed the item leaves its
     ledger row with the OLD verdict (BL-692 review). Only a row `_sync_ledger`
@@ -623,9 +619,7 @@ def _update_ledger_row(lines, tree, node, old_verdict, verdict):
         node.id, node.attrs.get("title", "").strip()) or node.id
 
     def row(v):
-        v = v.strip()
-        return "- %s%s%s" % (node.id, SEP, title if v in ("yes", "true", "")
-                             else "%s (%s)" % (title, v))
+        return _ledger_row(node.id, title, v)
 
     for ledger in _ledgers(tree):
         for i in range(ledger.line, _end_line(ledger) - 1):
@@ -650,17 +644,17 @@ def _set_attr(lines, node, name, value):
     brace = line.find("{")
     if brace < 0:                        # `item` requires an #id; a masthead may not
         pad = "" if line.endswith(" ") else " "
-        new = line + pad + "{%s=%s}" % (name, _quotable(value))
+        new = line + pad + "{%s=%s}" % (name, spec_parser.quote_value(value))
     else:
         spans = {}
         _, _, _, end = spec_parser._parse_attrs(node.line, line, brace, spans)
         if name in spans:
             lo, hi = spans[name]
-            new = line[:lo] + "%s=%s" % (name, _quotable(value)) + line[hi:]
+            new = line[:lo] + "%s=%s" % (name, spec_parser.quote_value(value)) + line[hi:]
         else:
             close = end - 1              # the index of the closing '}'
             pad = "" if (close and line[close - 1] in " \t") else " "
-            new = (line[:close] + pad + "%s=%s" % (name, _quotable(value))
+            new = (line[:close] + pad + "%s=%s" % (name, spec_parser.quote_value(value))
                    + line[close:])
     if new == line:
         return False
@@ -821,12 +815,7 @@ def _sync_ledger(spec_text):
         title = spec_build.clean_item_title(
             node.id, node.attrs.get("title", "").strip()) or node.id
         verdict = node.attrs["decided"].strip()
-        # `yes`/`true` is the plain "this is settled" mark and says nothing a
-        # row should repeat; any other value is the verdict TEXT the author
-        # wrote and belongs in the row beside the title.
-        value = title if verdict in ("yes", "true") else "%s (%s)" % (title,
-                                                                      verdict)
-        rows.append("- %s%s%s" % (node.id, SEP, value))
+        rows.append(_ledger_row(node.id, title, verdict))
     if not rows:
         return spec_text
 
@@ -1084,10 +1073,6 @@ def add_item_file(spec_path, group_id, item_id, title, body="", options=(),
                       out=out, lang=lang)
 
 
-def decide_file(spec_path, item_id, verdict, out=None, lang=None):
-    return decide_many_file(spec_path, [(item_id, verdict)], out=out, lang=lang)
-
-
 def decide_many_file(spec_path, pairs, out=None, lang=None):
     """Record several `(id, verdict)` pairs, then rebuild ONCE: one reader reply
     that decides N items is one round, not N (BL-497). One refused pair refuses
@@ -1226,10 +1211,7 @@ def main(argv):
             out = new_round_file(args.spec, out=args.out, lang=args.lang,
                                  dropped=[i.lstrip("#") for i in args.dropped],
                                  retitled=[i.lstrip("#") for i in args.retitled])
-    except VerbError as exc:
-        sys.stderr.write("spec-verbs %s: %s\n" % (args.verb, exc))
-        return 1
-    except BuildFailed as exc:
+    except (VerbError, BuildFailed) as exc:
         sys.stderr.write("spec-verbs %s: %s\n" % (args.verb, exc))
         return 1
     sys.stdout.write("%s\n" % out)

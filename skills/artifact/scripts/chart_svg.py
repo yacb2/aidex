@@ -107,7 +107,6 @@ PAD_T = 16
 LEGEND_H = 24          # extra top room when a legend is drawn
 PLOT_H = 220
 TICK_SIZE = 11
-LABEL_SIZE = 11
 LEGEND_SIZE = 11
 LEGEND_SWATCH = 10
 # `_text_width` is 0.62 em a character; a line of capitals is nearer 0.72, so a
@@ -637,7 +636,7 @@ def _vertical(kind, labels, series, unit, lang, show_labels, ytitle, xtitle,
     dec = None
     bounds = (x0, y0 - room, float(g.w), y1 + room)
     if kind == "bar":
-        marks = _bars(labels, series, x0, slot, zero, ypix)
+        marks = _bars(series, x0, slot, zero, ypix)
         cands = [((si, i), v, _fmt(v, dec, lang, signed), x + w / 2.0,
                   ([y - 4, y - 6 - g.value] if v >= 0 else
                    [y + h + 4 + g.value, y + h + 6 + 2 * g.value]), "middle")
@@ -855,7 +854,7 @@ def _stacked(labels, series, unit, g=WIDE, lang="en"):
     return "\n".join(out)
 
 
-def _bars(labels, series, x0, slot, zero, ypix):
+def _bars(series, x0, slot, zero, ypix):
     """Every bar's geometry: `[(si, i, v, x, y, width, height)]`."""
     out = []
     group = slot * BAR_GROUP

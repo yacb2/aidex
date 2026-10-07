@@ -135,7 +135,7 @@ GAP = 32.0             # between two adjacent boxes in a row. Never 0: this is
 LANE_V = 46.0          # between the two lanes' rows of a before-after
 TITLE_LINE_H = 14.0    # between two lines of a wrapped lane title
 TITLE_DROP = 9.0       # a lane title's baseline above its boxes' top edge
-ARC = 34.0             # how far a before-after's curved arrow bows out
+ARC = 34.0             # test_diagram tolerances only: no route bows out since the straight-only row
 # A `row`'s detours are orthogonal and ONE LANE PER ARROW: a lane is the
 # stretch of line one arrow runs along outside the boxes, and no two arrows
 # that could be confused share one (`_lanes`).
@@ -838,37 +838,15 @@ def _tip(p0, p1):
 
 
 def _route_row(boxes, arrows, by_name):
-    """The arrows of one left-to-right run, and how each is routed.
-
-    Three cases, and each is a stated behaviour rather than a fallback:
-
-      ADJACENT FORWARD (i -> i+1) — a straight segment across the GAP corridor.
-      FORWARD, SKIPPING (i -> j, j > i+1) — a curve ABOVE the run. Drawn
-        straight it would pass through every box between the two.
-      BACKWARD (i -> j, j < i) — a curve BELOW the run, so it cannot be
-        confused with, or drawn over, the forward arrows above it. It is also
-        the one that gets the `flg` tone: a retry edge drawn like a forward one
-        is the thing a reader cannot recover from the picture.
-    """
-    order = {b.name: i for i, b in enumerate(boxes)}
+    """The arrows of one left-to-right run: each a straight segment across the
+    GAP corridor from a box to the next one (i -> i+1). `_check_lanes` refuses
+    every other arrow in a `before-after`, so no curved route is needed here."""
     routes = []
     for a in arrows:
-        i, j = order[a.src], order[a.dst]
         s, d = by_name[a.src], by_name[a.dst]
-        if j == i + 1:
-            p0 = (s.x + s.w, s.cy)
-            p1 = (d.x, d.cy)
-            routes.append(Route([p0, p1], _tip(p0, p1), "mut"))
-        elif j > i:
-            p0 = (s.cx, s.y)
-            p1 = (d.cx, d.y)
-            c = ((p0[0] + p1[0]) / 2.0, s.y - ARC)
-            routes.append(Route([p0, c, p1], _tip(c, p1), "mut"))
-        else:
-            p0 = (s.cx, s.y + s.h)
-            p1 = (d.cx, d.y + d.h)
-            c = ((p0[0] + p1[0]) / 2.0, s.y + s.h + ARC)
-            routes.append(Route([p0, c, p1], _tip(c, p1), "flg"))
+        p0 = (s.x + s.w, s.cy)
+        p1 = (d.x, d.cy)
+        routes.append(Route([p0, p1], _tip(p0, p1), "mut"))
     return routes
 
 
@@ -1712,8 +1690,6 @@ def _bounds(boxes, routes, titles, divider):
     if divider:
         xs += [divider[0], divider[2]]
         ys.append(divider[1])
-    if not xs:                                     # unreachable: 0 boxes is
-        xs, ys = [0.0], [0.0]                      # refused at the fence
     return min(xs), min(ys), max(xs), max(ys)
 
 

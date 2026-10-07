@@ -665,7 +665,7 @@ const invariants = () => {
 };
 
 if (inv) {
-  const results = []; let n = 0, bad = 0;
+  let n = 0, bad = 0;
   for (const f of files) {
     current = f;
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
