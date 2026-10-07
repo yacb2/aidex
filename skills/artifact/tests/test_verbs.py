@@ -907,7 +907,7 @@ try:
                  '"kind": "review", "look": "the table", "after": "%s"}]}' % rel)
     try:
         first_build(gspec)
-        gout = spec_verbs.decide_file(gspec, "Q1", V)
+        gout = spec_verbs.decide_many_file(gspec, [("Q1", V)])
         check("decide on a gallery spec returns the page it rebuilt",
               gout == os.path.join(gdir, "page.html"), gout)
         check("...whose tiles link the copies beside it",
@@ -922,7 +922,7 @@ try:
     novis = fresh("novisual", build=False, text=PAGE.replace(
         ' visual="none: la decisión es de formato y no tiene forma que dibujar"', "", 1))
     try:
-        spec_verbs.decide_file(novis, "Q1", V)
+        spec_verbs.decide_many_file(novis, [("Q1", V)])
         fail("decide on a spec with no visual= was not refused")
     except VerbError as exc:
         check("decide on a spec with no visual= names the masthead rule and the spec as it stands",

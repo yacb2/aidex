@@ -298,6 +298,15 @@ def _prose_lines(node):
     would put a `<section>` inside an `<h3>`.
     """
     out = []
+    for child in _prose_children(node, "prose"):
+        out.extend(child.raw_body)
+    return out
+
+
+def _prose_children(node, body):
+    """The children of a leaf block, each one a prose run; a nested fence is
+    refused, naming what the block's `body` is. Shared by `_prose_lines` and
+    `_data_lines`, whose refusals are one and the same."""
     for child in node.children:
         # An authored `::: prose` is a FENCE, not one of this body's prose runs:
         # its lines are in its own children, so folding it in here would take
@@ -311,9 +320,8 @@ def _prose_lines(node):
             _check_parent(child, node.block_type)
             raise SpecBuildError(
                 child.line, "`%s` cannot contain a `%s` block — its body is "
-                "prose" % (node.block_type, child.block_type))
-        out.extend(child.raw_body)
-    return out
+                "%s" % (node.block_type, child.block_type, body))
+        yield child
 
 
 def _classes(base, node):
@@ -343,6 +351,16 @@ def emit_prose(node, ctx):
     if node.authored:
         _refuse_prose_fence(node)
     return md_body.fragment(node.text)
+
+
+def _sec_head(eyebrow, heading):
+    """The `.sec-head` block `section` and `group` both open with."""
+    out = ['  <div class="sec-head">']
+    if eyebrow:
+        out.append('    <p class="eyebrow">%s</p>' % md_body._inline(eyebrow))
+    out.append("    <h2>%s</h2>" % md_body._inline(heading))
+    out.append("  </div>")
+    return out
 
 
 @emitter("section", parents=(None,))
@@ -383,11 +401,7 @@ def emit_section(node, ctx):
     classes = " ".join(node.classes)
     out = ['<section%s id="%s">'
            % (' class="%s"' % esc(classes) if classes else "", esc(node.id))]
-    out.append('  <div class="sec-head">')
-    if a.get("eyebrow"):
-        out.append('    <p class="eyebrow">%s</p>' % md_body._inline(a["eyebrow"]))
-    out.append("    <h2>%s</h2>" % md_body._inline(a["heading"]))
-    out.append("  </div>")
+    out.extend(_sec_head(a.get("eyebrow"), a["heading"]))
     out.extend(emit_children(node, ctx))
     out.append("</section>")
     return "\n".join(out)
@@ -511,11 +525,7 @@ def emit_group(node, ctx):
     out = ['<section class="%s" id="%s" data-id="%s" data-title="%s">'
            % (_classes("consult-group", node), esc(node.id), esc(node.id),
               esc(a["title"]))]
-    out.append('  <div class="sec-head">')
-    if a.get("eyebrow"):
-        out.append('    <p class="eyebrow">%s</p>' % md_body._inline(a["eyebrow"]))
-    out.append("    <h2>%s</h2>" % md_body._inline(heading))
-    out.append("  </div>")
+    out.extend(_sec_head(a.get("eyebrow"), heading))
     out.extend(emit_children(node, ctx))
     # The block's own free text (BL-701), always last: page, block and item each
     # carry a notes box, and check-artifact fails a block without one.
@@ -1142,13 +1152,19 @@ def emit_gallery(node, ctx):
                                         require_look=True, lead=lead_html,
                                         items=items, refuse_bare_rows=True)
     except SystemExit:
-        said = [ln for ln in err.getvalue().splitlines() if ln.strip()]
         raise SpecBuildError(
             node.line,
             "`gallery` rows=%r was refused: %s"
-            % (a["rows"], said[-1].strip() if said
-               else "the rows document is not usable")) from None
+            % (a["rows"], _said(err, "the rows document is not usable"))
+        ) from None
     return html.rstrip("\n")
+
+
+def _said(err, fallback):
+    """The last non-blank line `gallery_items` wrote before its `die()`, or
+    `fallback`: the reason a SystemExit from it is carried as a refusal."""
+    said = [ln for ln in err.getvalue().splitlines() if ln.strip()]
+    return said[-1].strip() if said else fallback
 
 
 def _checkout_root(node, base_dir):
@@ -1272,18 +1288,9 @@ def _data_lines(node):
     for a nested fence and for `::: prose` are the same ones `_prose_lines`
     raises, and for the same reasons.
     """
-    out = []
-    for child in node.children:
-        if child.block_type == "prose" and child.authored:
-            _refuse_prose_fence(child)
-        if child.block_type != "prose":
-            _check_parent(child, node.block_type)
-            raise SpecBuildError(
-                child.line, "`%s` cannot contain a `%s` block — its body is "
-                "data rows" % (node.block_type, child.block_type))
-        for i, ln in enumerate(child.raw_body):
-            out.append((child.line + i, ln))
-    return out
+    return [(child.line + i, ln)
+            for child in _prose_children(node, "data rows")
+            for i, ln in enumerate(child.raw_body)]
 
 
 @emitter("chart")
@@ -1454,8 +1461,6 @@ def _jpeg_size(path):
     before it (APPn, DQT, ...). None when there is no SOF to read."""
     with open(path, "rb") as fh:
         data = fh.read()
-    if data[:2] != b"\xff\xd8":
-        return None
     i = 2
     while i + 9 <= len(data) and data[i] == 0xFF:
         marker = data[i + 1]
@@ -1500,13 +1505,35 @@ def _highlighted(img, path, src, value, node):
             layer = gallery_items.highlight_layer(
                 regions, size[0], size[1], src, "figure")
     except SystemExit:
-        said = [ln for ln in err.getvalue().splitlines() if ln.strip()]
-        why = said[-1].strip() if said else "not usable"
+        why = _said(err, "not usable")
         why = why.replace("gallery-items: row '%s': " % src, "", 1)
         refuse(why)
     # The kit class gives the wrapper `position: relative` and the img the
     # width an unhighlighted figure's img gets, so the overlay is exact.
     return '<div class="fig-hl">%s%s</div>' % (img, layer)
+
+
+def _local_file(node, ctx, attr, value, types, what):
+    """`(extension, path)` of a spec-relative file attr, or the refusal: not
+    absolute, one of `types` (`what` is the sentence's verb, "a figure embeds"),
+    and a file that exists beside the spec."""
+    if os.path.isabs(value):
+        raise SpecBuildError(
+            node.line, "`%s` %s=%r is absolute — write it relative to the "
+            "spec, so the spec builds from any checkout"
+            % (node.block_type, attr, value))
+    ext = os.path.splitext(value)[1].lower()
+    if ext not in types:
+        raise SpecBuildError(
+            node.line, "`%s` %s=%r has type %r; %s %s"
+            % (node.block_type, attr, value, ext or "(none)", what,
+               ", ".join(types)))
+    path = os.path.join(ctx.base_dir, value)
+    if not os.path.isfile(path):
+        raise SpecBuildError(
+            node.line, "`%s` %s=%r: no such file (looked in %s)"
+            % (node.block_type, attr, value, ctx.base_dir))
+    return ext, path
 
 
 @emitter("figure")
@@ -1529,20 +1556,8 @@ def emit_figure(node, ctx):
     a = _attrs(node, {"src", "title", "alt", "highlight"}, required=("src",))
     _no_children(node)
     src = a["src"].strip()
-    if os.path.isabs(src):
-        raise SpecBuildError(
-            node.line, "`figure` src=%r is absolute — write it relative to the "
-            "spec, so the spec builds from any checkout" % src)
-    ext = os.path.splitext(src)[1].lower()
-    if ext not in FIGURE_TYPES:
-        raise SpecBuildError(
-            node.line, "`figure` src=%r has type %r; a figure embeds %s"
-            % (src, ext or "(none)", ", ".join(FIGURE_TYPES)))
-    path = os.path.join(ctx.base_dir, src)
-    if not os.path.isfile(path):
-        raise SpecBuildError(
-            node.line, "`figure` src=%r: no such file (looked in %s)"
-            % (src, ctx.base_dir))
+    ext, path = _local_file(node, ctx, "src", src, FIGURE_TYPES,
+                            "a figure embeds")
     alt = a.get("alt", "").strip()
     cap = ""
     if ext == ".svg":
@@ -1634,20 +1649,8 @@ def emit_video(node, ctx):
     a = _attrs(node, {"src", "title", "poster"}, required=("src",))
     _no_children(node)
     src = a["src"].strip()
-    if os.path.isabs(src):
-        raise SpecBuildError(
-            node.line, "`video` src=%r is absolute — write it relative to the "
-            "spec, so the spec builds from any checkout" % src)
-    ext = os.path.splitext(src)[1].lower()
-    if ext not in VIDEO_TYPES:
-        raise SpecBuildError(
-            node.line, "`video` src=%r has type %r; a video references %s"
-            % (src, ext or "(none)", ", ".join(VIDEO_TYPES)))
-    path = os.path.join(ctx.base_dir, src)
-    if not os.path.isfile(path):
-        raise SpecBuildError(
-            node.line, "`video` src=%r: no such file (looked in %s)"
-            % (src, ctx.base_dir))
+    ext, path = _local_file(node, ctx, "src", src, VIDEO_TYPES,
+                            "a video references")
     def local_href(rel, path):
         href = rel
         if ctx.page:
@@ -1660,20 +1663,8 @@ def emit_video(node, ctx):
     poster = ""
     if a.get("poster", "").strip():
         pst = a["poster"].strip()
-        if os.path.isabs(pst):
-            raise SpecBuildError(
-                node.line, "`video` poster=%r is absolute — write it relative "
-                "to the spec, so the spec builds from any checkout" % pst)
-        pext = os.path.splitext(pst)[1].lower()
-        if pext not in POSTER_TYPES:
-            raise SpecBuildError(
-                node.line, "`video` poster=%r has type %r; a poster is %s"
-                % (pst, pext or "(none)", ", ".join(POSTER_TYPES)))
-        ppath = os.path.join(ctx.base_dir, pst)
-        if not os.path.isfile(ppath):
-            raise SpecBuildError(
-                node.line, "`video` poster=%r: no such file (looked in %s)"
-                % (pst, ctx.base_dir))
+        _pext, ppath = _local_file(node, ctx, "poster", pst, POSTER_TYPES,
+                                   "a poster is")
         poster = ' poster="%s"' % esc(local_href(pst, ppath))
     head = "<figure"
     if node.id:
@@ -2433,8 +2424,7 @@ def hand_edit_defect(out):
     landed (the `.aidex-artifact-prev/<page>` baseline), else None. A rebuild
     over it would silently overwrite the hand edit (M3, case 51). No page or no
     baseline (a page that predates baselines) is nothing to compare."""
-    baseline = os.path.join(os.path.dirname(os.path.abspath(out)),
-                            ".aidex-artifact-prev", os.path.basename(out))
+    baseline = wrap_report._baseline_path(out)
     try:
         with open(out, "rb") as fh:
             page = fh.read()
