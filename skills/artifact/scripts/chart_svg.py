@@ -110,6 +110,10 @@ TICK_SIZE = 11
 LABEL_SIZE = 11
 LEGEND_SIZE = 11
 LEGEND_SWATCH = 10
+# `_text_width` is 0.62 em a character; a line of capitals is nearer 0.72, so a
+# piece cut from a word, or a line centred against the viewBox edge by that
+# estimate, ran past it (a 3000-letter label: 60 units).
+CAPS_SLACK = 1.2
 VALUE_SIZE = 11        # a bar's value label: 11, like every text of the wide svg
 # How much of a category slot the bar group takes, and how much of its own share
 # of the group a bar paints. The rest is the gap, split evenly on both sides,
@@ -463,7 +467,7 @@ def _wrap(text, size, width):
     """`text` cut at spaces into lines no wider than `width` (by the generous
     estimate). A single word wider than the line is its own line."""
     lines, cur = [], ""
-    per = max(1, int(width // _text_width("x", size)))
+    per = max(1, int(width / CAPS_SLACK // _text_width("x", size)))
     words = []
     for word in text.split():
         # A word wider than the line is cut into line-sized pieces: a model id
@@ -702,7 +706,7 @@ def _categories(labels, x0, slot, y, g):
             # Centred on its slot, but never past the viewBox: a thinned label
             # may be wider than its own slot, and the first and last slots
             # sit next to the edges.
-            half = _text_width(line, g.font) / 2.0
+            half = _text_width(line, g.font) / 2.0 * CAPS_SLACK
             cx = min(max(x0 + (i + 0.5) * slot, PAD_EDGE + half),
                      g.w - PAD_EDGE - half)
             out.append(_text_el(cx, y + k * (g.font + 4), g.font, line,

@@ -1021,6 +1021,24 @@ try:
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 
+# A 3000-letter label of capitals: _text_width is 0.62 em a character, capitals
+# are nearer 0.72, and the lines it laid out ran past the viewBox (the render
+# probe's svg-text-clipped, mutation 45c). Every line, drawn at 0.72 em, stays inside.
+labels, series = chart_svg.parse_data([(1, "C" * 3000 + ",1"), (2, "B,2")], "bar")
+for tag, geo in (("wide", chart_svg.WIDE), ("narrow", chart_svg.NARROW)):
+    out = chart_svg.svg("bar", labels, series, g=geo)
+    width = geo.w
+    over = []
+    for m in re.finditer(r'<text x="([\d.]+)"([^>]*)>(C+)<', out):
+        x, run = float(m.group(1)), len(m.group(3))
+        anchor = "middle" if 'text-anchor="middle"' in m.group(2) else ""
+        w = 0.72 * geo.font * run
+        left = x - w / 2 if anchor == "middle" else x
+        if left < -0.01 or left + w > width + 0.01:
+            over.append((round(left), round(left + w)))
+    check("a 3000-capital chart label stays inside the %s svg" % tag,
+          not over and "C" in out, str(over[:3]))
+
 print()
 if failures:
     print("%d failure(s)" % len(failures))
