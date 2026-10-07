@@ -808,9 +808,11 @@
    * answered: the main session's "decidido, corrígeme si no". It is decided for
    * the counts (no question, no blank), but it stays drawn in place with a label,
    * its options LIVE with the proposed one pre-selected (BL-700: sealed radios
-   * read as broken), and its notes box live: a typed note, or a selection
-   * changed away from the proposed one, is the correction and the only thing it
-   * adds to the reply (see collect() and replyBody()). */
+   * read as broken), and it carries the same controls as an open item (ask chips,
+   * clear, other, not-now, page-defect: BL-711). Its pre-selected option is the
+   * writer's and never travels on its own: what it adds to the reply is what the
+   * reader did (a selection changed away from the proposed one, a typed note, a
+   * ticked ask or a defect report; see collect() and replyBody()). */
   function isProposal(el) { return isDecided(el) && el.hasAttribute('data-proposal'); }
   /* The proposed selection as the page shipped it, captured before restore()
    * touches anything, read from the `checked` ATTRIBUTE (defaultChecked): a
@@ -820,17 +822,22 @@
   var propBase = {};
   function selSig(el, byDefault) {
     return [].filter.call(el.querySelectorAll('input[type="radio"], input[type="checkbox"]'),
-      function (i) { return byDefault ? i.defaultChecked : i.checked; })
+      function (i) { return !i.closest('.kit-ask') && (byDefault ? i.defaultChecked : i.checked); })
       .map(function (i) { return i.dataset.label || i.value || ''; }).sort().join('\u0001');
   }
   function selChanged(el) { return isProposal(el) && selSig(el) !== propBase[el.dataset.id]; }
-  /* What an item adds to the reply. A proposal with its proposed option still
-   * selected adds only its typed note; once the selection differs it adds what
-   * an answered item does (the option plus the note). */
-  function replyBody(el) {
-    if (!isProposal(el)) return withDefect(el, readItem(el));
+  /* What an item adds to the reply, defect report apart. A proposal with its
+   * proposed option still selected adds only its ticked asks and typed note
+   * (BL-711); once the selection differs it adds what an answered item does (the
+   * option plus the asks and the note). */
+  function proposalBody(el) {
     if (selChanged(el)) return readItem(el);
-    return [].map.call(el.querySelectorAll('textarea'), function (t) { return t.value.trim(); }).filter(Boolean).join('\n\n');
+    var asks = askMarks(el).map(function (i) { return '- ' + markLabel(i, false); }).join('\n');
+    var notes = [].map.call(el.querySelectorAll('textarea:not(.kit-defect-text)'), function (t) { return t.value.trim(); }).filter(Boolean).join('\n\n');
+    return [asks, notes].filter(Boolean).join('\n\n');
+  }
+  function replyBody(el) {
+    return withDefect(el, isProposal(el) ? proposalBody(el) : readItem(el));
   }
   /* Settled by an earlier round's answer: what collapseDecided folds away. */
   function isSettled(el) { return isDecided(el) && !isProposal(el); }
@@ -897,7 +904,9 @@
   }
 
   function isProvisional(el) {
-    if (isDecided(el)) return false;
+    if (isSettled(el)) return false;
+    /* An untouched proposal's pre-selected option is the writer's, not an answer to qualify. */
+    if (isProposal(el) && !selChanged(el)) return false;
     if (!askMarks(el).length) return false;
     return answerMarks(el).length > 0 || answerValues(el).length > 0;
   }
@@ -995,9 +1004,18 @@
          * confirmation: it is not marked answered until something is typed
          * (BL-692). A proposal inside a group has no rail link, so only the
          * item's has-answer class moves; the rail has no "pending" state. */
-        var fix = isProposal(el) ? replyBody(el) : '';
-        if (isProposal(el)) { proposals++; if (fix) fixed++; }
-        var shown = isProposal(el) ? !!fix : true;
+        /* Like an open item, a defect report alone is no answer and no correction (it still
+         * travels, and Clear reaches it): BL-711. */
+        var fix = '', corr = '';
+        if (isProposal(el)) {
+          markProvisional(el);
+          corr = proposalBody(el);
+          fix = withDefect(el, corr);
+          proposals++;
+          if (corr) fixed++;
+          el.classList.toggle('has-defect', !!defectText(el));
+        }
+        var shown = isProposal(el) ? !!corr : true;
         el.classList.toggle('has-answer', shown);
         if (links[i]) links[i].classList.toggle('done', shown);
         if (fix) {
@@ -1232,7 +1250,7 @@
     /* A proposal keeps only what the reader did: its pre-selected option is the
      * writer's and must not make the item look answered, so the selection is
      * stored only once it differs from the proposed one (BL-692, BL-700). */
-    el.querySelectorAll(isProposal(el) && !selChanged(el) ? 'x-none' : 'input[type="radio"]:checked, input[type="checkbox"]:checked')
+    el.querySelectorAll(isProposal(el) && !selChanged(el) ? '.kit-ask input:checked' : 'input[type="radio"]:checked, input[type="checkbox"]:checked')
       .forEach(function (i) { s.m.push(i.dataset.label || i.value || ''); });
     if (s.m.length) any = true;
     FREE.forEach(function (kind) {
@@ -1308,7 +1326,7 @@
         /* A stored proposal selection REPLACES the proposed one (a checkbox
          * group would otherwise keep the proposed boxes ticked beside it). */
         if (isProposal(el) && [].some.call(el.querySelectorAll('input[type="radio"], input[type="checkbox"]'),
-              function (i) { return (s.m || []).indexOf(i.dataset.label || i.value || '') !== -1; })) {
+              function (i) { return !i.closest('.kit-ask') && (s.m || []).indexOf(i.dataset.label || i.value || '') !== -1; })) {
           el.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(function (i) { i.checked = false; });
         }
         el.querySelectorAll('input[type="radio"], input[type="checkbox"]')
@@ -1520,7 +1538,7 @@
    * fingerprint, like every other injected control. */
   function addOtherChoices() {
     items.forEach(function (el) {
-      if (isDecided(el)) return;
+      if (isSettled(el)) return;
       el.querySelectorAll('.opts').forEach(function (g) {
         if (g.querySelector('.kit-other, input[data-other]')) return;
         var first = g.querySelector('input[type="radio"], input[type="checkbox"]');
@@ -1656,7 +1674,7 @@
 
   function addAskRows() {
     items.forEach(function (el) {
-      if (isDecided(el) || el.classList.contains('consult-notes')) return;
+      if (isSettled(el) || el.classList.contains('consult-notes')) return;
       if (el.hasAttribute('data-asks-nothing')) return;   /* a sample row asks nothing (BL-693) */
       if (el.querySelector('.kit-ask')) return;
       var row = document.createElement('div');
@@ -1799,7 +1817,7 @@
    * than by its author having remembered it. */
   function clearItem(el) {
     el.querySelectorAll('input[type="radio"], input[type="checkbox"]')
-      .forEach(function (i) { i.checked = false; });
+      .forEach(function (i) { i.checked = isProposal(el) && i.defaultChecked; });
     FREE.forEach(function (kind) {
       el.querySelectorAll(kind.q).forEach(function (x) { setFreeValue(x, ''); });
     });
@@ -1816,7 +1834,7 @@
 
   function addClearControls() {
     items.forEach(function (el) {
-      if (isDecided(el)) return;
+      if (isSettled(el)) return;
       if (el.hasAttribute('data-asks-nothing')) return;   /* nothing to clear on a row that asks nothing (BL-690) */
       if (el.querySelector('.consult-clear')) return;
       var b = document.createElement('button');
@@ -2130,7 +2148,7 @@
     });
     /* Up/Down skips settled rows: collapseDecided has folded them away, and
      * the kit's contract is that the open questions stay in view. */
-    var walkRows = rows.filter(function (r) { return !isDecided(r); });
+    var walkRows = rows.filter(function (r) { return !isSettled(r); });
     var groups = [].slice.call(document.querySelectorAll('.consult-group'))
       .filter(function (g) { return (g.getAttribute('data-tiles') || '').trim(); });
     var shots = [].slice.call(document.querySelectorAll(

@@ -309,7 +309,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/spec_verbs.py" new-round <name>.spec.md
 
 Proposals expire by themselves (BL-692): an `item decided=yes proposal=yes` loses `proposal=yes`
 and files its ledger row only if the saved answered page (`.aidex-artifact-prev/<stem>.answered.html`)
-carried `data-proposal` on it, i.e. the reader saw it. A NEW proposal written this turn is absent from
+carried `data-proposal` on it, i.e. the reader saw it, AND the saved reply left it untouched (BL-711: no reply block for it, or only page-defect text). A proposal the reply marked (an ask or `[not-now]`, in any saved paste), re-picked, answered with Other or with a note stays `proposal=yes` and out of the ledger: it takes the open-item path, so `new-round` refuses a bare re-pick until the writer `decide`s it (the 225f968e guard), and `decide` on a proposal ends its proposal state. A NEW proposal written this turn is absent from
 that page and stays a proposal, in any order of verbs (an id that already expired and is marked
 `proposal=yes` again in the same round is expired again by the next `new-round`: write a fresh id); with no saved page nothing expires, so a
 mid-round `new-round --drop/--retitle` is safe. `decide` on an item the ledger already names also
@@ -1487,7 +1487,7 @@ messages and the tests; § 8.4 is the block shape.
    each: the situation, what was chosen, why) and the reader only corrects. Each point is an
    `item decided=yes proposal=yes` (BL-687, BL-692): without `proposal=yes` the kit reads it as an
    earlier round's settled answer and folds it into the bottom "N preguntas ya resueltas" section,
-   hiding the correction box. A proposal keeps its options live with the proposed one pre-selected: a changed selection or a typed note is the correction that reaches the reply (BL-700). `check-artifact` WARNS (`consult-round1-decided`) on a round-1 page that carries a
+   hiding the correction box. A proposal keeps its options live with the proposed one pre-selected: a changed selection, a typed note, a ticked ask chip (show-me, explain, ...) or `[not-now]` is the correction that reaches the reply, and the item carries the same discussion controls as an open one (BL-700, BL-711). A reply that asks about a proposal (an ask or `[not-now]`) keeps it a proposal at `new-round` and its marked duty is checked. `check-artifact` WARNS (`consult-round1-decided`) on a round-1 page that carries a
    decided item with neither `proposal=yes` nor `dropped=`: nothing can be settled before the first reply. Only the
    rest become items. Inside a gallery, that
    block goes in the `decided_note` of a row still open (a callout under the captures), never in the

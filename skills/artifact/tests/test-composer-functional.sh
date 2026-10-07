@@ -4316,6 +4316,20 @@ item692() {  # item692 <id> <title> <attrs>; an asks-nothing row is shaped like 
     return;
   }
   var done0 = has(i3);
+  /* BL-711: a proposal has the controls and the radio look of an open item (the injected control set,
+   * and what an UNPICKED option's label looks like), differing only by the item's own border. */
+  var ctrl = function (n) { return ["kit-ask", "consult-clear", "kit-defect", "kit-other", "kit-notnow"]
+    .map(function (c) { return c + ":" + n.querySelectorAll("." + c).length; }).join(","); };
+  var look = function (n) { var l = n.querySelector(".opts label:not(:has(input:checked))"), cs = getComputedStyle(l);
+    return cs.opacity + "/" + cs.cursor; };
+  var askCap = "";
+  Object.defineProperty(navigator, "clipboard", { configurable: true,
+    value: { writeText: function (s) { askCap = s; return Promise.resolve(); } } });
+  var p2ask = document.querySelector('[data-id="P2"] .kit-ask input');
+  if (p2ask) { p2ask.checked = true; p2ask.dispatchEvent(new Event("change", { bubbles: true })); }
+  document.getElementById("consult-copy").click();
+  if (p2ask) { p2ask.checked = false; p2ask.dispatchEvent(new Event("change", { bubbles: true })); }
+  p3.value = "";
   /* Before anything is typed: the EMPTY box and its label must be drawn (the settled-item rule
    * that hides an empty reply box must not reach a proposal). */
   var lbl = ta.previousElementSibling;
@@ -4345,6 +4359,9 @@ item692() {  # item692 <id> <title> <attrs>; an asks-nothing row is shaped like 
     + "|STATTYPED=" + statTyped
     + "|EMPTYVIS=" + emptyVis
     + "|RADIOOFF=" + (p1.querySelectorAll("input[type=radio]:disabled").length ? 1 : 0)
+    + "|CTRL=" + ctrl(p1) + "~" + ctrl(document.querySelector('[data-id="A2"]'))
+    + "|LOOK=" + look(p1) + "~" + look(document.querySelector('[data-id="A2"]'))
+    + "|ASKREPLY=" + askCap.replace(/[|<>\n]/g, " ")
     + "|DONE0=" + done0 + "|DONE1=" + done1
     + "|REPLY=" + cap.replace(/[|<>\n]/g, " ") + "|";
 });</script>
@@ -4373,6 +4390,14 @@ tp="$(grep -oE '<title>[^<]*</title>' "$PRP/dom.html" | sed -n 1p)"
   || fail "BL-692/BL-700: an EMPTY proposal must show its correction box and label (EMPTYVIS=1), with its options live (RADIOOFF=0, BL-700): $tp"
 [[ "$tp" == *"|REPLY="*"### P2"*"zzzloose"* && "${tp%%## G3*}" != *"- Si"* && "$tp" != *"### S1"* && "$tp" != *"### S2"* ]] \
   || fail "BL-692: the reply must carry P2's correction and neither the proposal's sealed '- Si' nor the settled S1/S2: $tp"
+# BL-711: a proposal is an open item with a border; it must not read as disabled nor lack the discussion controls.
+[[ "$tp" =~ \|CTRL=([^~]*)~([^|]*)\|LOOK=([^~]*)~([^|]*)\| ]] \
+  && [[ "${BASH_REMATCH[1]}" == "${BASH_REMATCH[2]}" && "${BASH_REMATCH[1]}" == *"kit-ask:1"* && "${BASH_REMATCH[1]}" == *"consult-clear:1"* && "${BASH_REMATCH[1]}" == *"kit-defect:1"* ]] \
+  || fail "BL-711: a proposal (data-decided + data-proposal) must carry the same injected controls as an open item (ask row, clear, defect, other/not-now): $tp"
+[[ "${BASH_REMATCH[3]}" == "${BASH_REMATCH[4]}" ]] \
+  || fail "BL-711: a proposal's unpicked option is drawn differently from an open item's (dimmed / default cursor reads as disabled): $tp"
+[[ "$tp" == *"|ASKREPLY=## G1"*"### P2 · Segunda propuesta  - [explain-state]  ## G3"* ]] \
+  || fail "BL-711: an ask chip ticked on an untouched proposal did not reach the copied reply: $tp"
 [[ "$tp" == *"|ASKS=0/1|"* ]] \
   || fail "BL-693: an item marked data-asks-nothing must get no ask chips while a normal open item gets its row (want ASKS=0/1): $tp"
 # BL-693: a gallery sample row (data-asks-nothing) keeps no mark-mode box: it still has tiles to look at, but nothing to answer.
@@ -4520,11 +4545,14 @@ L700="$TMP/l700"; mkdir -p "$L700"
     '<div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div></aside></div>'
   cat <<'PROBE'
 <script>/* Runs BEFORE the composer. formrestore: the browser restored the reader's "No" into the form on a
-   * same-tab reload. notnow: a stored [not-now] on an item rebuilt as a proposal. */
+   * same-tab reload. notnow: a stored label that is no longer an option of an item rebuilt as a proposal. */
 (function () {
   var q = location.search;
   if (q.indexOf("phase=formrestore") > -1) document.querySelector('[data-id="P1"] input[data-label="No"]').checked = true;
-  if (q.indexOf("phase=notnow") > -1) localStorage.setItem("aidex-kit-answers:" + location.pathname, JSON.stringify({ P1: { m: ["[not-now]"] } }));
+  if (q.indexOf("phase=notnow") > -1) localStorage.setItem("aidex-kit-answers:" + location.pathname, JSON.stringify({ P1: { m: ["Quizas, ya no existe"] } }));
+  /* BL-711: a proposal HAS [not-now] and the ask chips, so those stored labels are real answers. */
+  if (q.indexOf("phase=notnowreal") > -1) localStorage.setItem("aidex-kit-answers:" + location.pathname, JSON.stringify({ P1: { m: ["[not-now]"] } }));
+  if (q.indexOf("phase=askrestore") > -1) localStorage.setItem("aidex-kit-answers:" + location.pathname, JSON.stringify({ P1: { m: ["[explain-state]"] } }));
 })();</script>
 <script>window.addEventListener("load", function () {
   var p1 = document.querySelector('[data-id="P1"]'), p2 = document.querySelector('[data-id="P2"]');
@@ -4536,8 +4564,26 @@ L700="$TMP/l700"; mkdir -p "$L700"
     value: { writeText: function (s) { cap = s; return Promise.resolve(); } } });
   var copy = function () { cap = null; document.getElementById("consult-copy").click(); return (cap || "NONE").replace(/[|<>\n]/g, " "); };
   var ph = location.search.match(/phase=(\w+)/); ph = ph ? ph[1] : "";
-  if (ph === "reload" || ph === "formrestore" || ph === "notnow") {
-    document.title = "L700R|P1=" + checked(p1) + "|P2=" + checked(p2) + "|HAS1=" + has(p1) + "|STAT=" + st.textContent + "|REPLY=" + copy() + "|";
+  if (ph === "reload" || ph === "formrestore" || ph === "notnow" || ph === "notnowreal" || ph === "askrestore") {
+    document.title = "L700R|P1=" + checked(p1) + "|P2=" + checked(p2) + "|HAS1=" + has(p1) + "|STAT=" + st.textContent
+      + "|ASK1=" + p1.querySelectorAll(".kit-ask input:checked").length + "|REPLY=" + copy() + "|";
+    return;
+  }
+  if (ph === "extra") {
+    /* BL-711: a changed pick plus an ask is provisional like on an open item; Clear returns a proposal to
+     * the proposed option; a defect report alone is no answer but still travels. */
+    var tick = function (it, l) { var i = it.querySelector('.kit-ask input[data-label="' + l + '"]'); i.checked = true; i.dispatchEvent(new Event("change", { bubbles: true })); };
+    radio(p1, "No").checked = true; tick(p1, "[explain-state]");
+    var rProv = copy(), provLine = p1.querySelectorAll(".kit-provisional").length;
+    var ta1 = p1.querySelector("textarea:not(.kit-defect-text)");
+    ta1.value = "nota"; ta1.dispatchEvent(new Event("input", { bubbles: true }));
+    p1.querySelector(".consult-clear").click();
+    var hasClr = has(p1), rClr = copy(), taClr = ta1.value, chkClr = checked(p1);
+    var dbtn = p2.querySelector(".kit-defect-btn"); dbtn.click();
+    var dta = p2.querySelector("textarea.kit-defect-text"); dta.value = "se ve mal"; dta.dispatchEvent(new Event("input", { bubbles: true }));
+    var rDef = copy(), hasDef = has(p2), stDef = st.textContent;
+    document.title = "L711|RPROV=" + rProv + "|PROVLINE=" + provLine + "|CLR=" + chkClr + "/" + taClr + "/" + hasClr + "/" + rClr
+      + "|DEF=" + hasDef + "/" + rDef + "|STDEF=" + stDef + "|";
     return;
   }
   var fire = function (el) { el.dispatchEvent(new Event("change", { bubbles: true })); };
@@ -4587,12 +4633,35 @@ CHROME_WINDOW=1280,900 chrome_dump "$L700/dom3.html" "file://$TMP/reports/l700.h
 tl3="$(grep -oE '<title>[^<]*</title>' "$L700/dom3.html" | sed -n 1p)"
 [[ "$tl3" == *"|P1=No|"*"|HAS1=1|"* && "$tl3" == *"|REPLY="*"### P1"*"- No"* ]] \
   || fail "BL-700: a selection the browser restored into the form before the composer ran is the reader's change, not the proposed baseline (want P1=No, has-answer, '### P1' + '- No' in the reply): $tl3"
-# A stored [not-now] (no such option on the proposal) must not clear the proposed option.
+# A stored label that is no option of the proposal (since BL-711 a proposal HAS a [not-now], so that one is a real answer) must not clear the proposed option.
 rm -rf "$TMP/profile"
 CHROME_WINDOW=1280,900 chrome_dump "$L700/dom4.html" "file://$TMP/reports/l700.html?phase=notnow" 45 || true
 tl4="$(grep -oE '<title>[^<]*</title>' "$L700/dom4.html" | sed -n 1p)"
 [[ "$tl4" == *"|P1=Si|P2=Si|HAS1=0|"* ]] \
   || fail "BL-700: a stored selection matching no option of the proposal must leave the proposed Si checked: $tl4"
+# BL-711: a stored [not-now] is a real answer of a proposal now (it carries the injected not-now choice).
+rm -rf "$TMP/profile"
+CHROME_WINDOW=1280,900 chrome_dump "$L700/dom5.html" "file://$TMP/reports/l700.html?phase=notnowreal" 45 || true
+tl5="$(grep -oE '<title>[^<]*</title>' "$L700/dom5.html" | sed -n 1p)"
+[[ "$tl5" == *"|P1=[not-now]|P2=Si|HAS1=1|"* && "$tl5" == *"|REPLY="*"### P1"*"- [not-now]"* && "$tl5" != *"- Si"* ]] \
+  || fail "BL-711: a stored [not-now] on a proposal must come back checked and reach the reply as '- [not-now]' alone: $tl5"
+# BL-711: a stored ask on an untouched proposal comes back ticked and does NOT replace the proposed option.
+rm -rf "$TMP/profile"
+CHROME_WINDOW=1280,900 chrome_dump "$L700/dom6.html" "file://$TMP/reports/l700.html?phase=askrestore" 45 || true
+tl6="$(grep -oE '<title>[^<]*</title>' "$L700/dom6.html" | sed -n 1p)"
+[[ "$tl6" == *"|P1=Si|P2=Si|HAS1=1|"* && "$tl6" == *"|ASK1=1|"* && "$tl6" == *"|REPLY="*"### P1"*"- [explain-state]"* && "$tl6" != *"- Si"* ]] \
+  || fail "BL-711: a stored ask on an untouched proposal must restore ticked, keep the proposed Si checked and reach the reply without '- Si': $tl6"
+rm -rf "$TMP/profile"
+CHROME_WINDOW=1280,900 chrome_dump "$L700/dom7.html" "file://$TMP/reports/l700.html?phase=extra" 45 || true
+tl7="$(grep -oE '<title>[^<]*</title>' "$L700/dom7.html" | sed -n 1p)"
+[[ "$tl7" == *"|RPROV="*"- No [provisional]"*"|PROVLINE=1|"* ]] \
+  || fail "BL-711: a proposal with a changed pick plus an ask must paste '- No [provisional]' and show the provisional line like an open item: $tl7"
+[[ "$tl7" == *"|CLR=Si//0/NONE|"* ]] \
+  || fail "BL-711: Clear on a changed proposal must return it to the proposed Si with an empty note, unanswered, sending nothing (want CLR=Si//0/NONE): $tl7"
+[[ "$tl7" == *"|DEF=0/"*"#### "*"se ve mal"* ]] \
+  || fail "BL-711: a defect report alone on a proposal must travel in the reply but not make the item answered (want DEF=0/ with the #### block): $tl7"
+[[ "$tl7" == *"|STDEF=Quedan puntos decididos por confirmar o corregir|"* ]] \
+  || fail "BL-711: a defect report alone on a proposal must not count as a correction: $tl7"
 
 # ---- BL-701: each block's own notes box reaches the reply under the block's `## ` heading ----
 # Free text exists at three levels (page, block, item); the block level had no box. Layer: browser,
