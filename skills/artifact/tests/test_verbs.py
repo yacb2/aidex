@@ -231,6 +231,19 @@ for flag in ("yes", "TRUE", "1", " yes "):
 check("...and records a label verdict on the same item",
       'decided="Fences de Pandoc"' in decide(PAGE, "Q1", "Fences de Pandoc"))
 
+PREFIXED = ('::: masthead {title="T" visual="none: x"}\nUna.\n:::\n\n'
+            '::: group {#G1 title="G"}\n'
+            '::: item {#Q1 title="Q1 · ¿Seguimos?" decided=yes}\n?\n\n- A {recommended}\n- B\n:::\n'
+            ':::\n')
+check("new-round writes the ledger row from the title the page shows (id prefix stripped)",
+      "- Q1 — ¿Seguimos?\n" in new_round(PREFIXED), new_round(PREFIXED))
+_rowed = ('::: masthead {title="T" visual="none: x"}\nUna.\n:::\n\n'
+          '::: ledger\n- Q1 — ¿Seguimos?\n:::\n\n'
+          '::: group {#G1 title="G"}\n'
+          '::: item {#Q1 title="Q1 · ¿Seguimos?"}\n?\n\n- A\n- B\n:::\n:::\n')
+check("decide rewrites an existing row built from the stripped title",
+      "- Q1 — ¿Seguimos? (B)\n" in decide(_rowed, "Q1", "B"), decide(_rowed, "Q1", "B"))
+
 print()
 print("== new-round: the ledger, keyed by id ==")
 rnd = new_round(PAGE)
@@ -772,8 +785,9 @@ try:
     check("...and calls no emitter: the only spec_build names it touches are "
           "the ones a caller may",
           touched == ["HINT_SEP", "LANGS", "PLAIN", "build", "chosen_labels",
-                     "hand_edit_defect", "has_options", "main",
-                     "option_labels", "page_title", "resolve_lang"],
+                     "clean_item_title", "hand_edit_defect", "has_options",
+                     "main", "option_labels", "page_title",
+                     "refuse_missing_visual", "resolve_lang"],
           str(touched))
     writes = re.findall(r'open\(([^,]+), "w"', source)
     check("...and the only file it opens for writing is the spec's own temp",
@@ -806,6 +820,20 @@ try:
               'src="page-assets/gallery/' in read(gout))
     except (VerbError, spec_verbs.BuildFailed) as exc:
         fail("decide on a gallery spec was refused: %s" % exc)
+
+    print()
+    print("== a verb on a spec the builder refuses for its visual ==")
+    # The verb's pre-check must see the CLI's own visual refusal, and name the
+    # spec as unbuildable as it stands rather than blame the edit.
+    novis = fresh("novisual", build=False, text=PAGE.replace(
+        ' visual="none: la decisión es de formato y no tiene forma que dibujar"', "", 1))
+    try:
+        spec_verbs.decide_file(novis, "Q1", V)
+        fail("decide on a spec with no visual= was not refused")
+    except VerbError as exc:
+        check("decide on a spec with no visual= names the masthead rule and the spec as it stands",
+              "needs visual=" in str(exc) and "unbuildable as it stands" in str(exc),
+              str(exc))
 
     print()
     print("== the CLI's own edges ==")

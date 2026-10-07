@@ -50,6 +50,7 @@ import sys
 import urllib.parse
 
 import md_body
+from _usage import UsageParser
 import png_pixels
 
 LANGS = ("es", "en")
@@ -1424,8 +1425,10 @@ def render(doc, root, group_id, group_title, lang, page=None,
 
 
 def main(argv):
-    ap = argparse.ArgumentParser(
+    ap = UsageParser(
         prog="gallery-items.sh",
+        form="gallery-items.sh <rows.json> --root <abs repo root> --page <out.html> "
+             "--group-id <id> --group-title <title> [--lang es|en]",
         description="Turn a gallery rows JSON into one consult-group of "
                     "before/proposed review rows.")
     ap.add_argument("rows", metavar="<rows.json>",

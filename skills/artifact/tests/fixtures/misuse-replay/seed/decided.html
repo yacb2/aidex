@@ -1,3 +1,1050 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Una consulta ya decidida</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Ctext%20y%3D%22.9em%22%20font-size%3D%2290%22%3E%F0%9F%93%90%3C/text%3E%3C/svg%3E">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; }
+  img, svg, video, canvas { max-width: 100%; height: auto; }
+</style>
+<meta name="artifact-kit" content="42">
+<style>
+/* artifact-kit — tokens: palette, type stacks, and the three theme blocks.
+ *
+ * Custom properties ONLY. Every rule that renders something lives in
+ * components.css, so a project that wants a different identity overrides this
+ * file's values and inherits every component unchanged — which is the whole
+ * reason the kit sits in the suite instead of being copied per project.
+ *
+ * Three blocks, not one media query, and none of the colours is defined only
+ * inside a media or [data-theme] block:
+ *   :root                                       the complete light palette
+ *   @media (prefers-color-scheme: dark) + :not([data-theme="light"])   system dark
+ *   :root[data-theme="dark"] / [data-theme="light"]                    explicit toggle
+ * A palette defined only under the media query loses to an explicit toggle in
+ * one direction, which is how a page ends up half-dark.
+ *
+ * --s0..--s8 are the CHART series slots, and they are here for the same reason
+ * everything else is: a page that carries a chart was writing its own three
+ * theme blocks for them, every time, by hand — one artifact on disk declares
+ * five series colours four times over. Assign them in FIXED ORDER, never
+ * cycled: --s1 is the first series whatever the chart is, --s0 is the neutral
+ * "rest"/"other" fill. Past --s8 the answer is to fold into "other" or facet,
+ * not to invent a ninth hue.
+ *
+ * The values are the dataviz reference instance, re-validated against THIS
+ * kit's surfaces rather than assumed:
+ *   light (#F3F5F1) — lightness band, chroma floor, CVD separation and the
+ *     normal-vision floor all pass; 4 slots sit below 3:1 contrast, which is
+ *     the documented relief case: a light-mode chart using --s2/--s3/--s4/--s5
+ *     ships visible direct labels or a table view.
+ *   dark (#131614) — all five checks pass, contrast included.
+ * Changing a value means re-running dataviz's validate_palette.js for both
+ * modes with those surfaces.
+ *
+ * That claim was unbacked until 2026-09-07 (BL-334). Measured in DevTools on a
+ * wrapped page, `--muted` was 3.11:1 in light and 4.34:1 in dark against
+ * `--paper`, and worse on `--paper-sunk` — so every option hint, every
+ * `.fieldlabel`, the Clear control and both injected choices, 18 rules in all,
+ * sat below the 4.5:1 floor on every artifact this kit has ever produced. The
+ * comment above said contrast passed and nothing checked it, which is this
+ * repo's own systemic failure written into a header.
+ * `tests/test-artifact-kit.sh` now derives the numbers from THIS FILE and fails
+ * on the next token that drops below the floor. Hue and saturation are
+ * unchanged; only lightness moved, and to the nearest value that clears both
+ * surfaces (light #868D83 -> #656B63, dark #767E74 -> #7F887D). */
+
+:root {
+  --paper:#F3F5F1; --paper-sunk:#E8EBE5; --rule:#D2D8CD;
+  --ink:#191D1A; --ink-soft:#4A5249; --muted:#656B63;
+  --accent:#1E5F4B; --accent-dim:#2F7A62; --flag:#A6412C;
+  --s0:#C9D2C6; --s1:#2A78D6; --s2:#EB6834; --s3:#1BAF7A; --s4:#EDA100;
+  --s5:#E87BA4; --s6:#008300; --s7:#4A3AA7; --s8:#E34948;
+  --serif:"Iowan Old Style", Charter, "Palatino Linotype", Palatino, Georgia, serif;
+  --sans:-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --mono:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:#131614; --paper-sunk:#1B201C; --rule:#2E352F;
+    --ink:#E4E8E1; --ink-soft:#AEB6AC; --muted:#7F887D;
+    --accent:#6FBFA1; --accent-dim:#4E9C80; --flag:#D9765C;
+    --s0:#39413A; --s1:#3987E5; --s2:#D95926; --s3:#199E70; --s4:#C98500;
+    --s5:#D55181; --s6:#008300; --s7:#9085E9; --s8:#E66767;
+  }
+}
+
+:root[data-theme="dark"] {
+  --paper:#131614; --paper-sunk:#1B201C; --rule:#2E352F;
+  --ink:#E4E8E1; --ink-soft:#AEB6AC; --muted:#7F887D;
+  --accent:#6FBFA1; --accent-dim:#4E9C80; --flag:#D9765C;
+  --s0:#39413A; --s1:#3987E5; --s2:#D95926; --s3:#199E70; --s4:#C98500;
+  --s5:#D55181; --s6:#008300; --s7:#9085E9; --s8:#E66767;
+}
+
+:root[data-theme="light"] {
+  --paper:#F3F5F1; --paper-sunk:#E8EBE5; --rule:#D2D8CD;
+  --ink:#191D1A; --ink-soft:#4A5249; --muted:#656B63;
+  --accent:#1E5F4B; --accent-dim:#2F7A62; --flag:#A6412C;
+  --s0:#C9D2C6; --s1:#2A78D6; --s2:#EB6834; --s3:#1BAF7A; --s4:#EDA100;
+  --s5:#E87BA4; --s6:#008300; --s7:#4A3AA7; --s8:#E34948;
+}
+</style>
+<style>
+/* artifact-kit — components: every rule the page renders with.
+ *
+ * Reads the tokens from tokens.css; never hard-codes a colour or a font stack,
+ * so a project's delta can restyle the whole system by overriding tokens alone.
+ *
+ * Layout B, with ONE width. `.page` is the only width on the page: the content
+ * column it leaves next to the rail (59.5rem at the 78rem cap, ~95 characters
+ * of the body face) is the measure, and nothing inside `.main` carries a
+ * max-width of its own — prose, headings, tables, figures, item boxes and
+ * questions share an edge. Twice the file capped prose separately inside a
+ * wider column (68ch, then 46rem under BL-248), and both times what a reader
+ * saw was text stopping at two thirds of the column next to tables and item
+ * boxes that filled it (BL-383: 42 of 55 text elements on a real consultation).
+ * A consultation is short context paragraphs over tables, not long-form
+ * running text, so the wider line is the lesser cost; if it ever reads long,
+ * raise the body size, never re-add a second width. `test-artifact-kit.sh`
+ * fails on any max-width inside the column. Two drawings are the exceptions,
+ * both capped by the builder inline, never here: a `diagram` svg at 1x its
+ * viewBox width, and a hand `figure` block's wrapper at its viewBox width (BL-511),
+ * so neither is blown up past the size it was drawn at. */
+
+body { background: var(--paper); color: var(--ink); font-family: var(--serif);
+       font-size: 17px; line-height: 1.62; margin: 0; padding: 0 1.5rem 4rem; }
+
+/* The page takes the screen it is given, capped (BL-248): on a 1440px viewport
+   the old 64rem cap left 200px unused on each side while tables, option grids
+   and reply boxes were squeezed into the prose column. This cap is the one
+   width (see the header comment); everything inside `.main` runs to it. */
+.page { max-width: min(78rem, 100vw - 6rem); margin-inline: auto; padding-top: 3.5rem;
+        position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 15rem; gap: 3.5rem; align-items: start; }
+.main { min-width: 0; display: flex; flex-direction: column; }
+/* The cap is derived from `top`, not guessed: a sticky box pins at its top
+   offset and never scrolls internally, so one taller than the viewport hides
+   its own lower half until the page bottom drags the container up. Measured on
+   a 37-entry page: 1284px of rail in a 900px viewport, 384px unreachable.
+   Symmetric breathing room top and bottom is why it is 2 x `top`. */
+.rail:where(:not(svg *)) { position: sticky; top: 2rem; max-height: calc(100vh - 2 * 2rem);
+        display: flex; flex-direction: column; gap: 0.9rem; font-family: var(--sans); }
+
+/* `pretty`, not `balance` (BL-506): balance evens out line lengths, so a
+   two-line heading broke at half the column (49 % on a real consultation h2)
+   while the item boxes under it filled it; pretty fills the first line and
+   only keeps the last one from being a single word. */
+h1, h2, h3 { font-family: var(--serif); text-wrap: pretty; margin: 0; font-weight: 600; }
+h1 { font-size: 2.6rem; line-height: 1.1; letter-spacing: -0.015em; }
+h2 { font-size: 1.5rem; line-height: 1.22; margin-top: 0.2rem; }
+h3 { font-size: 1.12rem; line-height: 1.3; color: var(--ink); }
+p { margin: 0; }
+
+.eyebrow:where(:not(svg *)) { font-family: var(--sans); font-size: 0.7rem; text-transform: uppercase;
+           letter-spacing: 0.14em; color: var(--muted); margin: 0; }
+/* An item's title shown over its question (spec_build): a name, not a label, so a code span keeps its case. */
+.consult-kicker:where(:not(svg *)) { text-transform: none; }
+.standfirst:where(:not(svg *)) { font-size: 1.18rem; line-height: 1.5; color: var(--ink-soft); }
+
+.main > header { display: flex; flex-direction: column; gap: 0.9rem; padding-bottom: 2rem; border-bottom: 1px solid var(--rule); }
+.main > section { display: flex; flex-direction: column; gap: 1rem; padding: 2.4rem 0; border-bottom: 1px solid var(--rule); }
+/* The last VISIBLE section: with :last-of-type a trailing hidden section left
+   the rule under the section the reader sees last. */
+.main > section:not(:has(~ section:not([hidden]))) { border-bottom: none; }
+/* The attribute wins over every kit display rule: `.main > section` (0,1,1)
+   beat the UA's [hidden] (0,1,0) and kept a hidden section drawn. */
+[hidden] { display: none !important; }
+.sec-head { display: flex; flex-direction: column; gap: 0.35rem; }
+
+code, .mono:where(:not(svg *)) { font-family: var(--mono); font-size: 0.86em; }
+code { background: var(--paper-sunk); padding: 0.08em 0.32em; border-radius: 2px; }
+pre { font-family: var(--mono); font-size: 0.78rem; line-height: 1.6; background: var(--paper-sunk);
+      border: 1px solid var(--rule); padding: 0.9rem 1rem; overflow-x: auto; margin: 0; }
+pre code { background: none; padding: 0; font-size: 1em; }
+
+/* Wide content scrolls inside its own container; the page body never scrolls
+   sideways. `.tw` is the wrapper a table goes in, never the table itself. */
+.tw { overflow-x: auto; border: 1px solid var(--rule); position: relative; }
+/* "There is more to the right" — drawn only while the table overflows and the
+   reader has not reached its end (composer sets the two classes). The
+   scrollbar alone sits at the bottom of the table, out of view when it is tall. */
+.tw.overflows:not(.at-end) { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 3.5rem), transparent);
+                             mask-image: linear-gradient(to right, #000 calc(100% - 3.5rem), transparent); }
+th { white-space: nowrap; }
+td.nw { white-space: nowrap; }
+/* Last resort of fitTables() (BL-567): a small table that still overflows once its
+   no-wrap cells give way (a long path with no break point) may cut inside a word. */
+td.brk, th.brk { overflow-wrap: anywhere; }
+table { border-collapse: collapse; width: 100%; font-family: var(--sans); font-size: 0.83rem; }
+th, td { text-align: left; padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.11em; color: var(--muted); font-weight: 600; background: var(--paper-sunk); }
+tr:last-child td { border-bottom: none; }
+
+/* Scrollbars inherited the system style, and in dark mode they read as a loose
+   piece of some other page. Painted with the tokens instead. */
+textarea, .tw, pre { scrollbar-width: thin; scrollbar-color: var(--rule) transparent; }
+textarea::-webkit-scrollbar, .tw::-webkit-scrollbar, pre::-webkit-scrollbar { width: 10px; height: 10px; }
+textarea::-webkit-scrollbar-track, .tw::-webkit-scrollbar-track, pre::-webkit-scrollbar-track { background: transparent; }
+textarea::-webkit-scrollbar-thumb, .tw::-webkit-scrollbar-thumb, pre::-webkit-scrollbar-thumb {
+  background: var(--rule); border-radius: 999px; border: 2px solid var(--paper); }
+textarea::-webkit-scrollbar-thumb:hover, .tw::-webkit-scrollbar-thumb:hover, pre::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+/* Accents inside a figure are set with a CLASS and `stroke="currentColor"` /
+   `fill="currentColor"`, never with `var(--accent)` as a presentation
+   attribute: the browser does not resolve a custom property there and falls
+   back to black, which is invisible in dark mode. An arrow <marker> carries the
+   class on the <marker> itself, because its content inherits from its position
+   in the DOM, not from the element that references it. */
+figure { margin: 0.4rem 0; display: flex; flex-direction: column; gap: 0.6rem; }
+/* A drawing capped narrower than the column (a diagram svg at 1x its viewBox, BL-675)
+   sits centred in the flex column, never pinned to the left with the space on the right. */
+figure svg { width: 100%; max-width: 100%; height: auto; color: var(--ink); margin-inline: auto; }
+/* A png/jpg `figure` with a highlight (BL-619): the wrapper is the box the
+   outline layer is measured against, and the img fills it, so it renders at the
+   width a plain figure's img gets (a flex item stretched to the column). In an
+   item's thumbnail grid it is shown whole, never cropped to 4:3, so the
+   percentage overlay still sits on the region. */
+.fig-hl:where(:not(svg *)) { position: relative; }
+.fig-hl:where(:not(svg *)) > img { display: block; width: 100%; height: auto; }
+.gal.shots .fig-hl:where(:not(svg *)) > img { aspect-ratio: auto; object-fit: fill; }
+:is(figure, .kit-zoom-svg) svg .acc { color: var(--accent); }
+:is(figure, .kit-zoom-svg) svg .flg { color: var(--flag); }
+:is(figure, .kit-zoom-svg) svg .mut { color: var(--muted); }
+/* A `video` block: the film sits in the column like a figure and never past it, and never taller than the viewport (BL-593: a 3:4 film).
+   The letterbox is the sunk paper, so it reads in both themes. */
+figure.video video { width: 100%; max-width: 100%; height: auto; max-height: 80vh; display: block;
+                     background: var(--paper-sunk); border: 1px solid var(--rule); border-radius: 4px; }
+figcaption { font-family: var(--sans); font-size: 0.76rem; line-height: 1.5; color: var(--muted); }
+
+ul, ol { margin: 0; padding-left: 1.15rem; display: flex; flex-direction: column; gap: 0.5rem; }
+/* A sub-list (BL-586) sits tighter than the list it is in: the same 0.5rem gap
+   inside an item read as looser than between its parents, and `ol` had no rule
+   at all, so it kept the UA's 40px indent while `ul` took 1.15rem. */
+li > ul, li > ol { gap: 0.25rem; margin-top: 0.25rem; }
+/* A path is one unbreakable word (`~/.claude/aidex/delegation/*.tsv`), and at 390 px
+   it ran past the column and scrolled the whole page sideways (R1, R6 of the
+   2026-09-24 A/B set). `anywhere`, not `break-word`: a `li` is a flex item of the
+   `ul` above, and only `anywhere` lowers the min-content width a flex item keeps.
+   An item's h3, an option label (its text is a flex item of the label) and a
+   verdict cell's caption carry the same inline `code` paths and spilled the
+   same way (kit 28), and so did the page h1 and a group or section h2 at 390 px
+   (kit 30). */
+p, li, h1, h2, h3, .opts label, .verdict > div { overflow-wrap: anywhere; }
+li::marker { color: var(--muted); }
+
+.note:where(:not(svg *)) { font-family: var(--sans); font-size: 0.82rem; line-height: 1.55; color: var(--ink-soft);
+        background: var(--paper-sunk); border-left: 2px solid var(--accent-dim); padding: 0.75rem 0.95rem; }
+.note.kit-stale:where(:not(svg *)) { position: sticky; top: 0; z-index: 20; background: var(--paper-sunk); box-shadow: 0 1px 0 var(--rule); }
+.note.warn { border-left-color: var(--flag); }
+.ex:where(:not(svg *)) { font-family: var(--sans); font-size: 0.8rem; line-height: 1.55; color: var(--ink-soft);
+      border-left: 2px solid var(--rule); padding-left: 0.8rem; }
+.ex b { color: var(--ink); font-weight: 600; }
+
+/* THE BLOCK VOCABULARY (kit v22). `num`, `pill`, `chip`, `callout` and
+   `verdict`/`win` are the classes `references/04-block-vocabulary.md` fixed for
+   the page spec — and they were chosen, deliberately, as the classes the corpus
+   repeats that this file did NOT define. That selection rule is also how they
+   shipped inert: a spec-built page emitted every one of them, passed
+   `check-artifact`, and rendered a verdict whose winner was indistinguishable,
+   an unframed callout, bare-word pills and a left-aligned numeric column. No
+   new colour is introduced here; every value is a token, so a project's delta
+   restyles these with everything else. */
+
+/* A numeric column, marked in the source by a `---:` separator cell. The
+   `tabular-nums` half is the point of the marker: equal-width digits make a
+   column of figures comparable down its length, which proportional digits in
+   the body face are not. */
+th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* The two inline tags. `pill` is a status or confidence tag inside a sentence;
+   `chip` is an outcome label in a list or a table, so it is the smaller,
+   upper-case, fully-rounded one — the pair has to be told apart at a glance or
+   the distinction the vocabulary draws is invisible. Sized off the sans stack
+   and the sunk paper rather than a tint of the accent: the accent is a
+   FOREGROUND colour in both themes (the same reason `.kit-tag` is transparent),
+   and a filled tag loses its own text in one of them.
+   Never inside an svg (`:where(:not(svg *))`, which adds no specificity): an
+   author's figure names its own labels `chip` too, and kit 22-26 painted such a
+   `<text class="chip">` --ink-soft on the author's dark chip, 1.08:1 in the
+   light scheme, and resized it past its box. Since kit 29 every kit class rule
+   that sets a text property (display, font, colour, case, spacing) carries the
+   same filter: a class rule beats a label's own font-size= and fill= attributes,
+   so `<text class="note">` was recoloured and `consult-clear` hid it. */
+.pill:where(:not(svg *)), .chip:where(:not(svg *)) {
+               font-family: var(--sans); font-weight: 600; white-space: nowrap;
+               background: var(--paper-sunk); border: 1px solid var(--rule);
+               color: var(--ink-soft); vertical-align: 0.06em; }
+.pill:where(:not(svg *)) { font-size: 0.74rem; letter-spacing: 0.02em; padding: 0.08em 0.42em; border-radius: 3px; }
+.chip:where(:not(svg *)) { font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase;
+        padding: 0.1em 0.5em; border-radius: 999px; }
+/* The tones, written by the corpus as the SECOND class of the span
+   (`pill high`, `chip chip-kill`) and by `tone=` in a spec. Scoped to their
+   own tag, so a word this common cannot restyle anything else on the page. */
+.pill.high:where(:not(svg *)) { color: var(--accent); border-color: var(--accent-dim); }
+.pill.info:where(:not(svg *)) { color: var(--ink-soft); border-color: var(--rule); }
+.pill.warn:where(:not(svg *)), .chip.warn:where(:not(svg *)) { color: var(--flag); border-color: var(--flag); }
+.chip.chip-kill:where(:not(svg *)), .chip.kill:where(:not(svg *)) { color: var(--flag); border-color: var(--flag); }
+.chip.ok:where(:not(svg *)), .pill.ok:where(:not(svg *)) { color: var(--accent); border-color: var(--accent-dim); }
+
+/* The framed aside: the paragraph the page does not want skimmed past. Louder
+   than `.note`, which is its quieter sibling and already styled — with no rule
+   of its own the two read as one voice, which is the whole distinction gone.
+   It keeps the body face and body size (a callout is content, not chrome) and
+   takes the frame plus an accent edge. */
+.callout { border: 1px solid var(--rule); border-left: 3px solid var(--accent);
+           border-radius: 4px; background: var(--paper-sunk); padding: 0.9rem 1.1rem;
+           display: flex; flex-direction: column; gap: 0.6rem; }
+
+/* The verdict strip at the head of a comparison: N cells, one of them the
+   winner. The winner is the only reason the strip exists, so it is the cell
+   that carries the accent frame and the un-sunk paper — with no rule at all,
+   `.win` computed identically to its neighbours and the scoreboard had no
+   score. The figure is the large numeral, the label its line, the caption the
+   small print under both. */
+.verdict:where(:not(svg *)) { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+           gap: 0.6rem; font-family: var(--sans); }
+.verdict > div { border: 1px solid var(--rule); border-radius: 4px; background: var(--paper-sunk);
+                 padding: 0.7rem 0.9rem; color: var(--ink-soft); font-size: 0.85rem; line-height: 1.4; }
+.verdict > div b { display: block; font-family: var(--serif); font-weight: 600;
+                   font-size: 1.75rem; line-height: 1.1; color: var(--ink);
+                   font-variant-numeric: tabular-nums; }
+.verdict > div small { display: block; margin-top: 0.3rem; font-size: 0.72rem; color: var(--muted); }
+.verdict > div.win { background: var(--paper); color: var(--ink); border-color: var(--accent);
+                     box-shadow: inset 0 0 0 1px var(--accent); }
+
+/* The ledger: what this thread already decided, so a decided item leaves the
+   interface instead of being asked again. */
+/* `min(20rem, 100%)`: at 390 px the column is 294 px and a bare 20rem track spilled
+   every row 28 px past the ledger's border. */
+/* Per-cell borders, not a 1px gap over a --rule background: an odd last row left
+   the unused track shaded as an empty cell (BL-614). The container carries the top
+   and left edge, each cell its right and bottom one. */
+.ledger { border-top: 1px solid var(--rule); border-left: 1px solid var(--rule); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr)); }
+.ledger > div { background: var(--paper); border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); display: flex; gap: 0.7rem; align-items: baseline;
+                padding: 0.55rem 0.9rem; font-family: var(--sans); font-size: 0.82rem; line-height: 1.5; }
+/* The key column is sized by its key, up to 40% of the row, and wraps beyond it:
+   the value keeps at least 60% (its `min-width`, not a `max-width` on the key, which
+   would be a second measure inside the column). The key used to shrink to its own
+   `min-width` whatever it said, so `by_model.py` or `Exclusiones` ran under the
+   value's first words (B-R-2, 2026-09-24). */
+.ledger .k { font-family: var(--mono); font-size: 0.75rem; color: var(--accent); min-width: 1.8rem;
+             overflow-wrap: anywhere; }
+.ledger .v { color: var(--ink-soft); flex: 1 1 0; min-width: 60%; overflow-wrap: anywhere; }
+.ledger .v b { color: var(--ink); font-weight: 600; }
+
+/* A block: one context, then the decisions that fall out of it (BL-247). No
+   rule down the left: `.main > section` owns the section box (a left rule was
+   overridden to padding 0 and drew glued to the text), and the block already
+   reads from its accent eyebrow, its h2 and the section separator. */
+.consult-group > .sec-head .eyebrow:where(:not(svg *)) { color: var(--accent); }
+.consult-group > .consult-item { margin-top: 0.25rem; }
+/* The general-notes item sits directly under .main once the blocks are the
+   sections, so `.main > section` would strip its inner padding and stretch it
+   with section padding. It keeps the item box; the end bar follows it. */
+.main > section.consult-item { padding: 1.1rem 1.25rem; margin-top: 2.4rem; }
+.main > .endbar { margin: 1rem 0 2.4rem; }
+.consult-item:where(:not(svg *)) { border: 1px solid var(--rule); border-radius: 4px; padding: 1.1rem 1.25rem;
+                display: flex; flex-direction: column; gap: 0.7rem; scroll-margin-top: 2rem; }
+.consult-item > h3 { margin: 0; font-size: 1.05rem; }
+.consult-id:where(:not(svg *)) { font-family: var(--mono); font-size: .8rem; color: var(--muted); margin-right: .5rem; }
+/* Item prose is one size wherever it sits, so the size is the ITEM's and its
+   text inherits it: a paragraph in a wrapper div or a list item reads like a
+   direct one (kit 26's `:where(.consult-item) > p` left those at the body's
+   17 px next to 15.2 px). Anything with a size of its own keeps it (.fieldlabel,
+   .note and the paragraphs a div.note passes its size to, .ex, option labels,
+   tables), and :where() leaves the rule at no specificity, so a class on the
+   item itself wins too. `.consult-item p` (0,1,1), before kit 26, beat all of
+   them. */
+:where(.consult-item):where(:not(svg *)) { font-size: 0.95rem; }
+
+/* A GALLERY ROW: one screen state, one figure per tile of the row's matrix —
+   before/after for a review row generated by scripts/gallery-items.sh from the
+   project's rows JSON, or light/dark x desktop/mobile on a matrix written by
+   hand. Two columns, so a pair sits side by side and the difference between
+   them is one saccade rather than a scroll.
+
+   These rules were written inline on the page that first carried the shape
+   (`2026-09-21-ui-contract-consulta.html`, round 5) and moved here whole: a
+   page-local <style> is for the one rule this page genuinely needs, and every
+   consultation that reviews a UI needs all of these. The move also drops a
+   defect that version shipped — `var(--line, #ccc)` names a token this kit has
+   never defined, so all four borders rendered at the #ccc fallback, on light
+   and dark alike. The kit's line token is `--rule`.
+
+   The image keeps the paper behind it: a screenshot with transparent edges (a
+   rounded-corner shell is the usual case) shows the page through them, and on
+   a dark page a light-mode capture then bleeds. */
+/* Two columns at most, and auto-fit collapses a column no tile fills: a filter
+   that leaves one tile per row (light + mobile) gives that tile the row
+   instead of the left half of a grid whose right half is empty. The minimum
+   sits just under half so exactly two tracks fit. */
+.gal { display: grid; grid-template-columns: repeat(auto-fit, minmax(calc(50% - 0.4rem), 1fr));
+       gap: 0.6rem; margin: 0.2rem 0 0.3rem; }
+.gal figure { margin: 0; }
+/* An alternatives row with per-option states (BL-691): the figures come
+   option-major, so N states per option make one grid row per option. Two is the
+   default grid; 3 and 4 need their own tracks, and a narrow page stacks them. */
+@media (min-width: 700px) {
+  .gal[data-per-option="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .gal[data-per-option="4"] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+.gal img { width: 100%; height: auto; border: 1px solid var(--rule); border-radius: 4px;
+           background: var(--paper); }
+/* A phone capture is a tall, narrow image: at the column's full width it towers
+   over its desktop neighbour and the row stops being readable as one row. Keyed
+   off the tile NAME, so a matrix that adds a viewport gets the cap by naming it
+   `<mode>-mobile` and nothing here has to learn the new tile. */
+.gal figure[data-tile$="-mobile"] img { max-width: 220px; margin: 0 auto; display: block; }
+/* An item's own screenshots (BL-493): the same grid, 2-4 columns by image
+   count (`data-cols`, written by the builder), ONE column under 700 px. The
+   thumbnails share a common 4:3 frame and the capture is FIT inside it, top
+   aligned, never cropped: `cover` cut the sides off wide before/after/diff
+   crops so the changed text was unreadable (BL-694, echo_lab 2026-10-04). The
+   viewer shows the capture at full size. Not a gallery row: no data-tile, no
+   compare, no marks. */
+.gal.shots { grid-template-columns: minmax(0, 1fr); }
+.gal.shots figure { position: relative; cursor: pointer; }
+.gal.shots img { aspect-ratio: 4 / 3; object-fit: contain; object-position: center top; }
+@media (min-width: 700px) {
+  .gal.shots[data-cols="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .gal.shots[data-cols="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .gal.shots[data-cols="4"] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+/* A before/after review row names its variant on the ROW, not on the tiles. */
+.consult-gallery[data-variant$="-mobile"] .gal img { max-width: 220px; margin: 0 auto; display: block; }
+/* An unrequested change: the one line that tells the owner why the row is here. */
+.gal-flag:where(:not(svg *)) { font-family: var(--sans); font-size: 0.85rem; font-weight: 600; color: var(--flag);
+            margin: 0; }
+.gal figcaption { font-size: 0.72rem; text-align: center; }
+/* The row that does not apply: the reason IS the row's content, so it reads as
+   a statement rather than as a missing image. */
+.gal-na:where(:not(svg *)) { font-family: var(--sans); font-size: 0.88rem; color: var(--ink-soft);
+          border-left: 2px solid var(--rule); padding-left: 0.8rem; margin: 0.2rem 0 0.3rem; }
+/* A sample row asks nothing (BL-693): its one line stands where the options would be. */
+.gal-asks-nothing:where(:not(svg *)) { font-family: var(--sans); font-size: 0.88rem; color: var(--ink-soft);
+          margin: 0.4rem 0 0.3rem; }
+/* One column below 700px: two tiles side by side on a phone are two thumbnails
+   nobody can judge, and judging is the whole point of the row. */
+@media (max-width: 700px) { .gal { grid-template-columns: 1fr; } }
+
+/* A tile is a BUTTON once the composer has run (role and tabindex are set from
+   composer.js, never written into the markup): a click or Enter opens it in
+   the zoom dialog. Keyed off the role, so a page read with scripts off keeps
+   the plain grid and shows no affordance it cannot honour. */
+.gal figure[role="button"], figure[data-viewer][role="button"] { cursor: zoom-in; border-radius: 4px; position: relative; }
+.gal figure[role="button"]:focus-visible, figure[data-viewer][role="button"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* The ZOOM DIALOG. One per page, built and reused by the composer.
+   `showModal()` brings the backdrop, the focus trap and Esc for nothing.
+   Fit size is the default (90vw/90vh, the capture entire); `native` drops the
+   caps so the image is its own pixels and the dialog scrolls around it —
+   which is the only way to judge a 1600px capture of type.
+
+   The dialog itself carries NO max-width: the browser's own dialog rules
+   already hold it inside the viewport, and a second cap in this file is the
+   two-widths defect BL-383 pinned (the cap belongs on the image, which is the
+   thing being sized). Two dialogs do set a width, both the same expression
+   inside the browser's own cap: a walk through several images
+   (dialog.kit-zoom.multi) and a drawing (dialog.kit-zoom.svgmode), so their
+   buttons stay put while the image changes. */
+/* The dialog takes the focus only as a parking spot (composer.js compare()),
+   never as a control, so it draws no ring. */
+dialog.kit-zoom { padding: 0; overflow: auto; outline: none;
+                  border: 1px solid var(--rule); border-radius: 6px;
+                  background: var(--paper); color: var(--ink); }
+dialog.kit-zoom::backdrop { background: rgba(0, 0, 0, 0.62); }
+.kit-zoom-head:where(:not(svg *)) { position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap;
+                 align-items: center; gap: 0.5rem; padding: 0.5rem 0.7rem;
+                 border-bottom: 1px solid var(--rule); background: var(--paper);
+                 font-family: var(--sans); font-size: 0.8rem; }
+.kit-zoom-row:where(:not(svg *)) { font-weight: 600; }
+.kit-zoom-tile:where(:not(svg *)), .kit-zoom-with:where(:not(svg *)), .kit-zoom-cell:where(:not(svg *)) { font-family: var(--mono); color: var(--muted); font-size: 0.74rem; }
+.kit-zoom-cmpgroup { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center;
+                      gap: 0.25rem; min-width: 0; }
+.kit-zoom-cmp { white-space: nowrap; }
+.kit-zoom-size:where(:not(svg *)), .kit-zoom-close:where(:not(svg *)), .kit-zoom-cmp:where(:not(svg *)),
+.kit-zoom-prev:where(:not(svg *)), .kit-zoom-next:where(:not(svg *)) { font: inherit; padding: 0.15rem 0.6rem; cursor: pointer;
+                                  border: 1px solid var(--rule); border-radius: 4px;
+                                  background: var(--paper); color: var(--ink); }
+.kit-zoom-size[aria-pressed="true"]:where(:not(svg *)), .kit-zoom-cmp[aria-pressed="true"]:where(:not(svg *)) { border-color: var(--accent); color: var(--accent); }
+.kit-zoom-mark:where(:not(svg *)) { font: inherit; padding: 0.15rem 0.6rem; cursor: pointer; white-space: nowrap;
+                 border: 1px solid var(--rule); border-radius: 4px;
+                 background: var(--paper); color: var(--ink); }
+.kit-zoom-mark:disabled:where(:not(svg *)) { cursor: default; opacity: 0.5; }
+/* The Mark button and the range take turns: marks are drawn with compare off,
+   the range only means something with it on. */
+.kit-zoom:not([data-compare="off"]) .kit-zoom-mark:where(:not(svg *)) { display: none; }
+/* Under 640px the header is two lines: the row (truncated, its full text in
+   the title), the tile, the size and Close; then the tools. The cell id
+   repeats the row, the sibling's name repeats the compare mode, and the
+   group's label repeats its buttons, so the three go. At 500px wide the
+   header was four lines (160px with the range showing) over the capture. */
+@media (max-width: 640px) {
+  .kit-zoom-row { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .kit-zoom-cell:where(:not(svg *)), .kit-zoom-with:where(:not(svg *)), .kit-zoom-cmpgroup > .kit-gallabel:where(:not(svg *)) { display: none; }
+  .kit-zoom-cmpgroup { order: 1; flex: 1 1 100%; margin-left: 0; }
+}
+/* Reduced mode, an item's own images: no compare, no marks, no rows. */
+.kit-zoom.shots .kit-zoom-cmpgroup, .kit-zoom.shots .kit-zoom-with { display: none; }
+.kit-zoom.shots .kit-zoom-size { margin-left: auto; }
+/* The item's images, one at a time (BL-597): previous/next in the header, only
+   when there is more than one image; the group takes the push to the right. */
+.kit-zoom-nav:where(:not(svg *)) { display: none; }
+.kit-zoom.shots .kit-zoom-nav:not([hidden]) { display: flex; gap: 0.3rem; margin-left: auto; }
+.kit-zoom.shots .kit-zoom-nav:not([hidden]) ~ .kit-zoom-size { margin-left: 0; }
+.kit-zoom-prev:where(:not(svg *)), .kit-zoom-next:where(:not(svg *)) { white-space: nowrap; }
+.kit-zoom-prev:disabled:where(:not(svg *)), .kit-zoom-next:disabled:where(:not(svg *)) { cursor: default; opacity: 0.5; }
+/* The figure's title under the image it names. */
+.kit-zoom-cap:where(:not(svg *)) { margin: 0.5rem 0 0; text-align: center; font-family: var(--sans); font-size: 0.88rem; }
+.kit-zoom-cap[hidden] { display: none; }
+/* An inline svg figure (BL-626): drawn at its viewBox width, never scaled to
+   the window at 1:1 (its text keeps the size it was authored at; the dialog
+   scrolls); "Fit" scales it to the largest size the dialog holds, up or down
+   (BL-712), centred (BL-713). */
+.kit-zoom-svg { display: none; grid-area: 1 / 1; }
+.kit-zoom.svgmode .kit-zoom-svg { display: block; }
+.kit-zoom.svgmode .kit-compare > img { display: none; }
+.kit-zoom-svg svg { display: block; margin: 0 auto; width: var(--kit-svg-w, auto); max-width: 100%; height: auto; color: var(--ink); }
+.kit-zoom.native .kit-zoom-svg svg { max-width: none; }
+.kit-zoom:not(.native) .kit-zoom-svg svg { max-height: calc(90vh - 6rem); }
+/* A drawing's dialog takes the width and the top a walk takes
+   (dialog.kit-zoom.multi) instead of sizing to its content and centring on
+   its height, so Fit has room to grow a lone drawing too and the size button
+   does not move when the mode changes. */
+dialog.kit-zoom.svgmode { width: min(calc(100% - 2em - 6px), 64rem); margin-top: 2rem; margin-bottom: auto;
+                          scrollbar-gutter: stable; }
+/* Fit: width auto keeps the viewBox ratio under the max-height and fills the
+   box otherwise (a drawing with no viewBox does not scale, so it keeps its
+   width). */
+.kit-zoom:not(.native) .kit-zoom-svg svg[viewBox] { width: auto; }
+/* At 1:1 a drawing wider than the dialog scrolls sideways from its left edge:
+   centring it (justify-items also applies to block children) would push the
+   overflow off the left, where nothing reaches it. */
+.kit-zoom.svgmode .kit-compare, .kit-zoom.shots.native .kit-compare { display: block; justify-items: start; overflow-x: auto; }
+/* At Fit nothing overflows, and start would shrink the box to the drawing and
+   pin it left (BL-713): the box takes the full width, the drawing centres. */
+.kit-zoom.svgmode:not(.native) .kit-compare { justify-items: normal; }
+.kit-zoom.native .kit-zoom-svg { width: max-content; min-width: 100%; }
+/* An item's images only (a gallery row keeps its grid): the viewer is the
+   scroller, so the header and the caption stay put and the padding is the same
+   on both sides. A drawing that fits lets the browser deliver a horizontal
+   swipe (the walk); one that overflows pans (the composer sets .pan). */
+.kit-zoom.svgmode .kit-compare { touch-action: pan-y pinch-zoom; }
+.kit-zoom.svgmode.pan .kit-compare { touch-action: pan-x pan-y pinch-zoom; }
+/* A walk through several images keeps one dialog width, so Previous/Next do not
+   jump under the finger when a narrower image follows a wider one; it is pinned to
+   the top for the same reason (an image's height must not re-centre it). */
+dialog.kit-zoom.multi { width: min(calc(100% - 2em - 6px), 64rem); margin-top: 2rem; margin-bottom: auto;
+                        scrollbar-gutter: stable; }
+/* Its label changes with the image (1:1 / Fit), which would move the buttons beside it. */
+.kit-zoom.multi .kit-zoom-size { min-width: 12em; text-align: center; }
+/* A lone figure's caption and Ampliar are centred like a grid's, and in a grid
+   the caption goes to the cell's bottom so figures of different heights share
+   one line for it and for Ampliar. */
+figure[data-viewer] figcaption { text-align: center; }
+.gal.shots figcaption { margin-top: auto; }
+.kit-zoom-body { padding: 0.7rem; }
+/* The UA caps the dialog at 100% - 2em - 6px, so 90vw alone overflows it on a
+   narrow screen; the height leaves room for the header and the keys line. */
+.kit-zoom img { display: block; margin: 0 auto; max-width: min(90vw, 100%); max-height: calc(90vh - 6rem);
+                width: auto; height: auto; background: var(--paper); }
+.kit-zoom.native img { max-width: none; max-height: none; }
+.kit-zoom-note:where(:not(svg *)) { margin: 0; padding: 0.4rem 0.7rem 0; font-family: var(--sans); font-size: 0.78rem; }
+
+/* COMPARE (GitHub's image-diff modes). Both images sit in ONE grid cell, the
+   sibling on top; 2-up gives each its own column. The slider writes two
+   properties on the dialog and these rules are all that read them. */
+.kit-compare { display: grid; justify-items: center; position: relative; }
+.kit-compare img { grid-area: 1 / 1; }
+.kit-zoom .kit-zoom-other, .kit-zoom .kit-zoom-range { display: none; }
+.kit-zoom:not([data-compare="off"]) .kit-zoom-other { display: block; }
+.kit-zoom[data-compare="2up"] .kit-compare { grid-template-columns: repeat(2, auto); gap: 0.7rem; }
+.kit-zoom[data-compare="2up"] .kit-zoom-other { grid-area: 1 / 2; }
+.kit-zoom[data-compare="2up"]:not(.native) img { max-width: min(44vw, 100%); }
+.kit-zoom[data-compare="swipe"] .kit-zoom-other { clip-path: inset(0 0 0 var(--kit-swipe)); }
+/* The swipe HANDLE: the line where the two captures meet, with a grip, so the
+   split reads as a split and not as a seam in one screenshot. The layer sits
+   over the current image (placed by the composer); the line follows the same
+   --kit-swipe the clip uses. It takes no pointer: the range is the control. */
+.kit-swipe-layer:where(:not(svg *)) { position: absolute; pointer-events: none; display: none; }
+.kit-zoom[data-compare="swipe"] .kit-swipe-layer:where(:not(svg *)) { display: block; }
+.kit-swipe-handle { position: absolute; top: 0; bottom: 0; left: var(--kit-swipe, 50%); width: 2px;
+                    transform: translateX(-50%); background: var(--accent);
+                    box-shadow: 0 0 0 1px var(--paper); }
+.kit-swipe-handle::after { content: ""; position: absolute; top: 50%; left: 50%; width: 14px; height: 14px;
+                           transform: translate(-50%, -50%); border-radius: 50%;
+                           background: var(--accent); box-shadow: 0 0 0 2px var(--paper); }
+.kit-zoom[data-compare="onion"] .kit-zoom-other { opacity: var(--kit-onion); }
+.kit-zoom[data-compare="swipe"] .kit-zoom-range,
+.kit-zoom[data-compare="onion"] .kit-zoom-range { display: inline-block; flex: 1 1 5rem;
+                                                   min-width: 4rem; width: auto; }
+/* REGION MARKS. The layers are placed over the image's content box by the
+   composer (placeOver), so a mark's percentages mean the same pixels in the
+   dialog at any size and on the grid tile. Marks belong to the tile being
+   judged: with compare on, the layer and its marks are hidden and draw nothing.
+   The tile layer never takes the pointer, so a click still opens the zoom; the
+   MARKS do, so their note (a title) shows on hover. Their events bubble: to
+   the dialog layer (a press inside a mark still draws or opens its note) and
+   to the tile's figure (a click still opens the zoom). */
+.kit-marks-layer { position: absolute; cursor: crosshair; touch-action: none; }
+.kit-marks-layer.readonly { cursor: default; }
+/* An item's images at 1:1 draw no marks and do not swipe, so a touch pans the
+   capture; at fit size `none` stays, or the swipe loses its pointerup. */
+.kit-zoom.shots.native .kit-marks-layer { touch-action: pan-x pan-y; }
+.kit-zoom:not([data-compare="off"]) .kit-marks-layer { display: none; }
+.kit-marks-tile { position: absolute; pointer-events: none; }
+.kit-mark { position: absolute; box-sizing: border-box; pointer-events: auto;
+            border: 2px solid var(--accent); box-shadow: 0 0 0 1px var(--paper); }
+.kit-mark.drawing { border-style: dashed; }
+.kit-mark[data-n]::after { content: attr(data-n); position: absolute; top: 0; left: 0;
+            font: 700 0.7rem/1 var(--sans, inherit); padding: 0.1rem 0.25rem;
+            background: var(--accent); color: var(--paper); }
+.kit-mark.hot { border-width: 4px; }
+/* The row's list of region notes (BL-708). */
+.kit-marks-list:where(:not(svg *)) { margin: 0.6rem 0 0; font-size: 0.9rem; }
+.kit-marks-title:where(:not(svg *)) { margin: 0 0 0.25rem; font-weight: 700; }
+.kit-marks-empty:where(:not(svg *)) { margin: 0; color: var(--muted, inherit); }
+.kit-marks-list:where(:not(svg *)) ol { margin: 0; padding: 0; list-style: none; }
+.kit-marks-list:where(:not(svg *)) li { display: flex; gap: 0.5rem; align-items: baseline; padding: 0.15rem 0; }
+.kit-marks-go:where(:not(svg *)) { all: unset; cursor: pointer; display: flex; gap: 0.4rem; flex: 1; }
+.kit-marks-go:where(:not(svg *)):focus-visible { outline: 2px solid var(--accent); }
+.kit-marks-tile-name:where(:not(svg *)) { color: var(--muted, inherit); }
+.kit-marks-rm:where(:not(svg *)) { font: inherit; font-size: 0.8rem; cursor: pointer; padding: 0.1rem 0.5rem;
+                 border: 1px solid var(--rule); border-radius: 4px;
+                 background: var(--paper); color: var(--ink); }
+dialog.kit-mark-note { border: 1px solid var(--rule); border-radius: 6px; padding: 0.8rem;
+                       background: var(--paper); color: var(--ink);
+                       font-family: var(--sans); font-size: 0.85rem; }
+dialog.kit-mark-note::backdrop { background: rgba(0, 0, 0, 0.3); }
+.kit-mark-note label { display: flex; flex-direction: column; gap: 0.3rem; }
+.kit-mark-note input { font: inherit; width: min(28rem, 80vw); padding: 0.25rem 0.4rem;
+                       border: 1px solid var(--rule); border-radius: 4px;
+                       background: var(--paper); color: var(--ink); }
+.kit-mark-acts { display: flex; gap: 0.4rem; justify-content: flex-end; margin-top: 0.6rem; }
+.kit-mark-acts button { font: inherit; padding: 0.15rem 0.6rem; cursor: pointer;
+                        border: 1px solid var(--rule); border-radius: 4px;
+                        background: var(--paper); color: var(--ink); }
+.kit-zoom-keys:where(:not(svg *)) { margin: 0; padding: 0.3rem 0.7rem 0.6rem; font-family: var(--sans);
+                 font-size: 0.72rem; color: var(--muted); }
+
+/* The per-block filter toolbar, injected by the composer on every block that
+   declares a matrix. It sets one attribute on the block and the four rules
+   below do the hiding — the tiles stay in the markup, so what the copy button
+   composes is the same text whether or not anything is filtered. */
+.kit-galbar:where(:not(svg *)) { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.9rem;
+              font-family: var(--sans); font-size: 0.78rem; margin: 0.1rem 0 0.7rem; }
+.kit-galgroup { display: flex; align-items: center; gap: 0.25rem; }
+.kit-gallabel:where(:not(svg *)) { color: var(--muted); margin-right: 0.15rem; }
+.kit-galopt:where(:not(svg *)) { font: inherit; padding: 0.1rem 0.55rem; cursor: pointer;
+              border: 1px solid var(--rule); border-radius: 4px;
+              background: var(--paper); color: var(--ink); }
+.kit-galopt[aria-pressed="true"]:where(:not(svg *)) { background: var(--accent); border-color: var(--accent);
+                                   color: var(--paper); }
+/* Keyed off the tile NAME, like the mobile cap above: a matrix that adds a
+   viewport filters by naming its tiles `<mode>-<viewport>`, and nothing here
+   has to learn the new tile. Scoped to the block, which is the element the
+   toolbar writes, so no other attribute of that name can reach a figure. */
+.consult-group[data-mode="light"] figure[data-tile^="dark-"] { display: none; }
+.consult-group[data-mode="dark"] figure[data-tile^="light-"] { display: none; }
+.consult-group[data-viewport="desktop"] figure[data-tile$="-mobile"] { display: none; }
+.consult-group[data-viewport="mobile"] figure[data-tile$="-desktop"] { display: none; }
+
+.opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(19rem, 100%), 1fr)); gap: 0.1rem 1.5rem; }
+.opts.one { grid-template-columns: 1fr; }
+.opts label { display: flex; gap: 0.6rem; align-items: flex-start; font-family: var(--sans);
+              font-size: 0.88rem; line-height: 1.45; padding: 0.4rem 0.5rem; border-radius: 4px; cursor: pointer; }
+.opts label:hover { background: var(--paper-sunk); }
+.opts input { accent-color: var(--accent); margin-top: 0.28rem; flex: none; }
+.opts .hint { color: var(--muted); font-size: 0.8rem; display: block; }
+
+/* The recommendation, made VISIBLE. `data-recommended` on the input is the one
+   declaration; the composer renders the pill from it and appends the same word
+   to the copied label, so nothing is written twice and nothing can say one
+   thing on the page and another in the paste.
+
+   The pill is drawn from the page's own tokens, so it inherits every theme the
+   page has: `--accent` for the backed option, `--muted` with a dashed edge for
+   one explicitly advised against. `background: transparent` rather than a tint,
+   because the accent is a foreground colour in both themes and a filled pill
+   loses its own text in one of them. */
+.kit-tag:where(:not(svg *)) { font-family: var(--sans); font-size: 0.62rem; font-weight: 600;
+           text-transform: uppercase; letter-spacing: 0.09em; white-space: nowrap;
+           padding: 0.08rem 0.36rem; border-radius: 3px; margin-left: 0.45rem;
+           vertical-align: 0.06em; background: transparent; }
+.kit-tag.rec:where(:not(svg *)) { color: var(--accent); border: 1px solid var(--accent-dim); }
+.kit-tag.no:where(:not(svg *))  { color: var(--muted);  border: 1px dashed var(--muted); }
+.opts label:has(input[data-recommended]) { background: var(--paper-sunk); }
+.opts label:has(input[data-recommended="no"]) { background: none; }
+/* The injected "other" choice (BL-268): last in its group, set off by a rule so
+   it reads as the exit from the list rather than one more entry in it. */
+.opts .kit-other, .opts .kit-notnow { border-top: 1px dashed var(--rule); margin-top: 0.25rem; padding-top: 0.55rem; color: var(--muted); }
+.opts.one .kit-other, .opts.one .kit-notnow { grid-column: 1; }
+.opts:not(.one) .kit-other, .opts:not(.one) .kit-notnow { grid-column: 1 / -1; }
+
+/* A DECIDED item: the question is settled, so it is shown and not asked. It
+   keeps the option it chose and the ones it beat — that is the record — drawn
+   back so it reads as history rather than as a live control. It carries no
+   injected control at all, and its inputs are disabled by the composer, which
+   is what stops a settled answer from re-composing into every later round. */
+.consult-item[data-decided] { border-style: dashed; }
+.consult-item[data-decided] .opts label { cursor: default; }
+.consult-item[data-decided] .opts label:hover { background: none; }
+.consult-item[data-decided] .opts label:not(:has(input:checked)) { opacity: 0.55; }
+.consult-item[data-decided] input:disabled { accent-color: var(--accent-dim); }
+/* An empty reply box on a settled item carries no record and cannot be typed
+   into, so it is a dead control, not history. It is hidden with its label; one
+   that HAS text stays, because then it is part of what was answered. */
+.consult-item[data-decided]:not([data-proposal]):has(textarea:placeholder-shown) .fieldlabel:where(:not(svg *)),
+.consult-item[data-decided]:not([data-proposal]) textarea:placeholder-shown { display: none; }
+
+/* The "not now" choice (BL-381) closes the option group after "other" and
+   shares its dashed band: the two exits read as one band, not two. */
+.opts .kit-other + .kit-notnow { border-top: none; margin-top: 0; padding-top: 0.1rem; }
+
+/* The ask row (kit v18, BL-381; seven chips since v19): a second surface under
+   the answer, one line of chips with a lead-in. Deliberately lighter than the
+   two v16 radios it replaces — no hint lines; each chip carries a title. */
+.kit-ask:where(:not(svg *)) { display: flex; flex-wrap: wrap; gap: 0.2rem 0.9rem; align-items: baseline;
+           margin-top: 0.55rem; padding-top: 0.5rem; border-top: 1px dashed var(--rule);
+           font-family: var(--sans); font-size: 0.82rem; color: var(--muted); }
+.kit-ask-lead:where(:not(svg *)) { color: var(--ink-soft); }
+.kit-ask label { display: inline-flex; align-items: baseline; gap: 0.3rem; cursor: pointer;
+                 padding: 0.1rem 0.3rem; border-radius: 3px; white-space: nowrap; }
+.kit-ask label:hover { background: var(--paper-sunk); color: var(--ink); }
+.kit-ask label:has(input:checked) { color: var(--ink); }
+.kit-ask input[type="checkbox"] { accent-color: var(--accent); margin: 0; }
+/* The page-defect report: a quiet button under the ask row that opens its own box. */
+.kit-defect:where(:not(svg *)) { margin-top: 0.4rem; font-family: var(--sans); font-size: 0.82rem; color: var(--muted); }
+.kit-defect-btn:where(:not(svg *)) { font: inherit; color: inherit; background: none; border: 0; padding: 0.1rem 0.3rem;
+                  border-radius: 3px; cursor: pointer; text-decoration: underline dotted; }
+.kit-defect-btn:hover { background: var(--paper-sunk); color: var(--ink); }
+.kit-defect-box { display: block; margin-top: 0.3rem; }
+.kit-defect-box[hidden] { display: none; }
+.kit-defect-box textarea { display: block; width: 100%; margin-top: 0.2rem; }
+/* A phone is 21-24rem of usable width: eight chips wrap to three or four rows
+   there, and each row has to stay tappable. The chips keep their size (a 0.82rem
+   target is already the floor); what gives is the space between them and the
+   lead-in, which takes a line of its own so no chip is orphaned beside it. */
+@media (max-width: 34rem) {
+  /* BL-584: at 390 px the body padding (2 x 1.5rem) and the 100vw - 6rem cap took
+     96px and left 292 for the content; a table of three prose columns then ran to
+     16 lines a row. The page fills the screen minus 2 x 1rem here, and a table
+     takes a smaller face and tighter cell sides (7 lines a row, from 16). */
+  body { padding-inline: 1rem; }
+  .page { max-width: none; }
+  table { font-size: 0.78rem; }
+  th, td { padding-inline: 0.4rem; }
+  /* A table with a long prose column squeezed its other columns on a phone: the
+     first one shrank to the width of its longest word. A floor on the TABLE
+     leaves each column to size itself (an id stays an id, a label keeps its
+     room) and the table scrolls inside .tw once the floor is wider than the
+     screen (BL-536). */
+  .tw > table:where(:not(svg *)):has(> thead > tr > :nth-child(4), > tbody > tr > :nth-child(4), > tr > :nth-child(4)) { min-width: 30rem; }
+  /* BL-567: a table of one to three columns fits the screen instead (the floor
+     above pushed the answer column out of sight in every 2-column table), so a
+     long header may wrap here rather than hold a column open. */
+  .tw > table:where(:not(svg *)):not(:has(> thead > tr > :nth-child(4), > tbody > tr > :nth-child(4), > tr > :nth-child(4))) th { white-space: normal; }
+  .kit-ask { gap: 0.25rem 0.5rem; }
+  .kit-ask-lead { flex-basis: 100%; }
+  .kit-ask label { padding: 0.25rem 0.3rem; }
+}
+
+/* The provisional line (kit v19): shown on an item that has BOTH a chosen
+   option and an ask, which is not a decision. Quiet, one line, under the ask
+   row it belongs to — it reports a state the reader created, it does not warn. */
+.kit-provisional:where(:not(svg *)) { margin: 0.45rem 0 0; font-family: var(--sans); font-size: 0.78rem;
+                   line-height: 1.5; color: var(--ink-soft);
+                   border-left: 2px solid var(--accent-dim); padding-left: 0.6rem; }
+
+.consult-item select, .consult-item input[type="text"], .consult-item textarea, .group-notes textarea {
+  width: 100%; box-sizing: border-box; padding: .5rem .7rem; font-family: var(--sans); font-size: 0.9rem;
+  color: inherit; background: var(--paper); border: 1px solid var(--rule); border-radius: 4px; }
+.consult-item textarea, .group-notes textarea { min-height: 4rem; }
+/* BL-701: the block's own free text closes the block, set apart from the items above it. */
+.group-notes { margin-top: 1rem; }
+
+/* Per-item clear, injected by the composer. Aligned to the item's trailing edge
+   and drawn as a quiet link rather than a button: it is a recovery affordance,
+   not one of the two answers the item is asking for. */
+.fieldrow { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+.consult-clear:where(:not(svg *)) { display: none; }
+.consult-item:is(.has-answer, .has-defect) .consult-clear:where(:not(svg *)) { display: inline; }
+.consult-clear:where(:not(svg *)) { align-self: flex-end; background: none; border: none; padding: 0.1rem 0.2rem;
+                 font-family: var(--sans); font-size: 0.72rem; text-transform: uppercase;
+                 letter-spacing: 0.09em; color: var(--muted); cursor: pointer; }
+.consult-clear:hover:where(:not(svg *)) { color: var(--flag); text-decoration: underline; }
+/* Every box, not only the ones inside an item: a textarea defaults to
+   `resize: both`, and the horizontal handle offers an axis the layout has no
+   room for — dragging it wider lays the box over the rail and whatever sits
+   beside it. Vertical is the only direction with anywhere to go. */
+textarea { resize: vertical; }
+.fieldlabel:where(:not(svg *)) { font-family: var(--sans); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+.consult-notes { border-color: var(--accent-dim); background: var(--paper-sunk); }
+
+/* The rail carries the section index as well as the questions: on a page with
+   no questions it is still the table of contents, which is why it stays. */
+.railhead:where(:not(svg *)) { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.13em; color: var(--muted); }
+/* The LIST scrolls, not the whole rail: the copy bar below it is the reason the
+   rail exists on a consultation, and giving `.rail` the overflow would scroll
+   that button out of a box the reader cannot scroll past. `min-height: 0` is
+   what lets a flex child shrink below its content at all. */
+/* The scrollbar is tokenised because this change is what introduced one: the
+   platform default renders as a bright bar that dominates the rail in dark. */
+.raillist { display: flex; flex-direction: column; gap: 0.1rem;
+            min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+            scrollbar-width: thin; scrollbar-color: var(--rule) transparent; }
+.railitem:where(:not(svg *)) { display: flex; gap: 0.55rem; align-items: baseline; padding: 0.32rem 0.5rem;
+            border-radius: 4px; text-decoration: none; color: var(--ink-soft); font-size: 0.82rem; line-height: 1.4; }
+.railitem:hover { background: var(--paper-sunk); }
+/* Where the reader IS. `aria-current` rather than a class: it is the semantic
+   the assistive layer already reads, so one declaration serves both, and a
+   scrollable rail without it only moves the hunt inside the box. */
+.railitem[aria-current]:where(:not(svg *)) { background: var(--paper-sunk); color: var(--ink);
+                          box-shadow: inset 2px 0 0 var(--accent); }
+.railitem .dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; border: 1px solid var(--muted); flex: none; transform: translateY(0.05rem); }
+.railitem.done .dot { background: var(--accent); border-color: var(--accent); }
+.railitem.done:where(:not(svg *)) { color: var(--ink); }
+.railitem .rid { font-family: var(--mono); font-size: 0.73rem; color: var(--muted); }
+.railitem.sec:where(:not(svg *)) { color: var(--muted); }
+.railitem.sec.grp:where(:not(svg *)) { color: var(--ink-soft); margin-top: 0.3rem; }
+.railitem.sub { padding-left: 1.4rem; }
+.railitem.sec .dot { border: none; background: none; }
+.railsep { height: 1px; background: var(--rule); margin: 0.5rem 0; flex: none; }
+/* When this page was built (BL-439), written by the wrap and not by the
+   composer: the reader who cannot tell a stale tab from a fresh one is often
+   the one whose viewer shows the file as a static snapshot with no script. At
+   the foot of the rail, in the chrome register, so it is found where the reader
+   already looks for what the page IS rather than for what it says. */
+.railbuilt:where(:not(svg *)) { margin: 0.6rem 0 0; font-family: var(--sans); font-size: 0.7rem;
+             letter-spacing: 0.03em; color: var(--muted); }
+
+/* Two copy bars, one status. The rail bar carries the bare consult-copy and
+   consult-status ids; the end bar carries the same two with an -end suffix. Do
+   not unify them: the contract greps for the bare pair literally, and the
+   suffixed one does not satisfy it.
+
+   This comment deliberately does not spell either id in its attribute form.
+   components.css is INJECTED into every page, and the first draft did spell
+   one — which made every read page match the consultation detection and fail
+   for missing a copy button it has no use for. Prose satisfying a grep is the
+   defect this whole contract exists to prevent; it does not get to happen
+   inside the kit either. */
+.consult-bar { display: flex; flex-direction: column; gap: 0.55rem; align-items: flex-start;
+               padding-top: 0.8rem; border-top: 1px solid var(--rule); background: var(--paper); }
+.consult-bar button { font-family: var(--sans); font-size: 0.85rem; padding: .5rem .9rem; border-radius: 4px;
+                      border: 1px solid var(--rule); cursor: pointer; color: inherit; background: var(--paper-sunk); width: 100%; }
+.consult-status:where(:not(svg *)) { font-size: .78rem; line-height: 1.45; color: var(--ink-soft); }
+/* Recorded regression, and a contract check: with only the media query above, an
+   explicitly-toggled dark page keeps the light sticky bar and the blank-count
+   status lands at 1.31:1, which is the one element that says what is still
+   unanswered. The contract requires the explicit-toggle form as ONE selector, so
+   do not split it and do not fold it into the media query.
+
+   Written without naming the two tokens next to each other on purpose: the
+   contract check is a grep, this file is injected into every page, and a comment
+   that spells the pair satisfies the grep for pages that do not carry the rule
+   at all. That is the second time kit prose has answered a check on behalf of a
+   page; there is not going to be a third. */
+:root[data-theme="dark"] .consult-bar { background: var(--paper); border-top-color: var(--rule); }
+
+/* The same button at the end of the content. Finishing the answers and not
+   seeing where to hand them in is the failure a reader reported. */
+.endbar { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;
+          border: 1px solid var(--accent-dim); border-radius: 4px; padding: 0.9rem 1.1rem; background: var(--paper-sunk); }
+.endbar button { font-family: var(--sans); font-size: 0.9rem; padding: .55rem 1.1rem; border-radius: 4px;
+                 border: 1px solid var(--accent-dim); cursor: pointer; color: inherit; background: var(--paper); }
+
+/* Where the rail is the sticky bottom bar (the 62rem breakpoint below), it is
+   always in view, so the end bar would be a second copy of the same button and
+   status (BL-535). Above it the rail is a sidebar the reader may have scrolled
+   past, and the end bar stays. After the .endbar rule: same specificity. */
+@media (max-width: 62rem) { .endbar:where(:not(svg *)) { display: none; } }
+
+@media (max-width: 62rem) {
+  .page { grid-template-columns: 1fr; gap: 0; }
+  /* Here the rail is a bottom bar carrying the copy button, not an index. The
+     viewport cap above would clip that bar, so it is reset explicitly rather
+     than left to inherit a value written for the other layout. */
+  .rail { position: sticky; top: auto; bottom: 0; order: 2; padding: 0.6rem 0;
+          max-height: none;
+          background: var(--paper); border-top: 1px solid var(--rule); gap: 0.5rem; }
+  /* The build stamp goes with the index: here the rail is pinned to the bottom
+     of the viewport over the content, and a line the reader cannot dismiss is
+     not worth the strip it costs on a phone. The <meta> stays in the head at
+     every width, so the page still carries the answer. */
+  .rail .railhead:where(:not(svg *)), .rail .raillist, .rail .railsep, .rail .railbuilt:where(:not(svg *)) { display: none; }
+  /* A READ page's rail has nothing left to show here, and an empty strip pinned
+     to the viewport bottom still hid a line of whatever scrolled under it (a
+     figure heading's second line at 390 px on F2, F3 and F5, 2026-09-25). */
+  .rail:not(:has(.consult-bar)):where(:not(svg *)) { display: none; }
+  /* Nothing left to answer (composer sets .settled): a bar pinned over every
+     viewport has no work to point at. It drops to the end of the page, where the
+     notes box can still be sent (BL-575). */
+  .rail.settled:where(:not(svg *)) { position: static; }
+  .consult-bar { border-top: none; padding-top: 0; flex-direction: row; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+  .consult-bar button { width: auto; }
+}
+
+footer { margin-top: 2rem; padding-top: 1.4rem; border-top: 1px solid var(--rule); font-family: var(--sans);
+         font-size: 0.75rem; line-height: 1.6; color: var(--muted); display: flex; flex-direction: column; gap: 0.5rem; }
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* The theme control (BL-327), injected by the composer onto every wrapped page.
+   In the top band of `.page` (its 3.5rem padding-top), right-aligned: above the
+   rail's "Contents" at desktop width and above the header on a phone. It was
+   FIXED at the bottom left until 2026-09-25, and there it sat over the reading
+   column at some scroll position on all 18 A/B pages (render-probe
+   `fixed-over-text`). In the flow it covers nothing at any scroll position; the
+   cost is that it scrolls away with the page, which is fine for chrome the reader
+   uses once. Sized as a quiet pill rather than a button. A page with no `.page`
+   gets it at the end of the body, in the flow. */
+.kit-theme:where(:not(svg *)) { display: block; margin: 0.5rem auto 2rem;
+             font-family: var(--sans); font-size: 0.7rem; text-transform: uppercase;
+             letter-spacing: 0.09em; color: var(--muted); cursor: pointer;
+             background: var(--paper); border: 1px solid var(--rule);
+             border-radius: 999px; padding: 0.3rem 0.7rem; }
+.page > .kit-theme { position: absolute; top: 1rem; right: 0; margin: 0; }
+.kit-theme:hover:where(:not(svg *)) { color: var(--ink); border-color: var(--muted); }
+.kit-theme:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media print { .kit-theme:where(:not(svg *)) { display: none; } }
+
+/* Decided questions, collapsed out of the flow (kit v17, BL-373). The section
+   and every <details> in it are built by composer.js, never by an author: a
+   page that hand-rolls this shape is the gate-1 violation the feature exists
+   to remove. Hidden, not deleted — the summary carries the verdict and one
+   click reopens the reasoning. */
+.decided > .sec-head .eyebrow:where(:not(svg *)) { color: var(--muted); }
+.decided-hint:where(:not(svg *)) { font-family: var(--sans); font-size: 0.8rem; line-height: 1.55;
+                color: var(--muted); margin: 0 0 0.9rem; }
+.decided-unit { border: 1px solid var(--rule); background: var(--paper-sunk);
+                margin-bottom: -1px; }
+.decided-unit > summary { list-style: none; cursor: pointer; display: flex;
+                          gap: 0.7rem; align-items: baseline; padding: 0.6rem 0.9rem;
+                          font-family: var(--sans); font-size: 0.82rem; line-height: 1.5; }
+.decided-unit > summary::-webkit-details-marker { display: none; }
+.decided-unit > summary::before { content: '+'; font-family: var(--mono); font-size: 0.8rem;
+                                  color: var(--accent); }
+.decided-unit[open] > summary::before { content: '\2212'; }
+.decided-unit > summary:hover { background: var(--paper); }
+.decided-unit > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.decided-verdict:where(:not(svg *)) { color: var(--ink-soft); }
+/* A folded block lists one point per line (BL-692). */
+.decided-lines:where(:not(svg *)) { white-space: pre-line; }
+/* "Decidido, corrígeme si no": a proposal drawn in place, not a settled record (BL-692). */
+.consult-proposal:where(:not(svg *)) { font-family: var(--sans); font-size: 0.78rem; font-weight: 600;
+                letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); margin: 0.2rem 0 0.5rem; }
+/* The moved node keeps its own markup; only the box around it changes, so the
+   item reads as a record rather than as a question still on the page. */
+.decided-unit > .consult-item:where(:not(svg *)),
+.decided-unit > .consult-group { background: var(--paper); border-top: 1px solid var(--rule);
+                                 margin: 0; padding: 0.9rem; opacity: 0.85; }
+/* Folded IN PLACE inside a block that still has open items (kit v18, BL-380):
+   the same unit, sitting where the block's order put the item, so it takes an
+   item's slot and the open siblings keep their spacing around it. */
+.consult-group > .decided-unit.inplace { margin-top: 0.25rem; margin-bottom: 0; }
+
+/* Gallery rows, task 3.1 of the ui-contract hardening (BL-466, BL-516). */
+/* What to look at on this row: one line, set off from the intro. */
+.gal-look:where(:not(svg *)) { font-family: var(--sans); font-size: 0.88rem; margin: 0.2rem 0; }
+/* A visible zoom label on every tile once the composer has made it a button.
+   Drawn from data-zoom (localised text set by composer.js), so a tap on touch
+   reads the same as a click and nothing depends on a hover title. */
+.gal figure[role="button"]::after, figure[data-viewer][role="button"]::after { content: attr(data-zoom); display: block; text-align: center;
+  font-family: var(--sans); font-size: 0.78rem; line-height: 1.4; margin-top: 0.1rem;
+  color: var(--accent); text-decoration: underline; pointer-events: none; }
+/* The one instruction of a gallery, under its heading (BL-595), and the variant
+   said once under a row's captures, in words (BL-594). */
+.gal-intro:where(:not(svg *)) { font-family: var(--sans); font-size: 0.9rem; margin: 0.2rem 0 0.6rem; }
+.gal-intro-narrow:where(:not(svg *)) { display: none; }
+@media (max-width: 700px) { .gal-intro-narrow:where(:not(svg *)) { display: inline; } }
+.gal-variant:where(:not(svg *)) { font-family: var(--sans); font-size: 0.82rem; color: var(--muted); margin: 0.1rem 0 0.5rem; }
+/* A before/after pair on top of each other, each at the column's full width
+   (BL-589): a capture is never cropped to fit a half-width cell. */
+.gal.stacked { grid-template-columns: minmax(0, 1fr); }
+/* The highlight (BL-596): an outline over the capture, in percentages of the
+   image, so it scales with it. The layer is sized by the capture's aspect
+   ratio (written inline) and capped like the image it covers. */
+.gal figure { position: relative; }
+.gal-hl-layer { position: absolute; top: 0; left: 0; right: 0; width: 100%; margin: 0 auto;
+                pointer-events: none; display: block; }
+.gal figure[data-tile$="-mobile"] .gal-hl-layer,
+.consult-gallery[data-variant$="-mobile"] .gal-hl-layer { width: min(100%, 220px); }
+/* An OUTLINE only, drawn outside the region with a few px of padding: no fill
+   and no border on the box, so the text it points at is never covered. */
+.gal-hl { position: absolute; box-sizing: border-box; background: none; border: 0;
+          outline: 3px solid var(--flag); outline-offset: 4px; }
+.kit-hl-layer { position: absolute; pointer-events: none; }
+.kit-zoom:not([data-compare="off"]) .kit-hl-layer { display: none; }
+/* The answer of a gallery row is a verdict and a note: extra options sit in a
+   closed <details>, in the same option group so they paste like any other. */
+.opts details.opts-more { grid-column: 1 / -1; }
+.opts-more > summary, .kit-ask-more > summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; }
+.kit-ask-more .kit-ask-lead { display: none; }
+/* A folded group that holds a mark says so on its summary. */
+.opts-more:has(input:checked) > summary, .kit-ask-more:has(input:checked) > summary { color: var(--ink); font-weight: 600; }
+</style>
+<meta name="artifact-built" content="2026-10-07 22:22">
+<meta name="consult-round" content="1">
+</head>
+<body>
+<meta name="consult-visual" content="none: la decisión es de formato y no tiene forma que dibujar">
+<meta name="spec-built" content="1">
+<div class="page">
+<main class="main">
+<header class="masthead">
+<p class="eyebrow">Fixture · misuse replay</p>
+<h1>Una consulta ya decidida</h1>
+<p class="standfirst">Una pregunta cerrada, para repetir el veredicto sin cambiar el spec.</p>
+<div class="byline">Fuente: <code>tests/fixtures/misuse-replay</code></div>
+</header>
+<section class="consult-group" id="G1" data-id="G1" data-title="Formato del spec">
+  <div class="sec-head">
+    <p class="eyebrow">Bloque G1</p>
+    <h2>Formato del spec</h2>
+  </div>
+<p>La consulta de hoy.</p>
+<section class="consult-item" data-id="Q1" data-title="Fences o YAML" data-decided="Fences de Pandoc" data-decided-round="1">
+  <p class="eyebrow consult-kicker">Fences o YAML</p>
+  <h3><span class="consult-id">Q1</span>¿Fences de Pandoc o YAML anidado?</h3>
+  <div class="opts one">
+    <label><input type="radio" name="Q1" data-label="Fences de Pandoc" data-recommended><span>Fences de Pandoc <span class="hint">prosa con marcas mínimas</span></span></label>
+    <label><input type="radio" name="Q1" data-label="YAML anidado"><span>YAML anidado <span class="hint">estructura explícita</span></span></label>
+  </div>
+  <p class="fieldlabel" id="fl-1">Notas sobre esto</p>
+  <textarea placeholder="Lo que las opciones no cubren…" aria-labelledby="fl-1"></textarea>
+</section>
+  <div class="group-notes">
+    <p class="fieldlabel" id="fl-2">Notas de este bloque</p>
+    <textarea placeholder="Lo que afecta a todo el bloque…" aria-labelledby="fl-2"></textarea>
+  </div>
+</section>
+<section class="consult-item consult-notes" data-id="notes" data-title="Notas generales">
+  <h3><span class="consult-id">notas</span>Notas generales</h3>
+  <p class="fieldlabel" id="fl-3">Notas de la página</p>
+  <textarea placeholder="Lo que no encaja en ninguna pregunta…" aria-labelledby="fl-3"></textarea>
+</section>
+<div class="endbar">
+  <button type="button" id="consult-copy-end">Copiar mis respuestas</button>
+  <span class="consult-status" id="consult-status-end"></span>
+</div>
+</main>
+<aside class="rail">
+  <p class="railhead">Contenido</p>
+  <nav class="raillist" id="raillist"></nav>
+  <div class="consult-bar">
+    <button type="button" id="consult-copy">Copiar mis respuestas</button>
+    <span class="consult-status" id="consult-status"></span>
+  </div>
+  <p class="railbuilt">Generado 2026-10-07 22:22 · ronda 1</p>
+</aside>
+</div>
+<script>
 /* artifact-kit — the composer.
  *
  * Builds the rail (sections and consultation items, in body order), tracks which items
@@ -57,8 +1104,6 @@
       notRec: 'Not recommended',
       recSuffix: ' (recommended)',
       notRecSuffix: ' (not recommended)',
-      correct: 'Correct',
-      notQuite: 'Not quite',
       other: 'Other — see my notes',
       otherHint: 'None of the above; the answer is in the notes box below.',
       notNow: 'Not now \u2014 leave it for another round',
@@ -184,8 +1229,6 @@
       notRec: 'No recomendada',
       recSuffix: ' (recomendada)',
       notRecSuffix: ' (no recomendada)',
-      correct: 'Correcto',
-      notQuite: 'No exactamente',
       other: 'Otra — lo explico en las notas',
       otherHint: 'Ninguna de las anteriores; la respuesta va en la caja de notas de abajo.',
       notNow: 'Todav\u00eda no \u2014 lo dejo para otra ronda',
@@ -1176,7 +2219,7 @@
      * the item, so leaving it in would change every fingerprint the moment the
      * kit gained these controls, and every answer stored by a reader mid-thread
      * would read as "the question changed" and be dropped on the upgrade. */
-    clone.querySelectorAll('.kit-tag, .consult-proposal, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-defect, .kit-feedback, .kit-more, .kit-provisional, .kit-marks-tile, .kit-marks-list, .consult-kicker').forEach(function (c) { c.remove(); });
+    clone.querySelectorAll('.kit-tag, .consult-proposal, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-defect, .kit-more, .kit-provisional, .kit-marks-tile, .kit-marks-list, .consult-kicker').forEach(function (c) { c.remove(); });
     /* The generator's own <details> keeps its radios in the question (a row
      * built before it existed hashed them flat), but its summary word is chrome:
      * left in, every stored gallery answer would read as a changed question. */
@@ -1447,65 +2490,6 @@
       if (hint) hint.parentNode.insertBefore(tag, hint);
       else (lab.querySelector('span') || lab).appendChild(tag);
     });
-  }
-
-  /* Answerable checks on a study page (BL-715). The recommended badge and the
-   * option hints say which answer is right, so on a page that teaches and then
-   * asks (`<meta name="consult-profile" content="study">`) they stay hidden
-   * until the reader picks; `hidden` removes them from the accessible text
-   * too, and `.kit-unanswered` drops the recommended option's tinted background. A pick shows them, plus one verdict line when the item has a
-   * recommended option; Clear hides them again. The copied reply is not
-   * touched: it is built from `data-label`, not from this chrome. Every other
-   * page never enters here. */
-  function isStudy() {
-    var m = document.querySelector('meta[name="consult-profile"]');
-    return !!m && m.getAttribute('content') === 'study';
-  }
-  function quizInputs(el) {
-    return [].filter.call(el.querySelectorAll('.opts input[type="radio"], .opts input[type="checkbox"]'),
-      function (i) { return !i.closest('.kit-other, .kit-notnow'); });
-  }
-  function updateQuiz(el) {
-    if (!isStudy() || isDecided(el)) return;
-    var ins = quizInputs(el);
-    if (!ins.length) return;
-    var picked = ins.filter(function (i) { return i.checked; });
-    var on = picked.length > 0;
-    var many = ins[0].type === 'checkbox';
-    var rec = ins.filter(function (i) {
-      var r = i.getAttribute('data-recommended');
-      return r !== null && String(r).toLowerCase() !== 'no';
-    });
-    /* One choice: the pick is right when it is any recommended option (an open
-     * item may recommend two). A set: right only when the ticked set EQUALS the
-     * recommended set, so "Other" ticked beside the right set is not right. */
-    var ok = false;
-    if (on && rec.length) {
-      if (many) {
-        var other = el.querySelector('.kit-other input:checked, input[data-other]:checked');
-        ok = !other && picked.length === rec.length && rec.every(function (i) { return i.checked; });
-      } else {
-        ok = rec.indexOf(picked[0]) > -1;
-      }
-    }
-    el.classList.toggle('kit-unanswered', !on);
-    /* A set shows the badges only once it is complete (they would give the
-     * missing box away) and the hints of the ticked options only. */
-    ins.forEach(function (i) {
-      var lab = i.closest('label');
-      if (!lab) return;
-      lab.querySelectorAll('.kit-tag').forEach(function (n) { n.hidden = many ? !ok : !on; });
-      lab.querySelectorAll('.hint').forEach(function (n) { n.hidden = many ? !i.checked : !on; });
-    });
-    var old = el.querySelector('.kit-feedback');
-    if (old) old.remove();
-    if (!on || !rec.length) return;
-    var v = document.createElement('p');
-    v.className = 'kit-feedback ' + (ok ? 'ok' : 'no');
-    v.setAttribute('role', 'status');
-    v.textContent = ok ? L.correct : L.notQuite;
-    var opts = el.querySelector('.opts');
-    opts.parentNode.insertBefore(v, opts.nextSibling);
   }
 
   /* The "other" choice, appended to every option group (BL-268). A radio set
@@ -1804,7 +2788,6 @@
       el.querySelectorAll(kind.q).forEach(function (x) { setFreeValue(x, ''); });
     });
     delete copied[el.dataset.id];
-    updateQuiz(el);                   /* BL-715: study-page feedback is chrome drawn from the answer; keep before refresh() */
     syncDefects();
     redrawMarks();                    /* the marks were in a textarea: cleared too */
     // save() rebuilds the whole store from the page, so an emptied item drops
@@ -3114,15 +4097,13 @@
     }
     watchStaleTab();
     markRecommendations();
-    items.forEach(updateQuiz);
     addClearControls();
     document.addEventListener('input', function () { refresh(); save(); });
-    document.addEventListener('change', function (ev) {
-      var q = ev.target && ev.target.closest ? ev.target.closest('.consult-item') : null;
-      if (q) updateQuiz(q);
-      openFilledMore(); refresh(); save();
-    });
+    document.addEventListener('change', function () { openFilledMore(); refresh(); save(); });
     refresh();
     buttons.forEach(function (b) { b.addEventListener('click', copy); });
   }
 })();
+</script>
+</body>
+</html>

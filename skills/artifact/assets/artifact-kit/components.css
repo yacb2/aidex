@@ -891,3 +891,9 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .kit-ask-more .kit-ask-lead { display: none; }
 /* A folded group that holds a mark says so on its summary. */
 .opts-more:has(input:checked) > summary, .kit-ask-more:has(input:checked) > summary { color: var(--ink); font-weight: 600; }
+
+/* Study-page checks (BL-715): feedback after a pick; the global [hidden] rule hides the withheld hint and badge. */
+.kit-unanswered .opts label:not(:hover):has(input[data-recommended]) { background: none; }
+.kit-feedback:where(:not(svg *)) { font-family: var(--sans); font-size: 0.85rem; font-weight: 600; margin: 0.4rem 0 0; }
+.kit-feedback.ok:where(:not(svg *)) { color: var(--accent); }
+.kit-feedback.no:where(:not(svg *)) { color: var(--muted); }

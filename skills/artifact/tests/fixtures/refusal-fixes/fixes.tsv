@@ -1,0 +1,4 @@
+check	kind	test_cmd
+consult-shape	message	bash skills/artifact/tests/test-refusal-fix-shape-ids.sh
+consult-ids	message	bash skills/artifact/tests/test-refusal-fix-shape-ids.sh
+consult	autofix	bash skills/artifact/tests/test-refusal-fix-consult.sh

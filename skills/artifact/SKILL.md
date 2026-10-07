@@ -65,7 +65,10 @@ page as the reader answered it, then prints one DUTY line per marked item;
 paste that list into the rewrite brief verbatim. Pass `--new-round` to the FIRST
 build (`spec_build.py` or `wrap-report.sh`) of a round opened over a reply (only the first; later wraps of that
 round, including a delegated `--building` build's, omit it): it fails, naming
-`save-reply.sh`, if no reply was saved. A `[show-me]` duty is
+`save-reply.sh`, if no reply was saved. On the spec route, edit the spec for every
+duty FIRST, then run the verbs: any rebuild after `save-reply.sh` opens the round,
+a verb's included, so when a verb (`decide`, `new-round`) is the first rebuild, no
+`--new-round` follows it (it would refuse: the round is already open). A `[show-me]` duty is
 fulfilled by a `diagram` block (`tree`, `compare`) in the page brief, or by launching
 `figure-sonnet` (wireframes only) or `verify-browser-opus` BEFORE the page brief, never by writing more prose. `check-artifact --prev` then FAILS a wrap
 that does not carry out a printed duty — no bypass
@@ -96,11 +99,16 @@ one command builds it into the kit's markup, wraps it and runs the contract chec
 python3 "${CLAUDE_SKILL_DIR}/scripts/spec_build.py" <name>.spec.md -o <name>.html --check
 ```
 
+Call every script by absolute path, `"${CLAUDE_SKILL_DIR}/scripts/<name>"`, from any cwd:
+never a relative `skills/...` path (the scratch cwd does not have it), and never hold a
+command in a shell variable (zsh does not word-split `$V`, so `$V args` runs one word
+named `python3 /path/...`): write the command out, or use a function.
+
 Edits to a page on this route go through the verbs
 (`scripts/spec_verbs.py add-item | decide | new-round`), which rewrite the spec and
 rebuild the page. The built HTML is an output; it is regenerated, never hand-edited.
 
-Three refusals a first spec usually meets (`references/02-local-first-artifacts.md`
+Refusals a first spec usually meets (`references/02-local-first-artifacts.md`
 § Worked example):
 
 - `decided=yes` on an item with options checks its `{recommended}` option; with none
@@ -110,6 +118,10 @@ Three refusals a first spec usually meets (`references/02-local-first-artifacts.
   paths in a sentence) is refused as `mixed-content-types`, naming its spec line: write
   it as a list or a table.
 - The masthead's `lang=` must match the profile's language.
+- A consultation masthead needs `visual=`: `visual="none: <why>"`, or add a figure block (`figure`, `chart`, `graph`, `diagram`, `video`, `gallery`); the
+  build refuses it with the masthead line. The builder itself adds a missing `notes`
+  block, strips an `item` title's own `Q1 · ` id prefix and reads `section title=` as
+  `heading=`, each with a stderr note.
 
 The boundary is exact:
 

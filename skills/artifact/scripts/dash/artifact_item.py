@@ -34,6 +34,7 @@ from html.parser import HTMLParser
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import md_body  # noqa: E402
+from _usage import usage_exit  # noqa: E402
 
 SCRIPTS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WRAP = os.path.join(SCRIPTS, "wrap-report.sh")
@@ -220,6 +221,9 @@ def md_units(text):
 # ---------------------------------------------------------------------------
 
 
+_form = ["artifact-item.sh list|get|put <page.html> ..."]  # set by main
+
+
 def sidecar_of(page):
     page = os.path.abspath(page)
     prev = os.path.join(os.path.dirname(page), ".aidex-artifact-prev")
@@ -230,6 +234,9 @@ def sidecar_of(page):
         die("two sidecars for this page — %s and %s. The wrap keeps one; remove the\n"
             "  one that is not the source of the page on disk before editing."
             % (htm, md))
+    if not have and not os.path.exists(page):
+        # A page path that names nothing is a wrong argument: usage, exit 2, one line.
+        usage_exit(_form[0], "no such page: %s, and no body sidecar for it" % page)
     if not have:
         die("no body sidecar for %s.\n"
             "  Looked for %s and %s.\n"
@@ -418,29 +425,33 @@ def _outline_delta(before, after, uid, is_md):
     return ["+" + i for i in added] + ["-" + i for i in removed]
 
 
-USAGE = """usage: artifact-item.sh list <page.html>
-       artifact-item.sh get  <page.html> <id>
-       artifact-item.sh put  <page.html> <id> <file>"""
+FORM = ("artifact-item.sh list <page.html>  |  get <page.html> <id>  |  "
+        "put <page.html> <id> <file>")
 
 
 def main(argv):
-    if not argv:
-        print(USAGE, file=sys.stderr)
-        return 2
-    action, rest = argv[0], argv[1:]
+    if argv and argv[0] in ("-h", "--help"):
+        print("usage: " + FORM)
+        return 0
+    action, rest = (argv[0], argv[1:]) if argv else ("", [])
+    forms = {"list": "artifact-item.sh list <page.html>",
+             "get": "artifact-item.sh get <page.html> <id>",
+             "put": "artifact-item.sh put <page.html> <id> <file>"}
+    if action not in forms:
+        usage_exit(FORM, "unknown action %r" % action if argv else "no action given")
+    form = forms[action]
+    if len(rest) != form.count("<"):
+        usage_exit(form, "got %d argument(s)" % len(rest))
+    _form[0] = form
+    if action == "put" and not os.path.exists(rest[2]):
+        usage_exit(form, "no such replacement file: %s" % rest[2])
     try:
-        if action == "list" and len(rest) == 1:
-            return cmd_list(rest[0])
-        if action == "get" and len(rest) == 2:
-            return cmd_get(*rest)
-        if action == "put" and len(rest) == 3:
-            return cmd_put(*rest)
+        return {"list": cmd_list, "get": cmd_get, "put": cmd_put}[action](*rest)
     except FileNotFoundError as e:
         die("%s: %s" % (e.strerror, e.filename))
     except UnicodeDecodeError as e:
         die("not utf-8 text: %s" % e)
-    print(USAGE, file=sys.stderr)
-    return 2
+
 
 
 if __name__ == "__main__":

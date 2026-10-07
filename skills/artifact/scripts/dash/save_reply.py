@@ -48,6 +48,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _usage import read_stdin  # noqa: E402
 import check_artifact as ca  # noqa: E402
 import gallery_reply  # noqa: E402
 from gallery_items import VERDICTS  # noqa: E402
@@ -270,6 +271,9 @@ def save_reply(page_path, reply_text):
     return duties_for(reply_text, ordinary, states), reply_path, answered_path, False
 
 
+SAVE_FORM = "save-reply.sh <page.html> [<reply-file>|-]  (or pipe the reply on stdin)"
+
+
 def main(argv):
     if not argv:
         print("ERROR: usage: save-reply.sh <page.html> [<reply-file>|-]",
@@ -283,7 +287,7 @@ def main(argv):
     where = "on stdin" if reply_arg == "-" else reply_arg
     try:
         if reply_arg == "-":
-            reply_text = sys.stdin.read()
+            reply_text = read_stdin(SAVE_FORM)
         else:
             with open(reply_arg, encoding="utf-8") as fh:
                 reply_text = fh.read()

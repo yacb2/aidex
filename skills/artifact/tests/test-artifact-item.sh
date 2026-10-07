@@ -259,13 +259,32 @@ rm -f "$TMP/reports/page.spec.md"
 cmp -s "$TMP/guard.body" "$PREV/page.html.body" && ok "every refused put wrote nothing" \
   || fail "a refused put modified the sidecar"
 
-# No sidecar at all — the one case a reviser meets on a page that predates it.
-if bash "$ITEM" list "$TMP/reports/nosuch.html" >"$TMP/e4.txt" 2>&1; then
-  fail "list of a page with no sidecar succeeds"
+# No sidecar at all — the one case a reviser meets on a page that predates it. The page
+# EXISTS: exit 1 with the full guidance (a state to repair, not a wrong argument).
+printf '<p>old</p>\n' > "$TMP/reports/nosidecar.html"
+bash "$ITEM" list "$TMP/reports/nosidecar.html" >"$TMP/e4.txt" 2>&1; rc=$?
+if [[ $rc -ne 1 ]]; then
+  fail "list of an existing page with no sidecar exits $rc, expected 1"
 elif grep -q "no body sidecar" "$TMP/e4.txt" && grep -q "wrap-report.sh --in" "$TMP/e4.txt" \
      && grep -q "02-local-first-artifacts.md" "$TMP/e4.txt"; then
-  ok "a missing sidecar names the fallback and the canon"
+  ok "a page with no sidecar: exit 1, names the fallback and the canon"
 else fail "the missing-sidecar message does not point anywhere: $(cat "$TMP/e4.txt")"; fi
+# A page path that names nothing is a wrong argument: exit 2, one usage line.
+bash "$ITEM" list "$TMP/reports/nosuch.html" >"$TMP/e5.txt" 2>&1; rc=$?
+[[ $rc -eq 2 && $(grep -c . "$TMP/e5.txt") -eq 1 ]] && grep -q "^usage: .*no such page" "$TMP/e5.txt" \
+  && ok "a page that does not exist: exit 2, one usage line" \
+  || fail "missing page: exit $rc, output: $(cat "$TMP/e5.txt")"
+
+# Pipes are valid inputs (--in /dev/stdin, <(...)): a regular-file test refuses them.
+cat "$TMP/body.html" | bash "$WRAP" --title Probe --lang en --in /dev/stdin --out "$TMP/reports/pipe.html" >/dev/null 2>"$TMP/pipe.err"
+[[ $? -eq 0 ]] && ok "wrap-report --in /dev/stdin is accepted" || fail "wrap-report --in /dev/stdin: $(head -c 300 "$TMP/pipe.err")"
+printf '# Informe\n\n## Uno\n\nViejo.\n' > "$TMP/pipe.md"
+bash "$WRAP" --title Pipe --lang es --in "$TMP/pipe.md" --out "$TMP/reports/pipemd.html" >/dev/null 2>&1
+printf '## Uno\n\nNuevo.\n' | bash "$ITEM" put "$TMP/reports/pipemd.html" sec-uno /dev/stdin >/dev/null 2>"$TMP/pipe2.err"
+rc=$?
+[[ $rc -eq 0 ]] && grep -q "Nuevo." "$PREV/pipemd.html.body.md" \
+  && ok "artifact-item put <file> accepts /dev/stdin" \
+  || fail "put from /dev/stdin: rc=$rc $(head -c 300 "$TMP/pipe2.err")"
 
 # ---------------------------------------------------------------------------
 # 3. The shapes a wrap cannot produce, addressed straight on a hand-written

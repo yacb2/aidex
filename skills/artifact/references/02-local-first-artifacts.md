@@ -179,6 +179,9 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/spec_build.py" <name>.spec.md \
   -o <name>.html --check
 ```
 
+Call it by that absolute path from any cwd, and write the command out each time: a command held in a
+shell variable runs as one word under zsh.
+
 It prints the page path and the check's last line. On a spec error it prints
 `<spec>:<line>: <message>` and exits 1, and **nothing is written**. Without `-o` the
 page BODY goes to stdout, which is how you look at a build without landing a file;
@@ -235,6 +238,20 @@ own PROSE before the first group fails the build**, with `prose before the first
 naming the section's heading. Measured on this file's own example on 2026-09-24: moving
 the `section` below the `notes` block turned the same spec from a refusal into
 `artifact contract OK`. Reference material goes after the questions.
+
+**Study pages are the exception, declared.** A page that teaches and then asks (check
+questions that test the section just read) puts `profile="study"` on its `masthead`.
+The builder writes `<meta name="consult-profile" content="study">`, and `consult-shape`
+then stops judging `prose before the first block` and `prose between blocks`: write
+`section`, `group` (holding its items), `section`, `group`, in the order the reader
+meets them; the rail lists them in that body order. Every other rule still applies
+(each item inside a block, the notes item last, the ledger before the first block
+still a real `.k`/`.v` ledger). The meta is read exactly: only `content="study"`. Unknown values are refused, naming
+the valid ones (`study`). A page without the attribute keeps the rule above unchanged.
+On a study page the composer also withholds the answer: the `{recommended}` badge and the option
+hints stay hidden (not in the accessible text either) until the reader picks. A pick shows them plus
+one `Correcto` / `No exactamente` line (`Correct` / `Not quite` in English) when the item has a
+recommended option; Clear hides them again. The copied reply is unchanged.
 
 ### The verbs: editing a page that already exists
 

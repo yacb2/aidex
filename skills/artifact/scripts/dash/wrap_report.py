@@ -24,6 +24,7 @@ import tempfile
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import md_body  # noqa: E402
+from _usage import UsageParser, read_stdin, usage_exit  # noqa: E402
 sys.path.insert(0, os.path.join(__file__.rsplit("/", 1)[0], "..", "..", "..", "conventions", "scripts"))
 import profiles  # noqa: E402  the one profile resolver
 from _shell import document, esc  # noqa: E402
@@ -73,6 +74,8 @@ OFFER_MARKER = ".aidex-artifact-style-offered"
 # .../scripts/dash/wrap_report.py -> .../assets/artifact-kit
 KIT_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                        os.pardir, os.pardir, "assets", "artifact-kit"))
+
+SKILL_DIR = os.path.dirname(os.path.dirname(KIT_DIR))
 
 
 def split_head_style(content):
@@ -916,6 +919,9 @@ def held_round(outfile):
     return 0
 
 
+WRAP_FORM = "wrap-report.sh --title <title> [--lang <l>] [--favicon <e>] [--in <file>] [--out <page.html>] [--building] [--new-round]  |  wrap-report.sh --done --out <page.html>"
+
+
 def end_build(argv):
     """`--done --out <page>`: the build is over. Removes the lock, wraps nothing.
 
@@ -924,8 +930,10 @@ def end_build(argv):
     contract and was opened as final — so no property of a wrap can stand in for
     completion. The agent has to say it, once, as its own step.
     """
-    p = argparse.ArgumentParser(prog="wrap-report.sh --done",
-                                description="End a build: remove the page build lock")
+    p = UsageParser(prog="wrap-report.sh --done",
+                    form="wrap-report.sh --done --out <page.html>  (--done takes no other flag; "
+                         "--title/--in/--lang belong to the wrap form: wrap-report.sh --title <title> ...)",
+                    description="End a build: remove the page build lock")
     p.add_argument("--done", action="store_true", required=True)
     p.add_argument("--out", dest="outfile", required=True,
                    help="the page whose build is finished")
@@ -944,7 +952,8 @@ def end_build(argv):
 
 
 def main():
-    p = argparse.ArgumentParser(description="Wrap report content in the document envelope")
+    p = UsageParser(prog="wrap-report.sh", form=WRAP_FORM,
+                    description="Wrap report content in the document envelope")
     p.add_argument("--title", required=True, help="document title (browser tab)")
     p.add_argument("--lang", default=None,
                    help="BCP-47 language of the content. Default: the `language:` field of "
@@ -972,14 +981,24 @@ def main():
     # anyway would produce the one state the flag exists to prevent: output that looks
     # finished while the build runs.
     if args.building and not args.outfile:
-        print("ERROR: --building needs --out <page> — the build lock is a file beside "
-              "the page, and a wrap to stdout has no page", file=sys.stderr)
-        return 2
+        usage_exit(WRAP_FORM, "--building needs --out <page> — the build lock is a file "
+                   "beside the page, and a wrap to stdout has no page")
 
-    content = (open(args.infile, encoding="utf-8").read() if args.infile
-               else sys.stdin.read())
+    # exists, not isfile: `--in /dev/stdin` and `<(...)` are pipes; a directory is refused here too.
+    if args.infile and (not os.path.exists(args.infile) or os.path.isdir(args.infile)):
+        # Never resolved silently: a path that only exists from the skill dir is named,
+        # not followed, so the page is not built from a file the caller did not mean.
+        why = "--in: no such file: %s" % args.infile
+        near = os.path.join(SKILL_DIR, args.infile)
+        if not os.path.isabs(args.infile) and os.path.isfile(near):
+            why += " (relative to the skill dir: %s)" % near
+        usage_exit(WRAP_FORM, why)
+    if args.infile:
+        content = open(args.infile, encoding="utf-8").read()
+    else:
+        content = read_stdin(WRAP_FORM, blank_is_empty=True)
     if not content.strip():
-        print("ERROR: no content on stdin (nothing to wrap)", file=sys.stderr)
+        print("ERROR: no content in %s (nothing to wrap)" % args.infile, file=sys.stderr)
         return 2
     # A `.md` input is the close-out case (BL-345): the run already wrote a
     # durable markdown report and what is missing is the page. Keyed on the
