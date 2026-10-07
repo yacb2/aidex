@@ -192,6 +192,23 @@ t = open(sys.argv[1], encoding="utf-8", errors="replace").read()
 m = re.search(r'<meta name="consult-round" content="(\d+)"', t)
 sys.exit(0 if m and int(m.group(1)) == 2 else 1)
 PY
+# A plain report counts wraps; the reader has answered nothing on it. When the
+# same --out first gains a consult surface that is reader round 1 — carrying the
+# wrap count over made the page claim round 2 and fail [consult-round-pick] for a
+# previous round's reply that never existed.
+PCPAGE="$PROJ/.context/reports/plain-then-consult.html"
+for _ in 1 2; do
+  bash "$WRAP" --title "Report" --lang en --in "$TMP/report-body.html" --out "$PCPAGE" >/dev/null 2>&1 \
+    || fail "a plain wrap of the plain-then-consult page failed"
+done
+pcout="$(bash "$WRAP" --title "Consultation" --lang en --in "$KIT/skeleton.html" --out "$PCPAGE" 2>&1)" \
+  || fail "the first consult wrap over a twice-wrapped plain report failed: $(grep -o 'FAIL \[[^]]*\][^—]*' <<<"$pcout")"
+python3 - "$PCPAGE" <<'PY' || fail "the first consult wrap over a twice-wrapped plain report is not reader round 1"
+import re, sys
+t = open(sys.argv[1], encoding="utf-8", errors="replace").read()
+m = re.search(r'<meta name="consult-round" content="(\d+)"', t)
+sys.exit(0 if m and int(m.group(1)) == 1 and "consult-item" in t else 1)
+PY
 
 # ---------- the label follows the page's language ----------------------------
 ES="$PROJ/.context/reports/es.html"

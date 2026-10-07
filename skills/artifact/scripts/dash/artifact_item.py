@@ -341,6 +341,14 @@ def _check_html_replacement(new, uid):
 
 
 def cmd_put(page, uid, src_file):
+    # A page built from a spec is that spec's output. A put plus a passing wrap
+    # advances the baseline, so spec_build's hand-edit guard cannot see the edit
+    # and the next build reverts it without a word.
+    spec = os.path.splitext(os.path.abspath(page))[0] + ".spec.md"
+    if os.path.isfile(spec):
+        die("%s is built from %s, so its HTML is an output: the next spec_build.py\n"
+            "  would silently revert this edit. Edit the spec (or use spec_verbs.py\n"
+            "  add-item | decide | new-round) and rebuild. Nothing was written." % (page, spec))
     sidecar, is_md = sidecar_of(page)
     text, units = units_of(sidecar, is_md)
     unit = one_unit(units, uid, sidecar)

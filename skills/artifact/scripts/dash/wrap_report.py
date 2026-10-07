@@ -175,6 +175,15 @@ def _round_of(path):
     return int(next(g for g in m.groups() if g is not None)) if m else 0
 
 
+def _has_surface(path):
+    """Whether a page on disk carries consult items (see `CONSULT_ITEM`)."""
+    try:
+        return bool(CONSULT_ITEM.search(open(path, encoding="utf-8",
+                                             errors="replace").read()))
+    except OSError:
+        return False
+
+
 def _baseline_path(outfile):
     """The `.aidex-artifact-prev/` copy of `--out`: the last version that PASSED."""
     out = os.path.abspath(outfile)
@@ -217,17 +226,20 @@ def next_round(outfile, surface=True):
     BL-507: on a page with a consult surface this is the READER's round, not the
     wrap count. It advances only once save-reply.sh has recorded an answer to
     the current round; a re-wrap of an unanswered round keeps its number. A page
-    with no consult surface has no reader rounds and keeps counting wraps."""
+    with no consult surface has no reader rounds and keeps counting wraps — so the
+    first wrap that brings a surface to such a page is reader round 1, not that
+    wrap count carried over."""
     if not outfile:
         return 0
     out = os.path.abspath(outfile)
     baseline = _baseline_path(out)
-    if os.path.isfile(baseline):
-        prev = _round_of(baseline) or 1
-    elif os.path.isfile(out):
-        prev = _round_of(out) or 1
-    else:
+    ref = baseline if os.path.isfile(baseline) else out
+    if not os.path.isfile(ref):
         prev = 0
+    elif surface and not _has_surface(ref):
+        prev = 0
+    else:
+        prev = _round_of(ref) or 1
     if surface and prev and not round_answered(out):
         return prev
     return prev + 1
@@ -260,7 +272,10 @@ def round_meta(outfile, surface=True):
     return f'<meta name="consult-round" content="{r}">' if r else ""
 
 
-ITEM_TAG = re.compile(r'<[a-zA-Z][\w:-]*\b[^>]*\bdata-id\s*=[^>]*>', re.I)
+# Quoted values are consumed whole: a raw `>` inside one (`data-decided="A -> b"`)
+# is valid HTML, and `[^>]*` ended the tag there and spliced the stamp into it.
+_IN_TAG = r'''(?:[^>"']|"[^"]*"|'[^']*')*'''
+ITEM_TAG = re.compile(rf'<[a-zA-Z][\w:-]*\b{_IN_TAG}\bdata-id\s*={_IN_TAG}>', re.I)
 ATTR_ID = re.compile(r'\bdata-id\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>]+))', re.I)
 # `data-decided` and NOT `data-decided-round`: `\b` after "decided" is satisfied by
 # the hyphen, so the plain pattern reads the stamp as the mark it stamps.
@@ -980,9 +995,15 @@ def main():
     raw, raw_is_md = content, bool(args.infile and args.infile.lower().endswith(".md"))
     # The style profile is looked up from where the artifact LANDS, not from the
     # cwd: a report is a sibling of its anchor and can be written into a project
-    # the run is not standing in.
-    ctx = find_context_dir(os.path.dirname(os.path.abspath(args.outfile))
-                           if args.outfile else os.getcwd())
+    # the run is not standing in. The first report lands in a `.context/reports/`
+    # that does not exist yet, so a missing leaf is looked up from its parent: one
+    # level, the same one the write below creates.
+    lookup = os.getcwd()
+    if args.outfile:
+        lookup = os.path.dirname(os.path.abspath(args.outfile))
+        if not os.path.isdir(lookup):
+            lookup = os.path.dirname(lookup)
+    ctx = find_context_dir(lookup)
     profile_lang = profile_language(ctx)
     lang = args.lang or profile_lang or "en"
     if args.lang is None and profile_lang is None:
