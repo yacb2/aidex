@@ -182,7 +182,7 @@ case("10b", "two sections sharing an id", MAST + sec("Texto uno.") + sec("Texto 
      expect="either", names=r"S1", count=[(r'id="S1"', 1)], has=[r"<h2>Datos", r"<h2>Otra"])
 # 11 strict on purpose: the generator rule is ids unique case-insensitively (grammar-table §6), and
 # the reply/composer behaviour with case-folded keys is unknown (§5 row 11 "U")
-case("11", "ids differing only by case (Q1, q1)", mut(("{#Q2 ", "{#q1 ")), names=r"q1|Q1")
+case("11", "ids differing only by case (Q1, q1)", mut(("{#Q2 ", "{#q1 ")), names=r"\bq1\b|\bQ1\b")
 case("12", "unicode id", mut(("#Q1 ", "#Bloqué ")), names=r"starts with a letter")
 case("12b", "id starting with a digit", mut(("#Q1 ", "#1a ")), names=r"starts with a letter")
 case("12c", "spaced id", mut(("#Q1 ", "#Q 1 ")), names=r"attr item '1'")
@@ -430,9 +430,9 @@ case("h1", "hand edit: an id carried twice", steps=(B, ("edit_html", H, H.replac
      expect="either", names=r'"G1"|id G1', count=[(r'id="G1"', 1)])
 HM = '<header class="masthead">\n<h1>Informe de prueba</h1>\n<p class="standfirst">Una frase de apertura.</p>\n</header>\n'
 case("h2", "hand edit: masthead removed", steps=(B, ("edit_html", HM, ""), ("check",)),
-     expect="either", names=r"no masthead|missing masthead|h1", count=[(r'<header class="masthead"', 1)])
+     expect="either", names=r"no masthead|missing masthead|\bh1\b", count=[(r'<header class="masthead"', 1)])
 case("h3", "hand edit: second masthead", steps=(B, ("edit_html", HM, HM + HM), ("check",)),
-     expect="either", names=r"second masthead|two mastheads|more than one masthead|h1", count=[(r'<header class="masthead"', 1)])
+     expect="either", names=r"second masthead|two mastheads|more than one masthead|\bh1\b", count=[(r'<header class="masthead"', 1)])
 LAB = '  <div class="opts one">\n    <label><input type="radio" name="Q1" data-label="Sí" data-recommended><span>Sí <span class="hint">pista uno</span></span></label>\n    <label><input type="radio" name="Q1" data-label="No"><span>No <span class="hint">pista dos</span></span></label>\n  </div>\n'
 case("h4", "hand edit: an item's options removed", steps=(B, ("edit_html", LAB, ""), ("check",)),
      expect="either", names=r"offers 0 option", count=[(r'<input type="radio" name="Q1"', 2)])
