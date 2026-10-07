@@ -10,7 +10,9 @@ SKILL documents *that* this step exists and routes here, this file is *how*. **S
 below owns the verifier's return shape** — `01-review-angles.md` § The verify phase
 defers to it, and `tests/test-resolve-target.sh` #26 pins that.
 
-Fan out with the `Workflow` tool (this skill body is the opt-in that makes it available).
+Item N below is "Step 3.N" in `SKILL.md` and the catalog; `SKILL.md` opts in to `Workflow`.
+Every `Agent` call passes `effort`: `medium` for a finder, `high` for a verifier, never
+`xhigh` or `max`; no `model` is passed (the session's).
 
 0. **Every agent is read-only on the project, and this goes in every prompt verbatim.**
    The skill's own `allowed-tools` has no `Edit`/`Write`, but subagents do not inherit it
@@ -94,5 +96,5 @@ Fan out with the `Workflow` tool (this skill body is the opt-in that makes it av
    lack of fan-out. Then **say so in the report**: a single-pass inline review, not the
    multi-agent fan-out, so nobody is misled about what actually ran. This is the same
    rule as fell-vs-dropped one level up, and the built-in `/code-review` states it for
-   itself in the same words — verified in 2.1.226.
+   itself in the same words (checked against 2.1.226; not re-checked on the current build).
 

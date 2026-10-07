@@ -3,21 +3,25 @@ name: review
 description: 'Use when the user wants code reviewed as it stands — a module, a feature, a path, or the whole app — rather than a diff or a pull request. Covers correctness/bug hunting, simplification and dead code, exploitable security defects, and performance waste, and it first proposes which finder agents are worth launching and what they will cost. Fires on "review this module", "review the X feature", "find bugs in this module", "what dead code is in X", "can this module be simplified", "security review of this code", "review the whole app", "review the changes since Friday / this weekend" (the changes pick the modules, reviewed as they stand). Not for: reviewing a diff, branch, or PR (the built-in /code-review, /simplify and /security-review already do that); auditing a running system against Lighthouse/OWASP program methodology (/aidex:audit); fixing a specific known bug (/aidex:bugfix).'
 argument-hint: "[correctness|simplify|security|perf|all] (<path> | --app) [--finders N] [--include-tests] [--include-docs] [--go]"
 disable-model-invocation: false
-model-policy: inherit-session
+model-policy: per-stage
 allowed-tools: Bash Read Grep Glob Workflow Agent ReportFindings
 ---
 
 # Review — code as it stands, not as it changed
 
-Every installed review instrument is anchored to a diff. `/code-review` accepts a
-`<path>` target but its own scope agent turns it into *"build the matching git diff
-command for it"*; `/simplify` reviews *"the changed code"*; `/security-review`
-interpolates `git diff origin/HEAD...`, an anchor that can resolve to zero files while
-the tree is dirty (measured 2026-07-27).
+The installed review instruments are built around a change set. `/code-review`
+reviews *"the current diff, or a PR number/branch/path target"* for correctness bugs
+(plus reuse, simplification and efficiency cleanups) at a given effort level; it accepts
+a path, but reviews it as a diff-anchored change. `/simplify` reviews *"the changed
+code"* for reuse, simplification, efficiency and altitude cleanups, then applies the
+fixes; it does not hunt for bugs. `/security-review` interpolated
+`git diff origin/HEAD...`, an anchor that could resolve to zero files while the tree was
+dirty (measured 2026-07-27; not re-checked on the current build).
 
 This skill answers the other question: **review this module as it is**, with no base ref.
 
-Scope vocabulary for the *diff* case: `conventions/references/review-scope-conventions.md`.
+Scope vocabulary for the *diff* case, and the source of the ~22k-token-per-finder floor
+(§4): `conventions/references/review-scope-conventions.md`.
 
 ## Step 1 — Resolve and measure the target (never skip)
 
@@ -130,17 +134,20 @@ caveat it carries are owned by `${CLAUDE_PLUGIN_ROOT}/skills/review/references/0
 which is where a re-measurement lands.
 
 **Name the model and effort in the same breath as the cost.** This skill is
-`model-policy: inherit-session`: no `model`/`effort` is passed to any agent, so every
-finder and every verifier runs at *this session's* model and effort. That is the
-platform norm — `/code-review` inherits too; what its effort levels vary is the prompt,
-not the model — but here it is the dominant cost term, because 34 agents reading a whole
-module is not 8 agents reading a diff. Undeclared, it is a decision nobody made and the
-reader cannot see at the moment they decide to run. So say it: *"N finders + one
-verifier per candidate, all at &lt;model&gt;/&lt;effort&gt;, inherited from this session."*
+`model-policy: per-stage`: every `Agent` call passes an explicit `effort` and no `model`,
+so the model is the session's and the effort is set by role — **finders `medium`,
+verifiers `high`**. Never `xhigh` or `max` on a subagent: Anthropic's guidance for these
+models is that at those levels the model starts its own rounds of review and spawns
+reviewer subagents, which multiplies the verifier bill. Effort is the main cost dial here
+because 34 agents reading a whole module is not 8 agents reading a diff (34 = the 6
+finders plus 28 verifiers of the measured run; the 28 is derived, not recorded). So say
+it: *"N finders at &lt;session model&gt;/medium + one verifier per candidate at
+&lt;session model&gt;/high."* The medium/high pair is a policy choice, not a measurement:
+no run has costed it.
 
 Present: target, files/LOC, lenses chosen with their evidence, angles per lens, angles
 dropped (and, separately, angles not selected), the cost floor stated as above, and the
-inherited model/effort.
+per-role model/effort.
 
 Then stop and let the user confirm or correct — **unless** `--go` was passed, in which
 case launch what you judged and report the same table alongside the findings.
@@ -148,6 +155,7 @@ case launch what you judged and report the same table alongside the findings.
 ## Step 3 — Find, merge, then verify
 
 Fan out with the `Workflow` tool (this skill body is the opt-in that makes it available).
+`Step 3.N` anywhere in this skill means item N of the numbered list in the reference below.
 
 **Read `${CLAUDE_PLUGIN_ROOT}/skills/review/references/02-find-merge-verify.md` and follow it.**
 It is the whole step: the read-only contract every agent prompt carries verbatim (and the
@@ -163,15 +171,16 @@ report must name.
 
 Report with the `ReportFindings` tool when it is available, most-severe first, `verdict`
 set from Step 3. It is the one piece of built-in machinery that transfers unchanged —
-the input scope does not.
+the input scope does not. Use it only when the active instructions say to report with
+it; otherwise follow the output format they specify.
 
 **Rank by the verifier's severity, and say that is what you ranked by.** The finder's
 claim is an input to verification, not an output of it. Print `severity source: verifier`
 in the arithmetic below, and where the two disagree, say so per finding — a downgrade is
 a result, not an edit.
 
-**It is not always available.** Its exposure is feature-gated and is off at low effort,
-so check your own tool list rather than assuming. Absent it, print the same content as
+**It is not always available.** It depends on the host application, not on effort, so
+check your own tool list rather than assuming. Absent it, print the same content as
 a ranked list: `file:line`, severity, one-line claim, then the failure scenario. Never
 drop a finding because the reporting surface was missing.
 
@@ -239,7 +248,7 @@ the ones the user did not ask for), and for a split target, the modules not revi
 
 | The user wants to… | Route to |
 |---|---|
-| Review a diff, branch, or PR | the built-in `/code-review`, `/simplify`, `/security-review` — they own the diff case |
+| Review a diff, branch, or PR | the built-in `/code-review`, `/simplify`, `/security-review` — they own the diff case; `/code-review <path>` still reviews the path as a diff-anchored change set |
 | Audit a running system against Lighthouse/RUM budgets or OWASP × assets, with lifecycle-tracked findings | `audit` (`perf` / `security` playbooks) — it measures a system; this skill reads code |
 | Fix one known bug, test-first | `bugfix` |
 | Turn findings into tracked work | `backlog` |

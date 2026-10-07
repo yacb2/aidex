@@ -305,10 +305,10 @@ SEC_HITS="$(surface_hits "$SEC_RE")"
 PERF_HITS="$(surface_hits "$PERF_RE")"
 
 # ── Size class: the cost bound ────────────────────────────────────────────────
-# The bound is LOC, not file count: a finder's cost tracks how much it must read.
+# The bound is SOURCE_LOC, not file count or total LOC: a finder's cost tracks how much
+# source it must read.
 # `oversize` is a refusal, not a warning — a whole-app run that spawns the same two
 # finders over 40k LOC is a sample presented as coverage.
-# The bound is SOURCE_LOC — what the finders will actually read — not the total.
 if   [ "$SOURCE_LOC" -le 800 ];   then SIZE_CLASS="small";    FINDERS=2
 elif [ "$SOURCE_LOC" -le 3000 ];  then SIZE_CLASS="medium";   FINDERS=3
 elif [ "$SOURCE_LOC" -le 12000 ]; then SIZE_CLASS="large";    FINDERS=4

@@ -116,7 +116,7 @@ cannot supply one ranks lowest rather than going unreported.
 
 ## The verify phase
 
-**`02-find-merge-verify.md` §3 (SKILL.md Step 3.3) owns the verifier's return shape** — the full field list, including
+**`02-find-merge-verify.md` §3 (item 3 there, "Step 3.3" in SKILL.md) owns the verifier's return shape** — the full field list, including
 the severity that overrides the finder's and the reason a `PLAUSIBLE` must carry. Read it
 there and author the prompt from it; this section holds only what the verdicts *mean* and
 why the verifier is biased the way it is. Do not author a verifier prompt from this
@@ -141,11 +141,14 @@ than a diff review, so the cost of a permissive verifier is a report nobody read
 > **This section owns the measurement.** SKILL.md Step 2 carries the ratio, because
 > quoting it *is* the instruction there; the provenance, the n=1, and the caveat about
 > which sizing rule it was taken under live here, and `resolve-review-target.sh` points
-> here too. The figure is pending re-measurement — when it lands, this is the section it
-> lands in, and the other two sites say so rather than carrying their own copy.
+> here too. The 17x ratio has not been re-measured since 2026-08-10: the Q9 paragraph
+> below re-measured the model/effort choice, not the ratio, so the ratio is unmeasured on
+> current models. A re-measurement of it lands in this section, and the other two sites
+> say so rather than carrying their own copy.
 
 Finders: ~22k tokens per agent (measured in the plan-exec-as-workflow work, recorded in
-`review-scope-conventions.md` §4). Knowable before the run, and the resolver prints it as
+`review-scope-conventions.md` §4, from 3 Sonnet finders and a Haiku verifier, before
+Sonnet 5.5 and Opus 5.5; unmeasured on the current models). Knowable before the run, and the resolver prints it as
 `finder_floor_ktokens_per_lens` so that the name itself says what it is. It follows
 `finders_per_lens`, which comes from `source_loc` and can be raised with `--finders`.
 
@@ -158,12 +161,15 @@ announced floor **132k**, actual spend **2.2M**, ~**17×**. n=1.
 > 132k. The ratio is the datum; the absolute number is an artifact of the sizing rule it
 > was taken under.
 
-**The model is the other half of the bill.** This skill is `model-policy:
-inherit-session` — nothing is passed to any agent, so all of them run at the invoking
-session's model and effort. On the measured run that was 34 agents at the session's tier.
-It is the platform norm (`/code-review` inherits too; what its effort levels vary is the
-prompt, not the model) but on a module review it is the dominant term, which is why
-Step 2 has to name it beside the floor.
+**The model is the other half of the bill.** This skill is `model-policy: per-stage`:
+each `Agent` call passes `effort` (finders `medium`, verifiers `high`, never `xhigh` or
+`max`) and no `model`, so agents run at the invoking session's model. Anthropic's guidance
+for current models is that effort is the primary dial, and that at `xhigh`/`max` a model
+starts its own review rounds and spawns reviewer subagents, which is why those two levels
+are excluded. The measured 17x run (34 agents: 6 finders plus 28 verifiers, the 28 derived
+by subtraction) predates this policy: it ran inherited at the session's tier, model not
+recorded. The cost of the medium/high pair is unmeasured. On a module review model and
+effort are the dominant term, which is why Step 2 has to name them beside the floor.
 
 The cause is not waste, and the fix is not fewer verifiers. They did not opine: they stood
 up sandboxes and reproduced the defects with real commands and exit codes, which is what
@@ -171,7 +177,9 @@ the refute-bias asks of them. The defect was in the *announcement* — a number 
 the dominant term reads as a total. State the floor, call it a floor, and say what the one
 measured run cost against it.
 
-**Re-measured 2026-09-13 (Q9, aidex spike `2026-09-13-supervised-cheap-subagents`,
+**Re-measured 2026-09-13 — historical, Sonnet 5 era: the `opus` and `fable` rows predate
+Opus 5.5, Sonnet 5.5 and Fable 5.1, and no cell exists for them (Q9, aidex spike
+`2026-09-13-supervised-cheap-subagents`,
 `08-programme-design.md` § Q9, `proofs/prog/q9/`).** One correctness finder per run, three
 default angles, on three real modules snapshotted before eleven labelled shipped defects
 (nine tier-1), 45 runs blind-graded: every cell from `sonnet/low` to `opus/medium` found 1
@@ -183,9 +191,9 @@ and 1.5-4 min. Restricting opus's tools changed nothing measurable. Two conseque
 policy above has to carry: reviewer money buys volume of minor findings, not recall of the
 class that ships (fenced-code paths, selector chains, branch order), which usage finds and
 the bugfix regression test closes; and a finder on `sonnet/medium` restricted returns the
-same class at a third of the price, with `fable/low` the cheaper-than-opus escalation when a
-first pass returns fewer than 3 findings. Whether `inherit-session` yields to that row is a
-policy decision, not a measurement, and is open (Q9 adoption). Limits: N=3 per cell, one
+same class at a third of the price. The skill's current policy (finders `medium`,
+verifiers `high`, session model) is a policy choice and not one of the Q9 cells: Q9 is not
+evidence for or against it. Limits: N=3 per cell, one
 repository, one finder per run against production's 3 + verifier.
 
 **The §4 figure does not transfer without this caveat.** That measurement is the *diff*
