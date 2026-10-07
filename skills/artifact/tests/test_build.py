@@ -278,7 +278,7 @@ try:
           '::: section {#s1 heading="H"}\nTexto.\n:::',
           '<section id="s1">', "<h2>H</h2>", "<p>Texto.</p>")
     holds("section: a .class lands on the section, never on the sec-head",
-          '::: section {.wide #s1 heading="H"}\n:::',
+          '::: section {.wide #s1 heading="H"}\nTexto.\n:::',
           '<section class="wide" id="s1">', '<div class="sec-head">')
     holds("group: the kit's consult-group, sec-head and h2",
           '::: group {#G1 title="T" eyebrow="E"}\nx\n::: item {#Q1 title="i"}\n?\n:::\n:::',
@@ -1543,6 +1543,43 @@ try:
             "- a `x\n- y` b\n", 1, "unmatched")
     rejects("an unmatched backtick inside a wrapped paragraph names its own line",
             "uno\n\ndos\ntres ` cuatro\n", 4, "unmatched")
+    rejects("an indented ::: fence line in prose is refused at its line (CNT-1)",
+            "uno\n\n  ::: callout\n  texto\n  :::\n", 3, "indented `:::`")
+    holds("an indented ::: inside a fenced code block is code, not refused",
+          "```\n  ::: callout\n```\n", "::: callout")
+    rejects("a literal {#x} in prose is refused at its line (CNT-1)",
+            "uno\n\nprueba {#x} fin.\n", 3, "`{#`")
+    holds("a {#x} in a code span is code, not refused",
+          "prueba `{#x}` fin.\n", "<code>{#x}</code>")
+    rejects("a ** that closes nothing is refused at its line (CNT-2)",
+            "uno\n\ndos **bold.\n", 3, "closes nothing")
+    holds("a closed ** is bold, not refused", "dos **bold** fin.\n", "<strong>bold</strong>")
+    rejects("the unpaired ** is the LAST one, so the refusal names its line",
+            "uno\n\nUno **ok** dos\ntres **mal.\n", 4, "closes nothing")
+    rejects("a raw ** refusal also offers the code-span fix",
+            "dos **bold.\n", 1, "code span")
+    rejects("a bold label in a chart is refused: labels take no markdown",
+            '::: chart {type="bar" title="c"}\n**a**,3\nb,4\n:::\n', 2, "labels take no markdown")
+    rejects("an unclosed ** in a table cell is refused (cells render alone)",
+            "| a | b |\n| - | - |\n| **x | y** |\n", 3, "closes nothing")
+    holds("a ** inside a link URL is not a raw marker",
+          "ver [doc](https://x.com/a**b) fin.\n", 'href="https://x.com/a**b"')
+    holds("a bold split across a soft line break stays legal",
+          "uno **dos\ntres** cuatro.\n", "<strong>dos tres</strong>")
+    holds("a ~~~ fence holding ::: {#x} and a ** b stays legal",
+          "~~~\n  ::: callout\n{#x} a ** b\n~~~\n", "{#x} a ** b")
+    holds("a section whose only child is a callout stays legal",
+          '::: section {#s1 heading="H"}\n::: callout\ntexto\n:::\n:::\n', "<h2>H</h2>")
+    holds("a section whose only child is a chart stays legal",
+          '::: section {#s1 heading="H"}\n::: chart {type="bar" title="c"}\na,1\nb,2\n:::\n:::\n', "<h2>H</h2>")
+    holds("#hashtag, #123 and C# in an item stay legal",
+          '::: group {#G1 title="G"}\n::: item {#Q1 title="i"}\nUsa #hashtag, el #123 y C# aqui.\n:::\n:::\n',
+          "#hashtag")
+    rejects("an empty section is refused at its line (CNT-3)",
+            '::: section {#s1 heading="H"}\n:::\n', 1, "no body")
+    rejects("a markdown heading in an item body is refused (48)",
+            '::: group {#G1 title="G"}\n::: item {#Q1 title="i"}\n# Titulo\n\nPregunta.\n:::\n:::\n',
+            3, "markdown heading")
     rejects("a CRLF spec: the fence closes, so the prose after it is checked",
             "```\r\nx\r\n```\r\nuna ` suelta\r\n", 4, "unmatched")
     holds("a CRLF fence closes and holds its backticks as code",
