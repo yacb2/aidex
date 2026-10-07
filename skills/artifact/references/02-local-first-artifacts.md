@@ -2128,6 +2128,11 @@ Reasoning: `01-dash-conventions.md` § Publish is never automatic.
 
 ---
 
+## Language
+
+The page's language is the project style profile's `language:` field, else English
+(D-04); `--lang` or the masthead `lang=` overrides it for one page (intake question 5).
+
 ## The built-in `Artifact` tool competes with this skill (measured 2026-09-12)
 
 With the always-on rule gone (plugin migration), routing rests on this skill's
