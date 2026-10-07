@@ -262,11 +262,18 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/spec_verbs.py" add-item <name>.spec.md \
 attr span and leaving the other bytes of the line alone. Idempotent for the same verdict;
 a different verdict overwrites, because a reader revising an earlier answer is one of the
 four documented round labels. The verdict is the chosen option's label: `yes` is refused on an
-item with options (§ Worked example, `decided=yes`).
+item with options (§ Worked example, `decided=yes`). On such an item any other text is refused
+too, unless the saved reply (`save-reply.sh`) answers that id with the kit's Other choice
+("Otra — lo explico en las notas" / "Other — see my notes") or with an option plus a note: then
+the outcome that is no single option is recorded as written. "Todavía no" never qualifies, and
+a select=many verdict is the labels joined by `, `. `decide` and `new-round` need a built page
+(build it first with `spec_build.py -o`); every verb refuses a rebuild over a page that differs
+from what the last build wrote (hand-edited, restored from git, or left by an unfinished
+build), and takes the page language from the masthead `lang=`, else the project profile.
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/spec_verbs.py" decide <name>.spec.md \
-  --id Q1 --verdict "Fences"
+  --id Q1 --verdict "Fences de Pandoc"
 ```
 
 One reader reply that decides several items is ONE call: repeat the pair
@@ -277,6 +284,7 @@ refuses the whole call.
 Idempotent: a key already in the ledger is left untouched. It does **not** move a round
 counter — the round lives in `<meta name="consult-round">`, which the wrap derives from
 the contract baseline, and a second writer would only disagree with it.
+`new-round` refuses (exit 1, nothing written) while the saved reply holds a bare option pick the spec has not decided, and names the `decide --id Qn --verdict "<option>"` command to run first; Other, option + note, a question or a provisional answer may be carried open.
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/spec_verbs.py" new-round <name>.spec.md
@@ -634,8 +642,8 @@ saying some form of "I do not understand this task" — the owner's words were *
 dando contexto asumiendo que conozco qué es lo que está y qué es lo que no está"*.
 
 So every open item carries an injected **ask row** (`.kit-ask`, kit v18, BL-381; seven
-chips since kit v19) under its answer: one line, "Antes de responder necesito…", with
-seven checkboxes. Ticking any of them pastes a fixed marker as a mark under that item's
+chips since kit v19; the page-defect chip left it for a button, LOOP-008 Q10) under its answer: one line, "Antes de responder necesito…", with
+eight checkboxes. Ticking any of them pastes a fixed marker as a mark under that item's
 id, and **which** markers is the whole point:
 
 | Marker | What it asks for | What the rewrite owes | Gate |
@@ -648,7 +656,7 @@ id, and **which** markers is the whole point:
 | **`[reframe]`** | The item is asking the wrong thing | **Re-frame the item, never just re-explain it.** Every other marker assumes the question is the right one; this one says it is not. The notes say why. The next round returns a DIFFERENT question — re-scoped, split, or dropped — and says in one line what changed and why. An item that comes back re-explained under the same framing has not been answered. | `check_marker_duties`: the item's question fingerprint (`changed_questions`'s) must differ from the answered snapshot |
 | **`[show-me]`** | A different instrument | A mockup, a diagram, a before/after, worked examples. Not more prose: the reader has said prose is not the shape that will land. | `check_marker_duties`: a figure, image, svg or diagram inside the item |
 | **`[more-examples]`** | More worked examples, not a longer explanation | More visuals, tables or example blocks than the last round carried — never the same shape stretched longer. | `check_marker_duties`: visual+table+example count must be higher than the answered snapshot |
-| **`[page-defect]`** | The page itself is broken (encoding, a dead control, a rendering bug) — never a route back to `[reframe]` for it | Fix the page defect in place. Nothing about the item's question changes, so nothing is re-asked. | none — a page defect is not a re-ask |
+| **`[page-defect]`** (legacy bare line; since LOOP-008 Q10 the composer pastes a sub-block instead) | The page itself is broken (encoding, a dead control, a rendering bug) — never a route back to `[reframe]` for it. The control is no chip: each open item has a "Report a page problem" button that opens its OWN box, apart from the notes. The report travels as the LAST sub-block of the item's `### ` block: a `#### Page problem` line (`#### Fallo de la página` on an es page), a blank line, the reader's text verbatim. An item with only a report still pastes its `### ` block with just that sub-block; the report is never an answer and never makes one provisional. `spec_verbs`, `save-reply.sh`, `check-artifact` and the gallery-row reader all cut the sub-block (from its LAST heading line) before reading the item's block, so its lines are neither notes, markers nor verdicts; a chat-form `Q2: ...` line inside the text still ends the block, the same exposure notes have. | Fix the page defect in place. Nothing about the item's question changes, so nothing is re-asked. `save-reply.sh` prints the duty line with the reported text quoted. | none — a page defect is not a re-ask |
 
 A gallery row has no body to rewrite, so its explain-why and reframe text go in the row's `note` list (§ Gallery rows), never packed into `look`. `[more-examples]` on a gallery row is answered with another capture or a table, not a note: the duty check counts visuals and tables, not `<li>` lines.
 
@@ -1815,6 +1823,11 @@ is emitted only while at least one single-capture row has no `noBefore`. `noBefo
 blank or non-string value, or on a not-applicable or alternatives row (it would be dropped silently)
 is refused naming the cell; a dropped row does not read it. When a plain single-capture row sits beside
 a `noBefore` row, the intro sentence is qualified ("…, salvo donde la fila dice por qué no hay antes").
+The spec build refuses two or more distinct bare single-capture cells (not decided, dropped or
+waiting, no `noBefore`) when one is named `hoy` or `baseline` as a whole `-` token: that row is a
+`before` shown as a new screen, so make it the `before` of its pair, use one `kind: "alternatives"`
+row, or give each new screen a `noBefore` reason. `look`, `note` and `title` render inline markup; a link
+in a `title` is refused.
 
 **A row carries its "decidido, corrígeme si no" text in `decided_note`.** An optional row key, a
 non-empty string, rendered as the kit's `callout` after the row's variant line, under the captures and
@@ -1907,7 +1920,7 @@ exempts nothing, same rule as the visual declaration.
 | `consult` | reply boxes without a `data-id` / `data-title`, an item without free text, duplicate ids, no general-notes item, no `#consult-copy` button, no `#consult-status`, no blank-count in the composer, no visual and no declared reason, or no `:root[data-theme="dark"]` rule for `.consult-bar`. Closed controls that only filter a read are exempted by a declared `consult-surfaces` reason (above) |
 | `consult-ids` | an id kept between two versions now names a different claim |
 | `decision-item-without-options` | a `.consult-item` with fewer than two radio, checkbox or select options, not `data-decided`, not `data-free` — a decision then gets answered as prose, and the page that shipped it asked the same decisions again with options elsewhere. Give it its options, or mark it an open answer with `data-free` (`free=yes` in a spec). Was the `consult-free` warning (BL-468); one owner now, `dash/contract_defects.py`, like the page's other source classes (LOOP-006) |
-| `rail` | a kit page inside `.page`/`.main` with no `#raillist`, or an `<h2>` outside any id'd `<section>` — composer.js builds the index at load from `.main > section[id]`, so either way the reader opens a page with a missing or partial index (D4, 2026-09-13: two delegated pages shipped so). `wrap-report.sh` injects the aside after `</main>` when the body has none |
+| `rail` | a kit page inside `.page`/`.main` with no `#raillist`, or an `<h2>` outside any id'd `<section>` — composer.js builds the index at load from every `.main > section` in body order (an id'd section with an `<h2>`, a block, a loose item; a `[hidden]` one is skipped), so either way the reader opens a page with a missing or partial index (D4, 2026-09-13: two delegated pages shipped so). `wrap-report.sh` injects the aside after `</main>` when the body has none |
 
 **The findings below are WARNINGS, not violations.** They print as `WARN [check]`, never change
 the exit code, and are not waivable — a waiver keys on (`artifact-<check>`, path), and

@@ -294,6 +294,27 @@ assert duties("\n") == []                                              # blank r
 assert duties("\n- Hover\n- Otra — lo explico en las notas\n") == ["other-verdict"]
 PY
 
+python3 - "$SKILL/scripts/dash" "$TMP/spec/s.html" "$ID" <<'PY' && ok "a page-defect sub-block on a gallery row: the row is still read (marks kept), a states row owes nothing for a report alone, and the page-defect duty prints the quoted text" || fail "the page-defect sub-block confuses the gallery reader"
+import sys
+sys.path.insert(0, sys.argv[1])
+import save_reply
+page, ident = open(sys.argv[2]).read(), sys.argv[3]
+st = save_reply.states_in_page(page)
+# (2a) a review row: verdict + mark + report
+rev = ("## L · Login\n### login-header-v2 · login · header · v2\n\n- Aprobada\n\n"
+       "[mark after 10.0,10.0 20.0x20.0] logo cortado\n\n#### Fallo de la p\u00e1gina\n\nla imagen no carga\n")
+d = save_reply.duties_for(rev)
+tags = [x[1] for x in d]
+assert "unreadable" not in tags and "region-marks" in tags, d
+assert any(x[1] == "page-defect" and '"la imagen no carga"' in x[2] for x in d), d
+# (2b) a states row with only a report owes nothing but the page-defect duty
+sr = ("## B · Bot\u00f3n\n### %s · btn · save · light-desktop\n\n#### Fallo de la p\u00e1gina\n\nla captura sale en blanco\n" % ident)
+d = save_reply.duties_for(sr, states=st)
+tags = [x[1] for x in d]
+assert "needs-changes" not in tags and "unreadable" not in tags, d
+assert any(x[1] == "page-defect" and '"la captura sale en blanco"' in x[2] for x in d), d
+PY
+
 mkdir -p "$TMP/sv" && cp "$TMP/spec/s.html" "$TMP/sv/s.html"
 printf '## B · Botón\n### %s · btn · save · light-desktop\n\n- el reposo debe ser más claro\n- el hover sin sombra\n' "$ID" > "$TMP/sv/reply.md"
 python3 - "$SKILL/scripts/dash" "$TMP/sv/s.html" "$TMP/sv/reply.md" "$ID" <<'PY' && ok "save_reply on the real page: a bullets-only states reply owes needs-changes" || fail "save_reply did not read the page's states for a bullets-only reply"

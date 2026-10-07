@@ -2524,6 +2524,9 @@ def _norm_title(s):
     Accent-folding alone does not fix it: `&eacute;` is five ASCII characters,
     and there is no combining mark to strip."""
     s = _html.unescape(s)
+    # The builder stores a title's text without its inline markers (LOOP-008 F3);
+    # a page built before that carries them, and the same claim must compare equal.
+    s = re.sub(r"[`*_]", "", s)
     s = unicodedata.normalize("NFKD", s)
     s = "".join(c for c in s if not unicodedata.combining(c))
     return " ".join(s.split()).casefold()
@@ -3152,6 +3155,11 @@ def _ledger_shape(body):
     return ", ".join(dict.fromkeys(bad))
 
 
+SPEC_BUILT = re.compile(r'<meta\b[^>]*\bname\s*=\s*["\']?spec-built\b', re.I)
+MASTHEAD_OPEN = re.compile(
+    r'<header\b[^>]*\bclass\s*=\s*["\'][^"\']*\bmasthead\b', re.I)
+
+
 def check_shape(path, text):
     """The block shape, judged on the ITEM-bearing page only: a read has no
     blocks and no rules here."""
@@ -3159,6 +3167,17 @@ def check_shape(path, text):
 
     def report(msg):
         fails.append(("consult-shape", os.path.basename(path), msg))
+
+    # A consultation page opens with ONE masthead (a hand edit that removed it
+    # or pasted a second one leaves the page without, or with two, openings).
+    n_mast = len(MASTHEAD_OPEN.findall(strip_html_comments(strip_script_style(text))))
+    # Two is a defect on any page. None is one only on a page the spec builder
+    # wrote from a spec WITH a masthead (only those carry `spec-built`): the
+    # shipped block template and hand-written item pages legitimately have none.
+    if n_mast > 1 or (n_mast == 0 and SPEC_BUILT.search(text)):
+        report(f"the page carries {n_mast} <header class=\"masthead\"> "
+               f"({'no masthead' if not n_mast else 'second masthead'}): a "
+               f"consultation page opens with exactly one")
 
     groups = []   # (id, open_start, body_start, body_end)
     for m in GROUP_OPEN.finditer(text):
@@ -3520,6 +3539,35 @@ REPLY_BLOCK = re.compile(r"^## ", re.M)
 # BL-569: a reply pasted in chat format (`Q1: ...`, `### Q1 · ...`) is a reply
 # too (SKILL.md: chat replies are saved the same way as composer replies).
 _MARK_TOKEN = re.compile(r"\[([a-z][a-z-]*)\]")
+# The composer's page-defect report (LOOP-008 Q10): a `#### Fallo de la página`
+# (en: `#### Page problem`) sub-block at the END of an item's `### ` block, the
+# reader's text verbatim under it. It is no part of the answer and no marker.
+from reply_defect import DEFECT_HEAD, split_defect, blank_defects   # noqa: E402,F401
+
+
+def _block_end(reply_text, start, end):
+    """Where an item block that starts at `start` ends: at the next `## `
+    heading or the `<!-- reply saved ... -->` separator of an appended save,
+    whichever comes first, else at `end` (the next `### ` item)."""
+    for stop in (REPLY_BLOCK.search(reply_text, start, end),
+                 _SAVE_SEP.search(reply_text, start, end)):
+        if stop:
+            end = stop.start()
+    return end
+
+
+def defect_reports_of(reply_text):
+    """{item id: reported page-defect text}: the newest non-empty report per id
+    across every `### <id> · ` block of the (appended-to) reply."""
+    out = {}
+    heads = list(REPLY_ITEM.finditer(reply_text))
+    for k, h in enumerate(heads):
+        end = heads[k + 1].start() if k + 1 < len(heads) else len(reply_text)
+        end = _block_end(reply_text, h.end(), end)
+        text = split_defect(reply_text[h.end():end])[1]
+        if text:
+            out[h.group(1)] = text
+    return out
 
 
 # composer.js ASKS + `[not-now]` + the `[provisional]` qualifier, minus
@@ -3554,6 +3602,7 @@ def _reply_has_answer(reply_text, ident, ids=()):
             if head_any.match(nxt):
                 break
             block.append(nxt)
+        block = split_defect("\n".join(block))[0].split("\n")
         # composer.js isProvisional: an ask marker other than [page-defect]
         # beside an answer makes it provisional, so it decides nothing
         # only the KNOWN marker names count: `[readme](url)`, `- [x] done`
@@ -3632,11 +3681,12 @@ def marker_duties_of(reply_text):
         end = heads[k + 1].start() if k + 1 < len(heads) else len(reply_text)
         # A `## ` heading ends the item's block too: the next block's own note
         # (BL-701) sits under it, and is not this item's answer.
-        block = REPLY_BLOCK.search(reply_text, h.end(), end)
-        if block:
-            end = block.start()
+        end = _block_end(reply_text, h.end(), end)
         ident = h.group(1)
-        marks = ASK_LINE.findall(reply_text, h.end(), end)
+        rest, defect = split_defect(reply_text[h.end():end])
+        marks = ASK_LINE.findall(rest)
+        if defect and "page-defect" not in marks:
+            marks.append("page-defect")
         if not marks:
             continue
         if ident not in marks_by_id:
@@ -3982,6 +4032,106 @@ def check_decided_trace(path):
              f"it — nothing the reader answered decided it. Keep it open, or "
              f"save the reply that decided it with save-reply.sh")
             for i in sorted(gap) if not _reply_has_answer(reply_text, i, page_ids)]
+
+
+_ROUND_META = re.compile(r'<meta\b[^>]*\bname\s*=\s*["\']?consult-round["\']?'
+                         r'[^>]*\bcontent\s*=\s*["\']?(\d+)', re.I)
+_OTHER_PICK = re.compile(r"^-[ \t]+(?:Other|Otra)\b", re.I)
+
+
+def _round_of(text):
+    m = _ROUND_META.search(text)
+    return int(m.group(1)) if m else 0
+
+
+def _picked_only(reply_text, ident, ids):
+    """The option lines of the LAST reply block for `ident` when the reader
+    only PICKED: every non-blank line is a `- option` bullet, none an ask
+    marker, none the `Other` label. Notes, free text, a chat-form answer or
+    a question back make it not a bare pick -> None."""
+    alts = "|".join(re.escape(i) for i in sorted(set(ids) | {ident},
+                                                 key=len, reverse=True))
+    head_any = re.compile(r"^(?:[ \t]*#{2,3}[ \t]|<!--|[ \t]*(?:" + alts
+                          + r")(?![\w-])[ \t]*[:·])")
+    head = re.compile(r"^[ \t]*#{2,3}[ \t]+" + re.escape(ident)
+                      + r"(?![\w-])[ \t]*[:·]", re.M)
+    lines = reply_text.split("\n")
+    picked = None
+    for k, line in enumerate(lines):
+        if not head.match(line):
+            continue
+        block = []
+        for nxt in lines[k + 1:]:
+            if head_any.match(nxt):
+                break
+            block.append(nxt)
+        block = split_defect("\n".join(block))[0].split("\n")
+        body = [b.strip() for b in block if b.strip()]
+        picked = None
+        if (body and all(b.startswith("- ") for b in body)
+                and not any(t in _ASK_MARKERS for t in _MARK_TOKEN.findall("\n".join(body)))
+                and not any(_OTHER_PICK.match(b) for b in body)):
+            picked = [b[2:].strip() for b in body]
+    return picked
+
+
+def check_round_pick_open(path, strict=False):
+    """FAILs the 225f968e shape (round-open-pick-not-decided): a page of round
+    N+1 leaves OPEN an item whose saved round-N reply only PICKED an option —
+    nothing was asked back, so the reader's answer was dropped and the item is
+    shown again. Other / option+note / a question / an item absent from the
+    reply stay open legitimately. Applies only when the page's `consult-round`
+    is past the round of `.aidex-artifact-prev/<stem>.answered.html`; a page
+    claiming round > 1 with no answered snapshot or no saved reply FAILS
+    rather than passing unchecked.
+
+    `strict` (check-artifact `--new-round`, which the wrap passes on the build
+    that OPENS a round): every bare pick must be decided. Without it (the
+    decide verbs rebuild one item at a time, the round advancing on the first)
+    a page that decided any item the reader had open is a round in progress."""
+    name = os.path.basename(path)
+    if not os.path.isfile(path):
+        return []
+    prev_dir = os.path.join(os.path.dirname(os.path.abspath(path)),
+                            ".aidex-artifact-prev")
+    stem = os.path.splitext(name)[0]
+    answered = os.path.join(prev_dir, stem + ".answered.html")
+    reply = os.path.join(prev_dir, stem + ".reply.md")
+    read = lambda p: open(p, encoding="utf-8", errors="replace").read()
+    text = read(path)
+    rnd = _round_of(text)
+    if rnd <= 1 or not any(i != "notes" for i in ordinary_item_ids(text)):
+        return []                       # round 1, or no question item (a plain read)
+    if not (os.path.isfile(answered) and os.path.isfile(reply)):
+        return [("consult-round-pick", name,
+                 f"the page is round {rnd} but the previous round's saved "
+                 f"reply or answered snapshot is missing from "
+                 f".aidex-artifact-prev/ — cannot check that the owner's picks "
+                 f"were decided; run save-reply.sh on the previous round's reply")]
+    old = read(answered)
+    if rnd <= _round_of(old):
+        return []                       # the page the reader answered, or a rebuild of it
+    reply_text = _live_reply(read(reply))
+    ids = {i for i, *_ in consult_items(text)} | {i for i, *_ in consult_items(old)}
+    was_open = {i for i, *_ in consult_items(old)} - decided_ids(old)
+    live = ordinary_item_ids(text) - dropped_ids(text) - proposal_ids(text)
+    picks = {}
+    for i in sorted(was_open & live):         # gallery rows have their own verdict duties
+        picked = _picked_only(reply_text, i, ids)
+        if picked:
+            picks[i] = picked
+    still_open = [i for i in picks if i not in decided_ids(text)]
+    if not still_open:
+        return []
+    if not strict and was_open & decided_ids(text) - dropped_ids(text) - proposal_ids(text):
+        return []       # decide verbs rebuild one item at a time: round in progress
+    why = ("this build opens the round, so every bare pick must be decided"
+           if strict else "the round decided nothing the reader had open")
+    return [("consult-round-pick", name,
+             f"{i} is still OPEN but the saved reply answered it with "
+             f"{'; '.join(picks[i])} and asked nothing back, and {why} — "
+             f"decide it (spec_verbs decide) instead of showing it again")
+            for i in still_open]
 
 
 def check_prev(new_path, prev_path):
@@ -4357,6 +4507,7 @@ def main(argv):
     prev = None
     census = False
     census_arg = None
+    new_round = False
     files = []
     args = list(argv)
     while args:
@@ -4366,6 +4517,8 @@ def main(argv):
                 print("ERROR: --prev needs a file", file=sys.stderr)
                 return 2
             prev = args.pop(0)
+        elif a == "--new-round":
+            new_round = True
         elif a == "--census":
             census = True
             if args and not args[0].startswith("--"):
@@ -4414,6 +4567,7 @@ def main(argv):
         failures.extend(spec_fails)
         warnings.extend(spec_warns)
         failures.extend(check_decided_trace(f))
+        failures.extend(check_round_pick_open(f, strict=new_round))
 
     for check, name, msg in failures:
         print(f"  FAIL [{check}] {name}: {msg}")

@@ -40,9 +40,14 @@ cat > "$TMP/wire.svg" <<'SVG'
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220"><rect x="10" y="10" width="380" height="200" fill="none" stroke="currentColor"/><rect class="acc" x="24" y="110" width="120" height="30" fill="none" stroke="currentColor"/><text x="24" y="50" font-size="14" fill="currentColor">Wireframe: users list</text><text x="24" y="90" font-size="12" fill="currentColor">Name   Role   Status</text></svg>
 SVG
 cp "$TMP/wire.svg" "$TMP/wire2.svg"
+cp "$TMP/wire.svg" "$TMP/wireA.svg"
+cat > "$TMP/portrait.svg" <<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 491"><rect x="10" y="10" width="360" height="471" fill="none" stroke="currentColor"/><text x="24" y="50" font-size="13" fill="currentColor">Portrait flow</text></svg>
+SVG
 cat > "$TMP/tall.svg" <<'SVG'
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 2000"><rect x="10" y="10" width="380" height="1980" fill="none" stroke="currentColor"/><text x="24" y="50" font-size="14" fill="currentColor">Tall wireframe</text></svg>
 SVG
+cp "$TMP/tall.svg" "$TMP/tallB.svg"
 python3 - "$TMP" <<'PY'
 import sys
 d = sys.argv[1]
@@ -126,6 +131,29 @@ One item per figure shape.
 - Si — si
 - No — no
 :::
+
+::: item {#Q8 title="Svg vertical"}
+¿Se ve grande?
+
+::: figure {src="portrait.svg" title="Flujo vertical"}
+:::
+
+- Si — si
+- No — no
+:::
+
+::: item {#Q9 title="Dos svg"}
+¿Y el segundo?
+
+::: figure {src="wireA.svg" title="Svg ancho"}
+:::
+
+::: figure {src="tallB.svg" title="Svg alto del par"}
+:::
+
+- Si — si
+- No — no
+:::
 :::
 
 ::: notes {title="Notas generales"}
@@ -186,10 +214,10 @@ for w in w1280 w390; do
     "$w: an 8-image gallery pages from 1 / 8 to 8 / 8 by the button, a caption each"
   check "d['$w']['loneSvg']['accColor'] == d['$w']['markers']['pageAcc'] and d['$w']['loneSvg']['accColor'] != d['$w']['loneSvg']['inkColor']" \
     "$w: a kit accent class on the drawing keeps its colour in the dialog"
-  check "d['$w']['pair1']['native'] is False and d['$w']['pair2']['native'] and d['$w']['pairPrev']['native'] is False and d['$w']['pairPrev']['imgW'] <= d['$w']['pairPrev']['imgNatW'] and (d['$w']['pairPrev']['imgW'] < d['$w']['pairPrev']['imgNatW'] or '$w' == 'w1280')" \
-    "$w: stepping png -> svg -> png sets each image's own size mode (raster Fit, svg native), no leak"
+  check "d['$w']['pair1']['native'] is False and d['$w']['pair2']['native'] == ('$w' == 'w390') and d['$w']['pairPrev']['native'] is False and d['$w']['pairPrev']['imgW'] <= d['$w']['pairPrev']['imgNatW'] and (d['$w']['pairPrev']['imgW'] < d['$w']['pairPrev']['imgNatW'] or '$w' == 'w1280')" \
+    "$w: stepping png -> svg -> png sets each image's own size mode (raster Fit; svg the larger of Fit and drawn: Fit at 1280, drawn at 390), no leak"
   check "d['$w']['loneSvg']['body']['ox'] in ('auto', 'scroll') and d['$w']['loneSvg']['body']['svgLeft'] >= 0 and (d['$w']['loneSvg']['body']['sw'] > d['$w']['loneSvg']['body']['cw'] or '$w' == 'w1280') and d['$w']['loneSvgFit'] != 'none'" \
-    "$w: the native svg never clips (its box scrolls, starts at the left edge) and Fit caps the height"
+    "$w: the svg never clips (its box scrolls, starts at the left edge; it opens at 1:1 at 390, at Fit at 1280) and Fit caps the height"
   check "d['$w']['pair1']['btn']['prev'] == d['$w']['pair1']['btn']['close'] and d['$w']['pair1']['btn']['prev'] != 'rgb(239, 239, 239)'" \
     "$w: Previous/Next are styled like Close, not the browser default button"
   check "not d['$w']['lonePng']['tileShown'] and not d['$w']['lonePng']['keysShown'] and d['$w']['pair1']['tileShown'] and d['$w']['pair1']['keysShown']" \
@@ -241,6 +269,20 @@ check "d['w1280']['touch']['toSvg'] == '2 / 2' and d['w1280']['touch']['swipeBac
   "1280: a REAL touch swipe (CDP touch events) walks the run through an svg that fits the dialog"
 check "d['w390']['touch']['swipeBack']['tile'] == '2 / 2' and d['w390']['touch']['swipeNext']['tile'] == '2 / 2' and d['w390']['touch']['swipeNext']['sl'] > 0" \
   "390: a REAL touch swipe on an overflowing svg pans it (the walk stays on 2 / 2, the drawing scrolls)"
+check "not d['w1280']['svgOpen']['native'] and d['w1280']['svgOpen']['svgW'] > d['w1280']['svgOpen']['vbW'] + 1 and d['w390']['svgOpen']['native']" \
+  "Ampliar on a drawing opens it at the larger size: Fit, wider than its viewBox, where the dialog is wider (1280); drawn size where Fit would shrink it (390) (BL-712)"
+check "abs(d['w1280']['svgFit']['body']['svgLeft'] - d['w1280']['svgFit']['body']['rightGap']) <= 2 and d['w1280']['svgFit']['svgW'] > d['w1280']['svgNative']['svgW'] + 1 and abs(d['w1280']['svgNative']['svgW'] - d['w1280']['svgNative']['vbW']) <= 1" \
+  "1280: Fit on a drawing narrower than the dialog enlarges it and centres it (gaps within 2 px); 1:1 is the viewBox width (BL-713)"
+check "not d['w1280']['loneFit']['native'] and d['w1280']['loneFit']['svgW'] > d['w1280']['loneFit']['vbW'] + 1 and abs(d['w1280']['loneFit']['body']['svgLeft'] - d['w1280']['loneFit']['body']['rightGap']) <= 2" \
+  "1280: Fit on a lone drawing narrower than the window enlarges it past its viewBox width, centred (gaps within 2 px)"
+check "abs(d['w1280']['loneToggle']['fit'] - d['w1280']['loneToggle']['native']) <= 1" \
+  "1280: on a lone drawing the size button stays where it is across Fit -> 1:1 (the dialog does not re-centre on its height)"
+check "not d['w1280']['portrait']['native'] and d['w1280']['portrait']['svgW'] > d['w1280']['portrait']['vbW'] + 1 and d['w1280']['portrait']['svgW'] < d['w1280']['portrait']['body']['cw'] - 100 and abs(d['w1280']['portrait']['body']['svgLeft'] - d['w1280']['portrait']['body']['rightGap']) <= 2" \
+  "1280: a portrait drawing (380x491) opens at Fit, larger than drawn, capped by the height and centred in the wider dialog (BL-713)"
+check "d['w1280']['stepTall']['tile'] == '2 / 2' and (d['w1280']['stepTall']['native'] or d['w1280']['stepTall']['svgW'] >= d['w1280']['stepTall']['vbW'] - 1)" \
+  "1280: stepping from a drawing at Fit to a tall drawing picks the tall one's own size, never Fit shrunk below its drawn width"
+check "abs(d['w1280']['svgFit']['svgW'] - d['w1280']['svgOpen']['svgW']) <= 2 and abs(d['w1280']['svgFit']['body']['svgLeft'] - d['w1280']['svgOpen']['body']['svgLeft']) <= 2" \
+  "1280: Fit -> 1:1 -> Fit returns the drawing to the same box"
 check "d['w390']['markers']['pageSvgText'] < 11" \
   "390: the page itself still shrinks the 400 px drawing below 11 px text (so the dialog is what makes it readable)"
 check "not d['w390']['rasterNative']['dlgScrolls'] and d['w390']['rasterNative']['stackScrolls'] and not d['w390']['rasterNative']['headMoved'] and d['w390']['rasterNative']['capInside'] and abs(d['w390']['rasterNative']['rightGap']) <= 1" \

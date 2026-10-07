@@ -41,7 +41,7 @@ Una decision y una pregunta.
 ¿Aplazamos el segundo item a la próxima ronda?
 
 - Sí: aplazarlo {recommended}
-- No: intentarlo ahora
+- No — intentarlo ahora
 :::
 ${3:-}:::
 
@@ -226,6 +226,23 @@ printf '### Q1 · x\n\n- Sí: cerrarlo ahora\n- [page-defect]\n' | bash "$SAVE_R
 spec "Sí" ""
 build && ok "17. an answer carrying only [page-defect] still decides Q1" \
   || fail "17. $(cat "$TMP/build.out")"
+
+# 17b. the composer's page-defect SUB-BLOCK (LOOP-008 Q10) is no note and no answer
+newpage defectsub
+spec "" ""; build
+printf '### Q1 · x\n\n- Sí: cerrarlo ahora\n\n#### Fallo de la página\n\n- [show-me]\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "17b. save-reply.sh failed"
+spec "Sí" ""
+build && ok "17b. a pick followed by a page-defect sub-block whose text is only a marker line still decides Q1" \
+  || fail "17b. $(cat "$TMP/build.out")"
+
+newpage defectonly
+spec "" ""; build
+printf '### Q1 · x\n\n#### Fallo de la página\n\nel botón no carga\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "17c. save-reply.sh failed"
+spec "Sí" ""
+build; rc=$?
+[[ "$rc" != "0" ]] && grep -q 'consult-decided-trace.*Q1' "$TMP/build.out" \
+  && ok "17c. a page-defect sub-block alone does not decide Q1" \
+  || fail "17c. rc=$rc out=$(cat "$TMP/build.out")"
 
 # 18. an inline [page-defect] token is no answer either (the strip, not the ask rule)
 newpage inlinedefect
@@ -431,7 +448,9 @@ build; rc=$?
 # from a NEW page (Q1 decided there, so the composer omits it): it must not
 # supersede the previous round's paste. The gate rolls back a page with an
 # unmet duty, so the round-2 page is built beside it and copied in (as
-# test-consultation-round-guards.sh D1 writes its draft directly).
+# test-consultation-round-guards.sh D1 writes its draft directly). The copy
+# stands for a LANDED build, so its baseline lands with it: a page that differs
+# from what the last build wrote is a hand edit the next build refuses (mutation 51).
 newpage dutyround
 spec "" ""; build
 printf '## G1 · x\n\n### Q1 · a\n\n- Sí: cerrarlo ahora\n\n### Q2 · b\n\n- [show-me]\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "35. save 1 failed"
@@ -440,6 +459,7 @@ mkdir -p "$TMP/alt"; cp "$SPEC" "$TMP/alt/dutyround.spec.md"
 python3 "$BUILD" "$TMP/alt/dutyround.spec.md" -o "$TMP/alt/dutyround.html" >"$TMP/alt.out" 2>&1 \
   || fail "35. round-2 page build failed: $(cat "$TMP/alt.out")"
 cp "$TMP/alt/dutyround.html" "$PAGE"
+cp "$PAGE" "$D/.aidex-artifact-prev/dutyround.html"    # simulate the landed baseline
 cmp -s "$PAGE" "$D/.aidex-artifact-prev/dutyround.answered.html" \
   && fail "35. fixture: the round-2 page equals the answered snapshot"
 grep -q 'data-id="Q1"[^>]*data-decided' "$PAGE" || fail "35. fixture: Q1 is not decided on the round-2 page"
@@ -500,6 +520,7 @@ mkdir -p "$TMP/alt38"; sed 's/Una decision y una pregunta./Tres preguntas, ronda
 python3 "$BUILD" "$TMP/alt38/dutytwice.spec.md" -o "$TMP/alt38/dutytwice.html" >"$TMP/alt38.out" 2>&1 \
   || fail "38. round-2 page build failed: $(cat "$TMP/alt38.out")"
 cp "$TMP/alt38/dutytwice.html" "$PAGE"
+cp "$PAGE" "$D/.aidex-artifact-prev/dutytwice.html"    # simulate the landed baseline (see 35)
 cmp -s "$PAGE" "$D/.aidex-artifact-prev/dutytwice.answered.html" \
   && fail "38. fixture: the round-2 page equals the answered snapshot"
 printf '## G1 · x\n\n### Q2 · b\n\n- No\n\n### Q3 · c\n\n- Sí\n' | bash "$SAVE_REPLY" "$PAGE" >"$TMP/save2.out" || fail "38. save 2 failed"

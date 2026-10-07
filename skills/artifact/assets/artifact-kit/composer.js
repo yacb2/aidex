@@ -1,6 +1,6 @@
 /* artifact-kit — the composer.
  *
- * Builds the rail (sections, then the consultation items), tracks which items
+ * Builds the rail (sections and consultation items, in body order), tracks which items
  * are answered, and composes every reply surface in an item into one markdown
  * block the reader copies in a click.
  *
@@ -78,8 +78,9 @@
       askShowTitle: 'A mockup, a diagram, a before/after, worked examples \u2014 not more prose.',
       askMore: 'more examples',
       askMoreTitle: 'I already saw examples; I want more or different ones. The ones there stay.',
-      askDefect: 'the page is broken',
-      askDefectTitle: 'Something about the page looks or works wrong (broken text, something that does not load). Say it in the notes.',
+      defectBtn: 'Report a page problem',
+      defectLabel: 'What is wrong with the page',
+      defectHead: 'Page problem',
       provisional: 'Provisional: you chose an option and asked for something as well. The next round answers the ask and keeps this question open, with that option already ticked.',
       toLight: 'Light',
       toDark: 'Dark',
@@ -202,8 +203,9 @@
       askShowTitle: 'Un mockup, un diagrama, un antes/despu\u00e9s, ejemplos concretos \u2014 no m\u00e1s prosa.',
       askMore: 'm\u00e1s ejemplos',
       askMoreTitle: 'Ya vi ejemplos; quiero m\u00e1s o distintos. Los que est\u00e1n se quedan.',
-      askDefect: 'la p\u00e1gina tiene un error',
-      askDefectTitle: 'Algo de la p\u00e1gina se ve o funciona mal (texto roto, algo que no carga). Dilo en las notas.',
+      defectBtn: 'Reportar un fallo de la p\u00e1gina',
+      defectLabel: 'Qu\u00e9 est\u00e1 mal en la p\u00e1gina',
+      defectHead: 'Fallo de la p\u00e1gina',
       provisional: 'Provisional: elegiste una opci\u00f3n y adem\u00e1s pediste algo. La pr\u00f3xima ronda responde lo que pediste y deja esta pregunta abierta, con esa opci\u00f3n ya marcada.',
       toLight: 'Claro',
       toDark: 'Oscuro',
@@ -320,7 +322,6 @@
   var REFRAME = '[reframe]';
   var SHOW_ME = '[show-me]';
   var MORE_EXAMPLES = '[more-examples]';
-  var PAGE_DEFECT = '[page-defect]';
   var NOT_NOW = '[not-now]';
   /* Not a chip and never ticked: a qualifier the composer appends to a chosen
    * option when an ask sits beside it. See isProvisional. */
@@ -612,7 +613,8 @@
   // A BLOCK (`section.consult-group`, BL-247) is a section whose decisions are
   // listed right under it, indented — one entry for the context, its items
   // below, never a second entry for the same context elsewhere. Items outside
-  // any block (the general notes) follow after a separator.
+  // any block (the general notes) are listed where the body has them, after a
+  // separator.
   var links = new Array(items.length);
   /* Every id the composer assigns goes through here. An item's anchor is its
    * dataset.id, unless another element already holds that id (the block's own id,
@@ -636,6 +638,9 @@
      * index the reader asked to stop navigating. links[i] stays undefined,
      * which collect() already tolerates. */
     if (isDecided(el) && el.closest('.consult-group')) return;
+    /* Nor does anything under [hidden]: drawn as nothing, its rect top is 0 and
+     * the scroll spy would mark it current ahead of the section the reader is in. */
+    if (el.closest('[hidden]')) return;
     var cls = el.closest('.consult-group') ? 'railitem sub' : 'railitem';
     /* A row with a human heading (data-heading, a gallery row) lists by it and
      * without its slug id: the id stays the anchor and what a reply names. */
@@ -649,31 +654,49 @@
     function groupEntry(sec) {
       var h = sec.querySelector('h2, h3');
       if (!sec.id && sec.dataset.id) claimId(sec, sec.dataset.id);
-      list.appendChild(railLink('railitem sec grp', '#' + sec.id, '', h ? h.textContent : (sec.dataset.title || '')));
+      if (!sec.closest('[hidden]')) list.appendChild(railLink('railitem sec grp', '#' + sec.id, '', h ? h.textContent : (sec.dataset.title || '')));
       sec.querySelectorAll('.consult-item').forEach(itemLink);
     }
-    document.querySelectorAll('.main > section[id]').forEach(function (sec) {
-      if (sec.classList.contains('consult-group')) return groupEntry(sec);
+    function isLoose(el) {
+      return !el.closest('.consult-group') && !(decidedSection && decidedSection.contains(el)) &&
+             !(droppedSection && droppedSection.contains(el));
+    }
+    /* A loose item is listed where the body has it; the separator marks the
+     * boundary between a section or block entry and a run of loose items. */
+    function looseLink(el) {
+      var last = list.lastElementChild;
+      if (!el.closest('[hidden]') && last && (last.classList.contains('sec') || last.classList.contains('sub'))) {
+        var sep = document.createElement('div');
+        sep.className = 'railsep';
+        list.appendChild(sep);
+      }
+      itemLink(el);
+    }
+    /* ONE walk in document order, so the rail never disagrees with the body
+     * about what comes first (a loose item has no id until itemLink claims it,
+     * which is why the walk is not limited to `section[id]`). */
+    document.querySelectorAll('.main > section').forEach(function (sec) {
+      if (sec.id && sec.classList.contains('consult-group')) return groupEntry(sec);
+      if (sec.classList.contains('consult-item')) {
+        if (isLoose(sec)) looseLink(sec);
+        return;
+      }
       var h = sec.querySelector('h2');
-      if (!h) return;
-      list.appendChild(railLink('railitem sec', '#' + sec.id, '', h.textContent));
+      if (!h || !sec.id) return;
+      /* A hidden section gets no entry; its items still claim their ids below. */
+      if (!sec.hidden) list.appendChild(railLink('railitem sec', '#' + sec.id, '', h.textContent));
       /* The collapsed section gets ONE entry and stops there. Listing what it
        * holds would put every answered question back in the index the reader
        * asked to stop navigating (BL-373); the section itself is the way in. */
       if (sec === decidedSection || sec === droppedSection) return;
-      // Blocks wrapped in a container section still list under it.
-      sec.querySelectorAll('.consult-group').forEach(groupEntry);
+      // Blocks and loose items wrapped in a container section still list under it.
+      sec.querySelectorAll('.consult-group, .consult-item').forEach(function (el) {
+        if (el.classList.contains('consult-group')) groupEntry(el);
+        else if (isLoose(el)) looseLink(el);
+      });
     });
-    var loose = items.filter(function (el) {
-      return !el.closest('.consult-group') && !(decidedSection && decidedSection.contains(el)) &&
-             !(droppedSection && droppedSection.contains(el));
-    });
-    if (loose.length) {
-      var sep = document.createElement('div');
-      sep.className = 'railsep';
-      list.appendChild(sep);
-    }
-    loose.forEach(itemLink);
+    /* A loose item outside every listed section still gets its entry, last. */
+    items.forEach(function (el, i) { if (!links[i] && isLoose(el)) looseLink(el); });
   } else {
     items.forEach(function (el) { claimId(el, el.dataset.id); });
   }
@@ -714,7 +737,7 @@
       var de = document.documentElement;
       if (window.scrollY > 0 && window.scrollY + de.clientHeight >= de.scrollHeight - 2) {
         /* The last section in the PAGE, which is not always the last rail
-         * entry: loose items are listed after the sections. */
+         * entry: a loose item outside every section is still listed last. */
         found = spy.reduce(function (best, p) {
           return p.target.getBoundingClientRect().top > best.target.getBoundingClientRect().top ? p : best;
         });
@@ -801,7 +824,8 @@
    * selected adds only its typed note; once the selection differs it adds what
    * an answered item does (the option plus the note). */
   function replyBody(el) {
-    if (!isProposal(el) || selChanged(el)) return readItem(el);
+    if (!isProposal(el)) return withDefect(el, readItem(el));
+    if (selChanged(el)) return readItem(el);
     return [].map.call(el.querySelectorAll('textarea'), function (t) { return t.value.trim(); }).filter(Boolean).join('\n\n');
   }
   /* Settled by an earlier round's answer: what collapseDecided folds away. */
@@ -850,10 +874,9 @@
    * notes box is for, it qualifies an answer rather than being one, and an ask
    * typed beside prose leaves the item plainly open — nothing to qualify.
    *
-   * `[page-defect]` (BL-505) is excluded from what makes an answer provisional:
-   * it reports a defect IN THE PAGE, not a gap in the question, so ticking it
-   * beside a chosen answer does not put that answer in question — the answer
-   * stands, only the rendering needs fixing. */
+   * The page-defect report (BL-505, now its own box) is no ask chip at all: it
+   * reports a defect IN THE PAGE, not a gap in the question, so it never puts a
+   * chosen answer in question — the answer stands, only the rendering needs fixing. */
   function answerMarks(el) {
     return [].slice.call(el.querySelectorAll(
       '.opts input[type="radio"]:checked, .opts input[type="checkbox"]:checked'
@@ -869,13 +892,9 @@
     return [].slice.call(el.querySelectorAll('.kit-ask input[type="checkbox"]:checked'));
   }
 
-  function provisionalAskMarks(el) {
-    return askMarks(el).filter(function (i) { return (i.dataset.label || '') !== PAGE_DEFECT; });
-  }
-
   function isProvisional(el) {
     if (isDecided(el)) return false;
-    if (!provisionalAskMarks(el).length) return false;
+    if (!askMarks(el).length) return false;
     return answerMarks(el).length > 0 || answerValues(el).length > 0;
   }
 
@@ -903,10 +922,23 @@
     el.querySelectorAll('[contenteditable]').forEach(function (c) {
       if (c.textContent.trim()) parts.push(c.textContent.trim());
     });
-    el.querySelectorAll('textarea').forEach(function (t) {
+    el.querySelectorAll('textarea:not(.kit-defect-text)').forEach(function (t) {
       if (t.value.trim()) parts.push(t.value.trim());
     });
     return parts.join('\n\n');
+  }
+
+  /* The page-defect report (LOOP-008 Q10) is not part of the answer: it has its
+   * own box (`.kit-defect-text`), readItem never reads it, so it does not make
+   * the item answered or provisional. It travels as a labelled sub-block at the
+   * END of the item's `### ` block, text verbatim. */
+  function defectText(el) {
+    var t = el.querySelector('textarea.kit-defect-text');
+    return t ? t.value.trim() : '';
+  }
+  function withDefect(el, body) {
+    var d = defectText(el);
+    return d ? (body ? body + '\n\n' : '') + '#### ' + L.defectHead + '\n\n' + d : body;
   }
 
   /* `n` counts ITEMS. The markdown array also carries one `## G1 · title` line
@@ -980,6 +1012,8 @@
       markProvisional(el);
       var body = readItem(el);
       el.classList.toggle('has-answer', !!body);
+      /* A report alone is no answer, but Clear must reach it (components.css). */
+      el.classList.toggle('has-defect', !!defectText(el));
       if (links[i]) links[i].classList.toggle('done', !!body);
       if (!notes) total++;
       if (body) {
@@ -989,9 +1023,17 @@
          * grouping the reader answered under, not a flat list of ids. */
         var g = el.closest('.consult-group');
         if (g && g !== lastGroup) putHead(g);
-        put(el, '### ' + el.dataset.id + ' · ' + (el.dataset.title || '') + '\n\n' + body);
+        put(el, '### ' + el.dataset.id + ' · ' + (el.dataset.title || '') + '\n\n' + withDefect(el, body));
       }
-      else if (!notes) blank.push(el.dataset.id);
+      else {
+        if (!notes) blank.push(el.dataset.id);
+        /* A defect alone still travels: the item is unanswered, the report is not. */
+        if (defectText(el)) {
+          var dg = el.closest('.consult-group');
+          if (dg && dg !== lastGroup) putHead(dg);
+          put(el, '### ' + el.dataset.id + ' · ' + (el.dataset.title || '') + '\n\n' + withDefect(el, ''));
+        }
+      }
     });
     /* A block with a note and no answered item still owes its heading + note. */
     noteGroups().forEach(function (g) {
@@ -1072,7 +1114,8 @@
     { k: 's', q: 'select' },
     { k: 't', q: 'input[type="text"]' },
     { k: 'c', q: '[contenteditable]' },
-    { k: 'a', q: 'textarea' }
+    { k: 'a', q: 'textarea:not(.kit-defect-text)' },
+    { k: 'd', q: 'textarea.kit-defect-text' }
   ];
 
   function freeValue(el) {
@@ -1129,7 +1172,7 @@
      * the item, so leaving it in would change every fingerprint the moment the
      * kit gained these controls, and every answer stored by a reader mid-thread
      * would read as "the question changed" and be dropped on the upgrade. */
-    clone.querySelectorAll('.kit-tag, .consult-proposal, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-more, .kit-provisional, .kit-marks-tile, .kit-marks-list').forEach(function (c) { c.remove(); });
+    clone.querySelectorAll('.kit-tag, .consult-proposal, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-defect, .kit-more, .kit-provisional, .kit-marks-tile, .kit-marks-list, .consult-kicker').forEach(function (c) { c.remove(); });
     /* The generator's own <details> keeps its radios in the question (a row
      * built before it existed hashed them flat), but its summary word is chrome:
      * left in, every stored gallery answer would read as a changed question. */
@@ -1492,7 +1535,7 @@
    * One line, not five: chips with a title each and no hint lines, because
    * the two v16 radios cost four lines per group and the whole complaint about
    * these pages is their length. Seven chips since v19, nine since v20 (BL-505:
-   * `[more-examples]`, `[page-defect]`); at phone width the row
+   * `[more-examples]`; the page-defect chip became a button + box); at phone width the row
    * wraps, which components.css tightens rather than hides — a disclosed chip
    * costs the one thing the mining shows the reader lacks, seeing it exists.
    *
@@ -1509,9 +1552,45 @@
     [QUESTION, 'askQuestion', 'askQuestionTitle'],
     [REFRAME, 'askReframe', 'askReframeTitle'],
     [SHOW_ME, 'askShow', 'askShowTitle'],
-    [MORE_EXAMPLES, 'askMore', 'askMoreTitle'],
-    [PAGE_DEFECT, 'askDefect', 'askDefectTitle']
+    [MORE_EXAMPLES, 'askMore', 'askMoreTitle']
   ];
+  /* The page-defect report: a button that reveals its OWN textarea, apart from
+   * the answer's notes box. Clicking again hides it only while it is empty.
+   * Replaces the `[page-defect]` chip (LOOP-008 Q10); older pages' bare marker
+   * is still read by the session-side readers. */
+  function defectBlock() {
+    var wrap = document.createElement('div');
+    wrap.className = 'kit-defect';
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'kit-defect-btn';
+    btn.textContent = L.defectBtn;
+    btn.setAttribute('aria-expanded', 'false');
+    var box = document.createElement('label');
+    box.className = 'kit-defect-box';
+    box.hidden = true;
+    box.appendChild(document.createTextNode(L.defectLabel));
+    var ta = document.createElement('textarea');
+    ta.className = 'kit-defect-text';
+    ta.rows = 3;
+    box.appendChild(ta);
+    btn.addEventListener('click', function () {
+      if (box.hidden) { box.hidden = false; btn.setAttribute('aria-expanded', 'true'); ta.focus(); }
+      else if (!ta.value.trim()) { box.hidden = true; btn.setAttribute('aria-expanded', 'false'); }
+    });
+    wrap.appendChild(btn);
+    wrap.appendChild(box);
+    return wrap;
+  }
+  /* A box holding text stays open (after a restore); an emptied one closes (Clear). */
+  function syncDefects() {
+    document.querySelectorAll('.kit-defect').forEach(function (w) {
+      var box = w.querySelector('.kit-defect-box'), ta = w.querySelector('textarea');
+      box.hidden = !ta.value.trim();
+      w.querySelector('button').setAttribute('aria-expanded', box.hidden ? 'false' : 'true');
+    });
+  }
+
   function addAskRows() {
     items.forEach(function (el) {
       if (isDecided(el) || el.classList.contains('consult-notes')) return;
@@ -1536,10 +1615,7 @@
          * replaces carried its own text box and was never used once in 333
          * answered items; the box the item already has is the one the reader
          * types in. */
-        /* `[page-defect]` (BL-505) names the page itself, not the question, but
-         * the words describing what broke have nowhere else to go either —
-         * same notes box, same focus rule as `[question]`. */
-        if (spec[0] === QUESTION || spec[0] === PAGE_DEFECT) {
+        if (spec[0] === QUESTION) {
           input.addEventListener('change', function () {
             if (!input.checked) return;
             /* The item's own notes box first, its free-prose box second, and
@@ -1548,7 +1624,7 @@
              * focusing nothing is how the chip would silently do nothing. */
             /* Never the hidden kit-marks channel of a gallery row: focusing
              * it would put the cursor nowhere the reader can see. */
-            var box = el.querySelector('textarea:not(.kit-marks)') || el.querySelector('[contenteditable]')
+            var box = el.querySelector('textarea:not(.kit-marks):not(.kit-defect-text)') || el.querySelector('[contenteditable]')
                    || document.querySelector('.consult-notes textarea');
             if (box) box.focus();
           });
@@ -1558,7 +1634,7 @@
       /* After the LAST option group when there is one — below the answer, as
        * a second surface — else before the first field label, else at the end. */
       /* A gallery row folds the row into a <details>: the reader's job there
-       * is a verdict and a note, and the nine chips are a second form. */
+       * is a verdict and a note, and the eight chips are a second form. */
       var put = row;
       if (isGalleryRow(el)) {
         put = document.createElement('details');
@@ -1576,6 +1652,9 @@
         if (label) label.parentNode.insertBefore(put, label);
         else el.appendChild(put);
       }
+      /* At the END of the item, after the notes box: the item's first textarea stays
+       * its notes box for every reader of the DOM (pages, tests). */
+      el.appendChild(defectBlock());
     });
   }
 
@@ -1662,6 +1741,7 @@
       el.querySelectorAll(kind.q).forEach(function (x) { setFreeValue(x, ''); });
     });
     delete copied[el.dataset.id];
+    syncDefects();
     redrawMarks();                    /* the marks were in a textarea: cleared too */
     // save() rebuilds the whole store from the page, so an emptied item drops
     // out of localStorage on its own — there is no per-key delete to keep in
@@ -2135,6 +2215,17 @@
     var cmp = 'off';                  /* the compare mode the reader chose */
     var sib = null;                   /* the opener's other-mode figure, if any */
 
+    /* Ampliar is for seeing the drawing bigger (BL-712): Fit when the dialog
+     * holds it wider than drawn, else the drawn size (scaled down to the
+     * window its text would shrink below what the page already showed; the
+     * dialog scrolls). A tie keeps the drawn size. Measured, so it runs with
+     * the dialog open; no drawn size (no viewBox, no width) stays at Fit. */
+    function svgSize() {
+      var w = parseFloat(svgBox.style.getPropertyValue('--kit-svg-w'));
+      dlg.classList.remove('native');
+      if (w > 0 && svgBox.firstChild.getBoundingClientRect().width <= w + 0.5) dlg.classList.add('native');
+    }
+
     function sizeLabel() {
       // Names the DESTINATION, like the theme button does.
       bSize.textContent = dlg.classList.contains('native') ? L.zoomFit : L.zoomNative;
@@ -2172,6 +2263,7 @@
       img.setAttribute('src', src ? src.getAttribute('src') : '');
       img.setAttribute('alt', src ? (src.getAttribute('alt') || '') : '');
       svgBox.textContent = '';
+      svgBox.style.removeProperty('--kit-svg-w');
       var c = null;
       if (svg) {
         c = svg.cloneNode(true);
@@ -2180,16 +2272,18 @@
         /* No viewBox: the width attribute, when it is a plain number; with
          * neither there is no drawn size, and the drawing stays at Fit. */
         if (!(vw > 0) && /^\s*\d+(\.\d+)?(px)?\s*$/.test(svg.getAttribute('width') || '')) vw = parseFloat(svg.getAttribute('width'));
-        if (vw > 0) c.style.setProperty('--kit-svg-w', vw + 'px');
+        if (vw > 0) svgBox.style.setProperty('--kit-svg-w', vw + 'px');   /* the svg inherits it */
         svgBox.appendChild(c);
       }
       /* Each kind has its own default size: a capture fits the window, a
-       * drawing opens at the size it was drawn (scaled to the window it is the
-       * same 3-5 px text the page already showed). Only a change of kind resets
-       * it, so walking capture to capture keeps the reader's size. */
+       * drawing shows at the larger of Fit and its drawn size (svgSize), each
+       * drawing its own (a tall one after a wide one would otherwise keep a
+       * Fit that shrinks its text). A change of kind resets it; walking
+       * capture to capture keeps the reader's size. */
       var changed = !!svg !== dlg.classList.contains('svgmode');
-      if (changed) dlg.classList.toggle('native', !!svg && !!c && c.style.getPropertyValue('--kit-svg-w') !== '');
+      if (changed) dlg.classList.remove('native');
       dlg.classList.toggle('svgmode', !!svg);
+      if (svg && dlg.open) svgSize();
       if (changed) resetScroll(); else stack.scrollLeft = 0;
       sizeLabel();
       hRow.textContent = (row && (row.dataset.heading || row.dataset.title)) || '';
@@ -2305,6 +2399,7 @@
        * size button is the one a fresh open has always handed the focus to. */
       if (dlg.showModal) { dlg.showModal(); bSize.focus(); }
       else dlg.setAttribute('open', '');   /* no modal support: still readable */
+      if (dlg.classList.contains('svgmode')) { svgSize(); sizeLabel(); }
       resetScroll();                       /* the layout of the last open survives a close */
       /* show() ran while the dialog was closed, when the image had no box. */
       placeOver(mlayer, img);
@@ -2944,6 +3039,7 @@
     releasableRadios();
     exclusiveNotNow();
     var recovered = restore();
+    syncDefects();
     openFilledMore();
     redrawMarks();
     /* Shown when anything was DROPPED too, not only when something was

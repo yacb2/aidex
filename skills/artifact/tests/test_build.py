@@ -60,7 +60,9 @@ sys.path.insert(0, SCRIPTS)
 sys.path.insert(0, os.path.join(SCRIPTS, "dash"))
 
 import contract_defects                          # noqa: E402
+import md_body                                    # noqa: E402
 import spec_build                                 # noqa: E402
+import spec_parser                                # noqa: E402
 from spec_build import SpecBuildError, build      # noqa: E402
 from spec_parser import SpecSyntaxError           # noqa: E402
 
@@ -276,7 +278,7 @@ try:
           '::: section {#s1 heading="H"}\nTexto.\n:::',
           '<section id="s1">', "<h2>H</h2>", "<p>Texto.</p>")
     holds("section: a .class lands on the section, never on the sec-head",
-          '::: section {.wide #s1 heading="H"}\n:::',
+          '::: section {.wide #s1 heading="H"}\nTexto.\n:::',
           '<section class="wide" id="s1">', '<div class="sec-head">')
     holds("group: the kit's consult-group, sec-head and h2",
           '::: group {#G1 title="T" eyebrow="E"}\nx\n::: item {#Q1 title="i"}\n?\n:::\n:::',
@@ -320,6 +322,39 @@ try:
           H, 'data-title="Short name"',
           '<h3><span class="consult-id">Q1</span>Una oración larga que encabeza</h3>',
           '<p class="consult-lead">Contexto, no pregunta.</p>')
+    # LOOP-008 rail-label-invisible: the rail label is data-title, so a title
+    # the h3 does not show is printed above it as a kicker (NAV-4 stays strict).
+    holds("item: a question-headed item shows its title as a visible kicker above the h3",
+          ITEM, 'data-title="Short name"',
+          '<p class="eyebrow consult-kicker">Short name</p>\n'
+          '  <h3><span class="consult-id">Q1</span>¿La pregunta, preguntada?</h3>')
+    holds("item: a title with a code span gives a marker-free data-title and a code-span kicker",
+          ITEM.replace('title="Short name"', 'title="`RTK.md`"'),
+          'data-title="RTK.md"',
+          '<p class="eyebrow consult-kicker"><code>RTK.md</code></p>')
+    T = ITEM.replace("¿La pregunta, preguntada?", "El Sr. López lo pidió.")
+    check("item: a title-headed item gets no duplicate kicker",
+          "consult-kicker" not in build(T), build(T))
+    # ...fold branch, heading= and escaping (review of the kicker).
+    FOLD = ITEM.replace('title="Short name"', 'title="¿la  PREGUNTA, preguntada?"')
+    check("item: a title equal to the h3 only after whitespace and case folding gets no kicker",
+          "consult-kicker" not in build(FOLD), build(FOLD))
+    holds("item: heading= that differs from the title also gets the kicker",
+          H, '<p class="eyebrow consult-kicker">Short name</p>')
+    holds("item: a title with markup and special characters is escaped in data-title",
+          ITEM.replace('title="Short name"', 'title="**Bold** & <x> \\"q\\""'),
+          'data-title="Bold &amp; &lt;x&gt; &quot;q&quot;"')
+    # check_prev: a live round built before the title was stored marker-free
+    # (prev data-title="`x`") must not read as "id reused for a different claim".
+    import check_artifact
+    with tempfile.TemporaryDirectory() as ptmp:
+        pp, pn = (os.path.join(ptmp, n) for n in ("prev.html", "new.html"))
+        for path, t in ((pp, "`RTK.md`"), (pn, "RTK.md")):
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write('<section class="consult-item" data-id="Q1" data-title="%s"></section>' % t)
+        pf, _ = check_artifact.check_prev(pn, pp)
+        check("check_prev: a title that lost its inline markers is the same claim",
+              pf == [], str(pf))
     # ...but a one-sentence QUESTION still heads the item when it closes on
     # markup or punctuation: the paragraph is rendered HTML, so `**¿…?**` ends
     # in `</strong>` (asset_lab sweep 2026-10-01 Q10, Q11) and a quote in
@@ -401,6 +436,61 @@ try:
     rejects("item: {chosen} with decided=\"**\" is refused as not decided",
             ITEM.replace("decided=yes", 'decided="**"').replace(
                 "{recommended}", "{chosen}"), 2, "not decided")
+    # M1 (mutations 21, 21b, 21c): a negative word is not a verdict. `decided=no`
+    # used to ship `data-decided="no"`, which the fold shows as the answer "no".
+    for word in ("no", "false", "0"):
+        rejects("item: decided=%s is refused, not read as a verdict" % word,
+                ITEM.replace(" {recommended}", "").replace(
+                    "decided=yes", "decided=%s" % word), 2, "decided=%s" % word)
+    rejects("item: decided=no is refused even when an option is labelled No (the case differs)",
+            ITEM.replace(" {recommended}", "").replace(
+                "- No, uno cambia el resultado", "- No").replace("decided=yes", "decided=no"),
+            2, "decided=no")
+    holds("item: decided=No stays legal when an option is labelled No (decide --verdict No)",
+          ITEM.replace(" {recommended}", "").replace(
+              "- No, uno cambia el resultado", "- No").replace("decided=yes", 'decided="No"'), 'data-decided="No"')
+    # M1 (mutations 23, 23b, 23c): free takes yes or true, like proposal.
+    FREE = ('::: group {#G1 title="T"}\n'
+            '::: item {#H1 title="t" free=yes}\n¿Qué opinas?\n:::\n:::\n')
+    for word in ("YES", "1", "maybe"):
+        rejects("item: free=%s is refused (it takes yes, true)" % word,
+                FREE.replace("free=yes", "free=%s" % word), 2, "free='%s'" % word)
+    holds("item: free=true is the same flag as free=yes",
+          FREE.replace("free=yes", "free=true"), 'data-free>')
+    # M1 (mutation 11): ids that differ only by case collide in the composer's keys.
+    rejects("item: ids differing only by case are refused, naming both",
+            '::: group {#G1 title="T"}\n'
+            '::: item {#Q1 title="a"}\n?\n\n- A {recommended}\n- B\n:::\n'
+            '::: item {#q1 title="b"}\n?\n\n- A {recommended}\n- B\n:::\n:::\n',
+            8, "differs only by case from #Q1")
+    holds("an item #C1 and a chart #c1 may coexist (case-fold is items only)",
+          '::: group {#G1 title="T"}\n::: item {#C1 title="a"}\n?\n\n- A {recommended}\n- B\n:::\n:::\n\n'
+          '::: chart {#c1 type=bar}\nA,1\nB,2\n:::\n', 'data-id="C1"')
+    rejects("item: decided=\"**no**\" is refused like decided=no",
+            ITEM.replace(" {recommended}", "").replace("decided=yes", 'decided="**no**"'), 2, "decided=")
+    holds("item: a bold option label **No** may be the verdict No",
+          ITEM.replace(" {recommended}", "").replace("- No, uno cambia el resultado", "- **No**")
+              .replace("decided=yes", 'decided="No"'), 'data-decided="No"')
+    # M1 (mutations 17, 17b): the hint separator is ` — `; another dash would
+    # otherwise become part of the label the reply pastes.
+    for dash in ("-", "--"):
+        rejects("item: an option hint separated by %r is refused, naming the separator" % dash,
+                ITEM.replace("— los doce", "%s los doce" % dash), 2, "separator is ' — '")
+    holds("item: a hyphen inside a word or a code span is not a separator",
+          ITEM.replace("- No, uno cambia el resultado",
+                       "- Usar `--force` y el sub-paso"), "sub-paso")
+    # M1 (mutations 43, 43b): the pill and chip tones are a closed set.
+    for tag in (".pill .1x", ".chip .zz"):
+        rejects("a span {%s} is refused, naming the tone" % tag,
+                ITEM.replace("¿La pregunta", "[x]{%s} ¿La pregunta" % tag), 3,
+                tag.split()[1][1:])
+    holds("a span with a corpus tone builds", ITEM.replace(
+        "¿La pregunta", "[x]{.chip .soft} ¿La pregunta"), 'class="chip soft"')
+    # M1 (mutation 44): `.warn` and `.wide` are the block classes.
+    rejects("a block with an invented class is refused",
+            ITEM.replace("::: item {", "::: item {.evil ", 1), 2, ".evil")
+    holds("note {.warn} stays legal", PAGE, 'class="note warn"')
+
     # Two checked radios in one name group: the parser keeps the last, and the
     # fold shows that one as the verdict with nothing on the page saying so.
     rejects("item: decided=yes on a select=one item with two {recommended} "
@@ -642,6 +732,43 @@ try:
     holds("notes (en): the page-level box is labelled as the page's",
           '::: masthead {lang="en"}\n# T\n\nS\n:::\n::: notes {title="N"}\n:::',
           '<p class="fieldlabel">Notes for the whole page</p>')
+    # The masthead is the page's one opening, and its lang= is the body's.
+    rejects("masthead: a second masthead is refused",
+            '::: masthead {title="A"}\nS\n:::\n\n::: masthead {title="B"}\nS\n:::\n',
+            5, "second masthead")
+    rejects("masthead: one after content is refused",
+            '::: masthead {title="A"}\nS\n:::\n\n::: notes {title="N"}\n:::\n\n'
+            '::: masthead {title="B"}\nS\n:::\n', 8, "second masthead")
+    rejects("masthead: lang=en over a Spanish body is a mixed page",
+            '::: masthead {title="Informe" lang=en}\nUna frase de apertura.\n:::\n\n'
+            'La pregunta es una de las que se hace cada uno.\n',
+            1, "mixed-language")
+    # The language floor, at its boundary: 3 foreign stopwords AND 3x the native.
+    LM = '::: masthead {title="Prueba" lang=es}\nResumen.\n:::\n\n'
+    for label, body, builds in (
+            ("es 0 / en 2", "xyz the and", True),
+            ("es 0 / en 3", "xyz the and of", False),
+            ("es 2 / en 5", "el la the and of to in", True),
+            ("es 2 / en 6", "el la the and of to in is", False),
+            ("English words inside code spans do not count",
+             "Renombrado: `is_valid_for_the_user` pasa a `has_access_to_the_page`; "
+             "el comando `git log --format of the and in is to on with` cambia.", True),
+            ("English commit subjects in a ledger do not count",
+             "::: ledger\n- c1 — fix the bug in the app\n- c2 — add the test and the docs\n"
+             "- c3 — remove it from the page\n:::", True)):
+        if builds:
+            holds("masthead lang=es, %s: builds" % label, LM + body + "\n",
+                  '<header class="masthead">')
+        else:
+            rejects("masthead lang=es, %s: refused" % label, LM + body + "\n",
+                    1, "mixed-language")
+    # The stamp marks a page built WITH a masthead; check-artifact's no-masthead rule
+    # reads it, so a spec without one (a fragment, a --title page) is never held to it.
+    check("a spec with a masthead stamps spec-built",
+          'name="spec-built"' in build(LM + "Texto.\n"))
+    check("a spec with no masthead carries no spec-built stamp",
+          'name="spec-built"' not in build('::: group {#G1 title="Bloque"}\n::: item {#Q1 title="Tema"}\n'
+                                           '¿Cuál?\n\n- A\n- B\n:::\n:::\n'))
     holds("ledger: a grid of .k/.v rows and nothing else",
           "::: ledger\n- d4 — **Hecho.** T-100.\n- d12 — Plantilla.\n:::",
           '<div class="ledger">',
@@ -787,6 +914,34 @@ try:
             ("a Todavía no option", "Todavía no", "already adds"),
             ("a Not yet option", "Not yet", "already adds")]:
         rejects("item option: %s is refused" % label, with_option(opt), 2, what)
+    # A letter in parentheses points at another option ("Igual que (a), pero
+    # al revés", corpus BL-054): it is a reference, not a reason, so it builds.
+    # A real reason in parentheses, even a short one, still refuses.
+    holds("item option: a reference to another option '(a)' is not a parenthetical",
+          with_option("Igual que (a), pero resolviendo al revés — más caro"),
+          'data-label="Igual que (a), pero resolviendo al revés"')
+    # "a note in the README" is a domain answer, not the kit's notes box
+    # (corpus open-decisions Q20); only the notes box refuses.
+    holds("item option: 'una nota' as the thing decided is not the notes box",
+          with_option("Una nota visible en su propio README — la ve quien abra la carpeta"),
+          'data-label="Una nota visible en su propio README"')
+    for label, opt in [
+            ("Ver nota", "Ver nota"), ("Anadir una nota", "Añadir una nota"),
+            ("Add a note", "Add a note"), ("Escribirlo en la nota", "Escribirlo en la nota"),
+            ("Lo pongo en una nota", "Lo pongo en una nota"),
+            ("Detallarlo en tus notas", "Detallarlo en tus notas"),
+            ("Responder en el campo de notas", "Responder en el campo de notas"),
+            ("Lo explico en el cuadro de notas", "Lo explico en el cuadro de notas"),
+            ("Write it in a note", "Write it in a note"), ("Leave a note", "Leave a note"),
+            ("See notes", "See notes"), ("Notas", "Notas"), ("Notes", "Notes")]:
+        rejects("item option: notes-box wording %r still refuses" % label,
+                with_option(opt), 2, "already adds")
+    rejects("item option: '(no)' is a two-letter parenthetical, not a letter reference",
+            with_option("Cerrar (no)"), 2, "parenthetical")
+    rejects("item option: 'Sí (recomendado)' is a parenthetical reason and still refuses",
+            with_option("Sí (recomendado)"), 2, "parenthetical")
+    rejects("item option: a letter reference beside a real reason still refuses",
+            with_option("Igual que (a) (más caro)"), 2, "parenthetical")
     rejects("item option: the message names the item, the option and the fix",
             with_option("Cerrar (conservarlas)"), 2,
             "item Q1 option 'Cerrar (conservarlas)'")
@@ -816,8 +971,10 @@ try:
         for rel in ("shots/ld/audit-with-data.png", "actual/ld/audit-with-data.png",
                     "shots/dm/audit-loaded.png", "actual/dm/audit-loaded.png"):
             os.makedirs(os.path.dirname(os.path.join(root, rel)), exist_ok=True)
+            # a before differs from its after: a live identical pair is refused (LOOP-008 Q8)
+            grey = ["96"] if rel.startswith("shots/") else []
             subprocess.run([sys.executable, os.path.join(HERE, "png_fixture.py"),
-                            os.path.join(root, rel), str(width), "9"], check=True)
+                            os.path.join(root, rel), str(width), "9"] + grey, check=True)
     # Each root's captures have their own width, so the <img width> says which
     # root a tile was read from: the src names a content-addressed copy.
     checkout = os.path.realpath(os.path.join(tmp, "checkout"))
@@ -1024,14 +1181,37 @@ try:
         ("an unknown block type", "::: chrt\nx\n:::\n", tmp),
         ("a `::: prose` fence", "::: prose\nx\n:::\n", tmp),
         ("an unclosed block", "::: note\nx\n", tmp),
+        # Rows that crashed the CLI with a raw traceback (LOOP-008 D1 and its
+        # review): a value past a float's range made the axis OverflowError, a
+        # nonzero value below 1e-300 a ZeroDivisionError or ValueError, and a
+        # markdown list nested ~500 deep exhausted md_body's recursion. Each also
+        # names what to change, not only the line. Fence depth is the parser's
+        # refusal (test_parser.py); its accept side is pinned below.
+        ("a chart value with 400 digits",
+         '::: chart {type="bar" title="c"}\na,1\nb,%s\n:::\n' % ("9" * 400),
+         tmp, "between 1e-300 and 1e+300"),
+        ("a positive and a negative value whose span overflows a float",
+         '::: chart {type="bar" title="c"}\na,-%s\nb,%s\n:::\n'
+         % ("9" * 308, "9" * 308), tmp, "between 1e-300 and 1e+300"),
+        ("a nonzero chart value below 1e-300",
+         '::: chart {type="bar" title="c"}\na,0\nb,0.%s5\n:::\n' % ("0" * 322),
+         tmp, "between 1e-300 and 1e+300"),
+        ("the smallest float above zero as a chart value",
+         '::: chart {type="bar" title="c"}\na,0\nb,0.%s5\n:::\n' % ("0" * 323),
+         tmp, "between 1e-300 and 1e+300"),
+        ("a markdown list nested 600 deep",
+         "::: masthead\n# T\n\n"
+         + "".join("  " * k + "- x\n" for k in range(600)) + ":::\n",
+         tmp, "nest at most"),
     ]
-    for label, spec, where in BAD:
+    for label, spec, where, *needle in BAD:
+        needle = needle[0] if needle else ""
         try:
             build(spec, base_dir=where)
         except (SpecSyntaxError, SpecBuildError) as exc:
             check("%s is refused as %s, with line %d"
-                  % (label, type(exc).__name__, exc.line), exc.line >= 1,
-                  exc.message)
+                  % (label, type(exc).__name__, exc.line),
+                  exc.line >= 1 and needle in exc.message, exc.message)
         except BaseException as exc:              # noqa: BLE001 — the claim
             fail("%s: raised %s(%s) — build() promises SpecSyntaxError or "
                  "SpecBuildError, and a SystemExit cannot even be caught by a "
@@ -1039,6 +1219,17 @@ try:
                  % (label, type(exc).__name__, exc))
         else:
             fail("%s: built without a word" % label)
+    # The accept side of the two limits: the largest chart value either side
+    # of 0, and fences nested exactly as deep as the parser allows, build
+    # without error — the cap must stay below the builder's recursion ceiling.
+    holds("a chart value of exactly 1e300 either side of 0 builds",
+          '::: chart {type="bar" title="c"}\na,-1%s\nb,1%s\n:::\n'
+          % ("0" * 300, "0" * 300), "<svg")
+    holds("notes nested exactly spec_parser.MAX_DEPTH deep, holding a list "
+          "nested exactly md_body.MAX_LIST_DEPTH deep, build",
+          "::: note\n" * spec_parser.MAX_DEPTH
+          + "".join("  " * k + "- x\n" for k in range(md_body.MAX_LIST_DEPTH))
+          + ":::\n" * spec_parser.MAX_DEPTH, "<li>x</li>")
 
     print()
     print("== an item's id is unique in the spec (group-item-id-collision) ==")
@@ -1076,10 +1267,6 @@ try:
           ".context/worklists/_archive/*-report.md")
     check("…and the escaped text carries no <em>",
           "<em>" not in BUILT[-1][1], BUILT[-1][1])
-    holds("a backslash escapes a backtick, so no code span opens",
-          "::: note\nejecutó \\`0013\\`.\n:::", "ejecutó `0013`.")
-    check("…and no <code> was opened by the escaped pair",
-          "<code>" not in BUILT[-1][1], BUILT[-1][1])
     holds("inside a code span the backslash is literal (CommonMark)",
           "::: note\n`a\\_b`\n:::", "<code>a\\_b</code>")
     holds("an UNescaped backtick pair still makes a code span",
@@ -1365,6 +1552,86 @@ try:
             "data:")
 
     print()
+    print("== a literal backtick in prose is refused, with its line (03 § Backslash escapes) ==")
+    # work_hours_ws company-holiday spec line 37: `nunca ejecutó \`0013\`.` (a
+    # shell-heredoc habit) built, and the reader saw raw backticks (CNT-2).
+    ITEM = ('::: item {#Q1 title="T"}\n?\n\n%s\n:::\n')
+    rejects("an escaped backtick pair in a paragraph names its line",
+            "uno\n\nnunca ejecut\u00f3 \\`0013\\`.\n", 3, "escaped backtick")
+    rejects("an escaped backtick in an option is refused",
+            ITEM % "- a \\`x\\`\n- b", 4, "escaped backtick")
+    rejects("an escaped backtick in a title= is refused",
+            '::: group {#G1 title="a \\`b\\`"}\nx\n:::\n', 1, "escaped backtick")
+    rejects("an unmatched backtick in prose renders raw, so it is refused too",
+            "uno\n\nuna ` suelta\n", 3, "unmatched")
+    rejects("an unmatched backtick in a list item is refused",
+            "- uno\n- dos ` tres\n", 2, "unmatched")
+    holds("a code span wrapped across two paragraph lines is a real span",
+          "uno\n\nla `a -\nb` sigue\n", "<code>a - b</code>")
+    holds("a code span wrapped across a list item's continuation is a span",
+          "- la `a -\n  b` sigue\n", "<li>la <code>a - b</code> sigue</li>")
+    holds("a wrapped line that starts with 25. stays in the item's code span",
+          "1. see `a\n   25. b` c\n", "<code>a 25. b</code>")
+    holds("an indented # line continues a paragraph, so its span pairs",
+          "a `b\n  # h` c\n", "<code>b # h</code>")
+    holds("an indented ::: line is prose, not a fence line",
+          "a `b\n  ::: s`\n", "<code>b ::: s</code>")
+    holds("a column-0 `:::word` with no space is prose, not a fence line",
+          "a `b\n:::item c` d\n", "<code>b :::item c</code>")
+    rejects("a backtick opened in one item and closed in the next is unmatched",
+            "- a `x\n- y` b\n", 1, "unmatched")
+    rejects("an unmatched backtick inside a wrapped paragraph names its own line",
+            "uno\n\ndos\ntres ` cuatro\n", 4, "unmatched")
+    rejects("an indented ::: fence line in prose is refused at its line (CNT-1)",
+            "uno\n\n  ::: callout\n  texto\n  :::\n", 3, "indented `:::`")
+    holds("an indented ::: inside a fenced code block is code, not refused",
+          "```\n  ::: callout\n```\n", "::: callout")
+    rejects("a literal {#x} in prose is refused at its line (CNT-1)",
+            "uno\n\nprueba {#x} fin.\n", 3, "`{#`")
+    holds("a {#x} in a code span is code, not refused",
+          "prueba `{#x}` fin.\n", "<code>{#x}</code>")
+    rejects("a ** that closes nothing is refused at its line (CNT-2)",
+            "uno\n\ndos **bold.\n", 3, "closes nothing")
+    holds("a closed ** is bold, not refused", "dos **bold** fin.\n", "<strong>bold</strong>")
+    rejects("the unpaired ** is the LAST one, so the refusal names its line",
+            "uno\n\nUno **ok** dos\ntres **mal.\n", 4, "closes nothing")
+    rejects("a raw ** refusal also offers the code-span fix",
+            "dos **bold.\n", 1, "code span")
+    rejects("a bold label in a chart is refused: labels take no markdown",
+            '::: chart {type="bar" title="c"}\n**a**,3\nb,4\n:::\n', 2, "labels take no markdown")
+    rejects("an unclosed ** in a table cell is refused (cells render alone)",
+            "| a | b |\n| - | - |\n| **x | y** |\n", 3, "closes nothing")
+    holds("a ** inside a link URL is not a raw marker",
+          "ver [doc](https://x.com/a**b) fin.\n", 'href="https://x.com/a**b"')
+    holds("a bold split across a soft line break stays legal",
+          "uno **dos\ntres** cuatro.\n", "<strong>dos tres</strong>")
+    holds("a ~~~ fence holding ::: {#x} and a ** b stays legal",
+          "~~~\n  ::: callout\n{#x} a ** b\n~~~\n", "{#x} a ** b")
+    holds("a section whose only child is a callout stays legal",
+          '::: section {#s1 heading="H"}\n::: callout\ntexto\n:::\n:::\n', "<h2>H</h2>")
+    holds("a section whose only child is a chart stays legal",
+          '::: section {#s1 heading="H"}\n::: chart {type="bar" title="c"}\na,1\nb,2\n:::\n:::\n', "<h2>H</h2>")
+    holds("#hashtag, #123 and C# in an item stay legal",
+          '::: group {#G1 title="G"}\n::: item {#Q1 title="i"}\nUsa #hashtag, el #123 y C# aqui.\n:::\n:::\n',
+          "#hashtag")
+    rejects("an empty section is refused at its line (CNT-3)",
+            '::: section {#s1 heading="H"}\n:::\n', 1, "no body")
+    rejects("a markdown heading in an item body is refused (48)",
+            '::: group {#G1 title="G"}\n::: item {#Q1 title="i"}\n# Titulo\n\nPregunta.\n:::\n:::\n',
+            3, "markdown heading")
+    rejects("a CRLF spec: the fence closes, so the prose after it is checked",
+            "```\r\nx\r\n```\r\nuna ` suelta\r\n", 4, "unmatched")
+    holds("a CRLF fence closes and holds its backticks as code",
+          "```\r\nnunca \\`0013\\`\r\n```\r\n", "nunca")
+    rejects("a four-backtick fence is prose, and the advice says what a fence is",
+            "````\nx \\`y\\`\n````\n", 2, "exactly three backticks")
+    holds("an escaped backtick inside an inline code span is literal content",
+          "Usa `\\` y `x`.", "<code>\\</code>")
+    holds("a backslash-backtick inside a code fence is code",
+          "```\nnunca \\`0013\\`\n```\n", "nunca \\`0013\\`")
+    holds("a real code span next to prose still builds",
+          "ejecut\u00f3 `0013` ya.", "<code>0013</code>")
+
     print("== an HTML entity in a spec is refused, with its line (03 § Attrs) ==")
     # echo_lab_ws 84edd64: `heading="¿&quot;es-419&quot; o …?"` built, and the
     # reader saw a literal `&quot;` — text is escaped once, so an entity is data.
@@ -1599,6 +1866,17 @@ try:
     r = subprocess.run([sys.executable, BUILD, bad], capture_output=True, text=True)
     check("a malformed spec exits 1 and names <file>:<line>",
           r.returncode == 1 and ":3:" in r.stderr, r.stderr)
+    # A spec saved in another encoding was a UnicodeDecodeError traceback
+    # (LOOP-008 D3): refused like a missing file, naming the byte and its offset.
+    latin = os.path.join(tmp, "latin1.spec.md")
+    with open(latin, "wb") as fh:
+        fh.write(b"::: masthead\n# T\n\nS \xff\xfe\n:::\n")
+    r = subprocess.run([sys.executable, BUILD, latin], capture_output=True,
+                       text=True)
+    check("a spec that is not UTF-8 is refused naming the byte offset, not a "
+          "traceback", r.returncode == 2 and "Traceback" not in r.stderr
+          and r.stderr.startswith("spec-build: ") and "not UTF-8" in r.stderr
+          and "offset 20" in r.stderr, r.stderr)
     r = subprocess.run([sys.executable, BUILD, spec_path, "--check"],
                        capture_output=True, text=True)
     check("--check without -o is a usage error (exit 2)", r.returncode == 2,

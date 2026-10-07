@@ -70,16 +70,29 @@ echo "== a gallery consultation, built the normal route =="
 # before/after pair, the new-screen single capture, the phone cap on a mobile
 # variant and the unrequested marker, none of which any other fixture draws.
 GROOT="$TMP/gallery-root"
+# before (shots/) a different grey from the after: the builder refuses identical live pairs,
+# and every after a grey of its own: a repeated highlighted region is refused too.
+gal_grey() {
+  [[ $d == shots ]] && { echo 96; return; }
+  case "$t:$cell" in
+    light-desktop:with-data) echo 110;; light-desktop:empty) echo 120;; dark-desktop:with-data) echo 130;; dark-desktop:empty) echo 140;;
+    light-mobile:with-data) echo 150;; light-mobile:empty) echo 160;; dark-mobile:with-data) echo 170;; *) echo 180;;
+  esac
+}
 for d in shots actual; do for cell in with-data empty; do
   for t in light-desktop dark-desktop; do
-    mkdir -p "$GROOT/$d/$t" && python3 "$HERE/png_fixture.py" "$GROOT/$d/$t/audit-$cell.png" 1600 900
+    mkdir -p "$GROOT/$d/$t" && python3 "$HERE/png_fixture.py" "$GROOT/$d/$t/audit-$cell.png" 1600 900 $(gal_grey)
   done
   for t in light-mobile dark-mobile; do
-    mkdir -p "$GROOT/$d/$t" && python3 "$HERE/png_fixture.py" "$GROOT/$d/$t/audit-$cell.png" 390 844
+    mkdir -p "$GROOT/$d/$t" && python3 "$HERE/png_fixture.py" "$GROOT/$d/$t/audit-$cell.png" 390 844 $(gal_grey)
   done
 done; done
 # BL-688: the new 1600x900 screen is a full-page overview, so its row names the region to look at.
 echo '{"shown": {"x": 100, "y": 100, "w": 300, "h": 120}}' > "$GROOT/actual/light-desktop/audit-empty.regions.json"
+# the other live rows differ from their before now (identical pairs are refused), so each names its region too
+echo '{"shown": {"x": 100, "y": 100, "w": 300, "h": 120}}' > "$GROOT/actual/light-desktop/audit-with-data.regions.json"
+echo '{"shown": {"x": 20, "y": 100, "w": 300, "h": 120}}' > "$GROOT/actual/light-mobile/audit-with-data.regions.json"
+echo '{"shown": {"x": 20, "y": 100, "w": 300, "h": 120}}' > "$GROOT/actual/dark-mobile/audit-empty.regions.json"
 if bash "$SCRIPTS/gallery-items.sh" "$FIX/gallery/rows.json" --root "$GROOT" --page "$TMP/gallery.html" \
      --group-id E --group-title "Galería audit" > "$TMP/gallery-group.html" 2>"$TMP/gallery-gen.err"; then
   ok "generated the gallery block from rows.json"

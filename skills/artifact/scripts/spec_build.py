@@ -71,6 +71,7 @@ import gallery_items                            # noqa: E402
 import graph_svg                                # noqa: E402
 import md_body                                  # noqa: E402
 import wrap_report                              # noqa: E402
+import spec_parser                                # noqa: E402
 from spec_parser import SpecSyntaxError, parse   # noqa: E402,F401
 
 esc = md_body.esc
@@ -114,6 +115,12 @@ STRINGS = {
 # what travels in the reply.
 HINT_SEP = " — "
 RECOMMENDED = "{recommended}"
+# The words an item's boolean attrs (free, proposal) take, and the negatives an
+# author might write for `decided=` meaning "not decided". decided= is a flag
+# (YES_VALUES) or a verdict text, so only the negatives are refused, and not
+# when the item has an option of that label (`decide --verdict No`).
+YES_VALUES = ("yes", "true")
+NO_WORDS = ("no", "false", "0")
 CHOSEN = "{chosen}"       # BL-496: a decided item's winning option, checked, not recommended
 REC_MARK = re.compile(r"\s*(?:" + re.escape(RECOMMENDED) + "|" + re.escape(CHOSEN)
                       + r")\s*")
@@ -312,6 +319,11 @@ def _classes(base, node):
     return " ".join([base] + list(node.classes))
 
 
+def _plain_text(html):
+    """Rendered inline HTML -> its visible text (tags dropped, entities decoded)."""
+    return htmllib.unescape(re.sub(r"<[^>]+>", "", html))
+
+
 def _unwrap_p(html):
     """`<p>x</p>` -> `x`, when that is the whole fragment.
 
@@ -362,6 +374,11 @@ def emit_section(node, ctx):
                id_why="the rail indexes `.main > section[id]`, so a section "
                       "without one keeps its <h2> out of the page's index. It "
                       "is not a data-id and no reply names it")
+    if all(_blank_prose(c) for c in node.children):
+        raise SpecBuildError(
+            node.line, "`section` %s has a heading and no body: an empty "
+            "section is a heading over nothing, so write its body or drop it"
+            % node.id)
     classes = " ".join(node.classes)
     out = ['<section%s id="%s">'
            % (' class="%s"' % esc(classes) if classes else "", esc(node.id))]
@@ -564,6 +581,13 @@ def chosen_labels(node):
             if _option(t)[3]]
 
 
+def option_labels(node):
+    """The labels of an `item`'s options, `{recommended}`/`{chosen}` stripped
+    (for `spec_verbs.decide`, which refuses a verdict that is none of them)."""
+    return [_option(t)[0] for c in node.children if c.block_type == "prose"
+            for t in _split_options(list(c.raw_body), node.line)[1]]
+
+
 def has_options(node):
     """Whether an `item` node offers options, read the way `emit_item` reads
     them (the first top-level `-` list of its prose, code fences tracked). For
@@ -571,6 +595,22 @@ def has_options(node):
     Raises SpecBuildError on a body `_split_options` refuses."""
     return any(_split_options(list(c.raw_body), node.line)[1]
                for c in node.children if c.block_type == "prose")
+
+
+def _refuse_body_heading(node):
+    """Refuse a markdown heading in an item's prose, at the heading's own line:
+    the item's h3 is its question, and a `# ` line would open a second heading
+    inside it (or, under the rail, one the page's index does not know). Fenced
+    code is exempt."""
+    for child in node.children:
+        if child.block_type != "prose":
+            continue
+        for i, (ln, outside) in enumerate(_unfenced(child.raw_body)):
+            if outside and md_body.HEADING.match(ln):
+                raise SpecBuildError(
+                    child.line + i, "`item` body has a markdown heading (%r): "
+                    "the item's own h3 is its question, so write the line as a "
+                    "paragraph, or `**bold**` it" % ln.strip()[:60])
 
 
 def _refuse_second_list(node):
@@ -619,13 +659,23 @@ def _option(text):
     return label.strip(), hint.strip(), rec, chosen
 
 
+# A hyphen or double hyphen set apart by spaces, in an option with no ` — `:
+# the author meant a hint and used the wrong dash.
+_WRONG_HINT_SEP = re.compile(r"\s(-|--)\s")
 _OPT_PAREN = re.compile(r"\([^)]*\)")
+# A lone letter in parentheses points at another option ("Igual que (a), pero
+# al revés"): a reference, not a reason, so it is set aside before the read.
+_OPT_LETTER_REF = re.compile(r"\(\s*[A-Za-z]\s*\)")
 # What the kit already adds under every item ("Otra — lo explico en las notas",
 # "Todavía no — lo dejo para otra ronda"): a spec option saying the same shows
-# the choice twice.
+# the choice twice. A note is the kit's box when the option points AT it (a
+# locative: "en una nota", "in the notes", "add a note") or is just the word
+# ("Ver nota", "Notes"); "Una nota visible en su propio README" is something
+# being decided, so a bare mention in a longer sentence does not count.
 _OPT_KIT_DUP = re.compile(
-    r"\bnotas?\b|\bnotes?\b|^(otra|otro|other)\b|^(todav[ií]a|aún|aun) no\b"
-    r"|^not (yet|now)\b", re.I)
+    r"\b(en|in|into|to|a|al)\s+(?:\S+\s+){0,3}?(notas?|notes?)\b"
+    r"|^(otra|otro|other)\b|^(todav[ií]a|aún|aun) no\b|^not (yet|now)\b", re.I)
+_OPT_NOTE_WORD = re.compile(r"\b(notas?|notes?)\b", re.I)
 
 
 def _refuse_option_shape(node, opts):
@@ -635,16 +685,26 @@ def _refuse_option_shape(node, opts):
     A parenthetical reason in the label turns the option into a question of its
     own; the reason belongs in the item body. The kit adds Otra and Todavía no
     to every item, so a spec option for either (or one pointing at the notes
-    box) is shown twice. `{recommended}` is not a parenthesis, and code spans
-    are the author quoting, so both are set aside before the read.
+    box) is shown twice. `{recommended}` is not a parenthesis, code spans are the
+    author quoting, and a lone `(a)` points at another option, so all three
+    are set aside before the read.
     """
     for text in opts:
-        label = _option(text)[0]
-        bare = re.sub(r"`[^`]*`", "", label).strip()
+        label, hint = _option(text)[:2]
+        bare = _OPT_LETTER_REF.sub("", re.sub(r"`[^`]*`", "", label)).strip()
+        if not hint and _WRONG_HINT_SEP.search(bare):
+            raise SpecBuildError(
+                node.line, "item %s option %r separates its hint with %r: the "
+                "separator is %r (space, em dash, space), as in "
+                "`label {recommended}%shint`; a hint with another dash would "
+                "become part of the label the reader's reply pastes"
+                % (node.id, label, _WRONG_HINT_SEP.search(bare).group(1),
+                   HINT_SEP, HINT_SEP))
         why = None
         if _OPT_PAREN.search(bare):
             why = "carries a parenthetical"
-        elif _OPT_KIT_DUP.search(bare):
+        elif (_OPT_KIT_DUP.search(bare)
+              or (len(bare.split()) <= 3 and _OPT_NOTE_WORD.search(bare))):
             why = "duplicates an option the kit already adds"
         if why:
             raise SpecBuildError(
@@ -779,6 +839,7 @@ def emit_item(node, ctx):
     segments = _segments(node, ASIDES + FIGURE_BLOCKS,
                          "prose, its options, a figure")
     _refuse_second_list(node)
+    _refuse_body_heading(node)
     # The option list is the FIRST one in the body, wherever it sits, and the
     # segments before and after it keep their order around it.
     head, opts, tail = [], [], []
@@ -894,6 +955,14 @@ def emit_item(node, ctx):
             "{chosen} is the winner of a decided item (decided=yes), so add "
             "decided or drop the marker")
     # Read in the plain form the fold shows (BL-545): `**yes**` folds to "yes".
+    plain = PLAIN.sub("", decided).strip()
+    if (opts and plain.lower() in NO_WORDS
+            and plain not in [PLAIN.sub("", _option(t)[0]).strip() for t in opts]):
+        raise SpecBuildError(
+            node.line, "`item` %s decided=%s reads as \"not decided\" but "
+            "ships as a verdict: leave decided off to keep the item open, or "
+            "write what was decided (decided=yes, or the verdict as text)"
+            % (node.id, decided))
     if PLAIN.sub("", decided).strip().lower() in contract_defects.NOT_A_VERDICT:
         flag, check_recommended = " data-decided", True
         recommended = sum(1 for t in opts if _option(t)[2])
@@ -913,25 +982,38 @@ def emit_item(node, ctx):
                 "as decided=\"…\"" % decided)
     elif decided:
         flag += ' data-decided="%s"' % esc(decided)
-    if a.get("free", "").strip() in ("yes", "true"):
+    if "free" in a and a["free"].strip() not in YES_VALUES:
+        raise SpecBuildError(
+            node.line, "`item` free=%r is not a value (it takes: %s)"
+            % (a["free"], ", ".join(YES_VALUES)))
+    if a.get("free", "").strip() in YES_VALUES:
         flag += " data-free"
     # `proposal=yes` (BL-692): decided by the writer THIS round, awaiting the
     # reader's correction. The composer keeps it in place with its options and notes box live
     # instead of folding it away as an earlier round's settled answer.
-    if "proposal" in a and a["proposal"].strip() not in ("yes", "true"):
+    if "proposal" in a and a["proposal"].strip() not in YES_VALUES:
         raise SpecBuildError(
-            node.line, "`item` proposal=%r is not a value (it takes: yes, true)"
-            % a["proposal"])
-    if a.get("proposal", "").strip() in ("yes", "true"):
+            node.line, "`item` proposal=%r is not a value (it takes: %s)"
+            % (a["proposal"], ", ".join(YES_VALUES)))
+    if a.get("proposal", "").strip() in YES_VALUES:
         if not decided:
             raise SpecBuildError(
                 node.line, "`item` proposal=yes needs decided=: a proposal is a "
                 "decided point awaiting correction (decided=yes, or the verdict "
                 "itself)")
         flag += " data-proposal"
+    # The rail label is data-title, so it must be visible text of the item: when
+    # the h3 is a question (or a heading=) that is not the title, the title shows
+    # above it as a kicker, rendered inline like the body. data-title carries the
+    # marker-free text (no backticks in the rail label or the composed reply).
+    title_html = md_body._inline(a["title"])
+    title_plain = _plain_text(title_html)
     out = ['<section class="%s" data-id="%s" data-title="%s"%s>'
-           % (_classes("consult-item", node), esc(node.id), esc(a["title"]),
+           % (_classes("consult-item", node), esc(node.id), esc(title_plain),
               flag)]
+    if " ".join(_plain_text(question).split()).lower() != \
+            " ".join(title_plain.split()).lower():
+        out.append('  <p class="eyebrow consult-kicker">%s</p>' % title_html)
     out.append('  <h3><span class="consult-id">%s</span>%s</h3>'
                % (esc(node.id), question))
     out.extend("  " + p for p in parts)
@@ -1048,7 +1130,7 @@ def emit_gallery(node, ctx):
             html = gallery_items.render(doc, os.path.normpath(root), node.id,
                                         a["title"], lang, page=ctx.page,
                                         require_look=True, lead=lead_html,
-                                        items=items)
+                                        items=items, refuse_bare_rows=True)
     except SystemExit:
         said = [ln for ln in err.getvalue().splitlines() if ln.strip()]
         raise SpecBuildError(
@@ -1685,7 +1767,10 @@ def emit_node(node, ctx, parent=None):
             "unknown block type %r (known: %s)"
             % (node.block_type, ", ".join(sorted(EMITTERS))))
     _check_parent(node, parent)
-    html = EMITTERS[node.block_type](node, ctx)
+    try:
+        html = EMITTERS[node.block_type](node, ctx)
+    except md_body.ListTooDeep as exc:
+        raise SpecBuildError(node.line, str(exc))
     # LOOP-006 decision 3: a block the page contract fails as mixed content (a
     # paragraph with `contract_defects.FACTS_MIN` code tokens or clauses, file
     # paths listed in a sentence, prose in a code block) is refused here, by
@@ -1781,7 +1866,7 @@ def _refuse_item_id_collisions(tree):
     group-item-id-collision). The source shows no duplicate, so no check on the
     page can see it before the composer runs; the spec is where it is written.
     """
-    first = {}
+    first, folded = {}, {}
     for node in _walk(tree):
         ident = node.id or ("notes" if node.block_type == "notes" else "")
         if not ident:
@@ -1794,6 +1879,14 @@ def _refuse_item_id_collisions(tree):
                 "this `%s`: the composer gives every item its id at run time, so "
                 "the two collide on the page — rename one"
                 % (ident, prev.block_type, prev.line, node.block_type))
+        if node.block_type in ("item", "notes"):
+            kin = folded.setdefault(ident.lower(), node)
+            if kin is not node and (kin.id or "notes") != ident:
+                raise SpecBuildError(
+                    node.line, "id #%s differs only by case from #%s (the `%s` "
+                    "at line %d): the reply names items by id, and a reader "
+                    "or a verdict cannot tell Q1 from q1 apart — rename one"
+                    % (ident, kin.id or "notes", kin.block_type, kin.line))
 
 
 # What makes a page a consultation: an item, the general-notes item, or a
@@ -1876,6 +1969,187 @@ def _refuse_entities(spec_text):
                                " (inside a quoted attr)" if in_attr else ""))
 
 
+def _refuse_span_tones(spec_text):
+    """Refuse a `[x]{.pill .tone}` / `{.chip .tone}` span with a malformed or
+    unknown tone, naming its line (the tones are `md_body.SPAN_TONES`)."""
+    fence = None
+    for n, ln in enumerate(spec_text.split("\n"), 1):
+        before, fence = fence, md_body.fence_state(ln, fence)
+        if before is not None or fence is not None:
+            continue
+        for kind, tone in md_body.bad_spans(ln):
+            raise SpecBuildError(
+                n, "%s tone %r is not one the kit knows: use one of %s"
+                % (kind, tone, ", ".join(sorted(md_body.SPAN_TONES))))
+
+
+# The classes a block fence may carry: `note {.warn}`, `callout {.warn}` and a
+# `section {.wide}` are the ones the corpus and the kit use; any other class
+# reaches the page unstyled (and a typo of `warn` silently drops the emphasis).
+BLOCK_CLASSES = ("warn", "wide")
+
+
+def _refuse_block_classes(tree):
+    for node in _walk(tree):
+        for c in node.classes:
+            if c not in BLOCK_CLASSES:
+                raise SpecBuildError(
+                    node.line, "`%s` class %r is not one a block takes (it "
+                    "takes: %s)" % (node.block_type, "." + c,
+                                    ", ".join("." + k for k in BLOCK_CLASSES)))
+
+
+def _backtick_chunks(spec_text):
+    """(first line number, text) of each unit `md_body._inline` will see.
+
+    A paragraph or list item is joined across its wrapped lines before the
+    renderer pairs backticks, so a code span may wrap; the check has to pair
+    them over the same unit. A chunk ends where `_blocks` splits: a blank line,
+    a `:::` line, a list marker, a heading, a table row. ``` / ~~~ fences are
+    skipped; a trailing `\\r` is dropped so a CRLF fence still closes.
+    """
+    fence, start, buf = None, 0, []
+    for n, ln in enumerate(spec_text.split("\n"), 1):
+        ln = ln.rstrip("\r")
+        before, fence = fence, md_body.fence_state(ln, fence)
+        in_fence = before is not None or fence is not None
+        in_item = bool(buf) and bool(md_body.MARKER.match(buf[0]))
+        indent = len(ln) - len(ln.lstrip())
+        base = len(buf[0]) - len(buf[0].lstrip()) if in_item else 0
+        # `_blocks`: a heading ends a list item on its stripped text but a
+        # paragraph only on the raw line; a `:::` line is the tokenizer's, read
+        # at column 0 only.
+        alone = (spec_parser.OPEN.match(ln) or spec_parser.CLOSE.match(ln)
+                 or ln.lstrip().startswith("|")
+                 or md_body.HEADING.match(ln.lstrip() if in_item else ln))
+        # A marker deeper than the item's own continues it, unless it opens a
+        # sub-list: ordered only when it counts from 1.
+        wrapped = (in_item and md_body.ORDERED.match(ln) and indent > base
+                   and not re.match(r"\s*1[.)]", ln))
+        # An unindented line under a list item is a new paragraph, not its
+        # continuation (`_blocks`).
+        new_unit = (in_fence or not ln.strip() or alone
+                    or (md_body.MARKER.match(ln) and not wrapped)
+                    or (in_item and not ln[:1].isspace()))
+        if new_unit and buf:
+            yield start, "\n".join(buf)
+            buf = []
+        if in_fence or not ln.strip():
+            continue
+        if alone:
+            yield n, ln
+            continue
+        if not buf:
+            start = n
+        buf.append(ln)
+    if buf:
+        yield start, "\n".join(buf)
+
+
+def _refuse_literal_backticks(spec_text):
+    """Refuse a backtick that would reach the reader raw, naming its line.
+
+    `md_body` turns `` \\` `` into a plain backtick and leaves a backtick with no
+    partner as it is, so both ship as a literal backtick in prose (CNT-2), and
+    an author who escapes them is writing a shell-heredoc habit, not markdown.
+    Real code spans (paired over the whole wrapped paragraph or item) and
+    fenced code are code: a backslash-backtick there is content and stays legal.
+    """
+    blank = lambda m: re.sub(r"[^\n]", " ", m.group(0))
+    fences = ("fences open with exactly three backticks or tildes at the "
+              "start of the line: a four-backtick fence or a BOM before it is "
+              "prose")
+    for start, chunk in _backtick_chunks(spec_text):
+        rest = md_body.CODE.sub(blank, chunk)
+        for m in md_body.ESCAPE.finditer(rest):
+            if m.group(1) == "`":
+                n = start + rest[:m.start()].count("\n")
+                raise SpecBuildError(
+                    n, "an escaped backtick (backslash then backtick) shows "
+                    "the reader a raw backtick: write `x` for code, and a "
+                    "literal backtick belongs inside a code span; %s; found "
+                    "in %r" % (fences, chunk.split("\n")[n - start].strip()[:80]))
+        bare = md_body.ESCAPE.sub("  ", rest)
+        k = bare.find("`")
+        if k >= 0:
+            n = start + bare[:k].count("\n")
+            raise SpecBuildError(
+                n, "an unmatched backtick shows the reader a raw backtick: "
+                "close the code span (`x`), or leave the backtick out; %s; "
+                "found in %r" % (fences, chunk.split("\n")[n - start].strip()[:80]))
+
+
+# Leaf blocks whose body never goes through `md_body._inline`.
+_RAW_LABEL_BLOCKS = ("chart", "diagram", "graph")
+
+
+def _refuse_stray_syntax(spec_text, tree):
+    """Refuse prose that would reach the reader as raw spec or markdown syntax
+    (CNT-1, CNT-2), naming its line: an indented `:::` line, a literal `{#`,
+    and a `**` that bolds nothing (code spans and ``` / ~~~ fences are exempt).
+
+    The tokenizer reads an indented `:::` as content on purpose (a `:::` in an
+    indented list item must not open a block), so it shows as text; the author
+    who indented a fence meant a block, and gets the line instead. Chart and
+    diagram labels are drawn as SVG text, never as markdown, so any `**` there
+    is raw; a graph body is DOT source and is not read at all.
+    """
+    raw_lines = set()
+    for node in _walk(tree):
+        if node.block_type not in _RAW_LABEL_BLOCKS:
+            continue
+        for child in node.children:
+            for i, ln in enumerate(child.raw_body):
+                raw_lines.add(child.line + i)
+                if "**" in ln and node.block_type != "graph":
+                    raise SpecBuildError(
+                        child.line + i, "`%s` labels take no markdown, so `**` "
+                        "would be drawn raw: write the label without it; found "
+                        "in %r" % (node.block_type, ln.strip()[:80]))
+    blank = lambda m: re.sub(r"[^\n]", " ", m.group(0))
+    for start, chunk in _backtick_chunks(spec_text):
+        if start in raw_lines:
+            continue
+        if spec_parser.OPEN.match(chunk) or spec_parser.CLOSE.match(chunk):
+            continue
+        rest = md_body.CODE.sub(blank, chunk)
+        lines = rest.split("\n")
+        for i, ln in enumerate(lines):
+            if ln[:1] in (" ", "\t") and ln.lstrip().startswith(":::"):
+                raise SpecBuildError(
+                    start + i, "an indented `:::` line is prose, not a fence, "
+                    "and would show as literal `:::` on the page: a fence line "
+                    "starts at column 0 (a nested block is written flush "
+                    "left); found %r" % ln.strip()[:80])
+        k = rest.find("{#")
+        if k >= 0:
+            n = start + rest[:k].count("\n")
+            raise SpecBuildError(
+                n, "a literal `{#` in prose shows the reader spec syntax: an id "
+                "is written on a fence (`::: item {#Q1 ...}`), so drop it from "
+                "the text or put it in a code span; found in %r"
+                % lines[n - start].strip()[:80])
+        # A table row is rendered cell by cell, a paragraph as one wrapped unit.
+        units = (md_body._cells(rest) if rest.lstrip().startswith("|")
+                 else [" ".join(lines)])
+        for unit in units:
+            html = md_body._inline(unit)
+            html = re.sub(r"<[^>]*>", "", re.sub(r"<code>.*?</code>", "", html))
+            if "**" not in html:
+                continue
+            # BOLD pairs from the left, so the unpaired marker is the last one.
+            masked = md_body.BOLD.sub(blank, rest.replace("\n", " "))
+            k = masked.rfind("**")
+            n = start + (rest[:k].count("\n") if k >= 0 else 0)
+            if k < 0 or "**" not in lines[n - start]:
+                n = start + next((i for i, ln in enumerate(lines) if "**" in ln), 0)
+            raise SpecBuildError(
+                n, "a `**` that closes nothing shows the reader a raw `**`: "
+                "close the bold (`**x**`), leave the marker out, or write a "
+                "literal one in a code span (`2**10` between backticks); found "
+                "in %r" % lines[n - start].strip()[:80])
+
+
 def _refuse_title_links(tree):
     """A `[x](y)` in `title=` is refused: the title also reaches the rail and a
     decided item's <summary> as `data-title`, raw, where no link is rendered."""
@@ -1900,9 +2174,18 @@ def build(spec_text, lang=None, base_dir=".", page=None):
     ctx.tree = tree
     _refuse_links(spec_text)
     _refuse_entities(spec_text)
+    _refuse_span_tones(spec_text)
+    _refuse_block_classes(tree)
+    _refuse_literal_backticks(spec_text)
+    _refuse_stray_syntax(spec_text, tree)
     _refuse_title_links(tree)
     _refuse_item_id_collisions(tree)
     answerable = any(n.block_type in ANSWERABLE for n in _walk(tree))
+    mastheads = [n for n in tree if n.block_type == "masthead"]
+    if len(mastheads) > 1:
+        raise SpecBuildError(
+            mastheads[1].line, "second masthead: a page has exactly one "
+            "(the first is at line %d)" % mastheads[0].line)
 
     head = []
     for node in tree:
@@ -1940,6 +2223,11 @@ def build(spec_text, lang=None, base_dir=".", page=None):
 
     body = [emit_node(n, ctx) for n in tree if not _blank_prose(n)]
 
+    # check_artifact's masthead rule reads this: a page built WITH a masthead must
+    # keep exactly one. A spec without one (a fragment, or a page titled by --title)
+    # carries no stamp, so its page is held to nothing it never had.
+    if mastheads:
+        head.append('<meta name="spec-built" content="1">')
     out = list(head)
     out.append('<div class="page">')
     out.append('<main class="main">')
@@ -1962,7 +2250,40 @@ def build(spec_text, lang=None, base_dir=".", page=None):
         out.append("  </div>")
     out.append("</aside>")
     out.append("</div>")
-    return "\n".join(out) + "\n"
+    page = "\n".join(out) + "\n"
+    # A masthead that DECLARES lang= over a body written in the other language is
+    # a mixed page the contract's `lang` rule would fail. Refused here with the
+    # checker's own stopword reading, at a lower floor (3 foreign hits, no
+    # native ones to speak of): a short spec is below the checker's 10, and the
+    # mixed page it builds is still mixed. A silent masthead follows the profile.
+    declared = spec_lang(spec_text)
+    if declared:
+        # The AUTHOR's words: the page's chrome is already in the declared
+        # language and would answer for a body that is not.
+        prose = re.sub(r"(?ms)^(```|~~~).*?^\1", " ", spec_text)
+        # data blocks quote data (commit subjects, commands), not prose
+        prose = re.sub(r"(?ms)^:::\s*(ledger|table|chart|diagram|graph|figure"
+                       r"|verdict|video)\b.*?^:::\s*$", " ", prose)
+        prose = md_body.CODE.sub(" ", prose)
+        prose = re.sub(r"https?://\S+", " ", prose)
+        # an attribute brace keeps only its quoted values (titles are prose);
+        # its keys and bare values (`lang=es`) are syntax
+        prose = re.sub(r"\{[^}\n]*\}",
+                       lambda m: " ".join(re.findall(r'"([^"]*)"', m.group(0))),
+                       prose)
+        words = check_artifact.WORD_RE_LANG.findall(prose.lower())
+        es = sum(1 for w in words if w in check_artifact.SPANISH_STOPWORDS)
+        en = sum(1 for w in words if w in check_artifact.ENGLISH_STOPWORDS)
+        own, other = (es, en) if declared == "es" else (en, es)
+        if other >= 3 and other >= check_artifact.LANG_RATIO * own:
+            node = next(n for n in tree if n.block_type == "masthead"
+                        and n.attrs.get("lang"))
+            raise SpecBuildError(
+                node.line, "`masthead` lang=%s but the body reads %s (%d Spanish "
+                "vs %d English stopwords): a mixed-language page. Write the body "
+                "in the declared language, or declare the one it is written in"
+                % (declared, "en" if declared == "es" else "es", es, en))
+    return page
 
 
 def page_title(spec_text):
@@ -1986,6 +2307,42 @@ def page_title(spec_text):
                     if outside and ln.startswith("# "):
                         return ln[2:].strip()
     return ""
+
+
+def resolve_lang(spec_text, lang, out):
+    """The page's language: the masthead's `lang=`, else `lang` (the caller's
+    flag), else the language of the project profile found from where `out`
+    lands, else es. The builder CLI and the spec verbs share it, so a verb
+    rebuild never answers differently from `spec_build.py -o` (M3, case 75)."""
+    # Only the primary subtag, as lang-follows-profile compares it.
+    profile = (wrap_report.profile_language(wrap_report.find_context_dir(
+        os.path.dirname(os.path.abspath(out)) if out else os.getcwd()))
+        or "").split("-")[0].lower()
+    return spec_lang(spec_text) or lang or profile or "es"
+
+
+def hand_edit_defect(out):
+    """A message when the built page at `out` differs from what the last wrap
+    landed (the `.aidex-artifact-prev/<page>` baseline), else None. A rebuild
+    over it would silently overwrite the hand edit (M3, case 51). No page or no
+    baseline (a page that predates baselines) is nothing to compare."""
+    baseline = os.path.join(os.path.dirname(os.path.abspath(out)),
+                            ".aidex-artifact-prev", os.path.basename(out))
+    try:
+        with open(out, "rb") as fh:
+            page = fh.read()
+        with open(baseline, "rb") as fh:
+            built = fh.read()
+    except OSError:
+        return None
+    if page == built:
+        return None
+    return ("%s differs from %s, what the last build wrote: it was "
+            "hand-edited, restored from git, or left by an unfinished build, "
+            "and a rebuild would overwrite it. The page is an output: make the change in the spec (or "
+            "with the `add-item` / `decide` / `new-round` verbs) and rebuild; "
+            "to discard the hand edit on purpose, delete %s and build again"
+            % (out, baseline, out))
 
 
 # --- CLI ---------------------------------------------------------------------
@@ -2022,6 +2379,11 @@ def main(argv):
     except OSError as exc:
         sys.stderr.write("spec-build: %s\n" % exc)
         return 2
+    except UnicodeDecodeError as exc:
+        sys.stderr.write("spec-build: %s is not UTF-8 (byte 0x%02x at offset %d) "
+                         "— save the spec as UTF-8\n"
+                         % (args.spec, exc.object[exc.start], exc.start))
+        return 2
     if args.check and not args.out:
         sys.stderr.write("spec-build: --check needs -o <out.html>\n")
         return 2
@@ -2030,10 +2392,7 @@ def main(argv):
         # A silent spec follows the profile the wrap and lang-follows-profile
         # read, looked up from where the page lands (as the wrap does).
         # Only the primary subtag, as lang-follows-profile compares it.
-        profile = (wrap_report.profile_language(wrap_report.find_context_dir(
-            os.path.dirname(os.path.abspath(args.out))
-            if args.out else os.getcwd())) or "").split("-")[0].lower()
-        lang = spec_lang(spec_text) or args.lang or profile or "es"
+        lang = resolve_lang(spec_text, args.lang, args.out)
         body = build(spec_text, lang=lang,
                      base_dir=os.path.dirname(os.path.abspath(args.spec)),
                      page=args.out)
@@ -2045,6 +2404,10 @@ def main(argv):
     if not args.out:
         sys.stdout.write(body)
         return 0
+    defect = hand_edit_defect(args.out)
+    if defect:
+        sys.stderr.write("spec-build: %s\n" % defect)
+        return 1
     if not title:
         sys.stderr.write("spec-build: no document title — give the masthead a "
                          "title, or pass --title\n")

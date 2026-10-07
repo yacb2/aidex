@@ -149,7 +149,26 @@ for pg in "$PG" "$BP" "$SPG"; do
     && ok "(e) $(basename "$pg"): the rail round ($(shown_of "$pg")) equals consult-round" \
     || fail "(e) $(basename "$pg"): rail round '$(shown_of "$pg")' != consult-round '$(round_of "$pg")'"
 done
-ES="$TMP/reports/es.spec.md"; sed 's/lang="en"/lang="es"/' "$SP" > "$ES"
+# The Spanish spec carries a Spanish body: since 25fb616a the builder refuses a
+# masthead language over a body written in the other one.
+ES="$TMP/reports/es.spec.md"
+cat > "$ES" <<'SPEC'
+::: masthead {lang="es" visual="none: consultation"}
+# Ruta del spec
+:::
+
+::: group {#G1 title="Uno"}
+::: item {#Q1 title="Elegir"}
+Ana abre el proyecto y no ve el botón de borrar.
+
+- Permitirlo {recommended}
+- Dejarlo como está
+:::
+:::
+
+::: notes {title="Algo más"}
+:::
+SPEC
 ESG="$TMP/reports/es.html"
 python3 "$BUILD" "$ES" -o "$ESG" >/dev/null 2>&1; printf 'Q1: bien\n' | bash "$SAVE" "$ESG" - >/dev/null 2>&1
 python3 "$BUILD" "$ES" -o "$ESG" --new-round >/dev/null 2>&1
@@ -190,11 +209,14 @@ Ana opens the list and sees no filter.
 SPEC
 SPB="$TMP/reports/blk.html"
 python3 "$BUILD" "$SP2" -o "$SPB" >/dev/null 2>&1 || fail "(f) the block-notes spec build failed"
-REPLY_B=$'## G1 \xc2\xb7 One\n\nthis whole block is fine\n\n### Q1 \xc2\xb7 Pick\n\n- Keep it\n\n## G2 \xc2\xb7 Two\n\n- [show-me]\n\n### Q2 \xc2\xb7 Pick again\n\n- Skip it\n'
+REPLY_B=$'## G1 \xc2\xb7 One\n\nthis whole block is fine\n\n### Q1 \xc2\xb7 Pick\n\n- Keep it\n\nnot sure yet\n\n## G2 \xc2\xb7 Two\n\n- [show-me]\n\n### Q2 \xc2\xb7 Pick again\n\n- Skip it\n'
 out="$(printf '%s' "$REPLY_B" | bash "$SAVE" "$SPB" - 2>&1)"; rc=$?
 [[ $rc -eq 0 && "$out" != *Q1* ]] \
   && ok "(f) a block note with a marker-shaped line is not charged to the item before it" \
   || fail "(f) save-reply charged the G2 note's [show-me] to Q1 (rc=$rc): $out"
+# the reader picked Q2 and asked nothing back: a round that opens must decide it.
+# Q1 (option + note) stays open so G2's [show-me] could still be wrongly charged to it.
+sed -i.bak 's/{#Q2 title="Pick again"}/{#Q2 title="Pick again" decided="Skip it"}/' "$SP2"
 python3 "$BUILD" "$SP2" -o "$SPB" --new-round >/dev/null 2>&1 && [[ "$(round_of "$SPB")" == "2" ]] \
   && ok "(f) the round after a reply with block notes opens" \
   || fail "(f) the round after a reply with block notes did not open (got '$(round_of "$SPB")')"

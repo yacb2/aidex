@@ -34,6 +34,7 @@ const dlgState = () => page.evaluate(() => {
     svgText: t ? Math.min(...[...svg.querySelectorAll('text')].map((x) =>
       parseFloat(x.getAttribute('font-size')) * r(svg).width / svg.viewBox.baseVal.width)) : null,
     imgW: vis(img) ? r(img).width : null, imgNatW: vis(img) ? img.naturalWidth : null,
+    svgW: vis(svg) ? r(svg).width : null, vbW: svg ? svg.viewBox.baseVal.width : null,
     btnsInside: [...dlg.querySelectorAll('.kit-zoom-head button')].filter((b) => vis(b))
       .every((b) => r(b).left >= 0 && r(b).right <= document.documentElement.clientWidth + 1),
     focusInDialog: dlg.contains(document.activeElement) || document.activeElement === dlg,
@@ -89,8 +90,25 @@ async function run(width) {
   await page.focus('[data-id="Q3"] figure').catch(() => {});
   await page.keyboard.press('Enter');
   o.reopen = await dlgState();
-  await click('.kit-zoom-size');                  // Fit on an svg: must fit the height too
-  o.loneSvgFit = await page.evaluate(() => getComputedStyle(document.querySelector('.kit-zoom-svg svg')).maxHeight);
+  if (o.reopen.native) await click('.kit-zoom-size');   // to Fit, whichever size it opened at
+  o.loneSvgFit = await page.evaluate(() => getComputedStyle(document.querySelector('.kit-zoom-svg svg')).maxHeight);   // Fit must fit the height too
+  o.loneFit = await dlgState();
+  await closeDlg();
+  // the size button does not move when a lone drawing changes size (Fit -> 1:1)
+  await click('[data-id="Q3"] figure');
+  const sizeTop = () => page.evaluate(() => document.querySelector('.kit-zoom-size').getBoundingClientRect().top);
+  o.loneToggle = { fit: await sizeTop() };
+  await click('.kit-zoom-size');
+  o.loneToggle.native = await sizeTop();
+  await closeDlg();
+  // a portrait drawing: Fit is capped by the height, so it must be centred, not just full width
+  await click('[data-id="Q8"] figure');
+  o.portrait = await dlgState();
+  await closeDlg();
+  // a drawing that fits, then a tall one: the tall one gets its own size
+  await click('[data-id="Q9"] figure');
+  await click('.kit-zoom-next');
+  o.stepTall = await dlgState();
   await closeDlg();
   // a tall svg in Fit stays inside the window
   await click('[data-id="Q5"] figure');
@@ -127,6 +145,14 @@ async function run(width) {
   o.pairNextScroll = o.pairNext.body.sl;       // came back to the svg after a scroll: starts at 0
   await page.keyboard.press('ArrowLeft');
   o.pairBack = await dlgState();              // keys still work after a button press
+  await closeDlg();
+  // Ampliar straight on the run's drawing (BL-712), then Fit -> 1:1 -> Fit (BL-713)
+  await page.locator('[data-id="Q4"] figure').nth(1).click().catch(() => {});
+  o.svgOpen = await dlgState();
+  await click('.kit-zoom-size');
+  o.svgNative = await dlgState();
+  await click('.kit-zoom-size');
+  o.svgFit = await dlgState();
   await closeDlg();
   // Chrome makes an overflowing scroller Tab-focusable: the arrows must survive the walk it triggers
   await click('[data-id="Q4"] figure');

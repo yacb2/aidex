@@ -73,6 +73,7 @@ import json
 import re
 import sys
 
+from reply_defect import blank_defects
 from gallery_items import KINDS, NONE_OF_THEM, OTHER, VERDICTS, row_id
 
 NUM = r"(\d{1,3}\.\d)"
@@ -261,6 +262,7 @@ def parse(text, tiles=None, labels=None, lenient=False, states=None):
     label is read as the first bullet); save_reply uses it, which only wants
     to know what is owed, not which alternative was chosen."""
     items, cur = [], None
+    text = blank_defects(text)       # the composer's page-defect sub-block is no row text
     for n, line in enumerate(text.splitlines(), 1):
         if line.startswith("### "):
             ident, _, title = line[4:].partition(" · ")

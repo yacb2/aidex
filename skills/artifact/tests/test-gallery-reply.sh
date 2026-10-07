@@ -252,6 +252,17 @@ bash "$PARSE" < "$TMP/bom.txt" > "$TMP/bom-stdin.json" 2> "$TMP/bom.err"
 expect_json "$TMP/bom-stdin.json" 'len(d["rows"]) == 1 and d["rows"][0]["id"] == "audit-with-data-light-desktop"' \
   "a BOM before the first ### still yields the row (stdin)"
 
+echo "== the composer's page-defect sub-block (LOOP-008 Q10) =="
+parsed '- Aprobada\n\n[mark light-desktop 10.0,10.0 20.0x20.0] logo cortado\n\n#### Fallo de la página\n\nla imagen no carga\n' \
+  'len(r["marks"]) == 1 and r["verdict"] == "Aprobada" and "Fallo" not in r["notes"] and "no carga" not in r["notes"]' \
+  "a report after the marks is no text-after-marks refusal: one mark kept, the report is not in the notes"
+parsed '- Necesita cambios\n\nel borde se corta\n\n#### Page problem\n\nla captura sale en blanco\n' \
+  'r["notes"] == "el borde se corta" and r["verdict"] == "Necesita cambios"' \
+  "a report after a note is not part of the row's notes"
+parsed '- Aprobada\n\n[mark light-desktop 10.0,10.0 20.0x20.0] logo cortado\n\n#### Fallo de la página\n\nel footer muestra el comentario\n<!-- TODO footer -->\ncomo texto visible\n' \
+  'len(r["marks"]) == 1 and "TODO footer" not in r["notes"] and "Fallo" not in r["notes"]' \
+  "a comment line the reader quotes inside a report stays in the report"
+
 echo
 if [[ "$failures" == 0 ]]; then
   echo "test-gallery-reply: all passed"

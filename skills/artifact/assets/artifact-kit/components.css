@@ -49,11 +49,18 @@ p { margin: 0; }
 
 .eyebrow:where(:not(svg *)) { font-family: var(--sans); font-size: 0.7rem; text-transform: uppercase;
            letter-spacing: 0.14em; color: var(--muted); margin: 0; }
+/* An item's title shown over its question (spec_build): a name, not a label, so a code span keeps its case. */
+.consult-kicker:where(:not(svg *)) { text-transform: none; }
 .standfirst:where(:not(svg *)) { font-size: 1.18rem; line-height: 1.5; color: var(--ink-soft); }
 
 .main > header { display: flex; flex-direction: column; gap: 0.9rem; padding-bottom: 2rem; border-bottom: 1px solid var(--rule); }
 .main > section { display: flex; flex-direction: column; gap: 1rem; padding: 2.4rem 0; border-bottom: 1px solid var(--rule); }
-.main > section:last-of-type { border-bottom: none; }
+/* The last VISIBLE section: with :last-of-type a trailing hidden section left
+   the rule under the section the reader sees last. */
+.main > section:not(:has(~ section:not([hidden]))) { border-bottom: none; }
+/* The attribute wins over every kit display rule: `.main > section` (0,1,1)
+   beat the UA's [hidden] (0,1,0) and kept a hidden section drawn. */
+[hidden] { display: none !important; }
 .sec-head { display: flex; flex-direction: column; gap: 0.35rem; }
 
 code, .mono:where(:not(svg *)) { font-family: var(--mono); font-size: 0.86em; }
@@ -341,9 +348,12 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
    which is the only way to judge a 1600px capture of type.
 
    The dialog itself carries NO max-width: the browser's own dialog rules
-   already hold it inside the viewport, and a second width in this file is the
+   already hold it inside the viewport, and a second cap in this file is the
    two-widths defect BL-383 pinned (the cap belongs on the image, which is the
-   thing being sized). */
+   thing being sized). Two dialogs do set a width, both the same expression
+   inside the browser's own cap: a walk through several images
+   (dialog.kit-zoom.multi) and a drawing (dialog.kit-zoom.svgmode), so their
+   buttons stay put while the image changes. */
 /* The dialog takes the focus only as a parking spot (composer.js compare()),
    never as a control, so it draws no ring. */
 dialog.kit-zoom { padding: 0; overflow: auto; outline: none;
@@ -396,17 +406,31 @@ dialog.kit-zoom::backdrop { background: rgba(0, 0, 0, 0.62); }
 .kit-zoom-cap[hidden] { display: none; }
 /* An inline svg figure (BL-626): drawn at its viewBox width, never scaled to
    the window at 1:1 (its text keeps the size it was authored at; the dialog
-   scrolls); "Fit" shrinks it to the window like a capture. */
+   scrolls); "Fit" scales it to the largest size the dialog holds, up or down
+   (BL-712), centred (BL-713). */
 .kit-zoom-svg { display: none; grid-area: 1 / 1; }
 .kit-zoom.svgmode .kit-zoom-svg { display: block; }
 .kit-zoom.svgmode .kit-compare > img { display: none; }
 .kit-zoom-svg svg { display: block; margin: 0 auto; width: var(--kit-svg-w, auto); max-width: 100%; height: auto; color: var(--ink); }
 .kit-zoom.native .kit-zoom-svg svg { max-width: none; }
 .kit-zoom:not(.native) .kit-zoom-svg svg { max-height: calc(90vh - 6rem); }
-/* A drawing wider than the dialog scrolls sideways from its left edge: the
-   centring (justify-items also centres block children) would push the overflow
-   off the left, where nothing reaches it. */
+/* A drawing's dialog takes the width and the top a walk takes
+   (dialog.kit-zoom.multi) instead of sizing to its content and centring on
+   its height, so Fit has room to grow a lone drawing too and the size button
+   does not move when the mode changes. */
+dialog.kit-zoom.svgmode { width: min(calc(100% - 2em - 6px), 64rem); margin-top: 2rem; margin-bottom: auto;
+                          scrollbar-gutter: stable; }
+/* Fit: width auto keeps the viewBox ratio under the max-height and fills the
+   box otherwise (a drawing with no viewBox does not scale, so it keeps its
+   width). */
+.kit-zoom:not(.native) .kit-zoom-svg svg[viewBox] { width: auto; }
+/* At 1:1 a drawing wider than the dialog scrolls sideways from its left edge:
+   centring it (justify-items also applies to block children) would push the
+   overflow off the left, where nothing reaches it. */
 .kit-zoom.svgmode .kit-compare, .kit-zoom.shots.native .kit-compare { display: block; justify-items: start; overflow-x: auto; }
+/* At Fit nothing overflows, and start would shrink the box to the drawing and
+   pin it left (BL-713): the box takes the full width, the drawing centres. */
+.kit-zoom.svgmode:not(.native) .kit-compare { justify-items: normal; }
 .kit-zoom.native .kit-zoom-svg { width: max-content; min-width: 100%; }
 /* An item's images only (a gallery row keeps its grid): the viewer is the
    scroller, so the header and the caption stay put and the padding is the same
@@ -596,7 +620,15 @@ dialog.kit-mark-note::backdrop { background: rgba(0, 0, 0, 0.3); }
 .kit-ask label:hover { background: var(--paper-sunk); color: var(--ink); }
 .kit-ask label:has(input:checked) { color: var(--ink); }
 .kit-ask input[type="checkbox"] { accent-color: var(--accent); margin: 0; }
-/* A phone is 21-24rem of usable width: nine chips wrap to three or four rows
+/* The page-defect report: a quiet button under the ask row that opens its own box. */
+.kit-defect:where(:not(svg *)) { margin-top: 0.4rem; font-family: var(--sans); font-size: 0.82rem; color: var(--muted); }
+.kit-defect-btn:where(:not(svg *)) { font: inherit; color: inherit; background: none; border: 0; padding: 0.1rem 0.3rem;
+                  border-radius: 3px; cursor: pointer; text-decoration: underline dotted; }
+.kit-defect-btn:hover { background: var(--paper-sunk); color: var(--ink); }
+.kit-defect-box { display: block; margin-top: 0.3rem; }
+.kit-defect-box[hidden] { display: none; }
+.kit-defect-box textarea { display: block; width: 100%; margin-top: 0.2rem; }
+/* A phone is 21-24rem of usable width: eight chips wrap to three or four rows
    there, and each row has to stay tappable. The chips keep their size (a 0.82rem
    target is already the floor); what gives is the space between them and the
    lead-in, which takes a line of its own so no chip is orphaned beside it. */
@@ -643,7 +675,7 @@ dialog.kit-mark-note::backdrop { background: rgba(0, 0, 0, 0.3); }
    not one of the two answers the item is asking for. */
 .fieldrow { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
 .consult-clear:where(:not(svg *)) { display: none; }
-.consult-item.has-answer .consult-clear:where(:not(svg *)) { display: inline; }
+.consult-item:is(.has-answer, .has-defect) .consult-clear:where(:not(svg *)) { display: inline; }
 .consult-clear:where(:not(svg *)) { align-self: flex-end; background: none; border: none; padding: 0.1rem 0.2rem;
                  font-family: var(--sans); font-size: 0.72rem; text-transform: uppercase;
                  letter-spacing: 0.09em; color: var(--muted); cursor: pointer; }

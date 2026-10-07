@@ -187,6 +187,12 @@ def gallery_duties_for(reply_text, ordinary=(), states=None):
     return out
 
 
+def _quote_report(text, limit=140):
+    """The reader's page-defect text on one quoted line, cut at `limit`."""
+    one = " ".join(text.split())
+    return '"' + (one[:limit - 1] + "\u2026" if len(one) > limit else one) + '"'
+
+
 def duties_for(reply_text, ordinary=(), states=None):
     """[(id, marker, duty text)]. 3+ REAL asks (excluding `[page-defect]` and
     `[not-now]`, review finding 2) collapse to a single STACKED_DUTY row
@@ -194,6 +200,7 @@ def duties_for(reply_text, ordinary=(), states=None):
     ask. `[page-defect]` and `[not-now]` always print their own line, stacked
     or not: neither is answered by a rewrite of the item."""
     out = []
+    reports = ca.defect_reports_of(reply_text)
     for ident, marks in ca.marker_duties_of(reply_text):
         stack_eligible = [m for m in marks if m not in ca.NO_STACK_MARKERS]
         if len(stack_eligible) >= 3:
@@ -208,6 +215,8 @@ def duties_for(reply_text, ordinary=(), states=None):
             if m in ca.NO_STACK_MARKERS:
                 duty = ca.MARKER_DUTIES.get(m)
                 if duty is not None:
+                    if m == "page-defect" and ident in reports:
+                        duty += ": " + _quote_report(reports[ident])
                     out.append((ident, m, duty))
     return out + gallery_duties_for(reply_text, ordinary, states)
 
@@ -271,11 +280,21 @@ def main(argv):
         print(f"ERROR: {page_path} is not a file", file=sys.stderr)
         return 2
     reply_arg = argv[1] if len(argv) > 1 else "-"
-    if reply_arg == "-":
-        reply_text = sys.stdin.read()
-    else:
-        with open(reply_arg, encoding="utf-8") as fh:
-            reply_text = fh.read()
+    where = "on stdin" if reply_arg == "-" else reply_arg
+    try:
+        if reply_arg == "-":
+            reply_text = sys.stdin.read()
+        else:
+            with open(reply_arg, encoding="utf-8") as fh:
+                reply_text = fh.read()
+    except OSError as exc:
+        print(f"ERROR: cannot read the reply {where}: {exc}", file=sys.stderr)
+        return 2
+    except UnicodeDecodeError as exc:
+        print(f"ERROR: the reply {where} is not UTF-8 (byte "
+              f"0x{exc.object[exc.start]:02x} at offset {exc.start}) — save it "
+              f"as UTF-8", file=sys.stderr)
+        return 2
     if not reply_text.strip():
         print("ERROR: the reply is empty — nothing to save", file=sys.stderr)
         return 2

@@ -307,9 +307,9 @@ parallel Writes from one context get exactly one deny. Fail-open on any error.
 table and the Bash command table (with the eval's verbatim commands, in
 `test-first-test-write-gate.eval-commands.json`) run through census.py too.
 
-## artifact-open-once.sh — one open per page per user turn, plus the build lock (PreToolUse/Bash)
+## artifact-open-once.sh — one open per page per user turn, the build lock, and the kit gate (PreToolUse/Bash)
 
-Two rules, both arithmetic, both per PAGE. The hook's own header carries the full
+Three rules, all deterministic, per PAGE. The hook's own header carries the full
 reasoning; this is the map.
 
 1. **Once per user turn** (BL-294, 2026-09-01). A path already `open`ed since the last
@@ -322,6 +322,13 @@ reasoning; this is the map.
    `wrap-report.sh --building` on every wrap of a delegated build and removed by
    `wrap-report.sh --done --out <page>`; a lock older than **20 minutes** is stale, so
    the open goes through and the hook says the build never ended.
+
+3. **Not outside the kit** (2026-10-06, LOOP-008). An `open` of an existing `.html`
+   under `/.context/reports/`, `/.context/artifacts/` or `/_tmp/ui-contract/` that lacks
+   `<meta name="artifact-kit"` (same recognizer as `check_artifact.py` KIT_STAMP) is
+   refused, naming the `/aidex:artifact` spec route and `::: gallery rows=`. Applies to
+   subagents too; `open -R/-t/-e`, other folders (communications, proofs, skills), URLs
+   and non-html pass.
 
 The second rule exists because a delegated artifact agent writes its final `--out`
 path two or three times mid-run (16 of 37 runs), and an intermediate wrap can PASS
@@ -353,7 +360,7 @@ hook decides as `systemMessage`; it is never an answer of its own. Printing it
 separately and falling through wrote two objects on stdout, which parse as neither —
 and the verdict in the second one was lost.
 
-**Tests:** `python3 test-artifact-open-once.py` — 76 checks, self-contained. The refusal
+**Tests:** `python3 test-artifact-open-once.py` — 99 checks, self-contained. The refusal
 cells are the cheap half; the allow cells are the point (consultation loop, a different
 page, a URL, a non-`open` command, a stale lock, and five fail-open paths). The
 producing half of the lock is `skills/artifact/tests/test-build-lock.sh`.

@@ -301,6 +301,9 @@ refuses("unquoted value containing a brace",
         "::: item {title=a{b}\n:::\n", 1)
 refuses("an attr item that is none of the three kinds",
         "x\n\n::: item {big}\n:::\n", 3)
+refuses("a fence opened one past MAX_DEPTH, at its own line",
+        "::: note\n" * (spec_parser.MAX_DEPTH + 1) + "x\n"
+        + ":::\n" * (spec_parser.MAX_DEPTH + 1), spec_parser.MAX_DEPTH + 1)
 refuses("a class whose name is not [A-Za-z][A-Za-z0-9_-]*",
         "::: item {.1big}\n:::\n", 1)
 refuses("an id whose name is not [A-Za-z][A-Za-z0-9_-]*",

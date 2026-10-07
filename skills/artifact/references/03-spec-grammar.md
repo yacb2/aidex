@@ -76,6 +76,15 @@ not ask for, so they are a workaround, not the answer.
 - **Inside a code span the backslash is literal.** `` `a\_b` `` shows `a\_b`.
   CommonMark's rule, and the reason is that a path in backticks is the one place
   an author means the backslash they typed.
+- **A literal backtick in prose is a builder refusal, not an escape.** `` \` `` is
+  accepted by the renderer, but the page would show a raw backtick (invariant
+  CNT-2), so `spec_build` refuses it with the spec line, and refuses a backtick
+  with no partner the same way (the renderer leaves it raw too). Write `` `x` ``
+  for code; a literal backtick belongs inside a code span. Code spans are paired over the whole wrapped paragraph or list item, so a span
+  may wrap. Fenced code blocks and real code spans are code and are not checked; a
+  fence opens with exactly three backticks or tildes at the start of the line (a
+  four-backtick fence or a BOM before it is prose). A double-backtick span is not
+  supported, so ``` ``a`b`` ``` is refused as unmatched.
 - **Block markers are not escapable.** `#`, `-`, `|`, `:::` are read a layer
   above this one, by `_blocks` and by the tokenizer, and an escape here would
   arrive after they had already decided. A paragraph that must open with `- ` has
@@ -333,6 +342,10 @@ strings. 2 of the 30 sampled pages are written in English, and with the language
 fixed at the builder's `es` default they built into `<html lang="es">` over an
 English body — which `check_artifact`'s `lang` rule fails (BL-279), on pages whose
 originals pass.
+
+- A second `masthead` is refused ("second masthead"): a page has exactly one.
+- A page built from a spec with a `masthead` carries `<meta name="spec-built">`; check-artifact then fails it if a hand edit leaves zero or two mastheads. A spec with no `masthead` (a fragment, or a page titled by `--title`) carries no stamp. The CLI still refuses an answerable spec with neither a masthead nor `--title` ("no document title").
+- A `lang=` that contradicts the body is refused as a mixed-language page: 3 or more stopwords of the other language and at least 3 times the declared language's, counted over rendered prose only (code, attribute keys, URLs and data blocks are left out).
 
 The declaration WINS over `--lang` and over `build(lang=…)`, which are the default
 for a spec that stays silent. One owner per fact: the language belongs to the page,
@@ -982,6 +995,14 @@ becomes the situation lead (`.consult-lead`) under the h3, as for a title-headed
 Without `heading=` nothing changes. Adding `heading=` to an item on a live page changes its h3, so its `questionHash` changes once and typed-but-unsent text reads blank once (as BL-576). `heading=` follows the `title=` quoting rules and is
 not a retitle: `consult-ids` and `check_prev` read `data-title` only.
 
+**The title is shown, never hidden (LOOP-008, kit rail = `data-title`).** The rail lists an
+item by its `data-title`, so when the h3 is a question or a `heading=` that differs from the
+title, the builder prints the title above it as a kicker, `<p class="eyebrow consult-kicker">`,
+and the rail label is visible text of that item (NAV-4). A title that equals the h3 gets no
+kicker. The kicker renders the title as inline markdown (`title="`RTK.md`"` shows a code
+span); `data-title`, so the rail label and the composed reply, carries the plain text with
+no markers.
+
 ## An `item`'s option list: one choice or a set
 
 The first markdown list in an `item` body is its option list, and the `item` builder
@@ -1005,6 +1026,15 @@ independent decisions are several items, never one `select=many` item — see
 
 `select=many` with no options to tick is refused too (an open answer is `free=yes` alone).
 
+Closed vocabularies the builder refuses outside of (M1):
+
+- `free=` and `proposal=` take `yes` or `true`; anything else (`YES`, `1`, `maybe`) is refused.
+- `decided=` is `yes`/`true`/`1` (the flag) or the verdict as text. `no`, `false` and `0` are refused as a verdict (they read as "not decided"): leave `decided` off. Exception: the text is, to the letter, one of the item's option labels (`decide --verdict No` on an option `No`), or the item has no options.
+- Item ids that differ only by case (`Q1`, `q1`) are refused; other blocks only collide on the exact id.
+- An option's hint is separated by ` — `; a spaced ` - ` or ` -- ` is refused.
+- A `pill`/`chip` tone is one of `md_body.SPAN_TONES`; a malformed or unknown tone is refused.
+- A block class is `.warn` or `.wide` (`spec_build.BLOCK_CLASSES`); any other is refused.
+
 ## What counts as malformed
 
 Every case below is a hard error: the tokenizer raises with the **1-based line number**,
@@ -1026,7 +1056,10 @@ silently drops input.
 | A quoted value whose closing `"` never arrives | `::: item {title="abc}`, `::: item {title="abc\"}` |
 | Text running straight on after a quoted value | `::: item {title="abc\\"x}` |
 | An attr item that is none of the three kinds | `::: item {big}` |
+| A fence opened more than 100 deep (`spec_parser.MAX_DEPTH`) | the 101st `::: note` inside 100 open ones |
+| A markdown list nested more than 50 deep (`md_body.MAX_LIST_DEPTH`; the builder's refusal, at the block's line) | a 51st `- x` indented under 50 others |
 | An HTML entity in an attr value or in prose (the builder's refusal, not the tokenizer's; code spans and fences exempt) | `heading="&quot;x&quot;"` (write `\"x\"`), `a &lt; b` (write `a < b`) |
+| Raw syntax in prose (the builder's refusal, CNT-1/2/3; code spans and fences exempt), a markdown heading in an item body, a `section` with no body | an indented `:::` line, a literal `{#x}`, a `**` that closes nothing, `# Titulo` in an item, `::: section` with nothing inside |
 
 Not malformed, on purpose: an **unknown block type**, an **unknown attr key**, and a
 **missing required attr**. They tokenize; the builder rejects them.

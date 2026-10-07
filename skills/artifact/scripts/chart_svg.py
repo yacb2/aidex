@@ -88,6 +88,13 @@ KINDS = ("bar", "line", "stacked")
 #   `1,5`   — the decimal comma. The corpus is Spanish pages, so this is the
 #             most likely wrong value in the file; it gets its own hint below.
 NUM = re.compile(r"^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$")
+# The magnitudes a nonzero value may have. Past ~1.8e308 `float()` gives `inf`, and
+# well before it the axis arithmetic does (a span of -x..x, a stacked total of 8
+# series, the tick rounding up): an OverflowError. Below ~1e-308 the value is
+# subnormal and the tick step divides by zero or takes log10(0): a
+# ZeroDivisionError or ValueError. 1e-300..1e300 leaves that arithmetic orders of
+# magnitude of headroom and refuses nothing a chart can mean.
+MIN_ABS, MAX_ABS = 1e-300, 1e300
 # A markdown separator row cell: `---`, `:--`, `--:`, `:-:`.
 SEP_CELL = re.compile(r"^:?-+:?$")
 
@@ -103,6 +110,10 @@ TICK_SIZE = 11
 LABEL_SIZE = 11
 LEGEND_SIZE = 11
 LEGEND_SWATCH = 10
+# `_text_width` is 0.62 em a character; a line of capitals is nearer 0.72, so a
+# piece cut from a word, or a line centred against the viewBox edge by that
+# estimate, ran past it (a 3000-letter label: 60 units).
+CAPS_SLACK = 1.2
 VALUE_SIZE = 11        # a bar's value label: 11, like every text of the wide svg
 # How much of a category slot the bar group takes, and how much of its own share
 # of the group a bar paints. The rest is the gap, split evenly on both sides,
@@ -198,6 +209,12 @@ def _number(line_no, raw, column, stacked=False):
             "column %d of this data row is %r, which is not a number%s"
             % (column, raw, hint))
     value = float(raw)
+    if value and not MIN_ABS <= abs(value) <= MAX_ABS:
+        raise SpecSyntaxError(
+            line_no,
+            "column %d of this data row is out of a chart's range — a value is "
+            "0 or between %g and %g either side of 0; write it in another unit"
+            % (column, MIN_ABS, MAX_ABS))
     if stacked and value < 0:
         # A stacked bar lays its segments end to end and measures the bar on
         # its row's TOTAL scale: a negative segment would have to be laid
@@ -450,7 +467,7 @@ def _wrap(text, size, width):
     """`text` cut at spaces into lines no wider than `width` (by the generous
     estimate). A single word wider than the line is its own line."""
     lines, cur = [], ""
-    per = max(1, int(width // _text_width("x", size)))
+    per = max(1, int(width / CAPS_SLACK // _text_width("x", size)))
     words = []
     for word in text.split():
         # A word wider than the line is cut into line-sized pieces: a model id
@@ -689,7 +706,7 @@ def _categories(labels, x0, slot, y, g):
             # Centred on its slot, but never past the viewBox: a thinned label
             # may be wider than its own slot, and the first and last slots
             # sit next to the edges.
-            half = _text_width(line, g.font) / 2.0
+            half = _text_width(line, g.font) / 2.0 * CAPS_SLACK
             cx = min(max(x0 + (i + 0.5) * slot, PAD_EDGE + half),
                      g.w - PAD_EDGE - half)
             out.append(_text_el(cx, y + k * (g.font + 4), g.font, line,

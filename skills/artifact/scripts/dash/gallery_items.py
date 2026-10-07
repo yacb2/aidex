@@ -215,10 +215,22 @@ def row_heading(row_title, cell, variant=None, lang="es"):
     (decided or dropped; an open row says its variant under the capture): it is then added, so
     two untitled rows of one cell do not fold to the same label."""
     if row_title:
-        return row_title
+        return plain_text(row_title)
     words = cell.replace("-", " ")
     words = words[:1].upper() + words[1:]
     return words + " · " + variant_label(variant, lang) if variant else words
+
+
+def plain_text(text):
+    """Visible text of inline markup (markers and tags dropped): what an attribute
+    or an alt text carries, since it cannot show a rendered span."""
+    return html.unescape(re.sub(r"<[^>]+>", "", md_body._inline(text)))
+
+
+def heading_html(row_title, heading):
+    """The `<h3>` content: a row's own title renders its inline markers (the
+    `title=` rules), a name derived from the cell is plain text."""
+    return md_body._inline(row_title) if row_title else e(heading)
 
 
 def row_id(gallery, cell, variant, kind):
@@ -395,6 +407,10 @@ def check_title(row, cell):
     if not isinstance(title, str) or not title.strip() \
             or "\n" in title or "\r" in title:
         die("row '%s': 'title' must be a non-empty single line of text"
+            % cell)
+    if md_body.LINK.search(md_body.CODE.sub(" ", title)):
+        die("row '%s': 'title' takes no link (raw-link): a title is a heading "
+            "and a rail label, so put the link in the row's 'look' or 'note'"
             % cell)
     return title.strip()
 
@@ -869,6 +885,40 @@ def check_redundant_regions(root, doc, variants, alts, require_look):
         seen.append((r, shape, [None]))
 
 
+def full_pixels(root, path, w, h):
+    try:
+        with open(os.path.join(root or "/", path.lstrip("/")), "rb") as fh:
+            return png_pixels.crop(fh.read(), 0, 0, w, h)
+    except OSError:
+        return None          # the render loop refuses the missing capture itself
+
+
+def check_identical_pairs(root, doc, variants, alts, require_look):
+    """Refuse a live row whose before and after hold the same pixels (owner,
+    LOOP-008 Q8): its look line says something changed and the pair shows
+    nothing. Same tolerance as the redundant-region check; a decided or dropped
+    row is settled and kept, and a capture this reader cannot decode keeps its row."""
+    for n, row in enumerate(doc["rows"], 1):
+        r = check_row(row, variants, n, alts, require_look)
+        if r["kind"] not in ("review", "unrequested") or "decided" in r or "dropped" in r \
+                or not r.get("before") or not r.get("after"):
+            continue
+        same = r["before"].lstrip("/") == r["after"].lstrip("/")
+        if not same:
+            size = png_size(root, r["after"], r["cell"], "after")
+            if png_size(root, r["before"], r["cell"], "before") != size:
+                continue
+            a = full_pixels(root, r["after"], *size)
+            b = full_pixels(root, r["before"], *size)
+            same = a is not None and b is not None and same_pixels([a], [b])
+        if same:
+            die("row '%s': its before and after are pixel-identical, so the pair "
+                "shows the reader no change while the row asks them to review one. "
+                "Re-capture the before from the code without the change, or show "
+                "the screen as kind: sample (one capture, nothing to answer)"
+                % row_name(r))
+
+
 def pct(v):
     return ("%.3f" % v).rstrip("0").rstrip(".") + "%"
 
@@ -965,7 +1015,7 @@ def na_row(gallery, cell, reason, lang, alts=False, dropped=None,
     four captures, not on a reason."""
     ident = "%s-%s-not-applicable" % (gallery, cell)
     title = "%s · %s" % (gallery, cell)
-    heading = row_heading(heading, cell)
+    title_src, heading = heading, row_heading(heading, cell)
     if dropped is not None:
         return "\n".join(
             ['  <section class="consult-item consult-gallery" data-id="%s"'
@@ -973,7 +1023,7 @@ def na_row(gallery, cell, reason, lang, alts=False, dropped=None,
              ' data-dropped="%s">'
              % (e(ident), e(title), e(heading),
                 e(DROPPED_WORD[lang] + ": " + dropped), e(dropped)),
-             '    <h3>%s</h3>' % e(heading),
+             '    <h3>%s</h3>' % heading_html(title_src, heading),
              '    <p class="gal-na">%s</p>' % e(dropped)]
             + notes(lang) + ['  </section>'])
     choices = list(VERDICTS[lang])
@@ -984,7 +1034,7 @@ def na_row(gallery, cell, reason, lang, alts=False, dropped=None,
         ['  <section class="consult-item consult-gallery" data-id="%s"'
          ' data-title="%s" data-heading="%s"%s>'
          % (e(ident), e(title), e(heading), settled),
-         '    <h3>%s</h3>' % e(heading),
+         '    <h3>%s</h3>' % heading_html(title_src, heading),
          '    <p class="gal-na">%s</p>' % e(reason)]
         + options(ident, lang, choices) + notes(lang) + ['  </section>'])
 
@@ -1070,8 +1120,41 @@ def group_intro(doc, variants, alts, require_look, lang, items=None):
                     if k in shapes)
 
 
+# Cell-name words that say a bare row is the CURRENT state of a decision: a
+# `before` rendered as a new screen. Words that also name UI states (before-
+# submit, today-empty, current-user-menu, now-playing) are deliberately absent.
+# Structure alone cannot decide: the frozen manifest holds galleries of 4 to 13
+# single-capture state rows (loading, empty, error...) that are right as they are.
+DECISION_WORDS = frozenset(("hoy", "baseline"))
+
+
+def check_not_proposals_as_rows(doc, variants, alts, require_look, items):
+    """Refuse a decision shown as independent single-capture rows (asset_lab
+    4b192d67: "hoy" plus proposals as review rows gave textareas and nothing
+    to choose). Two or more distinct cells that are asked single-capture
+    review/unrequested rows (not decided, dropped, waiting) with no `noBefore`,
+    one of them named as the current state (DECISION_WORDS, a whole `-` token
+    of the slug); one such cell alone is a plain new screen."""
+    bare = []
+    for n, row in enumerate(doc["rows"], 1):
+        r = check_row(row, variants, n, alts, require_look)
+        if "dropped" not in r and "decided" not in r \
+                and r["kind"] in ("review", "unrequested") \
+                and r.get("before") is None and "noBefore" not in r \
+                and not pending_on(r, items) and r["cell"] not in bare:
+            bare.append(r["cell"])
+    named = [c for c in bare if DECISION_WORDS & set(c.split("-"))]
+    if len(bare) > 1 and named:
+        die("%d cells show a single capture with no before and no 'noBefore' "
+            "(%s), and %s is the current state: a bare row named as the "
+            "current state is a 'before' shown as a new screen — make it the "
+            "'before' of the row it precedes, or use one 'kind': "
+            "\"alternatives\" row for the options, or give each new screen a "
+            "'noBefore' reason" % (len(bare), ", ".join(bare), ", ".join(named)))
+
+
 def render(doc, root, group_id, group_title, lang, page=None,
-           require_look=False, lead="", items=None):
+           require_look=False, lead="", items=None, refuse_bare_rows=False):
     """The block, or "" for an empty `rows`: when every capture matches its
     baseline (D2) the owner's page carries no gallery block and no text about
     it — not an empty heading, not a "nothing changed" line.
@@ -1084,7 +1167,9 @@ def render(doc, root, group_id, group_title, lang, page=None,
     between the heading and the generated intro. `items` is what the page
     knows of its consult items (see `pending_on`): a row that depends on an
     open one is context only, and an unrequested row that depends on it is
-    folded the way a dropped row is, asking nothing (BL-690)."""
+    folded the way a dropped row is, asking nothing (BL-690).
+    `refuse_bare_rows` (the spec route sets it) refuses several single-capture
+    rows with no `noBefore` (a decision shown as independent rows)."""
     if not doc["rows"]:
         return ""
     assets, copies = None, {}
@@ -1114,6 +1199,9 @@ def render(doc, root, group_id, group_title, lang, page=None,
         add('  <p class="gal-intro">%s <span class="gal-intro-narrow">%s</span></p>'
             % (e(intro), e(NARROW_HINT[lang])))
     check_redundant_regions(root, doc, variants, alts, require_look)
+    check_identical_pairs(root, doc, variants, alts, require_look)
+    if refuse_bare_rows:
+        check_not_proposals_as_rows(doc, variants, alts, require_look, items)
     seen, unrequested, ids = {}, {}, {}
     cell_variants = {}
     for row in doc["rows"]:
@@ -1174,7 +1262,7 @@ def render(doc, root, group_id, group_title, lang, page=None,
                 ' data-decided="%s" data-dropped="%s">'
                 % (e(ident), e(title), e(heading), e(variant),
                    e(DROPPED_WORD[lang] + ": " + reason), e(reason)))
-            add('    <h3>%s</h3>' % e(heading))
+            add('    <h3>%s</h3>' % heading_html(r.get("title"), heading))
             add('    <p class="gal-na">%s</p>' % e(reason))
             out.extend(notes(lang))
             add('  </section>')
@@ -1193,12 +1281,12 @@ def render(doc, root, group_id, group_title, lang, page=None,
                 ' data-title="%s" data-heading="%s" data-variant="%s"'
                 ' data-asks-nothing data-waits-on="%s">'
                 % (e(ident), e(title), e(heading), e(variant), e(waits)))
-            add('    <h3>%s</h3>' % e(heading))
+            add('    <h3>%s</h3>' % heading_html(r.get("title"), heading))
             add('    <details class="gal-waiting">')
             add('      <summary class="gal-na gal-asks-nothing">%s</summary>' % e(line))
             if "look" in r:
                 add('      <p class="gal-look"><strong>%s:</strong> %s</p>'
-                    % (e(LOOK_LABEL[lang]), e(r["look"])))
+                    % (e(LOOK_LABEL[lang]), md_body._inline(r["look"])))
             add('    </details>')
             add('  </section>')
             continue
@@ -1220,7 +1308,7 @@ def render(doc, root, group_id, group_title, lang, page=None,
         add('  <section class="consult-item consult-gallery" data-id="%s"'
             ' data-title="%s" data-heading="%s" data-variant="%s"%s%s>'
             % (e(ident), e(title), e(heading), e(variant), narrow, settled))
-        add('    <h3>%s</h3>' % e(heading))
+        add('    <h3>%s</h3>' % heading_html(r.get("title"), heading))
         if kind == "unrequested":
             flag = FLAG[lang]
             if row.get("also"):
@@ -1229,11 +1317,11 @@ def render(doc, root, group_id, group_title, lang, page=None,
             add('    <p class="gal-flag">%s</p>' % e(flag))
         if "look" in r:
             add('    <p class="gal-look"><strong>%s:</strong> %s</p>'
-                % (e(LOOK_LABEL[lang]), e(r["look"])))
+                % (e(LOOK_LABEL[lang]), md_body._inline(r["look"])))
         if "note" in r:
             add('    <ul class="gal-note">')
             for item in r["note"]:
-                add('      <li>%s</li>' % e(item))
+                add('      <li>%s</li>' % md_body._inline(item))
             add('    </ul>')
         # BL-688: the owner must never hunt for the change on an overview.
         if "highlight" not in r and changed_overview(root, r):
@@ -1253,16 +1341,16 @@ def render(doc, root, group_id, group_title, lang, page=None,
             % (" stacked" if layout == "stacked" and pair else "",
                ' data-per-option="%d"' % len(per_option) if per_option else ""))
         regions = r.get("highlight")
-        alt = "%s · %%s" % heading
+        alt = heading + " · "
         if kind == "states":
             for st in r["states"]:
                 add(figure(root, st["capture"], st["id"], st["label"], cell,
-                           alt % st["label"], assets, copies))
+                           alt + st["label"], assets, copies))
         elif kind == "alternatives":
             for a in alts:
                 if not option_states or not r.get("option_states"):
                     add(figure(root, r["captures"][a["id"]], a["id"],
-                               a["label"], cell, alt % a["label"], assets,
+                               a["label"], cell, alt + a["label"], assets,
                                copies, regions))
                     continue
                 # BL-691: option-major, so each option's states sit adjacent.
@@ -1273,20 +1361,20 @@ def render(doc, root, group_id, group_title, lang, page=None,
                     cap = "%s · %s" % (a["label"],
                                        OPTION_STATE_WORDS[lang].get(st, st))
                     add(figure(root, r["captures"][a["id"]][st],
-                               a["id"] + "-" + st, cap, cell, alt % cap,
+                               a["id"] + "-" + st, cap, cell, alt + cap,
                                assets, copies, regions if k == 0 else None))
         elif before is not None:
             add(figure(root, before, "before", words["before"], cell,
-                       alt % words["before"], assets, copies,
+                       alt + words["before"], assets, copies,
                        r.get("highlight_before")))
             add(figure(root, after, "after", words["after"], cell,
-                       alt % words["after"], assets, copies, regions))
+                       alt + words["after"], assets, copies, regions))
         else:
             # A reason replaces the "new screen" label (BL-610).
             label = "%s: %s" % (words["none"], r["noBefore"]) \
                 if "noBefore" in r else words["new"]
             add(figure(root, after, "after", label, cell,
-                       alt % label, assets, copies, regions))
+                       alt + label, assets, copies, regions))
         add('    </div>')
         add('    <p class="gal-variant">%s</p>' % e(variant_line(variant, lang)))
         if "decided_note" in r:

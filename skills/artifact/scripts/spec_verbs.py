@@ -72,6 +72,7 @@ already wants.
 
 import argparse
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -345,7 +346,146 @@ def add_item(spec_text, group_id, item_id, title, body="", options=()):
     return "\n".join(lines[:at] + _terminated(block, eol) + lines[at:])
 
 
-def decide(spec_text, item_id, verdict):
+def _match_labels(said, labels, many):
+    """The option label(s) `said` names, in the labels' own spelling, or None.
+    One label for select=one; for select=many a `, `-joined set partitioned
+    against the label set longest-first, so a label that holds a comma
+    (`Uno, dos`) is read whole."""
+    fold = {}
+    for l in sorted(labels, key=len, reverse=True):
+        fold.setdefault(l.lower(), l)
+    if said.lower() in fold:
+        return fold[said.lower()]
+    if not many:
+        return None
+
+    def parts(rest, used):
+        if not rest:
+            return []
+        for low, l in fold.items():            # longest first
+            if l in used:                      # a label twice is no set
+                continue
+            if rest.lower() == low:
+                return [l]
+            if rest.lower().startswith(low + ", "):
+                tail = parts(rest[len(low) + 2:], used | {l})
+                if tail is not None:
+                    return [l] + tail
+        return None
+    got = parts(said, frozenset())
+    if not got:
+        return None
+    return ", ".join(got)
+
+
+_OTHER_LABELS = ("otra — lo explico en las notas", "other — see my notes")
+
+
+def _reply_answer(reply, item_id, ids, labels=(), many=False):
+    """How the LAST block of the saved reply answers `item_id`, as
+    `(real, notes, other, marked)`: the option picks that resolve through
+    `labels`, the free note lines, whether the kit's Other was chosen, and
+    whether a bare `- [marker]` line (question, show-me, not-now...) sits in it.
+    None when the reply has no block for the id. `[provisional]` picks are not
+    counted: not a decision yet."""
+    if not reply:
+        return None
+    alts = "|".join(re.escape(i) for i in sorted(set(ids) | {item_id},
+                                                 key=len, reverse=True))
+    head_any = re.compile(r"^(?:[ \t]*#{2,3}[ \t]|<!--|[ \t]*(?:" + alts
+                          + r")(?![\w-])[ \t]*[:·])")
+    head = re.compile(r"^[ \t]*(#{2,3}[ \t]+)?" + re.escape(item_id)
+                      + r"(?![\w-])[ \t]*[:·](.*)$")
+    lines = reply.split("\n")
+    block, chat_form = None, False
+    for k, line in enumerate(lines):
+        m = head.match(line)
+        if not m:
+            continue
+        cur = [] if m.group(1) else [m.group(2)]
+        chat_form = not m.group(1)
+        for nxt in lines[k + 1:]:
+            if head_any.match(nxt):
+                break
+            cur.append(nxt)
+        block = cur
+    if block is None:
+        return None
+    real, notes, other, marked = [], [], False, False
+    # the composer's page-defect sub-block closes the item's block and is no
+    # note and no answer (check_artifact.split_defect)
+    block = check_artifact.split_defect("\n".join(block))[0].split("\n")
+    for i, raw in enumerate(block):
+        t = raw.strip()
+        if not t:
+            continue
+        if re.fullmatch(r"- \[[a-z][a-z-]*\]", t):
+            # page-defect never makes an answer provisional (composer.js):
+            # the answer stands, so it is no reason to carry the item open.
+            marked = marked or t != "- [page-defect]"
+            continue
+        if t.startswith("- ") or (i == 0 and chat_form):  # `Q1: <answer>` head
+            t = t[2:].strip() if t.startswith("- ") else t
+            if t.endswith(" [provisional]"):
+                continue                 # not a decision yet
+            t = re.sub(r"\s*\((?:recomendada|no recomendada|recommended|not recommended)\)$", "", t)
+            t = spec_build.PLAIN.sub("", t).strip()
+            if _match_labels(t, labels, many) is not None:
+                real.append(t)           # a real option, whatever it starts with
+            elif t.lower().startswith(_OTHER_LABELS):
+                other = True
+        elif re.search(r"\w", t):
+            # a note has words: a separator or a lone mark (`---`, `.`) is no
+            # note, so it opens no free-text verdict (mutations case 54b)
+            notes.append(t)
+    return real, notes, other, marked
+
+
+def _reply_allows_free_text(reply, item_id, ids, labels=(), many=False):
+    """True when the LAST block of the saved reply for `item_id` answers it
+    with the kit's Other choice, or with one of `labels` plus a note. A bare
+    `Q1: some text` is neither, nor is an invented option or a `[provisional]`
+    answer (not a decision yet)."""
+    got = _reply_answer(reply, item_id, ids, labels, many)
+    if got is None:
+        return False
+    real, notes, other, _ = got
+    return other or (bool(real) and bool(notes))
+
+
+def _bare_picks(spec_text, reply):
+    """`[(item id, picked option)]` for the items the saved `reply` answers with
+    an option and nothing else (no note, marker or Other) that the spec has not
+    decided: the picks a `new-round` would carry into the next round as open."""
+    if not reply:
+        return []
+    tree = _parse(spec_text, "the spec")
+    ids = _ids_of(tree, "item")
+    out = []
+    for ident in ids:
+        node = _by_id(tree, ident)
+        if node.attrs.get("decided", "").strip():
+            continue
+        try:
+            labels = [spec_build.PLAIN.sub("", l).strip()
+                      for l in spec_build.option_labels(node)]
+        except SpecBuildError:
+            continue
+        if not labels:
+            continue
+        many = node.attrs.get("select", "one").strip() == "many"
+        got = _reply_answer(reply, ident, ids, labels, many)
+        if got is None:
+            continue
+        real, notes, other, marked = got
+        if real and not (notes or other or marked):
+            # select=many: the composer writes one line per ticked box
+            said = ", ".join(real) if many else real[-1]
+            out.append((ident, _match_labels(said, labels, many)))
+    return out
+
+
+def decide(spec_text, item_id, verdict, reply=None):
     """Record `#item_id`'s verdict as `decided="…"` on its fence.
 
     IDEMPOTENT for the same verdict: the spec comes back byte-identical and the
@@ -356,6 +496,13 @@ def decide(spec_text, item_id, verdict):
     verdict text changed loses the carried round and is stamped with this one.
     Refusing here would leave that documented case reachable only by hand-editing
     the spec, which is the route this whole module exists to remove.
+
+    On an item WITH options the verdict is an option's label (written in the
+    label's own spelling; select=many: labels joined by ", "). Any other text
+    is recorded only when `reply` (the saved reply, `.reply.md`) answers the
+    item with the kit's Other choice, or with an option plus a note: the
+    documented "outcome that is no single option". An item without options
+    takes any text.
 
     Only the ONE attr moves. The rest of the fence line — spacing, attr order,
     the way the title is quoted — is the author's and is copied through.
@@ -374,7 +521,7 @@ def decide(spec_text, item_id, verdict):
                         % (item_id, node.block_type, node.line))
     if not verdict.strip():
         raise VerbError("an empty verdict for #%s — pass the chosen option's "
-                        "label, or the text that says what was decided"
+                        "label (see the saved-reply rule in the docstring)"
                         % item_id)
     # On an item with options, `yes` makes the builder check the {recommended}
     # option: the author's advice, not what the reader chose. The verdict is
@@ -400,6 +547,29 @@ def decide(spec_text, item_id, verdict):
     # Compared in the plain form the page's data-label carries (and the
     # reader's reply with it): `Use uv` is the option written `Use **uv**`.
     plain = [spec_build.PLAIN.sub("", c).strip() for c in chosen]
+    # A verdict that is none of the item's options is a typo or an invention:
+    # the page would show a decision no option backs. The documented exception
+    # (an outcome that is no single option, `decided="<text>"`) needs the
+    # reader's saved reply to say so: the kit's Other choice, or an option with
+    # a note beside it. The verdict recorded is the matched label's own text.
+    labels = [spec_build.PLAIN.sub("", l).strip()
+              for l in spec_build.option_labels(node)]
+    said = spec_build.PLAIN.sub("", verdict).strip()
+    if labels:
+        many = node.attrs.get("select", "one").strip() == "many"
+        canon = _match_labels(said, labels, many)
+        if canon is not None:
+            verdict = canon
+        elif not _reply_allows_free_text(reply, item_id, _ids_of(tree, "item"),
+                                       labels, many):
+            raise VerbError(
+                "the verdict %r for #%s is none of its options (%s): pass an "
+                "option's label as the verdict. A text that is no option is "
+                "recorded only when the saved reply answers #%s with the "
+                "kit's Other choice, or with an option and a note (save the "
+                "reply with save-reply.sh first); otherwise write "
+                "decided=\"<text>\" on the item's fence by hand"
+                % (said, item_id, ", ".join(map(repr, labels)), item_id))
     if chosen and (spec_build.PLAIN.sub("", verdict).strip()
                    not in plain + [", ".join(plain)]):
         raise VerbError(
@@ -735,7 +905,7 @@ def _trial_build(spec_path, new, out_name, lang):
             "here is a spec no verb could build again" % (spec_path, rc))
 
 
-def apply_edit(spec_path, transform, out=None, lang="es"):
+def apply_edit(spec_path, transform, out=None, lang=None, needs_page=False):
     """Run one transform over `spec_path`, then rebuild the page.
 
     The order is the contract: read, transform, VALIDATE with the REBUILD'S OWN
@@ -766,10 +936,19 @@ def apply_edit(spec_path, transform, out=None, lang="es"):
             old = fh.read()
     except OSError as exc:
         raise VerbError("cannot read the spec %s: %s" % (spec_path, exc))
+    except UnicodeDecodeError as exc:
+        raise VerbError("cannot read the spec %s: it is not UTF-8 (byte 0x%02x "
+                        "at offset %d) — save it as UTF-8"
+                        % (spec_path, exc.object[exc.start], exc.start))
 
+    out = out or default_out(spec_path)
+    defect = spec_build.hand_edit_defect(out)
+    if defect:
+        raise VerbError("%s — nothing was written" % defect)
     new = transform(old)
     base_dir = os.path.dirname(os.path.abspath(spec_path))
-    out = out or default_out(spec_path)
+    # The language the builder CLI would pick for this spec, not a constant.
+    lang = spec_build.resolve_lang(new, lang, out)
 
     # The body is built for a page, because a gallery copies its captures
     # beside the page it goes into and refuses a body with none. The page is
@@ -806,6 +985,16 @@ def apply_edit(spec_path, transform, out=None, lang="es"):
 
     if os.path.abspath(out) == os.path.abspath(spec_path):
         raise VerbError("--out %s is the spec itself" % out)
+
+    # After the spec's own refusals (an unbuildable spec is named as it stands),
+    # before the first byte is written.
+    if needs_page and not (os.path.isfile(out) and os.path.getsize(out) > 0):
+        raise VerbError(
+            "no page at %s: the page has not been built yet, and decide / "
+            "new-round act on a built page's rounds — run the first build "
+            "(`python3 %s %s -o %s`) before this verb; nothing was written"
+            % (out, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                 "spec_build.py"), spec_path, out))
 
     if new != old:
         _trial_build(spec_path, new, os.path.basename(out), lang)
@@ -863,35 +1052,37 @@ class BuildFailed(Exception):
 
 
 def add_item_file(spec_path, group_id, item_id, title, body="", options=(),
-                  out=None, lang="es"):
+                  out=None, lang=None):
     return apply_edit(spec_path,
                       lambda text: add_item(text, group_id, item_id, title,
                                             body, options),
                       out=out, lang=lang)
 
 
-def decide_file(spec_path, item_id, verdict, out=None, lang="es"):
+def decide_file(spec_path, item_id, verdict, out=None, lang=None):
     return decide_many_file(spec_path, [(item_id, verdict)], out=out, lang=lang)
 
 
-def decide_many_file(spec_path, pairs, out=None, lang="es"):
+def decide_many_file(spec_path, pairs, out=None, lang=None):
     """Record several `(id, verdict)` pairs, then rebuild ONCE: one reader reply
     that decides N items is one round, not N (BL-497). One refused pair refuses
     the whole call, nothing written."""
+    reply = _prev_file(spec_path, out, ".reply.md")
+
     def transform(text):
         for item_id, verdict in pairs:
-            text = decide(text, item_id, verdict)
+            text = decide(text, item_id, verdict, reply)
         return text
-    return apply_edit(spec_path, transform, out=out, lang=lang)
+    return apply_edit(spec_path, transform, out=out, lang=lang, needs_page=True)
 
 
-def _answered_snapshot(spec_path, out):
-    """`.aidex-artifact-prev/<stem>.answered.html` beside the page, as
-    `save-reply.sh` writes it, or None."""
+def _prev_file(spec_path, out, suffix):
+    """`.aidex-artifact-prev/<stem><suffix>` beside the page (`.answered.html`
+    or `.reply.md`, as `save-reply.sh` writes them), or None."""
     page = out or default_out(spec_path)
     stem = os.path.splitext(os.path.basename(page))[0]
     path = os.path.join(os.path.dirname(os.path.abspath(page)),
-                        ".aidex-artifact-prev", stem + ".answered.html")
+                        ".aidex-artifact-prev", stem + suffix)
     try:
         with open(path, encoding="utf-8", errors="replace") as fh:
             return fh.read()
@@ -899,11 +1090,28 @@ def _answered_snapshot(spec_path, out):
         return None
 
 
-def new_round_file(spec_path, out=None, lang="es", dropped=(), retitled=()):
+def _answered_snapshot(spec_path, out):
+    return _prev_file(spec_path, out, ".answered.html")
+
+
+def new_round_file(spec_path, out=None, lang=None, dropped=(), retitled=()):
     answered = _answered_snapshot(spec_path, out)
+    reply = _prev_file(spec_path, out, ".reply.md")
+
+    def guarded(text):
+        picks = _bare_picks(text, reply)
+        if picks:
+            raise VerbError(
+                "the saved reply answers %s with a plain option that is not "
+                "decided in the spec, and a new round would carry it as open "
+                "(the answers lost in owner case 225f968e). Decide each first: "
+                "%s"
+                % (", ".join("#" + i for i, _ in picks),
+                   "; ".join("decide --id %s --verdict \"%s\"" % (i, v)
+                             for i, v in picks)))
+        return new_round(text, dropped, retitled, answered)
     return apply_edit(spec_path,
-                      lambda text: new_round(text, dropped, retitled, answered),
-                      out=out, lang=lang)
+                      guarded, out=out, lang=lang, needs_page=True)
 
 
 # --- CLI ---------------------------------------------------------------------
@@ -919,7 +1127,9 @@ def main(argv):
         sp.add_argument("--out", metavar="<page.html>",
                         help="the page to rebuild (default: the spec's name "
                              "with .html)")
-        sp.add_argument("--lang", default="es", choices=spec_build.LANGS)
+        sp.add_argument("--lang", default=None, choices=spec_build.LANGS,
+                        help="the page language when the masthead has no lang=; "
+                             "default: the project profile's, else es")
         return sp
 
     a = common(subs.add_parser("add-item", help="add an item to a group"))
@@ -935,8 +1145,10 @@ def main(argv):
                    metavar="<#id>", help="repeat --id/--verdict to record "
                    "several items from one reply; the page rebuilds once")
     d.add_argument("--verdict", required=True, action="append",
-                   help="the chosen option's label, or the text that says "
-                        "what was decided. `yes` is refused on an item with "
+                   help="the chosen option's label (select=many: labels joined "
+                        "by ', '); free text only when the saved reply "
+                        "answers the item with Other, or an option plus a "
+                        "note, or the item has no options. `yes` is refused on an item with "
                         "options (it would record the recommended option, not "
                         "the reader's) and fails the build on one without")
 

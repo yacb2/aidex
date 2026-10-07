@@ -22,10 +22,13 @@ ok()   { printf '  ok: %s\n' "$*"; }
 
 ROOT="$TMP/root"
 png() { mkdir -p "$(dirname "$ROOT/$1")"; python3 "$HERE/png_fixture.py" "$ROOT/$1" "$2" "$3" "${4:-128}"; }
+# The before (shots/) is a different grey from the after (actual/): the builder
+# refuses a live review row whose before and after are pixel-identical.
 for d in shots actual; do
-  png $d/users-list-menu.png 400 200
-  png $d/new-screen.png 400 200
-  png $d/phone.png 100 200
+  g=128; [[ $d == shots ]] && g=96
+  png $d/users-list-menu.png 400 200 $g
+  png $d/new-screen.png 400 200 $g
+  png $d/phone.png 100 200 $g
 done
 cat > "$TMP/rows.json" <<'JSON'
 {"gallery": "audit", "variants": ["light-desktop", "dark-mobile"],
@@ -126,7 +129,7 @@ msg="$(gen "$TMP/bad2.json" 2>&1 >/dev/null)"; [[ "$msg" == *"runs outside"* ]] 
 
 echo "== BL-607: \"highlight\": \"@name\" resolves from <capture>.regions.json =="
 png shots/named.png 1600 900
-png shots/named-before.png 1600 900
+png shots/named-before.png 1600 900 96   # the before differs from the after: identical live pairs are refused
 cat > "$ROOT/shots/named.regions.json" <<'JSON'
 {"error": {"x": 120, "y": 340, "w": 200, "h": 24}, "bad": {"x": 1}, "lst": [{"x": 1, "y": 1, "w": 5, "h": 5}, {"x": 9, "y": 9, "w": 5, "h": 5}], "str": "@other", "wide": {"x": 1500, "y": 0, "w": 200, "h": 10}}
 JSON
@@ -197,8 +200,13 @@ overview '{"decided": "Aprobada"}'
 gen "$TMP/ov.json" >/dev/null 2>&1 && ok "a decided full-page row needs no highlight" || fail "a decided row was refused"
 overview '{"dropped": "ya no aplica"}'
 gen "$TMP/ov.json" >/dev/null 2>&1 && ok "a dropped full-page row needs no highlight" || fail "a dropped row was refused"
-overview '{"before": "shots/ov-before.png", "after": "shots/ov-before.png"}'
-gen "$TMP/ov.json" >/dev/null 2>&1 && ok "a full-page row whose capture did not change needs no highlight" || fail "an unchanged row was refused"
+# A capture that did not change is a `sample` now (the builder refuses an identical live review pair).
+overview '{"kind": "sample", "after": "shots/ov-before.png"}'
+python3 - "$TMP/ov.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1])); del d["rows"][0]["before"]; json.dump(d, open(sys.argv[1], "w"))
+PY
+gen "$TMP/ov.json" >/dev/null 2>&1 && ok "a full-page row whose capture did not change (a sample) needs no highlight" || fail "an unchanged sample row was refused"
 # Size table: each after is a different grey, so every row really changed.
 size_cell() {  # size_cell <w> <h> <refused|builds> <extra row json>
   png shots/sz-b.png "$1" "$2" 128; png shots/sz-a.png "$1" "$2" 90
