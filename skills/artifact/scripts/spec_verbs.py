@@ -381,13 +381,15 @@ def _match_labels(said, labels, many):
 _OTHER_LABELS = ("otra — lo explico en las notas", "other — see my notes")
 
 
-def _reply_allows_free_text(reply, item_id, ids, labels=(), many=False):
-    """True when the LAST block of the saved reply for `item_id` answers it
-    with the kit's Other choice, or with one of `labels` plus a note. A bare
-    `Q1: some text` is neither, nor is an invented option or a `[provisional]`
-    answer (not a decision yet)."""
+def _reply_answer(reply, item_id, ids, labels=(), many=False):
+    """How the LAST block of the saved reply answers `item_id`, as
+    `(real, notes, other, marked)`: the option picks that resolve through
+    `labels`, the free note lines, whether the kit's Other was chosen, and
+    whether a bare `- [marker]` line (question, show-me, not-now...) sits in it.
+    None when the reply has no block for the id. `[provisional]` picks are not
+    counted: not a decision yet."""
     if not reply:
-        return False
+        return None
     alts = "|".join(re.escape(i) for i in sorted(set(ids) | {item_id},
                                                  key=len, reverse=True))
     head_any = re.compile(r"^(?:[ \t]*#{2,3}[ \t]|<!--|[ \t]*(?:" + alts
@@ -408,11 +410,16 @@ def _reply_allows_free_text(reply, item_id, ids, labels=(), many=False):
             cur.append(nxt)
         block = cur
     if block is None:
-        return False
-    real, notes = [], []
+        return None
+    real, notes, other, marked = [], [], False, False
     for i, raw in enumerate(block):
         t = raw.strip()
-        if not t or re.fullmatch(r"- \[[a-z][a-z-]*\]", t):
+        if not t:
+            continue
+        if re.fullmatch(r"- \[[a-z][a-z-]*\]", t):
+            # page-defect never makes an answer provisional (composer.js):
+            # the answer stands, so it is no reason to carry the item open.
+            marked = marked or t != "- [page-defect]"
             continue
         if t.startswith("- ") or (i == 0 and chat_form):  # `Q1: <answer>` head
             t = t[2:].strip() if t.startswith("- ") else t
@@ -423,10 +430,54 @@ def _reply_allows_free_text(reply, item_id, ids, labels=(), many=False):
             if _match_labels(t, labels, many) is not None:
                 real.append(t)           # a real option, whatever it starts with
             elif t.lower().startswith(_OTHER_LABELS):
-                return True
+                other = True
         else:
             notes.append(t)
-    return bool(real) and bool(notes)
+    return real, notes, other, marked
+
+
+def _reply_allows_free_text(reply, item_id, ids, labels=(), many=False):
+    """True when the LAST block of the saved reply for `item_id` answers it
+    with the kit's Other choice, or with one of `labels` plus a note. A bare
+    `Q1: some text` is neither, nor is an invented option or a `[provisional]`
+    answer (not a decision yet)."""
+    got = _reply_answer(reply, item_id, ids, labels, many)
+    if got is None:
+        return False
+    real, notes, other, _ = got
+    return other or (bool(real) and bool(notes))
+
+
+def _bare_picks(spec_text, reply):
+    """`[(item id, picked option)]` for the items the saved `reply` answers with
+    an option and nothing else (no note, marker or Other) that the spec has not
+    decided: the picks a `new-round` would carry into the next round as open."""
+    if not reply:
+        return []
+    tree = _parse(spec_text, "the spec")
+    ids = _ids_of(tree, "item")
+    out = []
+    for ident in ids:
+        node = _by_id(tree, ident)
+        if node.attrs.get("decided", "").strip():
+            continue
+        try:
+            labels = [spec_build.PLAIN.sub("", l).strip()
+                      for l in spec_build.option_labels(node)]
+        except SpecBuildError:
+            continue
+        if not labels:
+            continue
+        many = node.attrs.get("select", "one").strip() == "many"
+        got = _reply_answer(reply, ident, ids, labels, many)
+        if got is None:
+            continue
+        real, notes, other, marked = got
+        if real and not (notes or other or marked):
+            # select=many: the composer writes one line per ticked box
+            said = ", ".join(real) if many else real[-1]
+            out.append((ident, _match_labels(said, labels, many)))
+    return out
 
 
 def decide(spec_text, item_id, verdict, reply=None):
@@ -1040,9 +1091,22 @@ def _answered_snapshot(spec_path, out):
 
 def new_round_file(spec_path, out=None, lang=None, dropped=(), retitled=()):
     answered = _answered_snapshot(spec_path, out)
+    reply = _prev_file(spec_path, out, ".reply.md")
+
+    def guarded(text):
+        picks = _bare_picks(text, reply)
+        if picks:
+            raise VerbError(
+                "the saved reply answers %s with a plain option that is not "
+                "decided in the spec, and a new round would carry it as open "
+                "(the answers lost in owner case 225f968e). Decide each first: "
+                "%s"
+                % (", ".join("#" + i for i, _ in picks),
+                   "; ".join("decide --id %s --verdict \"%s\"" % (i, v)
+                             for i, v in picks)))
+        return new_round(text, dropped, retitled, answered)
     return apply_edit(spec_path,
-                      lambda text: new_round(text, dropped, retitled, answered),
-                      out=out, lang=lang, needs_page=True)
+                      guarded, out=out, lang=lang, needs_page=True)
 
 
 # --- CLI ---------------------------------------------------------------------

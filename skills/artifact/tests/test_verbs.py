@@ -438,7 +438,7 @@ print()
 print("== the file half: refuse without writing, or write and rebuild ==")
 tmp = tempfile.mkdtemp(prefix="spec-verbs-test-")
 try:
-    def first_build(path, page=None, reply=b"Q1: Fences de Pandoc\n"):
+    def first_build(path, page=None, reply=b"Q1: Fences de Pandoc\n\na note, so new-round may carry it\n"):
         """The first build of `path`, plus the reader's saved reply (a decision
         needs it, BL-569). Fails loudly when either step fails: a spec that does
         not build is made with `fresh(..., build=False)`."""
@@ -1305,6 +1305,68 @@ Contexto dos.
           AB != MANY and 'decided="A, B, A, B"' in decide(AB, "Q1", "A, B, A, B"))
     refuses("M3: select=many refuses a label named twice",
             lambda: decide(MANY, "Q1", "Uno, Uno"), "none of its options")
+
+    # new-round refuses while the saved reply holds a bare option pick the spec
+    # has not decided (owner case 225f968e: the next round started at Q15 and
+    # 14 earlier answers were lost). Other, option + note and a provisional pick
+    # may be carried open.
+    def nr(name, reply, text=PAGE):
+        path = fresh(name, text, build=False)
+        first_build(path, reply=reply.encode("utf-8"))
+        return path
+    pg = lambda path: os.path.join(os.path.dirname(path), "page.html")
+    bp = nr("nr-bare", "Q1: yaml anidado\n")
+    before = (read(bp, "rb"), read(pg(bp), "rb"))
+    r = run("new-round", bp)
+    check("M3 new-round: a bare pick undecided exits 1 naming the id, the "
+          "option and the decide command", r.returncode == 1
+          and "#Q1" in r.stderr and "decide --id Q1 --verdict \"YAML anidado\""
+          in r.stderr, r.stdout + r.stderr)
+    check("...and the spec and the page are byte-identical afterwards",
+          (read(bp, "rb"), read(pg(bp), "rb")) == before)
+    r = run("decide", bp, "--id", "Q1", "--verdict", "YAML anidado")
+    r2 = run("new-round", bp)
+    check("M3 new-round: succeeds once the pick is decided",
+          r.returncode == 0 and r2.returncode == 0, r.stderr + r2.stderr)
+    for label, reply in (
+            ("an Other answer", OTHER_REPLY),
+            ("an option + a note", NOTE_REPLY),
+            ("Other alone", "### Q1 \u00b7 T\n\n- Otra \u2014 lo explico en las notas\n"),
+            ("a pick + Other", "### Q1 \u00b7 T\n\n- YAML anidado\n- Otra \u2014 lo explico en las notas\n"),
+            ("no reply block for the item", "Q9: nada\n")):
+        r = run("new-round", nr("nr-" + re.sub(r"\W", "", label), reply))
+        check("M3 new-round: %s does not block" % label, r.returncode == 0,
+              r.stdout + r.stderr)
+    # the contract (marker duties) may still refuse the unchanged item; the
+    # guard under test is only that new-round does not demand a decide first
+    r = run("new-round", nr("nr-q", "### Q1 \u00b7 T\n\n- YAML anidado\n- [question]\n"))
+    check("M3 new-round: a pick + [question] is not a bare pick",
+          "decide --id" not in r.stderr, r.stdout + r.stderr)
+    r = run("new-round", nr("nr-pd", "### Q1 \u00b7 T\n\n- YAML anidado\n- [page-defect]\n"))
+    check("M3 new-round: a pick + [page-defect] still blocks (the answer stands)",
+          r.returncode == 1 and "decide --id Q1" in r.stderr, r.stdout + r.stderr)
+    # A provisional pick whose label matches as written (the label ends in the
+    # suffix) is the only case that reaches the provisional skip.
+    PROV = PAGE.replace("- YAML anidado \u2014 estructura expl\u00edcita",
+                        "- YAML anidado [provisional]")
+    check("M3 new-round fixture: the provisional label replaced", PROV != PAGE)
+    r = run("new-round", nr("nr-prov", "### Q1 \u00b7 T\n\n- YAML anidado [provisional]\n", PROV))
+    check("M3 new-round: a provisional pick does not block", r.returncode == 0,
+          r.stdout + r.stderr)
+    MANY2 = PAGE.replace('{#Q1   title="Fences o YAML"    }', '{#Q1 title="F" select=many}'
+                         ).replace("- Fences de Pandoc \u2014 prosa con marcas m\u00ednimas {recommended}\n"
+                                   "- YAML anidado \u2014 estructura expl\u00edcita", "- Uno\n- Dos\n- Tres")
+    r = run("new-round", nr("nr-many", "### Q1 \u00b7 T\n\n- Uno\n- Tres\n", MANY2))
+    check("M3 new-round: a select=many reply names the whole set in the command",
+          r.returncode == 1 and '--verdict "Uno, Tres"' in r.stderr, r.stdout + r.stderr)
+    r = run("new-round", nr("nr-two", "### Q1 \u00b7 T\n\n- Fences de Pandoc\n- YAML anidado\n"))
+    check("M3 new-round: select=one with two pick lines suggests the LAST (the "
+          "reader's final line)", r.returncode == 1
+          and '--verdict "YAML anidado"' in r.stderr, r.stdout + r.stderr)
+    r = run("new-round", nr("nr-en", "### Q1 \u00b7 T\n\n- Fences de Pandoc (recommended)\n"))
+    check("M3 new-round: an English reply (recommended suffix stripped) blocks "
+          "the same way", r.returncode == 1 and "decide --id Q1" in r.stderr,
+          r.stdout + r.stderr)
 
     # 75: the rebuild follows the project profile when the masthead is silent
     # (the builder CLI's rule), instead of a hard-coded --lang es.
