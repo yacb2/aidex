@@ -56,7 +56,7 @@ backlog/finding items never get their own HTML.
 
 ## Ad-hoc sibling reports (not boards)
 
-The same GENERATED contract and sibling-path rule apply to ad-hoc reports —
+The sibling-path rule (not the GENERATED header, which only the board renderers emit) applies to ad-hoc reports —
 one-off HTML written for a specific `.context/` artifact rather than one of
 dash's own board renderers (see `02-local-first-artifacts.md` in this folder for the
 full contract). `<slug>-report.html`
@@ -92,7 +92,7 @@ who want the native auto-Artifact behavior off entirely).
 ### Why this overrides the Artifact tool's own default
 
 The `Artifact` tool states that "publishing proactively is fine for your own
-work-product — artifacts start private". `02-local-first-artifacts.md` gate 3
+work-product — artifacts start private". `02-local-first-artifacts.md` § Publishing
 deliberately overrides that, and this is the reasoning it points at.
 
 Both readings are defensible. The tool optimizes for the page being reachable;
