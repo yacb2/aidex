@@ -437,7 +437,7 @@
   function decidedLine(el) {
     var marked = [];
     el.querySelectorAll('input[type="radio"]:checked, input[type="checkbox"]:checked')
-      .forEach(function (i) { marked.push((i.dataset.label || i.value || '').trim()); });
+      .forEach(function (i) { marked.push(markOf(i).trim()); });
     el.querySelectorAll('select').forEach(function (sel) {
       if (sel.value) marked.push(sel.options[sel.selectedIndex].text.trim());
     });
@@ -831,7 +831,7 @@
   function selSig(el, byDefault) {
     return [].filter.call(el.querySelectorAll('input[type="radio"], input[type="checkbox"]'),
       function (i) { return !i.closest('.kit-ask') && (byDefault ? i.defaultChecked : i.checked); })
-      .map(function (i) { return i.dataset.label || i.value || ''; }).sort().join('\u0001');
+      .map(function (i) { return markOf(i); }).sort().join('\u0001');
   }
   function selChanged(el) { return isProposal(el) && selSig(el) !== propBase[el.dataset.id]; }
   /* What an item adds to the reply, defect report apart. A proposal with its
@@ -847,6 +847,8 @@
   function replyBody(el) {
     return withDefect(el, isProposal(el) ? proposalBody(el) : readItem(el));
   }
+  /* The pasted/stored key of a checked option: its data-label, else its value. */
+  function markOf(i) { return i.dataset.label || i.value || ''; }
   /* Settled by an earlier round's answer: what collapseDecided folds away. */
   function isSettled(el) { return isDecided(el) && !isProposal(el); }
 
@@ -899,7 +901,7 @@
   function answerMarks(el) {
     return [].slice.call(el.querySelectorAll(
       '.opts input[type="radio"]:checked, .opts input[type="checkbox"]:checked'
-    )).filter(function (i) { return (i.dataset.label || i.value || '') !== NOT_NOW; });
+    )).filter(function (i) { return markOf(i) !== NOT_NOW; });
   }
 
   function answerValues(el) {
@@ -924,7 +926,7 @@
    * takes the qualifier, and it goes after the recommendation suffix so the
    * option's own text stays byte-identical to what the page shows. */
   function markLabel(i, prov) {
-    var label = i.dataset.label || i.value || '';
+    var label = markOf(i);
     var qualified = prov && label !== NOT_NOW && i.closest('.opts');
     return label + recSuffix(i) + (qualified ? ' ' + PROVISIONAL : '');
   }
@@ -997,6 +999,11 @@
     var nodes = [], headed = [];
     function put(node, text) { answered.push(text); nodes.push(node); }
     function putHead(g) { put(g, groupHead(g)); headed.push(g); lastGroup = g; }
+    function putItem(el, text) {
+      var g = el.closest('.consult-group');
+      if (g && g !== lastGroup) putHead(g);
+      put(el, '### ' + el.dataset.id + ' \u00b7 ' + (el.dataset.title || '') + '\n\n' + text);
+    }
     items.forEach(function (el, i) {
       /* The general-notes item is NOT one of the questions, and counting it as
        * one made the page ask for something it never asked for: a reader who
@@ -1027,9 +1034,7 @@
         el.classList.toggle('has-answer', shown);
         if (links[i]) links[i].classList.toggle('done', shown);
         if (fix) {
-          var pg = el.closest('.consult-group');
-          if (pg && pg !== lastGroup) putHead(pg);
-          put(el, '### ' + el.dataset.id + ' \u00b7 ' + (el.dataset.title || '') + '\n\n' + fix);
+          putItem(el, fix);
         }
         return;
       }
@@ -1051,17 +1056,13 @@
         /* The pasted reply keeps the block: `## G1 · title` before the first
          * answered item of each block, so the session that reads it sees the
          * grouping the reader answered under, not a flat list of ids. */
-        var g = el.closest('.consult-group');
-        if (g && g !== lastGroup) putHead(g);
-        put(el, '### ' + el.dataset.id + ' · ' + (el.dataset.title || '') + '\n\n' + withDefect(el, body));
+        putItem(el, withDefect(el, body));
       }
       else {
         if (!notes) blank.push(el.dataset.id);
         /* A defect alone still travels: the item is unanswered, the report is not. */
         if (defectText(el)) {
-          var dg = el.closest('.consult-group');
-          if (dg && dg !== lastGroup) putHead(dg);
-          put(el, '### ' + el.dataset.id + ' · ' + (el.dataset.title || '') + '\n\n' + withDefect(el, ''));
+          putItem(el, withDefect(el, ''));
         }
       }
     });
@@ -1252,14 +1253,21 @@
     });
   }
 
+  /* The round and sent stamps of a stored entry. */
+  function stamp(s, key, text) {
+    if (ROUND) s.r = ROUND;
+    if (copied[key] === fnv(text)) s.x = 1;
+  }
+  function isSpent(s) { return !!(s.x && s.r && ROUND && s.r !== ROUND); }
+
   function snapshotItem(el) {
     var s = { m: [] }, any = false;
-    if (isDecided(el) && !isProposal(el)) return null;
+    if (isSettled(el)) return null;
     /* A proposal keeps only what the reader did: its pre-selected option is the
      * writer's and must not make the item look answered, so the selection is
      * stored only once it differs from the proposed one (BL-692, BL-700). */
     el.querySelectorAll(isProposal(el) && !selChanged(el) ? '.kit-ask input:checked' : 'input[type="radio"]:checked, input[type="checkbox"]:checked')
-      .forEach(function (i) { s.m.push(i.dataset.label || i.value || ''); });
+      .forEach(function (i) { s.m.push(markOf(i)); });
     if (s.m.length) any = true;
     FREE.forEach(function (kind) {
       var vals = [];
@@ -1269,8 +1277,7 @@
     });
     if (any) {
       s.h = questionHash(el);
-      if (ROUND) s.r = ROUND;
-      if (copied[el.dataset.id] === fnv(replyBody(el))) s.x = 1;
+      stamp(s, el.dataset.id, replyBody(el));
     }
     return any ? s : null;
   }
@@ -1293,8 +1300,7 @@
         var note = groupNoteText(g);
         if (!note) return;
         var s = { a: [groupNoteBox(g).value], h: groupTitleHash(g) };
-        if (ROUND) s.r = ROUND;
-        if (copied[groupKey(g)] === fnv(note)) s.x = 1;
+        stamp(s, groupKey(g), note);
         data[groupKey(g)] = s;
       });
       if (Object.keys(data).length) localStorage.setItem(STORE_KEY, JSON.stringify(data));
@@ -1313,7 +1319,7 @@
         if (!s) return;
         /* A decided row is not a question: its round-1 answer is settled, and its
          * text changed by design (BL-629), so it is neither restored nor "stale". */
-        if (isDecided(el) && !isProposal(el)) return;
+        if (isSettled(el)) return;
         /* A proposal restores only a correction typed in THIS round: an earlier
          * round's note was about the open question, not about the writer's
          * proposal; a stored selection is restored (it is only ever saved when
@@ -1329,17 +1335,17 @@
          * saved before rounds existed has no `r`, and a page that predates the
          * marker has no ROUND. Either way the answer comes back, because
          * upgrading the kit must never blank what a reader already typed. */
-        if (s.x && s.r && ROUND && s.r !== ROUND) { spent++; return; }
+        if (isSpent(s)) { spent++; return; }
         var hit = false;
         /* A stored proposal selection REPLACES the proposed one (a checkbox
          * group would otherwise keep the proposed boxes ticked beside it). */
         if (isProposal(el) && [].some.call(el.querySelectorAll('input[type="radio"], input[type="checkbox"]'),
-              function (i) { return !i.closest('.kit-ask') && (s.m || []).indexOf(i.dataset.label || i.value || '') !== -1; })) {
+              function (i) { return !i.closest('.kit-ask') && (s.m || []).indexOf(markOf(i)) !== -1; })) {
           el.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(function (i) { i.checked = false; });
         }
         el.querySelectorAll('input[type="radio"], input[type="checkbox"]')
           .forEach(function (i) {
-            if ((s.m || []).indexOf(i.dataset.label || i.value || '') !== -1) { i.checked = true; hit = true; }
+            if ((s.m || []).indexOf(markOf(i)) !== -1) { i.checked = true; hit = true; }
           });
         function fill(list, vals) {
           (vals || []).forEach(function (v, i) {
@@ -1372,7 +1378,7 @@
         var s = data[groupKey(g)];
         if (!s || !s.a || !s.a[0] || !s.a[0].trim()) return;
         if (s.h && s.h !== groupTitleHash(g)) { stale++; return; }
-        if (s.x && s.r && ROUND && s.r !== ROUND) { spent++; return; }
+        if (isSpent(s)) { spent++; return; }
         groupNoteBox(g).value = s.a[0];
         n++;
         if (s.x) copied[groupKey(g)] = fnv(s.a[0].trim());
@@ -1463,7 +1469,7 @@
    * position generated content cannot reach. */
   function markRecommendations() {
     document.querySelectorAll('.opts input[data-recommended]').forEach(function (i) {
-      var lab = i.closest ? i.closest('label') : null;
+      var lab = i.closest('label');
       if (!lab || lab.querySelector('.kit-tag')) return;
       var no = String(i.getAttribute('data-recommended')).toLowerCase() === 'no';
       var tag = document.createElement('span');
@@ -1544,6 +1550,25 @@
    * takes the group's own name and input type, so a radio group stays
    * single-choice and a checkbox group stays multi. Stripped from the question
    * fingerprint, like every other injected control. */
+  /* One exit choice of an option group: same input type and name as the group. */
+  function addChoice(host, first, cls, dataLabel, title, hintText) {
+    var lab = document.createElement('label');
+    lab.className = cls;
+    var input = document.createElement('input');
+    input.type = first.type;
+    input.name = first.name;
+    input.setAttribute('data-label', dataLabel);
+    var text = document.createElement('span');
+    text.appendChild(document.createTextNode(title + ' '));
+    var hint = document.createElement('span');
+    hint.className = 'hint';
+    hint.textContent = hintText;
+    text.appendChild(hint);
+    lab.appendChild(input);
+    lab.appendChild(text);
+    host.appendChild(lab);
+  }
+
   function addOtherChoices() {
     items.forEach(function (el) {
       if (isSettled(el)) return;
@@ -1566,41 +1591,13 @@
             g.appendChild(host);
           }
         }
-        var lab = document.createElement('label');
-        lab.className = 'kit-other';
-        var input = document.createElement('input');
-        input.type = first.type;
-        input.name = first.name;
-        input.setAttribute('data-label', L.other);
-        var text = document.createElement('span');
-        text.appendChild(document.createTextNode(L.other + ' '));
-        var hint = document.createElement('span');
-        hint.className = 'hint';
-        hint.textContent = L.otherHint;
-        text.appendChild(hint);
-        lab.appendChild(input);
-        lab.appendChild(text);
-        host.appendChild(lab);
+        addChoice(host, first, 'kit-other', L.other, L.other, L.otherHint);
         /* "Not now" (BL-381), the last choice of the group. Answer-side, so it
          * is one of the answers and exclusive with them: deferring a question
          * is not compatible with answering it, and a deferred question is not
          * a blank — "todavía, tengo muchos pendientes" three times on one page
          * left three items nagging in the count. Pastes `[not-now]`. */
-        var nn = document.createElement('label');
-        nn.className = 'kit-notnow';
-        var nni = document.createElement('input');
-        nni.type = first.type;
-        nni.name = first.name;
-        nni.setAttribute('data-label', NOT_NOW);
-        var nnt = document.createElement('span');
-        nnt.appendChild(document.createTextNode(L.notNow + ' '));
-        var nnh = document.createElement('span');
-        nnh.className = 'hint';
-        nnh.textContent = L.notNowHint;
-        nnt.appendChild(nnh);
-        nn.appendChild(nni);
-        nn.appendChild(nnt);
-        host.appendChild(nn);
+        addChoice(host, first, 'kit-notnow', NOT_NOW, L.notNow, L.notNowHint);
       });
     });
   }
@@ -1630,9 +1627,8 @@
    *
    * Every chip is a mark with a `data-label`, so every path that handles marks
    * handles it: readItem pastes it, snapshotItem stores it, restore re-checks
-   * it, clearItem clears it, copy folds it into the sent fingerprint. The term
-   * box is an ordinary text input to the store (restored by order) and is kept
-   * out of the free-text paste. The labels are localised; the markers are not. */
+   * it, clearItem clears it, copy folds it into the sent fingerprint. The labels
+   * are localised; the markers are not. */
   var ASKS = [
     [EXPLAIN_STATE, 'askState', 'askStateTitle'],
     [EXPLAIN_OPTIONS, 'askOptions', 'askOptionsTitle'],
@@ -1783,7 +1779,7 @@
       if (!r && ev.target.type === 'radio') r = ev.target;
       /* A proposal's checked radio is the writer's proposal: clicking it is the
        * reader confirming it, not releasing it (BL-700). */
-      var it = (lab || r) && (lab || r).closest ? (lab || r).closest('.consult-item') : null;
+      var it = (lab || r) ? (lab || r).closest('.consult-item') : null;
       was = (r && r.checked && !(it && isProposal(it))) ? r : null;
     });
     document.addEventListener('click', function (ev) {
@@ -1806,12 +1802,12 @@
     document.addEventListener('change', function (ev) {
       var t = ev.target;
       if (!t || t.type !== 'checkbox' || !t.checked) return;
-      var g = t.closest ? t.closest('.opts') : null;
+      var g = t.closest('.opts');
       if (!g) return;
-      var deferring = (t.dataset.label || t.value || '') === NOT_NOW;
+      var deferring = markOf(t) === NOT_NOW;
       g.querySelectorAll('input[type="checkbox"]:checked').forEach(function (i) {
         if (i === t) return;
-        var nn = (i.dataset.label || i.value || '') === NOT_NOW;
+        var nn = markOf(i) === NOT_NOW;
         if (deferring || nn) i.checked = false;
       });
     });
@@ -2542,7 +2538,7 @@
      * carry this tile — the not-applicable row is the common case — is stepped
      * over for the same reason. */
     function stepRow(dir) {
-      if (!opener || shotFigures(opener).length) return;   /* no rows in this mode */
+      if (!opener) return;
       var row = opener.closest('.consult-item');
       var name = opener.getAttribute('data-tile');
       var i = walkRows.indexOf(row);
@@ -2606,12 +2602,13 @@
      * also refuses. Enter hands it to the same note dialog a drag does. */
     var draft = null;                 /* { row, tile, box, x, y, w, h } */
     function clampTo(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
-    function drawDraft() {
-      draft.box.style.left = draft.x + '%';
-      draft.box.style.top = draft.y + '%';
-      draft.box.style.width = draft.w + '%';
-      draft.box.style.height = draft.h + '%';
+    function placeBox(el, k) {
+      el.style.left = k.x + '%';
+      el.style.top = k.y + '%';
+      el.style.width = k.w + '%';
+      el.style.height = k.h + '%';
     }
+    function drawDraft() { placeBox(draft.box, draft); }
     function canMark(row) {
       return !!row && !isDecided(row) && !!marksBox(row) && !dlg.classList.contains('shots')
         && dlg.getAttribute('data-compare') === 'off';
@@ -2692,10 +2689,7 @@
       marks.forEach(function (k) {
         var b = document.createElement('div');
         b.className = 'kit-mark';
-        b.style.left = k.x + '%';
-        b.style.top = k.y + '%';
-        b.style.width = k.w + '%';
-        b.style.height = k.h + '%';
+        placeBox(b, k);
         if (k.note) b.title = k.note;   /* an attribute, never text: the hash reads text */
         b.setAttribute('data-n', k.n);  /* components.css draws it: the number locates the note in the row's list */
         layer.appendChild(b);
@@ -2903,7 +2897,7 @@
       if (dlg.open && !dlg.contains(document.activeElement)) dlg.focus();
     }
 
-    function pct(v, from, len) { return Math.min(100, Math.max(0, (v - from) / len * 100)); }
+    function pct(v, from, len) { return clampTo((v - from) / len * 100, 0, 100); }
 
     var drag = null;
     mlayer.addEventListener('pointerdown', function (ev) {
@@ -2938,10 +2932,7 @@
       if (!drag || ev.pointerId !== drag.id) return;
       var k = rectOf(drag, ev);
       if (!k) return;
-      drag.box.style.left = k.x + '%';
-      drag.box.style.top = k.y + '%';
-      drag.box.style.width = k.w + '%';
-      drag.box.style.height = k.h + '%';
+      placeBox(drag.box, k);
     });
 
     mlayer.addEventListener('pointerup', function (ev) {
