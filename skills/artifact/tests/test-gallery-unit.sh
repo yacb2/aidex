@@ -1357,7 +1357,7 @@ prrun look "d['rows'][0]['look'] = 'Look **here**, see [the spec](https://exampl
 if [[ $rc == 0 ]] && grep -qF '<a href="https://example.test/x">the spec</a>' "$TMP/pr/look.out" \
     && grep -qF '<strong>here</strong>' "$TMP/pr/look.out" && ! grep -qF '](https' "$TMP/pr/look.out"; then
   ok "a look line renders its link as <a> and its bold as <strong>"
-else fail "look markup: exit $rc, $(grep -o 'gal-look[^\n]*' "$TMP/pr/look.out" | head -1) $(cat "$TMP/pr/look.err")"; fi
+else fail "look markup: exit $rc, $(grep -o 'gal-look[^\n]*' "$TMP/pr/look.out" | sed -n 1,1p) $(cat "$TMP/pr/look.err")"; fi
 prrun note "d['rows'][0]['note'] = ['First **point**', 'Then \`code\` and [a link](https://example.test/y)']"; rc=$?
 if [[ $rc == 0 ]] && grep -qF '<li>First <strong>point</strong></li>' "$TMP/pr/note.out" \
     && grep -qF '<code>code</code>' "$TMP/pr/note.out" \
@@ -1369,7 +1369,7 @@ if [[ $rc == 0 ]] && grep -qF '<h3>A <strong>bold</strong> title with <code>code
     && grep -qF 'data-heading="A bold title with code"' "$TMP/pr/title.out" \
     && ! grep -qF '**' "$TMP/pr/title.out"; then
   ok "a row title renders its markers in the heading and keeps them out of data-heading"
-else fail "title markers: exit $rc, $(grep -o '<h3>[^<]*' "$TMP/pr/title.out" | head -2) $(cat "$TMP/pr/title.err")"; fi
+else fail "title markers: exit $rc, $(grep -o '<h3>[^<]*' "$TMP/pr/title.out" | sed -n 1,2p) $(cat "$TMP/pr/title.err")"; fi
 prrun tlink "d['rows'][0]['title'] = 'See [the spec](https://example.test/x)'"; rc=$?
 if [[ $rc == 2 && ! -s "$TMP/pr/tlink.out" ]] && grep -q "row 'empty'.*raw-link" "$TMP/pr/tlink.err"; then
   ok "a link in a row title is refused (raw-link), naming the row"
@@ -1419,7 +1419,7 @@ specrun uistates "d['rows'] = [dict($SINGLE, cell=c) for c in ('before-submit', 
 prrun jslink "d['rows'][0]['look'] = 'See [x](javascript:alert(1)) now'"; rc=$?
 if [[ $rc == 0 ]] && ! grep -qF 'href="javascript' "$TMP/pr/jslink.out" && grep -qF 'x (javascript:alert(1))' "$TMP/pr/jslink.out"; then
   ok "a javascript: link in a look is never an href, it shows as 'x (javascript:alert(1))'"
-else fail "javascript link: exit $rc, $(grep -o 'gal-look[^\n]*' "$TMP/pr/jslink.out" | head -1)"; fi
+else fail "javascript link: exit $rc, $(grep -o 'gal-look[^\n]*' "$TMP/pr/jslink.out" | sed -n 1p)"; fi
 specrun manynb "d['rows'] = [dict($SINGLE, cell=c, noBefore='new screen') for c in ('a', 'b', 'hoy')]"; rc=$?
 [[ $rc == 0 && -f "$TMP/pr/spec/manynb.html" ]] && ok "several single-capture rows each with a noBefore reason still build from a spec" \
   || fail "several noBefore: rc $rc, $(tail -3 "$TMP/pr/manynb.sb")"
