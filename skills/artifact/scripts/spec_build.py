@@ -374,6 +374,11 @@ def emit_section(node, ctx):
                id_why="the rail indexes `.main > section[id]`, so a section "
                       "without one keeps its <h2> out of the page's index. It "
                       "is not a data-id and no reply names it")
+    if all(_blank_prose(c) for c in node.children):
+        raise SpecBuildError(
+            node.line, "`section` %s has a heading and no body: an empty "
+            "section is a heading over nothing, so write its body or drop it"
+            % node.id)
     classes = " ".join(node.classes)
     out = ['<section%s id="%s">'
            % (' class="%s"' % esc(classes) if classes else "", esc(node.id))]
@@ -590,6 +595,22 @@ def has_options(node):
     Raises SpecBuildError on a body `_split_options` refuses."""
     return any(_split_options(list(c.raw_body), node.line)[1]
                for c in node.children if c.block_type == "prose")
+
+
+def _refuse_body_heading(node):
+    """Refuse a markdown heading in an item's prose, at the heading's own line:
+    the item's h3 is its question, and a `# ` line would open a second heading
+    inside it (or, under the rail, one the page's index does not know). Fenced
+    code is exempt."""
+    for child in node.children:
+        if child.block_type != "prose":
+            continue
+        for i, (ln, outside) in enumerate(_unfenced(child.raw_body)):
+            if outside and md_body.HEADING.match(ln):
+                raise SpecBuildError(
+                    child.line + i, "`item` body has a markdown heading (%r): "
+                    "the item's own h3 is its question, so write the line as a "
+                    "paragraph, or `**bold**` it" % ln.strip()[:60])
 
 
 def _refuse_second_list(node):
@@ -818,6 +839,7 @@ def emit_item(node, ctx):
     segments = _segments(node, ASIDES + FIGURE_BLOCKS,
                          "prose, its options, a figure")
     _refuse_second_list(node)
+    _refuse_body_heading(node)
     # The option list is the FIRST one in the body, wherever it sits, and the
     # segments before and after it keep their order around it.
     head, opts, tail = [], [], []
@@ -2057,6 +2079,77 @@ def _refuse_literal_backticks(spec_text):
                 "found in %r" % (fences, chunk.split("\n")[n - start].strip()[:80]))
 
 
+# Leaf blocks whose body never goes through `md_body._inline`.
+_RAW_LABEL_BLOCKS = ("chart", "diagram", "graph")
+
+
+def _refuse_stray_syntax(spec_text, tree):
+    """Refuse prose that would reach the reader as raw spec or markdown syntax
+    (CNT-1, CNT-2), naming its line: an indented `:::` line, a literal `{#`,
+    and a `**` that bolds nothing (code spans and ``` / ~~~ fences are exempt).
+
+    The tokenizer reads an indented `:::` as content on purpose (a `:::` in an
+    indented list item must not open a block), so it shows as text; the author
+    who indented a fence meant a block, and gets the line instead. Chart and
+    diagram labels are drawn as SVG text, never as markdown, so any `**` there
+    is raw; a graph body is DOT source and is not read at all.
+    """
+    raw_lines = set()
+    for node in _walk(tree):
+        if node.block_type not in _RAW_LABEL_BLOCKS:
+            continue
+        for child in node.children:
+            for i, ln in enumerate(child.raw_body):
+                raw_lines.add(child.line + i)
+                if "**" in ln and node.block_type != "graph":
+                    raise SpecBuildError(
+                        child.line + i, "`%s` labels take no markdown, so `**` "
+                        "would be drawn raw: write the label without it; found "
+                        "in %r" % (node.block_type, ln.strip()[:80]))
+    blank = lambda m: re.sub(r"[^\n]", " ", m.group(0))
+    for start, chunk in _backtick_chunks(spec_text):
+        if start in raw_lines:
+            continue
+        if spec_parser.OPEN.match(chunk) or spec_parser.CLOSE.match(chunk):
+            continue
+        rest = md_body.CODE.sub(blank, chunk)
+        lines = rest.split("\n")
+        for i, ln in enumerate(lines):
+            if ln[:1] in (" ", "\t") and ln.lstrip().startswith(":::"):
+                raise SpecBuildError(
+                    start + i, "an indented `:::` line is prose, not a fence, "
+                    "and would show as literal `:::` on the page: a fence line "
+                    "starts at column 0 (a nested block is written flush "
+                    "left); found %r" % ln.strip()[:80])
+        k = rest.find("{#")
+        if k >= 0:
+            n = start + rest[:k].count("\n")
+            raise SpecBuildError(
+                n, "a literal `{#` in prose shows the reader spec syntax: an id "
+                "is written on a fence (`::: item {#Q1 ...}`), so drop it from "
+                "the text or put it in a code span; found in %r"
+                % lines[n - start].strip()[:80])
+        # A table row is rendered cell by cell, a paragraph as one wrapped unit.
+        units = (md_body._cells(rest) if rest.lstrip().startswith("|")
+                 else [" ".join(lines)])
+        for unit in units:
+            html = md_body._inline(unit)
+            html = re.sub(r"<[^>]*>", "", re.sub(r"<code>.*?</code>", "", html))
+            if "**" not in html:
+                continue
+            # BOLD pairs from the left, so the unpaired marker is the last one.
+            masked = md_body.BOLD.sub(blank, rest.replace("\n", " "))
+            k = masked.rfind("**")
+            n = start + (rest[:k].count("\n") if k >= 0 else 0)
+            if k < 0 or "**" not in lines[n - start]:
+                n = start + next((i for i, ln in enumerate(lines) if "**" in ln), 0)
+            raise SpecBuildError(
+                n, "a `**` that closes nothing shows the reader a raw `**`: "
+                "close the bold (`**x**`), leave the marker out, or write a "
+                "literal one in a code span (`2**10` between backticks); found "
+                "in %r" % lines[n - start].strip()[:80])
+
+
 def _refuse_title_links(tree):
     """A `[x](y)` in `title=` is refused: the title also reaches the rail and a
     decided item's <summary> as `data-title`, raw, where no link is rendered."""
@@ -2084,6 +2177,7 @@ def build(spec_text, lang=None, base_dir=".", page=None):
     _refuse_span_tones(spec_text)
     _refuse_block_classes(tree)
     _refuse_literal_backticks(spec_text)
+    _refuse_stray_syntax(spec_text, tree)
     _refuse_title_links(tree)
     _refuse_item_id_collisions(tree)
     answerable = any(n.block_type in ANSWERABLE for n in _walk(tree))
