@@ -82,7 +82,11 @@ def run_case(case, tmp, census_script):
     if expect == "accept":
         want = None
     elif expect.startswith("usage:") and len(expect) > len("usage:"):
-        want = expect[len("usage:"):]
+        # Several parts joined by " ;; " must ALL sit on the same usage line
+        # (the form and the reason); an empty part makes the case invalid.
+        want = expect[len("usage:"):].split(" ;; ")
+        if not all(w.strip() for w in want):
+            return False, "-", "invalid expect: " + expect
     else:
         return False, "-", "invalid expect: " + expect
     fixdir = os.path.join(FIXTURES, "misuse-replay")
@@ -108,7 +112,8 @@ def run_case(case, tmp, census_script):
         ok = p.returncode == 0
     else:
         ok = p.returncode == 2 and any(
-            l.lstrip().lower().startswith("usage:") and want in l for l in out.splitlines())
+            l.lstrip().lower().startswith("usage:") and all(w in l for w in want)
+            for l in out.splitlines())
     return ok, p.returncode, first_line(out)
 
 

@@ -140,6 +140,15 @@ run "$S"; eq "F5 usage: with empty substring is invalid" "$(line 1)" "misuse: 0/
 scenario mis-usage-otherline; printf '%s\n' '#!/usr/bin/env bash' 'echo "Usage: x" >&2' 'echo "the --foo flag" >&2' 'exit 2' > "$S/scripts/split.sh"
 mcase "$S" split.sh '' '' 'usage:--foo'
 run "$S"; eq "F5 substring on a later line than usage: is not matched" "$(line 1)" "misuse: 0/1"
+scenario mis-parts; printf '%s\n' '#!/usr/bin/env bash' 'echo "usage: x.sh --a  -- missing --b" >&2' 'exit 2' > "$S/scripts/parts.sh"
+mcase "$S" parts.sh '' '' 'usage:x.sh --a ;; missing --b'
+run "$S"; eq "two ;; parts on one usage line: matched" "$(line 1)" "misuse: 1/1"
+scenario mis-parts2; printf '%s\n' '#!/usr/bin/env bash' 'echo "usage: x.sh --a" >&2' 'echo "missing --b" >&2' 'exit 2' > "$S/scripts/parts2.sh"
+mcase "$S" parts2.sh '' '' 'usage:x.sh --a ;; missing --b'
+run "$S"; eq "a ;; part only on another line: not matched" "$(line 1)" "misuse: 0/1"
+scenario mis-parts3; printf '%s\n' '#!/usr/bin/env bash' 'echo "usage: x.sh --a" >&2' 'exit 2' > "$S/scripts/parts3.sh"
+mcase "$S" parts3.sh '' '' 'usage: ;; x.sh --a'
+run "$S"; eq "an empty ;; part makes the case invalid" "$(line 1)" "misuse: 0/1"
 scenario mis-nousage; mcase "$S" nousage.sh '' '' 'usage:foo'
 run "$S"; eq "rc 2 and substring but no usage line: not matched" "$(line 1)" "misuse: 0/1"
 scenario mis-dash; mcase "$S" dash/d.py '' '' accept
