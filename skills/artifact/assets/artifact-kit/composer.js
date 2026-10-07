@@ -2157,6 +2157,17 @@
     var cmp = 'off';                  /* the compare mode the reader chose */
     var sib = null;                   /* the opener's other-mode figure, if any */
 
+    /* Ampliar is for seeing the drawing bigger (BL-712): Fit when the dialog
+     * holds it wider than drawn, else the drawn size (scaled down to the
+     * window its text would shrink below what the page already showed; the
+     * dialog scrolls). A tie keeps the drawn size. Measured, so it runs with
+     * the dialog open; no drawn size (no viewBox, no width) stays at Fit. */
+    function svgSize() {
+      var w = parseFloat(svgBox.style.getPropertyValue('--kit-svg-w'));
+      dlg.classList.remove('native');
+      if (w > 0 && svgBox.firstChild.getBoundingClientRect().width <= w + 0.5) dlg.classList.add('native');
+    }
+
     function sizeLabel() {
       // Names the DESTINATION, like the theme button does.
       bSize.textContent = dlg.classList.contains('native') ? L.zoomFit : L.zoomNative;
@@ -2194,6 +2205,7 @@
       img.setAttribute('src', src ? src.getAttribute('src') : '');
       img.setAttribute('alt', src ? (src.getAttribute('alt') || '') : '');
       svgBox.textContent = '';
+      svgBox.style.removeProperty('--kit-svg-w');
       var c = null;
       if (svg) {
         c = svg.cloneNode(true);
@@ -2202,16 +2214,18 @@
         /* No viewBox: the width attribute, when it is a plain number; with
          * neither there is no drawn size, and the drawing stays at Fit. */
         if (!(vw > 0) && /^\s*\d+(\.\d+)?(px)?\s*$/.test(svg.getAttribute('width') || '')) vw = parseFloat(svg.getAttribute('width'));
-        if (vw > 0) c.style.setProperty('--kit-svg-w', vw + 'px');
+        if (vw > 0) svgBox.style.setProperty('--kit-svg-w', vw + 'px');   /* the svg inherits it */
         svgBox.appendChild(c);
       }
       /* Each kind has its own default size: a capture fits the window, a
-       * drawing opens at the size it was drawn (scaled to the window it is the
-       * same 3-5 px text the page already showed). Only a change of kind resets
-       * it, so walking capture to capture keeps the reader's size. */
+       * drawing shows at the larger of Fit and its drawn size (svgSize), each
+       * drawing its own (a tall one after a wide one would otherwise keep a
+       * Fit that shrinks its text). A change of kind resets it; walking
+       * capture to capture keeps the reader's size. */
       var changed = !!svg !== dlg.classList.contains('svgmode');
-      if (changed) dlg.classList.toggle('native', !!svg && !!c && c.style.getPropertyValue('--kit-svg-w') !== '');
+      if (changed) dlg.classList.remove('native');
       dlg.classList.toggle('svgmode', !!svg);
+      if (svg && dlg.open) svgSize();
       if (changed) resetScroll(); else stack.scrollLeft = 0;
       sizeLabel();
       hRow.textContent = (row && (row.dataset.heading || row.dataset.title)) || '';
@@ -2327,6 +2341,7 @@
        * size button is the one a fresh open has always handed the focus to. */
       if (dlg.showModal) { dlg.showModal(); bSize.focus(); }
       else dlg.setAttribute('open', '');   /* no modal support: still readable */
+      if (dlg.classList.contains('svgmode')) { svgSize(); sizeLabel(); }
       resetScroll();                       /* the layout of the last open survives a close */
       /* show() ran while the dialog was closed, when the image had no box. */
       placeOver(mlayer, img);
