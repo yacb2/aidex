@@ -24,6 +24,7 @@ import tempfile
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import md_body  # noqa: E402
+from contract_defects import VOID  # noqa: E402
 from _usage import UsageParser, read_stdin, usage_exit  # noqa: E402
 sys.path.insert(0, os.path.join(__file__.rsplit("/", 1)[0], "..", "..", "..", "conventions", "scripts"))
 import profiles  # noqa: E402  the one profile resolver
@@ -809,8 +810,7 @@ QUESTION_DROP = re.compile(
     r'(?:kit-tag|consult-clear|kit-other|kit-notnow|kit-ask|kit-provisional)'
     r'(?=[\s"\']))'
     r'[^>]*>', re.I | re.S)
-VOID_ELEMENTS = {"area", "base", "br", "col", "embed", "hr", "img", "input",
-                 "link", "meta", "param", "source", "track", "wbr"}
+VOID_ELEMENTS = VOID
 
 
 def question_texts(text):
@@ -1070,7 +1070,7 @@ def main():
     # the page, this wrap's round otherwise. Read before the lock is refreshed
     # below — a lock written by this same wrap would answer with this round.
     shown_round = held_round(args.outfile) or this_round
-    built = built_text(lang, shown_round if CONSULT_ITEM.search(body) else 0,
+    built = built_text(lang, shown_round if surface else 0,
                        when=now)
     body = insert_built_line(body, built)
     # Reset -> kit tokens -> kit components -> project delta -> the page's own

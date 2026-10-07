@@ -188,10 +188,10 @@ def gallery_duties_for(reply_text, ordinary=(), states=None):
     return out
 
 
-def _quote_report(text, limit=140):
-    """The reader's page-defect text on one quoted line, cut at `limit`."""
+def _quote_report(text):
+    """The reader's page-defect text on one quoted line, cut at 140 characters."""
     one = " ".join(text.split())
-    return '"' + (one[:limit - 1] + "\u2026" if len(one) > limit else one) + '"'
+    return '"' + (one[:139] + "\u2026" if len(one) > 140 else one) + '"'
 
 
 def duties_for(reply_text, ordinary=(), states=None):

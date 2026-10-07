@@ -174,8 +174,6 @@ def composer_copies(text):
 # short text) on a page meant only to be read, which is the ordinary shape of a
 # dashboard filter and was a false positive with no exit.
 FREE_TEXT = re.compile(r'<textarea|contenteditable=', re.I)
-CONSULT_STRUCTURE = re.compile(
-    r'data-id=|id=["\']?consult-copy|class=["\'][^"\']*consult-item', re.I)
 # The same thing minus the copy BUTTON (BL-331). A button is chrome; what makes
 # a page a consultation is that it carries questions. A page whose last item was
 # answered has none — §8's own model says a decided item leaves the question set
@@ -313,8 +311,7 @@ def scroll_classes(text):
     return scroll
 
 
-VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link",
-             "meta", "param", "source", "track", "wbr"}
+VOID_TAGS = contract_defects.VOID
 
 
 def unwrapped_tables(text):
@@ -335,10 +332,7 @@ def unwrapped_tables(text):
             continue
         if tag in VOID_TAGS or attrs.rstrip().endswith("/"):
             continue
-        cm = re.search(r"\bclass\s*=\s*(?:\"([^\"]*)\"|\x27([^\x27]*)\x27"
-                       r"|([^\s>]+))", attrs, re.I)
-        classes = (set(next(g for g in cm.groups() if g is not None).split())
-                   if cm else set())
+        classes = _class_tokens(attrs)
         if tag == "table" and not any(c in scroll
                                       for _, anc in stack for c in anc):
             bad += 1
@@ -388,20 +382,8 @@ def _subtree(text, tag, start):
     balance rather than an HTML parser: a page with an unclosed <p> is still
     well formed enough to answer, and counting only the item's own tag name is
     immune to it."""
-    op = re.compile(r'<' + re.escape(tag) + r'\b', re.I)
-    cl = re.compile(r'</' + re.escape(tag) + r'\s*>', re.I)
-    depth, pos = 1, start
-    while depth:
-        m_o, m_c = op.search(text, pos), cl.search(text, pos)
-        if not m_c:
-            return text[start:]            # unclosed: judge what is left
-        if m_o and m_o.start() < m_c.start():
-            depth, pos = depth + 1, m_o.end()
-        else:
-            depth, pos = depth - 1, m_c.end()
-            if not depth:
-                return text[start:m_c.start()]
-    return ""
+    inner = _subtree_closed(text, tag, start)
+    return text[start:] if inner is None else inner   # unclosed: judge what is left
 
 
 def consult_items(text):
@@ -606,6 +588,8 @@ def _subtree_closed(text, tag, start):
     wrong one when it is "what does this element say". A `<p class="gal-na">`
     nobody closed then reads as a reason whose text is the verdict labels below
     it — a row with no reason and no tiles passing as not applicable.
+
+    This is the one balance walk; `_subtree` wraps it.
     """
     op = re.compile(r'<' + re.escape(tag) + r'\b', re.I)
     cl = re.compile(r'</' + re.escape(tag) + r'\s*>', re.I)
@@ -695,7 +679,6 @@ def gallery_findings(text):
         # would answer the check on behalf of a row that has no figures.
         body = strip_script_style(_subtree(text, m.group(1), m.end()))
 
-        grids = _gal_grids(body)
         if not _is_gallery_item(m.group(0), body):
             continue
 
@@ -852,9 +835,7 @@ def marks_outside_opts(body):
                 return True
         if tag in VOID_TAGS or attrs.rstrip().endswith("/"):
             continue
-        cm = ATTR_CLASS.search(attrs)
-        classes = (set(next(g for g in cm.groups() if g is not None).split())
-                   if cm else set())
+        classes = _class_tokens(attrs)
         stack.append((tag, classes))
     return False
 
@@ -875,13 +856,13 @@ REC_IN_LABEL = re.compile(r'\(\s*(?:not\s+)?(?:recommended|recomendad[ao]|no\s+'
 # dense in `<code>` tokens or `;`-joined clauses, which an explanatory paragraph
 # is not. Scanned on the innermost owner only, so a paragraph in an item is
 # reported once, under the item, never again under its block.
-FACTS_MIN = 4
+FACTS_MIN = contract_defects.FACTS_MIN
 P_BLOCK = re.compile(r'<p\b([^>]*)>(.*?)</p>', re.I | re.S)
 P_FIELDLABEL = re.compile(r'\bclass\s*=\s*["\x27][^"\x27]*\bfieldlabel\b', re.I)
 
 
 def facts_paragraphs(body):
-    """[(codes, clauses, excerpt)] for every paragraph of `body` that carries
+    """[(clauses, excerpt)] for every paragraph of `body` that carries
     FACTS_MIN or more semicolon-separated clauses only by counting those inside
     <code>: every other dense paragraph is mixed-content-types' FAIL."""
     own = _strip_subtrees(strip_html_comments(strip_script_style(body)), ITEM_OPEN)
@@ -913,7 +894,7 @@ def facts_paragraphs(body):
             continue
         if clauses >= FACTS_MIN:
             excerpt = ' '.join(prose.split())
-            out.append((codes, clauses, excerpt[:60]))
+            out.append((clauses, excerpt[:60]))
     return out
 
 
@@ -1536,7 +1517,6 @@ SVG_EMBED_ATTRS = frozenset((
 SVG_EMBED_PAINT = re.compile(
     r'^\s*(#[0-9a-fA-F]{3,8}\b|(?:rgba?|hsla?|hwb|oklch|oklab|lab|lch|color)\()',
     re.I)
-SVG_EMBED_DECL = re.compile(r'(?:^|[;{\s])(fill|stroke)\s*:\s*([^;}]+)', re.I)
 SVG_EMBED_URL_OK = re.compile(r'url\(#[A-Za-z_][\w.-]*\)', re.I)
 SVG_EMBED_URL_REF = re.compile(r'url\(#([A-Za-z_][\w.-]*)\)', re.I)
 # Attributes whose value is a space-separated list of ids (BL-452).
@@ -2421,10 +2401,8 @@ def warn_file(path):
             dense = facts_paragraphs(body)
         except Exception:                           # noqa: BLE001 — advisory
             continue
-        for codes, clauses, excerpt in dense:
-            shape = (f"{codes} <code> tokens"
-                     if codes >= FACTS_MIN and not clauses >= FACTS_MIN
-                     else f"{clauses} semicolon-separated clauses")
+        for clauses, excerpt in dense:
+            shape = f"{clauses} semicolon-separated clauses"
             warns.append(("consult-facts", name,
                           f"'{ident}' carries a paragraph with {shape} "
                           f"(\"{excerpt}…\") — more than three facts of one "
@@ -2644,9 +2622,6 @@ def h2s_outside_id_sections(flat):
     """
     from html.parser import HTMLParser
 
-    VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link",
-            "meta", "param", "source", "track", "wbr"}
-
     class P(HTMLParser):
         def __init__(self):
             super().__init__()
@@ -2663,13 +2638,13 @@ def h2s_outside_id_sections(flat):
             if tag == "h2":
                 if not any(fr[2] for fr in self.stack):
                     self.orphans += 1
-            if tag in VOID:
+            if tag in VOID_TAGS:
                 return
             self.stack.append((tag, is_main, indexable))
 
         def handle_startendtag(self, tag, attrs):
             self.handle_starttag(tag, attrs)
-            if tag not in VOID:
+            if tag not in VOID_TAGS:
                 self.stack.pop()
 
         def handle_endtag(self, tag):
@@ -3102,9 +3077,7 @@ TITLE_LINE = re.compile(
     r'["\'][^>]*>.*?</p\s*>', re.I | re.S)
 
 ELEM_OPEN = re.compile(r'<([a-zA-Z][\w:-]*)\b[^>]*?(/?)>', re.S)
-VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input",
-             "link", "meta", "param", "source", "track", "wbr"}
-CLASS_VAL = re.compile(r'\bclass\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>]+))', re.I)
+CLASS_VAL = ATTR_CLASS
 # A grid cell is a heading or a table away from the layout BL-426 reports, at
 # any depth: `.v` is a cell, and a table inside one cannot be capped either.
 LEDGER_BANNED = re.compile(r'<(h[1-6]|table)\b', re.I)
@@ -4028,17 +4001,25 @@ def waiting_rows(text):
     return out
 
 
+def _flagged_ids(text, flag):
+    """The `data-id`s of items carrying the boolean `data-<flag>` attribute. The
+    `(?!-)` keeps `data-decided` from matching `data-decided-round`; `decided`
+    goes through ITEM_DECIDED, the one regex the still-asked rule also reads."""
+    text = strip_item_markup(text)   # a commented-out item is not one
+    attr = ITEM_DECIDED if flag == "decided" else \
+        re.compile(r"\bdata-" + flag + r"\b(?!-)", re.I)
+    out = set()
+    for m in ITEM_OPEN.finditer(text):
+        if attr.search(m.group(0)):
+            out.add(next(g for g in m.groups()[1:] if g is not None))
+    return out
+
+
 def decided_ids(text):
     """The `data-id`s of items carrying `data-decided` (BL-359's own mark). An
     item decided in the round being checked left the question set, so a
     marker duty against it is answered and exempt (BL-504)."""
-    text = strip_item_markup(text)   # a commented-out item is not one
-    out = set()
-    for m in ITEM_OPEN.finditer(text):
-        if ITEM_DECIDED.search(m.group(0)):
-            ident = next(g for g in m.groups()[1:] if g is not None)
-            out.add(ident)
-    return out
+    return _flagged_ids(text, "decided")
 
 
 def _spec_item_ids(nodes):
@@ -4081,23 +4062,13 @@ def check_spec_items(path):
 
 def dropped_ids(text):
     """The `data-id`s of items carrying `data-dropped` (a spec `dropped=`)."""
-    text = strip_item_markup(text)   # a commented-out item is not one
-    out = set()
-    for m in ITEM_OPEN.finditer(text):
-        if re.search(r"\bdata-dropped\b(?!-)", m.group(0), re.I):
-            out.add(next(g for g in m.groups()[1:] if g is not None))
-    return out
+    return _flagged_ids(text, "dropped")
 
 
 def proposal_ids(text):
     """The `data-id`s of items carrying `data-proposal` (a spec `proposal=yes`,
     BL-692): decided by the writer this round, awaiting the reader's correction."""
-    text = strip_item_markup(text)   # a commented-out item is not one
-    out = set()
-    for m in ITEM_OPEN.finditer(text):
-        if re.search(r"\bdata-proposal\b(?!-)", m.group(0), re.I):
-            out.add(next(g for g in m.groups()[1:] if g is not None))
-    return out
+    return _flagged_ids(text, "proposal")
 
 
 _SAVE_SEP = re.compile(r"^<!-- reply saved .*-->[ \t]*$", re.M)
