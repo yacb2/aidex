@@ -338,5 +338,39 @@ done
 got_o5="$(cd "$RETRO" && python3 -c "import pricing; print(pricing.prices_for('claude-opus-5'))")"
 [[ "$got_o5" == "(5, 6.25, 10, 0.5, 25)" ]] || fail "(o) claude-opus-5 must keep its own row, got $got_o5"
 
+# (o2) Haiku 5.5 / Sonnet 5.5 rows (2026-10-07). Haiku 5.5 has its own row (not haiku-4-5 by prefix,
+#      dated ids included); Sonnet 5.5 has its own row with the halved cache read.
+out_o2="$(cd "$RETRO" && python3 -I - <<'PYW'
+import sys; sys.path.insert(0, ".")
+import pricing as P
+bad = []
+if P.prices_for("claude-haiku-5-5-20261007") != (0.10, 0.125, 0.20, 0.01, 0.50): bad.append("haiku-5-5 row")
+if P.prices_for("claude-haiku-4-5") != (1, 1.25, 2, 0.10, 5): bad.append("haiku-4-5 row moved")
+if P.prices_for("claude-sonnet-5-5")[3] != 0.10: bad.append("sonnet-5-5 cache read")
+if P.prices_for("claude-sonnet-5")[3] != 0.20: bad.append("sonnet-5 cache read moved")
+print("\n".join(bad) or "PYOK")
+PYW
+)"
+[[ "$out_o2" == *PYOK* ]] || fail "(o2) pricing rows: $out_o2"
+
+# (p) Haiku 5.5 is billed per REQUEST: one request with a 150k prompt (1000 in + 149000 read) is
+#     1000*0.50 + 149000*0.05 + 1000*2.50 = $0.010450 (high tier); one with exactly 100k
+#     (1000 in + 99000 read) stays low: 1000*0.10 + 99000*0.01 + 1000*0.50 = $0.001590. Total $0.012040.
+#     Averaging the two into one aggregate would price both low ($0.003680).
+TXP="$(mktemp -d)"; mkdir -p "$TXP/-Users-user-Documents-projects-demo-ws"
+python3 - "$TXP/-Users-user-Documents-projects-demo-ws/s1.jsonl" <<'PYH'
+import json, sys
+with open(sys.argv[1], "w") as f:
+    for mid, cr in (("h1", 149000), ("h2", 99000)):
+        f.write(json.dumps({"type": "assistant", "isSidechain": False, "timestamp": "2026-10-07T10:00:00.000Z",
+            "message": {"id": mid, "role": "assistant", "model": "claude-haiku-5-5", "content": [{"type": "text", "text": "."}],
+                        "usage": {"input_tokens": 1000, "cache_creation_input_tokens": 0,
+                                  "cache_read_input_tokens": cr, "output_tokens": 1000}}}) + "\n")
+PYH
+out_p="$(python3 "$RETRO/subagent_spend.py" --transcripts-root "$TXP" 2>&1)"
+rm -rf "$TXP"
+printf '%s\n' "$out_p" | grep '^TOTAL' | grep -q ' 0\.012040$' \
+  || fail "(p) haiku-5-5 must be priced per request (high tier above 100k, exactly 100k low), TOTAL 0.012040: $out_p"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — subagent_spend: <synthetic> excluded, split message.id counted once from the last line, dedupe per PROJECT with the launch replay credited to main, non-message iterations priced on their own model, flat cache-creation beats a stale dict, sidechain turns attributed, inherited label only where the meta named no model, broken meta warns without inheriting, partial USD marked, TOTAL equals the printed rows"

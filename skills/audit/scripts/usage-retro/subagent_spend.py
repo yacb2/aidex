@@ -206,7 +206,7 @@ def walk(tx_root):
                 r = rows[key]
                 r[0] += 1
                 r[1] = [a + b for a, b in zip(r[1], t)]
-                u = pricing.usd(model, t)
+                u = pricing.usd_request(model, t)
                 if u is None:
                     r[3] += 1
                 else:
