@@ -41,7 +41,7 @@ Una decision y una pregunta.
 ¿Aplazamos el segundo item a la próxima ronda?
 
 - Sí: aplazarlo {recommended}
-- No: intentarlo ahora
+- No — intentarlo ahora
 :::
 ${3:-}:::
 
