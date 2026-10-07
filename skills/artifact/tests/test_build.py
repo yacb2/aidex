@@ -1314,6 +1314,15 @@ try:
             "::: diagram {#d1}\na: x\n:::", 1, "there is no default")
     rejects("an unknown attr key names what the type does take",
             '::: note {wat="x"}\ny\n:::', 1, "takes no attr")
+    # BL-714: masthead profile= is validated against the one table the checker mirrors.
+    rejects("masthead profile=bogus is refused, naming the valid values",
+            '::: masthead {title="T" profile="bogus"}\nx\n:::', 1, "valid: study")
+    holds("masthead profile=study writes the consult-profile meta",
+          '::: masthead {title="T" profile="study"}\nx\n:::',
+          '<meta name="consult-profile" content="study">')
+    import check_artifact as _ca
+    check("spec_build.PROFILES and check_artifact.PROFILES stay in lockstep",
+          spec_build.PROFILES == _ca.PROFILES, "%r vs %r" % (spec_build.PROFILES, _ca.PROFILES))
     rejects("a missing required attr", "::: group {#G1}\nx\n:::", 1, "title")
     rejects("a missing #id", '::: group {title="T"}\nx\n:::', 1, "#id")
     # `title` and `heading` are two strings with two audiences: `data-title` is

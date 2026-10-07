@@ -403,11 +403,20 @@ def _unfenced(lines):
         yield ln, before is None and fence is None
 
 
+# BL-714: `study` lets check questions follow the teaching section they test;
+# check_artifact.py's check_shape reads the meta this emits.
+PROFILES = ("study",)
+
+
 @emitter("masthead")
 def emit_masthead(node, ctx):
     a = _attrs(node, {"title", "eyebrow", "byline", "visual", "lang", "dropped-ids",
-                     "retitled-ids"},
+                     "retitled-ids", "profile"},
                forbid_id=True)
+    if "profile" in a and a["profile"].strip() not in PROFILES:
+        raise SpecBuildError(
+            node.line, "`masthead` profile=%r is not a profile (valid: %s)"
+            % (a["profile"], ", ".join(PROFILES)))
     # A masthead may carry a framed aside, in the position it was written. One
     # sampled page opens with
     # two `.note` divs under its standfirst, and both are about the page as a
@@ -2190,6 +2199,9 @@ def build(spec_text, lang=None, base_dir=".", page=None):
     head = []
     for node in tree:
         if node.block_type == "masthead":
+            if node.attrs.get("profile", "").strip():
+                head.append('<meta name="consult-profile" content="%s">'
+                            % esc(node.attrs["profile"].strip()))
             visual = node.attrs.get("visual", "").strip()
             if visual:
                 head.append('<meta name="consult-visual" content="%s">'

@@ -236,6 +236,16 @@ naming the section's heading. Measured on this file's own example on 2026-09-24:
 the `section` below the `notes` block turned the same spec from a refusal into
 `artifact contract OK`. Reference material goes after the questions.
 
+**Study pages are the exception, declared.** A page that teaches and then asks (check
+questions that test the section just read) puts `profile="study"` on its `masthead`.
+The builder writes `<meta name="consult-profile" content="study">`, and `consult-shape`
+then stops judging `prose before the first block` and `prose between blocks`: write
+`section`, `group` (holding its items), `section`, `group`, in the order the reader
+meets them; the rail lists them in that body order. Every other rule still applies
+(each item inside a block, the notes item last, the ledger before the first block
+still a real `.k`/`.v` ledger). The meta is read exactly: only `content="study"`. Unknown values are refused, naming
+the valid ones (`study`). A page without the attribute keeps the rule above unchanged.
+
 ### The verbs: editing a page that already exists
 
 **Never edit the built HTML, and never hand-rewrite the spec's structure.** A verb is a
