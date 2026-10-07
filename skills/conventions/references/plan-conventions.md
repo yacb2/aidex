@@ -484,9 +484,10 @@ Use one carrier per plan consistently; the derivation reads whichever the plan u
   2026-09-13, `references/claude-code-runtime/04-subagent-gotchas.md` in the aidex
   workspace); what is clean is that all three
   `fable/low` runs cost less than all three `sonnet/low` runs, complete separation at n=3,3
-  (p = 0.05). **`haiku` carries no effort dimension at all** — the loader accepts `effort:` on
-  it and drops it — so no row may be written as `haiku/<effort>`. Evidence:
-  `.context/proofs/bl-335/` in the aidex workspace.
+  (p = 0.05). Under Haiku 4.5 `haiku` carried no effort dimension (the loader dropped `effort:`,
+  `.context/proofs/bl-335/` in the aidex workspace); Haiku 5.5 honours it on the subagent
+  path (2026-10-07, `.context/research/2026-10-07-haiku-5-5-agent-eval/`), so a row may now
+  be written as `haiku/<effort>`.
 
   **The `gate` row is half-measured and stays put.** Its verifier half was measured over the
   same nine graded worktrees used as a labelled set (BL-335): all three cells returned every

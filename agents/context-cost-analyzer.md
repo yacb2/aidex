@@ -2,6 +2,7 @@
 name: context-cost-analyzer
 description: Launched by /aidex:aidex context; not for direct use. Returns a priority-ordered list of token savings.
 model: haiku
+effort: low
 tools: Read, Grep, Glob, Bash
 context: fork
 user-invocable: false

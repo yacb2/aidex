@@ -155,17 +155,17 @@ Launch each agent by type, `subagent_type: aidex:<name>` (definitions in the plu
 | Subagent | Launches when | Model | Effort | Tools |
 |----------|--------------|-------|--------|-------|
 | [context-auditor](../../agents/context-auditor.md) (`aidex:context-auditor`) | `.context/` exists | sonnet | low | Read, Glob, Grep, Bash |
-| [conventions-auditor](../../agents/conventions-auditor.md) (`aidex:conventions-auditor`) | `.context/` exists AND `${CLAUDE_PLUGIN_ROOT}/skills/conventions/scripts/validate.sh` is installed | haiku | — | Read, Bash |
+| [conventions-auditor](../../agents/conventions-auditor.md) (`aidex:conventions-auditor`) | `.context/` exists AND `${CLAUDE_PLUGIN_ROOT}/skills/conventions/scripts/validate.sh` is installed | haiku | low | Read, Bash |
 | [skills-auditor](../../agents/skills-auditor.md) (`aidex:skills-auditor`) | `.claude/skills/` exists | sonnet | low | Read, Glob, Grep |
-| [symlink-checker](../../agents/symlink-checker.md) (`aidex:symlink-checker`) | Any symlinks found | haiku | — | Read, Glob, Bash |
+| [symlink-checker](../../agents/symlink-checker.md) (`aidex:symlink-checker`) | Any symlinks found | haiku | low | Read, Glob, Bash |
 | [memory-auditor](../../agents/memory-auditor.md) (`aidex:memory-auditor`) | `~/.claude/projects/<slug>/memory/` exists and holds at least one memory file | sonnet | medium | Read, Glob, Grep |
-| [freshness-checker](../../agents/freshness-checker.md) (`aidex:freshness-checker`) | `.context/references/`, `.context/docs/`, or `.context/roadmap/` exist | haiku | — | Read, Glob, Grep, Bash, WebFetch |
-| [plugin-auditor](../../agents/plugin-auditor.md) (`aidex:plugin-auditor`) | `~/.claude/plugins/installed_plugins.json` exists | haiku | — | Read, Glob, Grep, Bash |
-| [context-cost-analyzer](../../agents/context-cost-analyzer.md) (`aidex:context-cost-analyzer`) | `/aidex:aidex context` — after `scripts/context-snapshot.py` has written the snapshot | haiku | — | Read, Glob, Grep, Bash |
+| [freshness-checker](../../agents/freshness-checker.md) (`aidex:freshness-checker`) | `.context/references/`, `.context/docs/`, or `.context/roadmap/` exist | haiku | medium | Read, Glob, Grep, Bash, WebFetch |
+| [plugin-auditor](../../agents/plugin-auditor.md) (`aidex:plugin-auditor`) | `~/.claude/plugins/installed_plugins.json` exists | haiku | high | Read, Glob, Grep, Bash |
+| [context-cost-analyzer](../../agents/context-cost-analyzer.md) (`aidex:context-cost-analyzer`) | `/aidex:aidex context` — after `scripts/context-snapshot.py` has written the snapshot | haiku | low | Read, Glob, Grep, Bash |
 
 **Model, effort and tools are set in each agent's own definition** (`agents/<name>.md`), which
 Claude Code applies because the agent is launched by registered type. The Model / Effort / Tools
-columns above mirror those files for reading; change them in the definition, not here. The table was the declared contract before agents were registered, so the definitions were aligned to it (conventions-auditor `Read, Bash`; skills-auditor `Read, Glob, Grep`, no `Skill`). A haiku agent carries no `effort:` (the loader drops it), hence the dash. Effort for the others follows the suite heuristic ([workflow-spec conventions](../workflow/references/01-workflow-spec-conventions.md)): mechanical existence/parse checks → `low`; judgment over content quality or compliance → `medium`.
+columns above mirror those files for reading; change them in the definition, not here. The table was the declared contract before agents were registered, so the definitions were aligned to it (conventions-auditor `Read, Bash`; skills-auditor `Read, Glob, Grep`, no `Skill`). Haiku 5.5 honours `effort:` like every other model (until 2026-10-08 the Haiku 4.5 loader dropped it); the haiku rows carry the levels measured on 2026-10-07 (aidex workspace `.context/research/2026-10-07-haiku-5-5-agent-eval/`). Effort for the others follows the suite heuristic ([workflow-spec conventions](../workflow/references/01-workflow-spec-conventions.md)): mechanical existence/parse checks → `low`; judgment over content quality or compliance → `medium`.
 
 **Wait for ALL launched agents to complete before proceeding to Phase 2.**
 

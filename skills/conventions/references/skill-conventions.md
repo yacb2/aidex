@@ -338,7 +338,7 @@ Agents live in the plugin-level `agents/` directory, flat, and are launched by t
 (`subagent_type: aidex:<name>`). A skill-local `skills/<skill>/agents/*.md` is NOT registered
 by Claude Code, so its `model`/`effort`/`tools` would be ignored when pasted as a prompt;
 `tests/test-agent-registration.sh` fails on one. Each description says which skill launches
-it and that it is not for direct use. A `haiku` agent declares no `effort:` (the loader drops it).
+it and that it is not for direct use. Every agent declares `effort:`, `haiku` included (Haiku 5.5 honours it; the Haiku 4.5 loader dropped it).
 
 **Declare `model` AND `effort`. Both, always (except `effort` on `haiku`)** — enforced by
 `scripts/test_registry_lockstep.py` check 7.
@@ -365,6 +365,10 @@ declared or not (the binary carries a matching `Effort not supported` path). So 
 agent the declaration is *documentation and forward-compatibility*, not behaviour: it
 states the intended depth and takes effect the day the agent is moved to an effort-capable
 model. Declare it anyway; do not claim a haiku agent "wastes reasoning" without it.
+That day came with Haiku 5.5 (2026-10-07, the `haiku` alias from Claude Code 2.1.293): it
+honours a declared `effort:` on the subagent path (freshness-checker output 4.0k / 8.2k /
+50k tokens at low / high / max) and defaults to `medium` without one. The two haiku rows
+above are the Haiku 4.5 measurement.
 
 Pick by what the agent does, not by its model: deterministic walks and script-runners
 `low`; comparison and inventory judgement `medium`; root-cause analysis, verification,

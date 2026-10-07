@@ -2,6 +2,7 @@
 name: conventions-auditor
 description: Launched by /aidex:aidex audit; not for direct use. Returns validate.py violations as aidex findings.
 model: haiku
+effort: low
 tools: Read, Bash
 context: fork
 user-invocable: false

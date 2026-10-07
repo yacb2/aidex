@@ -30,9 +30,11 @@ this test's "in sync" as covering it.
 SCOPE — every skills/* walk below goes through _owned_skills(), never the raw root.
 Installed, that root also holds the user's own skills, which this repo does not ship
 and has no standing to judge (BL-115).
-  7. every agents/*.md declares model, and effort unless it is haiku (which must declare
-     none: the loader drops it); an absent effort elsewhere silently inherits the spawning
-     session's — see the check for the probe. Named exemptions: EFFORT_EXEMPT.
+  7. every agents/*.md declares model and a valid effort, haiku included; an absent effort
+     silently inherits the spawning session's (haiku: the model's default) — see the check
+     for the probe. Named exemptions: EFFORT_EXEMPT. Until 2026-10-08 haiku had to declare
+     none (Haiku 4.5: the loader dropped it); Haiku 5.5 honours it on the subagent path,
+     measured in the aidex workspace at .context/research/2026-10-07-haiku-5-5-agent-eval/.
   7b. every skill that fans out — by DECLARING Workflow/Agent in allowed-tools, or by
      mandating one in its BODY — declares a `model-policy:` AND states it in the body,
      and a body mandate not covered by the declaration is reported as its own failure.
@@ -142,7 +144,6 @@ def _model_policy_failures(rel: str, head: str, body: str) -> list[str]:
 # short, unprefixed name: the `aidex:` plugin namespace IS the collision
 # avoidance, so a second `aidex-` prefix on the directory would only be noise.
 NAMESPACE_ROOT = "aidex"
-WEAK_MODEL = "haiku"
 
 
 def _name_prefix_failures(pairs: list[tuple[str, str]]) -> list[str]:
@@ -180,11 +181,8 @@ VALID_EFFORT = {"low", "medium", "high", "xhigh", "max"}
 
 
 def _effort_failures(name: str, model: str, effort: str) -> list[str]:
-    """Guard 7 rule for one agent: haiku declares NO effort (the loader drops it); every
-    other model declares a valid one, unless named in EFFORT_EXEMPT."""
-    if model == WEAK_MODEL:
-        return [f"{name} is haiku and declares effort '{effort}' — the loader drops it; "
-                f"remove the line"] if effort else []
+    """Guard 7 rule for one agent: every model, haiku included, declares a valid effort,
+    unless named in EFFORT_EXEMPT."""
     if name in EFFORT_EXEMPT:
         return []
     if not effort:
@@ -651,17 +649,17 @@ def main() -> int:
         failures.append("the name-prefix guard rejects the orchestrator or a valid "
                         "short-named skill")
 
-    # 10. RETIRED 2026-09-29 (was a haiku-with-effort-above-low warning). Guard 7 now fails any
-    # haiku agent that declares `effort:`, so the pair can no longer exist. Note: context-auditor
+    # 10. RETIRED 2026-09-29 (was a haiku-with-effort-above-low warning). From 2026-10-08
+    # guard 7 requires an effort on haiku too (Haiku 5.5 honours it). Note: context-auditor
     # and skills-auditor did judgment work at haiku/medium before 2026-09-29; the owner's decision
     # on their model is pending, and nothing here flags it any more.
 
     # 7 probes: the effort rule itself must be able to fail.
-    if not _effort_failures("p", "haiku", "low"):
-        failures.append("guard 7 passed a haiku agent that declares effort")
+    if not _effort_failures("p", "haiku", ""):
+        failures.append("guard 7 passed a haiku agent with no effort")
     if not _effort_failures("p", "sonnet", ""):
         failures.append("guard 7 passed a sonnet agent with no effort")
-    if _effort_failures("p", "haiku", "") or _effort_failures("p", "sonnet", "high"):
+    if _effort_failures("p", "haiku", "low") or _effort_failures("p", "sonnet", "high"):
         failures.append("guard 7 rejects a valid agent")
     if _effort_failures("artifact-grader", "opus", ""):
         failures.append("guard 7 rejects the named exemption")

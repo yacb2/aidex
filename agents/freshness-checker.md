@@ -2,6 +2,7 @@
 name: freshness-checker
 description: Launched by /aidex:aidex audit; not for direct use. Returns stale documentation artifacts.
 model: haiku
+effort: medium
 tools: Read, Grep, Glob, Bash, WebFetch
 context: fork
 user-invocable: false

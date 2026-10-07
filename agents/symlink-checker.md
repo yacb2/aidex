@@ -2,6 +2,7 @@
 name: symlink-checker
 description: Launched by /aidex:aidex audit; not for direct use. Returns broken symlinks in .claude/.
 model: haiku
+effort: low
 tools: Read, Glob, Bash
 context: fork
 user-invocable: false
