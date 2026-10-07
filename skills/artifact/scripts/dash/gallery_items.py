@@ -1306,16 +1306,16 @@ def render(doc, root, group_id, group_title, lang, page=None,
             % (" stacked" if layout == "stacked" and pair else "",
                ' data-per-option="%d"' % len(per_option) if per_option else ""))
         regions = r.get("highlight")
-        alt = "%s · %%s" % heading
+        alt = heading + " · "
         if kind == "states":
             for st in r["states"]:
                 add(figure(root, st["capture"], st["id"], st["label"], cell,
-                           alt % st["label"], assets, copies))
+                           alt + st["label"], assets, copies))
         elif kind == "alternatives":
             for a in alts:
                 if not option_states or not r.get("option_states"):
                     add(figure(root, r["captures"][a["id"]], a["id"],
-                               a["label"], cell, alt % a["label"], assets,
+                               a["label"], cell, alt + a["label"], assets,
                                copies, regions))
                     continue
                 # BL-691: option-major, so each option's states sit adjacent.
@@ -1326,20 +1326,20 @@ def render(doc, root, group_id, group_title, lang, page=None,
                     cap = "%s · %s" % (a["label"],
                                        OPTION_STATE_WORDS[lang].get(st, st))
                     add(figure(root, r["captures"][a["id"]][st],
-                               a["id"] + "-" + st, cap, cell, alt % cap,
+                               a["id"] + "-" + st, cap, cell, alt + cap,
                                assets, copies, regions if k == 0 else None))
         elif before is not None:
             add(figure(root, before, "before", words["before"], cell,
-                       alt % words["before"], assets, copies,
+                       alt + words["before"], assets, copies,
                        r.get("highlight_before")))
             add(figure(root, after, "after", words["after"], cell,
-                       alt % words["after"], assets, copies, regions))
+                       alt + words["after"], assets, copies, regions))
         else:
             # A reason replaces the "new screen" label (BL-610).
             label = "%s: %s" % (words["none"], r["noBefore"]) \
                 if "noBefore" in r else words["new"]
             add(figure(root, after, "after", label, cell,
-                       alt % label, assets, copies, regions))
+                       alt + label, assets, copies, regions))
         add('    </div>')
         add('    <p class="gal-variant">%s</p>' % e(variant_line(variant, lang)))
         if "decided_note" in r:

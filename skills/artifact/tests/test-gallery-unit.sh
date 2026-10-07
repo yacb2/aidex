@@ -1423,6 +1423,16 @@ else fail "javascript link: exit $rc, $(grep -o 'gal-look[^\n]*' "$TMP/pr/jslink
 specrun manynb "d['rows'] = [dict($SINGLE, cell=c, noBefore='new screen') for c in ('a', 'b', 'hoy')]"; rc=$?
 [[ $rc == 0 && -f "$TMP/pr/spec/manynb.html" ]] && ok "several single-capture rows each with a noBefore reason still build from a spec" \
   || fail "several noBefore: rc $rc, $(tail -3 "$TMP/pr/manynb.sb")"
+# A row title is user text: a '%' in it ('50% de' reads as a '% d' conversion)
+# must reach the alt text literally, never be formatted a second time.
+PCT='Más del 50% de filas y 100 %'
+A1=actual/light-desktop/audit-empty.png; A2=actual/light-desktop/audit-new-state.png
+specrun pctstates "d['rows'] = [{'cell': 'c', 'variant': 'light-desktop', 'kind': 'states', 'look': 'x', 'title': '$PCT', 'states': [{'id': 'a', 'label': 'A', 'capture': '$A1'}, {'id': 'b', 'label': 'B', 'capture': '$A2'}]}]"; rc_s=$?
+specrun pctalts "d['alternatives'] = [{'id': 'a', 'label': 'A'}, {'id': 'b', 'label': 'B'}]; d['rows'] = [{'cell': 'c', 'variant': 'light-desktop', 'kind': 'alternatives', 'look': 'x', 'title': '$PCT', 'captures': {'a': '$A1', 'b': '$A2'}}]"; rc_a=$?
+if [[ $rc_s == 0 && $rc_a == 0 ]] && grep -qF "alt=\"$PCT · B\"" "$TMP/pr/spec/pctstates.html" \
+    && grep -qF "alt=\"$PCT · B\"" "$TMP/pr/spec/pctalts.html"; then
+  ok "a '%' in a states or alternatives row title builds and reaches the alt text literally"
+else fail "percent in title: states rc $rc_s, alternatives rc $rc_a, $(tail -1 "$TMP/pr/pctstates.sb") / $(tail -1 "$TMP/pr/pctalts.sb")"; fi
 
 if (( failures )); then echo "$failures failure(s)"; exit 1; fi
 echo "ok: the gallery unit — generator, refusals, wrapped page and every RED control"
