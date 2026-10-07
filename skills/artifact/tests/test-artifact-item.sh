@@ -244,6 +244,18 @@ elif grep -q "content outside its outer element" "$TMP/e3.txt"; then
   ok "prose outside the replacement element is refused"
 else fail "the stray-content refusal is unclear: $(cat "$TMP/e3.txt")"; fi
 
+# A page built from `<stem>.spec.md` is an output of that spec. A put plus a
+# passing re-wrap advances the baseline, so spec_build's hand-edit guard cannot
+# see the change and the next build silently reverts it.
+bash "$ITEM" get "$TMP/reports/page.html" c1 | sed 's/The first question/The first question, edited/' > "$TMP/c1-same.html"
+printf '# spec\n' > "$TMP/reports/page.spec.md"
+if bash "$ITEM" put "$TMP/reports/page.html" c1 "$TMP/c1-same.html" >"$TMP/e5.txt" 2>&1; then
+  fail "put edits the sidecar of a page that is built from page.spec.md"
+elif grep -q "page.spec.md" "$TMP/e5.txt"; then
+  ok "a put on a spec-built page is refused and the spec is named"
+else fail "the spec-built refusal does not name the spec: $(cat "$TMP/e5.txt")"; fi
+rm -f "$TMP/reports/page.spec.md"
+
 cmp -s "$TMP/guard.body" "$PREV/page.html.body" && ok "every refused put wrote nothing" \
   || fail "a refused put modified the sidecar"
 

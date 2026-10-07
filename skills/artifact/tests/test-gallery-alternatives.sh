@@ -254,6 +254,24 @@ bash "$REPLY" "$TMP/r1.txt" > /dev/null 2> "$TMP/r6.err"; rc=$?
 [[ $rc == 2 && "$(cat "$TMP/r6.err")" == *"--rows"* ]] \
   && ok "an alternatives row with no --rows is refused, naming the flag (labels unknown)" \
   || fail "no-labels case: rc $rc $(cat "$TMP/r6.err")"
+# D-c03: a page with an alternatives row and a states row of the SAME gallery
+# needs two rows documents (an alternatives document holds no states row); the
+# second must not replace the first's labels, in either order.
+cat > "$TMP/sameslug.json" <<'JSON'
+{"gallery": "skel", "variants": ["light-desktop"],
+ "rows": [{"cell": "btn", "variant": "light-desktop", "kind": "states",
+           "states": [{"id": "idle", "label": "Reposo"}]}]}
+JSON
+printf '### skel-list-light-desktop-alternatives · skel · list · light-desktop\n\n- Con cajón\n\n### skel-btn-light-desktop-states · skel · btn · light-desktop\n\n- Reposo\n' > "$TMP/r10.txt"
+for first in alt sameslug; do
+  second=$([[ $first == alt ]] && echo sameslug || echo alt)
+  bash "$REPLY" --rows "$TMP/$first.json" --rows "$TMP/$second.json" "$TMP/r10.txt" 2>/dev/null | python3 -c "
+import json, sys
+r = json.load(sys.stdin)['rows']
+sys.exit(0 if r[0]['verdict'] == 'Con cajón' and r[1]['states'][0]['approved'] else 1)" \
+    && ok "two rows documents of one gallery keep both label sets (--rows $first.json first)" \
+    || fail "the chosen alternative was lost with --rows $first.json first: $(bash "$REPLY" --rows "$TMP/$first.json" --rows "$TMP/$second.json" "$TMP/r10.txt" 2>&1 | tr '\n' ' ' | head -c 300)"
+done
 
 echo "== labels are validated and stored trimmed =="
 python3 - "$TMP/alt.json" "$TMP/trim.json" <<'PY'
