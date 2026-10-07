@@ -70,9 +70,10 @@ import diagram_svg                              # noqa: E402
 import gallery_items                            # noqa: E402
 import graph_svg                                # noqa: E402
 import md_body                                  # noqa: E402
+from _usage import UsageParser, usage_exit      # noqa: E402
 import wrap_report                              # noqa: E402
 import spec_parser                                # noqa: E402
-from spec_parser import SpecSyntaxError, parse   # noqa: E402,F401
+from spec_parser import BlockNode, SpecSyntaxError, parse   # noqa: E402,F401
 
 esc = md_body.esc
 
@@ -1866,6 +1867,99 @@ def _walk(nodes):
             yield sub
 
 
+# `Q1 · title`, `Q1: title`, `Q1 - title`, `Q1 — title`, `Q1. title`: a prefix
+# that is the item's own id plus a separator. Stripping it loses nothing (the
+# composer writes the id back); a title that merely starts with the id (`Q1
+# pick`, `Q1?`) is not provably that prefix and stays refused by emit_item.
+_ID_SEPARATOR = re.compile(r"\s*(?:·|:|-|—|\.)\s+")
+
+
+def clean_item_title(ident, title):
+    """`title` without its own `Q1 · ` id prefix; unchanged when it has none
+    (or nothing would be left). The one reader of that rule: `_autofix` and the
+    verbs' ledger rows both call it, so a row names what the page shows."""
+    if not (ident and contract_defects.title_repeats_id(ident, title)
+            and title.strip().casefold().startswith(ident.casefold())):
+        return title
+    rest = title.strip()[len(ident):]
+    m = _ID_SEPARATOR.match(rest)
+    if m and rest[m.end():].strip():
+        return rest[m.end():].strip()
+    return title
+
+
+def _autofix(tree, lang):
+    """Mechanical, lossless spec repairs, each announced on stderr.
+
+    The checks that would refuse these (`title_repeats_id`, the section attr
+    list, check_artifact's `consult` general-notes rule) are untouched: this
+    only rewrites the spec tree so that the builder, not the author, does the
+    mechanical part.
+    """
+    for node in _walk(tree):
+        if node.block_type == "item" and node.id:
+            title = node.attrs.get("title", "")
+            fixed = clean_item_title(node.id, title)
+            if fixed != title:
+                node.attrs["title"] = fixed
+                sys.stderr.write(
+                    "spec_build: line %d: dropped the id prefix from the "
+                    "`item` title %r (the composer prefixes the id already)\n"
+                    % (node.line, title))
+        elif (node.block_type == "section" and "title" in node.attrs
+              and "heading" not in node.attrs):
+            node.attrs["heading"] = node.attrs.pop("title")
+            sys.stderr.write(
+                "spec_build: line %d: read `section` title= as heading= (write "
+                "heading=\"…\" next time)\n" % node.line)
+    items = [n for n in _walk(tree) if n.block_type == "item"]
+    if items and not any(n.block_type == "notes" for n in _walk(tree)):
+        notes = BlockNode(0, "notes",
+                          attrs={"title": NOTES_TITLE.get(lang, NOTES_TITLE["es"])})
+        # The notes close the question set: right after the last top-level
+        # block that carries an item or a gallery (reference sections may follow).
+        last = -1
+        for i, top in enumerate(tree):
+            if any(n.block_type in ("item", "gallery") for n in _walk([top])):
+                last = i
+        tree.insert(last + 1, notes)
+        sys.stderr.write(
+            "spec_build: added the general-notes block (a consultation page "
+            "carries one; write `::: notes {title=\"…\"}` to name it yourself)\n")
+
+
+NOTES_TITLE = {"es": "Notas generales", "en": "General notes"}
+
+
+def _refuse_missing_visual(tree):
+    """A consultation masthead declares a visual (check_artifact `consult`
+    checks the page; the reason is content, so the spec is refused, not fixed).
+    A figure block or a gallery puts a drawing on the page; without one, only
+    `visual="none: <why>"` satisfies the check."""
+    nodes = list(_walk(tree))
+    if not any(n.block_type == "item" for n in nodes):
+        return
+    mast = next((n for n in nodes if n.block_type == "masthead"), None)
+    if mast is None or any(n.block_type in FIGURE_BLOCKS + ("gallery",)
+                           for n in nodes):
+        return
+    visual = mast.attrs.get("visual", "").strip()
+    if visual.lower().startswith("none:"):
+        return
+    raise SpecBuildError(
+        mast.line, "a consultation masthead needs visual=…: write "
+        "visual=\"none: <why there is nothing to draw>\", or add the figure "
+        "block (`figure`, `chart`, `graph`, `diagram`, `video` or `gallery`)"
+        + (" — visual=%r names a figure but the spec has no such block"
+           % visual if visual else ""))
+
+
+def refuse_missing_visual(spec_text):
+    """`_refuse_missing_visual` for a caller that holds the text (the CLI, the
+    verbs' pre-check)."""
+    _refuse_missing_visual(parse(spec_text))
+
+
 def _refuse_item_id_collisions(tree):
     """Refuse an item id that another block of the spec also carries.
 
@@ -2181,6 +2275,7 @@ def build(spec_text, lang=None, base_dir=".", page=None):
     ctx = BuildContext(lang=lang, base_dir=base_dir, page=page)
     tree = parse(spec_text)
     ctx.tree = tree
+    _autofix(tree, lang)
     _refuse_links(spec_text)
     _refuse_entities(spec_text)
     _refuse_span_tones(spec_text)
@@ -2359,8 +2454,10 @@ def hand_edit_defect(out):
 
 # --- CLI ---------------------------------------------------------------------
 def main(argv):
-    p = argparse.ArgumentParser(
+    p = UsageParser(
         prog="spec_build.py",
+        form="spec_build.py <spec.md> [-o <out.html> [--check] [--new-round]] "
+             "[--lang es|en] [--title <title>]",
         description="Build a page spec into artifact-kit HTML.")
     p.add_argument("spec", metavar="<spec.md>", help="the page spec")
     p.add_argument("-o", dest="out", metavar="<out.html>",
@@ -2389,22 +2486,23 @@ def main(argv):
         with open(args.spec, encoding="utf-8") as fh:
             spec_text = fh.read()
     except OSError as exc:
-        sys.stderr.write("spec-build: %s\n" % exc)
-        return 2
+        usage_exit(p.form, "cannot read the spec: %s" % exc)
     except UnicodeDecodeError as exc:
         sys.stderr.write("spec-build: %s is not UTF-8 (byte 0x%02x at offset %d) "
                          "— save the spec as UTF-8\n"
                          % (args.spec, exc.object[exc.start], exc.start))
         return 2
     if args.check and not args.out:
-        sys.stderr.write("spec-build: --check needs -o <out.html>\n")
-        return 2
+        usage_exit(p.form, "--check needs -o <out.html>")
 
     try:
         # A silent spec follows the profile the wrap and lang-follows-profile
         # read, looked up from where the page lands (as the wrap does).
         # Only the primary subtag, as lang-follows-profile compares it.
         lang = resolve_lang(spec_text, args.lang, args.out)
+        # Before build(): a gallery copies its captures beside the page while
+        # it builds, and a refusal must leave no `<name>-assets/` behind.
+        refuse_missing_visual(spec_text)
         body = build(spec_text, lang=lang,
                      base_dir=os.path.dirname(os.path.abspath(args.spec)),
                      page=args.out)

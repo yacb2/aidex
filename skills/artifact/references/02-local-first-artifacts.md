@@ -179,6 +179,9 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/spec_build.py" <name>.spec.md \
   -o <name>.html --check
 ```
 
+Call it by that absolute path from any cwd, and write the command out each time: a command held in a
+shell variable runs as one word under zsh.
+
 It prints the page path and the check's last line. On a spec error it prints
 `<spec>:<line>: <message>` and exits 1, and **nothing is written**. Without `-o` the
 page BODY goes to stdout, which is how you look at a build without landing a file;

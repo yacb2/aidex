@@ -106,6 +106,10 @@ the target may hold one level of balanced parentheses and no whitespace.
   `line 3: link target 'javascript:alert(1)' is refused: ...`. The markdown route
   (`wrap-report.sh --in x.md`) does not stop: it renders a refused link as plain
   text, `label (target)`, with no href.
+- **Id in `title=`:** an item title starting with its own id and a separator (`Q1 · `, `Q1: `,
+  `Q1 - `, `Q1 — `, `Q1. `) is stripped by the builder with a stderr note naming the line;
+  `Q1 seguimos` (no separator) is refused with `repeats its id`. A `section` written with
+  `title=` and no `heading=` is read as `heading=` the same way (both given: refused).
 - **Not in `title=`:** the title is also the rail entry and a decided item's
   summary, where it shows as raw text. A link there is refused with the fence's line.
 - **Not a link:** inside a code span or a code fence, or after `\[` (which reaches

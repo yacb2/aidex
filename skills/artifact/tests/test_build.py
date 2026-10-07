@@ -875,9 +875,11 @@ try:
             2, "an option cannot carry a code block")
     # A title that repeats the id built, and only the wrap's check-artifact
     # (item-title-repeats-id) caught it afterwards. Refused at the fence with
-    # contract_defects' own predicate: "X10 …" under X1 is another token.
-    rejects("item: a title that repeats its id is refused at the fence line",
-            '::: group {#G1 title="T"}\n::: item {#X1 title="X1 — foo"}\n?\n\n'
+    # contract_defects' own predicate: "X10 …" under X1 is another token. A
+    # separator after the id (`X1 — foo`) is stripped by the builder instead
+    # (test-refusal-fix-consult.sh); a bare `X1 foo` is still refused.
+    rejects("item: a title that repeats its id without a separator is refused at the fence line",
+            '::: group {#G1 title="T"}\n::: item {#X1 title="X1 foo"}\n?\n\n'
             "- A\n- B\n:::\n:::\n", 2, "repeats its id")
     holds("item: ...while a title that starts with ANOTHER token still builds",
           '::: group {#G1 title="T"}\n::: item {#X1 title="X10 foo"}\n?\n\n'
