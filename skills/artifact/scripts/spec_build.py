@@ -2085,10 +2085,6 @@ def build(spec_text, lang=None, base_dir=".", page=None):
         raise SpecBuildError(
             mastheads[1].line, "second masthead: a page has exactly one "
             "(the first is at line %d)" % mastheads[0].line)
-    if answerable and not mastheads:
-        raise SpecBuildError(
-            1, "no document title: a page with questions needs a `masthead` "
-            "block, and its own wrap fails the contract without one")
 
     head = []
     for node in tree:
@@ -2126,8 +2122,11 @@ def build(spec_text, lang=None, base_dir=".", page=None):
 
     body = [emit_node(n, ctx) for n in tree if not _blank_prose(n)]
 
-    # check_artifact's masthead rule reads this: a built page must keep one.
-    head.append('<meta name="spec-built" content="1">')
+    # check_artifact's masthead rule reads this: a page built WITH a masthead must
+    # keep exactly one. A spec without one (a fragment, or a page titled by --title)
+    # carries no stamp, so its page is held to nothing it never had.
+    if mastheads:
+        head.append('<meta name="spec-built" content="1">')
     out = list(head)
     out.append('<div class="page">')
     out.append('<main class="main">')

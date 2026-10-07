@@ -751,7 +751,8 @@ try:
             ("es 2 / en 5", "el la the and of to in", True),
             ("es 2 / en 6", "el la the and of to in is", False),
             ("English words inside code spans do not count",
-             "Renombrado: `is_valid_for_the_user` pasa a `has_access_to_the_page`.", True),
+             "Renombrado: `is_valid_for_the_user` pasa a `has_access_to_the_page`; "
+             "el comando `git log --format of the and in is to on with` cambia.", True),
             ("English commit subjects in a ledger do not count",
              "::: ledger\n- c1 — fix the bug in the app\n- c2 — add the test and the docs\n"
              "- c3 — remove it from the page\n:::", True)):
@@ -761,9 +762,13 @@ try:
         else:
             rejects("masthead lang=es, %s: refused" % label, LM + body + "\n",
                     1, "mixed-language")
-    rejects("an answerable spec with no masthead is refused",
-            '::: group {#G1 title="Bloque"}\n::: item {#Q1 title="Tema"}\n'
-            '¿Cuál?\n\n- A\n- B\n:::\n:::\n', 1, "masthead")
+    # The stamp marks a page built WITH a masthead; check-artifact's no-masthead rule
+    # reads it, so a spec without one (a fragment, a --title page) is never held to it.
+    check("a spec with a masthead stamps spec-built",
+          'name="spec-built"' in build(LM + "Texto.\n"))
+    check("a spec with no masthead carries no spec-built stamp",
+          'name="spec-built"' not in build('::: group {#G1 title="Bloque"}\n::: item {#Q1 title="Tema"}\n'
+                                           '¿Cuál?\n\n- A\n- B\n:::\n:::\n'))
     holds("ledger: a grid of .k/.v rows and nothing else",
           "::: ledger\n- d4 — **Hecho.** T-100.\n- d12 — Plantilla.\n:::",
           '<div class="ledger">',

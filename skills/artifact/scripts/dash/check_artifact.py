@@ -3172,7 +3172,7 @@ def check_shape(path, text):
     # or pasted a second one leaves the page without, or with two, openings).
     n_mast = len(MASTHEAD_OPEN.findall(strip_html_comments(strip_script_style(text))))
     # Two is a defect on any page. None is one only on a page the spec builder
-    # wrote (it stamps `spec-built`, and refuses an answerable spec without one): the
+    # wrote from a spec WITH a masthead (only those carry `spec-built`): the
     # shipped block template and hand-written item pages legitimately have none.
     if n_mast > 1 or (n_mast == 0 and SPEC_BUILT.search(text)):
         report(f"the page carries {n_mast} <header class=\"masthead\"> "
