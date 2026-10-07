@@ -971,8 +971,10 @@ try:
         for rel in ("shots/ld/audit-with-data.png", "actual/ld/audit-with-data.png",
                     "shots/dm/audit-loaded.png", "actual/dm/audit-loaded.png"):
             os.makedirs(os.path.dirname(os.path.join(root, rel)), exist_ok=True)
+            # a before differs from its after: a live identical pair is refused (LOOP-008 Q8)
+            grey = ["96"] if rel.startswith("shots/") else []
             subprocess.run([sys.executable, os.path.join(HERE, "png_fixture.py"),
-                            os.path.join(root, rel), str(width), "9"], check=True)
+                            os.path.join(root, rel), str(width), "9"] + grey, check=True)
     # Each root's captures have their own width, so the <img width> says which
     # root a tile was read from: the src names a content-addressed copy.
     checkout = os.path.realpath(os.path.join(tmp, "checkout"))
