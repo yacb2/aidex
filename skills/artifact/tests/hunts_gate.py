@@ -12,7 +12,7 @@ derived from R and recorded in the log:
   generated   generated_gate.py --seed G --count 100 --verbose
   rounds      rounds_gate.py    --seed S --count 20  --verbose
   real pages  render-probe --invariants over the REAL built pages: every *.html (recursive) under
-              /Users/yoelacevedo/Documents/projects/*/.context/reports/ and under
+              $AIDEX_HUNT_PROJECTS/*/.context/reports/ (default ~/Documents/projects) and under
               asset_lab_ws/.context/artifacts/, minus galleries (a `galler` path component; galleries_gate
               owns them), backup copies (a `.aidex-artifact-prev` component: the live page is already
               in the set), `_src/` fragments and `*.body.html`, and duplicate checkouts (a path component
@@ -53,8 +53,10 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.join(os.path.dirname(HERE), "scripts")
-DEFAULT_STATE = "/Users/yoelacevedo/Documents/projects/aidex_ws/.context/research/2026-09-24-artifact-spec-corpus/hunts"
-PROJECTS = "/Users/yoelacevedo/Documents/projects"
+PROJECTS = os.environ.get("AIDEX_HUNT_PROJECTS") or os.path.expanduser("~/Documents/projects")
+# The state names the owner's pages, so it lives in the private workspace, never in this tree.
+DEFAULT_STATE = os.environ.get("AIDEX_HUNTS_STATE") or os.path.join(
+    PROJECTS, "aidex_ws", ".context", "research", "2026-09-24-artifact-spec-corpus", "hunts")
 DIR = DEFAULT_STATE
 LEDGER = LOG = ""
 GENERATED = os.environ.get("AIDEX_HUNT_GENERATED") or os.path.join(HERE, "generated_gate.py")

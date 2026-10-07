@@ -10,8 +10,8 @@
                      minimum Y, so a shrunk case set reads RED; no line reads `0/unknown`
     rounds: X/Y      WIRED: tests/rounds_gate.py (50 seeded round sequences; Y >= 50)
     galleries: X/Y   WIRED: tests/galleries_gate.py (frozen manifest + generated cases; pinned by --expected)
-    hunts-clean
-                     STUBS: later units replace them; until then they print 0/0 and 0 and the gate stays RED (counts below the loop-spec minimums)
+    hunts-clean: N   WIRED: tests/hunts_gate.py --report (consecutive clean hunt rounds after round 0;
+                     a round runs only when hunts_gate.py is called without --report)
 
 Every line has an explicit minimum, so a 0/0 never reads green: catalog >= 12, corpus total >= 1,
 generated >= 300, rounds >= 50, mutations >= 1, galleries >= 1, hunts-clean >= 2.
@@ -48,7 +48,10 @@ STUBS = {"generated": "0/0", "rounds": "0/0", "mutations": "0/0", "galleries": "
 # Lines measured by their own script (one stdout line `<key>: X/Y`); a pinned script also answers
 # `--expected` with its Y, which becomes that line's minimum so the case set cannot shrink unseen.
 WIRED = {"mutations": ("mutations_gate.py", True), "generated": ("generated_gate.py", False),
-         "rounds": ("rounds_gate.py", False), "galleries": ("galleries_gate.py", True)}
+         "rounds": ("rounds_gate.py", False), "galleries": ("galleries_gate.py", True),
+         "hunts-clean": ("hunts_gate.py", False)}
+# hunts-clean is a count read from the hunt log (`--report` runs no round), not an X/Y.
+ARGS = {"hunts-clean": ["--report"]}
 SUFFIX = {}   # key -> " (N migrated)" when the line's script reports migrated units
 LINE_SCRIPTS = os.environ.get("AIDEX_GATE_LINE_SCRIPTS") or HERE
 
@@ -57,12 +60,14 @@ def wired_line(key):
     """`X/Y` from the line's own script, or `0/unknown` when it gives no such line."""
     script, pinned = WIRED[key]
     path = os.path.join(LINE_SCRIPTS, script)
-    r = subprocess.run([sys.executable, path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    m = re.fullmatch(r"%s: (\d+/\d+)( \(\d+ migrated\))?\n?" % re.escape(key), r.stdout)
+    r = subprocess.run([sys.executable, path] + ARGS.get(key, []), stdout=subprocess.PIPE,
+                       stderr=subprocess.PIPE, text=True)
+    value = r"\d+" if key in ARGS else r"\d+/\d+"
+    m = re.fullmatch(r"%s: (%s)( \(\d+ migrated\))?\n?" % (re.escape(key), value), r.stdout)
     if not m or r.returncode not in (0, 1):
         print("invariant-gate: %s gave no `%s: X/Y` line (rc=%d): %s"
               % (script, key, r.returncode, (r.stderr.strip() or r.stdout.strip())[-300:]), file=sys.stderr)
-        return "0/unknown"
+        return "0" if key in ARGS else "0/unknown"
     if pinned:
         e = subprocess.run([sys.executable, path, "--expected"], stdout=subprocess.PIPE,
                            stderr=subprocess.PIPE, text=True)
