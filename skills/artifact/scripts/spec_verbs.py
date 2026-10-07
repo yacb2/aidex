@@ -599,7 +599,8 @@ def _update_ledger_row(lines, tree, node, old_verdict, verdict):
     Any other row for this id is hand-written: it stays byte-identical and the
     caller is told. A compound key (`c1 + c12`) or no row at all is left alone.
     Line numbers are stable: the attr edit never adds or removes a line."""
-    title = node.attrs.get("title", "").strip() or node.id
+    title = spec_build.clean_item_title(
+        node.id, node.attrs.get("title", "").strip()) or node.id
 
     def row(v):
         v = v.strip()
@@ -796,7 +797,8 @@ def _sync_ledger(spec_text):
     for node in decided:
         if node.id in keys:
             continue
-        title = node.attrs.get("title", "").strip() or node.id
+        title = spec_build.clean_item_title(
+            node.id, node.attrs.get("title", "").strip()) or node.id
         verdict = node.attrs["decided"].strip()
         # `yes`/`true` is the plain "this is settled" mark and says nothing a
         # row should repeat; any other value is the verdict TEXT the author
@@ -958,6 +960,7 @@ def apply_edit(spec_path, transform, out=None, lang=None, needs_page=False):
     def build_error(text):
         try:
             with tempfile.TemporaryDirectory(prefix="spec-verbs-check-") as tmp:
+                spec_build.refuse_missing_visual(text)
                 spec_build.build(text, lang=lang, base_dir=base_dir,
                                  page=os.path.join(tmp, os.path.basename(out)))
         except (SpecSyntaxError, SpecBuildError) as exc:

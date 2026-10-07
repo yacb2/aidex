@@ -105,7 +105,7 @@ Edits to a page on this route go through the verbs
 (`scripts/spec_verbs.py add-item | decide | new-round`), which rewrite the spec and
 rebuild the page. The built HTML is an output; it is regenerated, never hand-edited.
 
-Three refusals a first spec usually meets (`references/02-local-first-artifacts.md`
+Refusals a first spec usually meets (`references/02-local-first-artifacts.md`
 § Worked example):
 
 - `decided=yes` on an item with options checks its `{recommended}` option; with none
@@ -115,6 +115,10 @@ Three refusals a first spec usually meets (`references/02-local-first-artifacts.
   paths in a sentence) is refused as `mixed-content-types`, naming its spec line: write
   it as a list or a table.
 - The masthead's `lang=` must match the profile's language.
+- A consultation masthead needs `visual=`: `visual="none: <why>"`, or add a figure block (`figure`, `chart`, `graph`, `diagram`, `video`, `gallery`); the
+  build refuses it with the masthead line. The builder itself adds a missing `notes`
+  block, strips an `item` title's own `Q1 · ` id prefix and reads `section title=` as
+  `heading=`, each with a stderr note.
 
 The boundary is exact:
 
