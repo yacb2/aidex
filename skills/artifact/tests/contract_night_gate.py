@@ -14,6 +14,7 @@ gate did not wrongly refuse that page. `deliberate` rows stay in both.
 import csv
 import os
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -90,6 +91,9 @@ def run_case(case, tmp, census_script):
     else:
         return False, "-", "invalid expect: " + expect
     fixdir = os.path.join(FIXTURES, "misuse-replay")
+    seed = os.path.join(fixdir, "seed")
+    if os.path.isdir(seed):
+        shutil.copytree(seed, tmp, dirs_exist_ok=True)
     args = [a.replace("{FIX}", fixdir).replace("{TMP}", tmp)
             for a in shlex.split(case.get("args") or "")]
     stdin_name = val(case, "stdin")

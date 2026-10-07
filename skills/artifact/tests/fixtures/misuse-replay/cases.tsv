@@ -10,3 +10,9 @@ toolu_013KHDdDRV5uBYZxAFKBZzrp	spec_verbs.py	decide {FIX}/x.spec.md --id c1 --ve
 toolu_01JzG96ChhUWiqD3Ro93ignB	render-probe.sh	--shots {FIX}/page.html		usage:render-probe.sh ;; --shots takes a directory
 toolu_01TA7xHZSg8vkMR73Dbn6nYd	render-probe.sh	--viewport 390 {FIX}/page.html		usage:render-probe.sh ;; unknown flag --viewport
 toolu_01K5aaymi4Y3z79j5SJZmwQD	gallery-items.sh	{FIX}/rows.json --root /abs --group-id g --group-title T		usage:gallery-items.sh ;; required: --page
+toolu_0156sJYdeBy5yuwHm9vhu4Sn	dash/wrap_report.py	--title T --in {FIX}/body.md --out {TMP}/p.html		accept
+toolu_0158yMzLerbzCm6UCugKMQPt	dash/wrap_report.py	--title 'Ruta de figuras' --in {FIX}/body.md --out {TMP}/r.html		accept
+toolu_01BR3p3HxsLpumFNH9UeLr4A	dash/wrap_report.py	--title T --in {FIX}/body.md --out {TMP}/q.html		accept
+toolu_01E8H8qHVAKUZYmWZ1RDzUhz	spec_build.py	{FIX}/x.spec.md -o {TMP}/p.html --check		accept
+toolu_01TqzYYTEgJ5eQUWZ5BsNX6K	spec_verbs.py	decide {TMP}/decided.spec.md --id Q1 --verdict 'Fences de Pandoc'		accept
+toolu_01E9cF9YdtfoBc4mWfT7oVhj	wrap-report.sh	--title C --lang en --in assets/artifact-kit/skeleton.html --out {TMP}/reports/c.html		usage:wrap-report.sh --title ;; no such file: assets/artifact-kit/skeleton.html ;; (relative to the skill dir: 

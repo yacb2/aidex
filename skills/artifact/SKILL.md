@@ -96,6 +96,11 @@ one command builds it into the kit's markup, wraps it and runs the contract chec
 python3 "${CLAUDE_SKILL_DIR}/scripts/spec_build.py" <name>.spec.md -o <name>.html --check
 ```
 
+Call every script by absolute path, `"${CLAUDE_SKILL_DIR}/scripts/<name>"`, from any cwd:
+never a relative `skills/...` path (the scratch cwd does not have it), and never hold a
+command in a shell variable (zsh does not word-split `$V`, so `$V args` runs one word
+named `python3 /path/...`): write the command out, or use a function.
+
 Edits to a page on this route go through the verbs
 (`scripts/spec_verbs.py add-item | decide | new-round`), which rewrite the spec and
 rebuild the page. The built HTML is an output; it is regenerated, never hand-edited.

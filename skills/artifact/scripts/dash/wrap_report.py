@@ -75,6 +75,8 @@ OFFER_MARKER = ".aidex-artifact-style-offered"
 KIT_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                        os.pardir, os.pardir, "assets", "artifact-kit"))
 
+SKILL_DIR = os.path.dirname(os.path.dirname(KIT_DIR))
+
 
 def split_head_style(content):
     """Return (head_extra, body). Only a style block at the very top is lifted —
@@ -967,8 +969,15 @@ def main():
         usage_exit(WRAP_FORM, "--building needs --out <page> — the build lock is a file "
                    "beside the page, and a wrap to stdout has no page")
 
-    if args.infile and not os.path.exists(args.infile):
-        usage_exit(WRAP_FORM, "--in %s: no such file" % args.infile)
+    # exists, not isfile: `--in /dev/stdin` and `<(...)` are pipes; a directory is refused here too.
+    if args.infile and (not os.path.exists(args.infile) or os.path.isdir(args.infile)):
+        # Never resolved silently: a path that only exists from the skill dir is named,
+        # not followed, so the page is not built from a file the caller did not mean.
+        why = "--in: no such file: %s" % args.infile
+        near = os.path.join(SKILL_DIR, args.infile)
+        if not os.path.isabs(args.infile) and os.path.isfile(near):
+            why += " (relative to the skill dir: %s)" % near
+        usage_exit(WRAP_FORM, why)
     content = (open(args.infile, encoding="utf-8").read() if args.infile
                else sys.stdin.read())
     if not content.strip():

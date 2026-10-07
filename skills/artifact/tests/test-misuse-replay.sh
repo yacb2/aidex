@@ -5,7 +5,8 @@
 # and stderr is exactly ONE line, starting `usage:`, containing every <part>.
 # Layer: shell integration, because the contract is the exit code + stderr of the
 # real entry points. Column `args` is a shell-words string; {FIX} = the fixture dir,
-# {TMP} = a fresh scratch dir used as cwd.
+# {TMP} = a scratch dir used as cwd, seeded from fixtures/misuse-replay/seed/
+# (a verb acts on a built page; the fixture itself is never written).
 set -uo pipefail
 SKILL="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 FIX="$SKILL/tests/fixtures/misuse-replay"
@@ -16,6 +17,7 @@ while IFS= read -r line; do
   script="${script#@}"; args="${args#@}"; stdin="${stdin#@}"; expect="${expect#@}"
   [[ "$id" == id || -z "$id" ]] && continue
   tmp="$(mktemp -d)"
+  cp -R "$FIX/seed/." "$tmp/"   # built page + spec a verb call needs beside it
   args="${args//\{FIX\}/$FIX}"; args="${args//\{TMP\}/$tmp}"
   path="$SKILL/scripts/$script"
   case "$script" in *.py) runner=python3 ;; *) runner=bash ;; esac
