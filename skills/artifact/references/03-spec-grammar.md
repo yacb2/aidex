@@ -981,7 +981,9 @@ the declaration lasts ONE round: every `new-round` replaces `retitled-ids` with 
 `--retitle` list and removes it when the call names none, so a later reword of the same id
 must be declared again. The id must still be in the spec. Start every round with
 `new-round`; a rebuild by other means keeps the previous declaration. (`new-round` also settles
-the `proposal=yes` items the reader saw on the saved answered page, BL-692; it changes nothing
+the `proposal=yes` items the reader saw on the saved answered page, BL-692, except one the saved
+reply answered (an ask or `[not-now]` in any saved paste, a re-pick, Other or a note), which stays an
+open proposal until the writer `decide`s it, BL-711; it changes nothing
 about ones written this turn.)
 
 ## An `item`'s heading: `heading=` over `title=` (BL-652)

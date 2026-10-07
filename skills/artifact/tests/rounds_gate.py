@@ -496,10 +496,11 @@ class Sequence:
             self.ledger_expect = None
             return
         drop = self.retire_one(todo)
+        touched = set(self.round_chunks)        # BL-711: a proposal the reader answered stays open
         def upd():
             seen = self.seen_proposals()
             for it in self.items:
-                if it.proposal and it.id in seen:
+                if it.proposal and it.id in seen and it.id not in touched:
                     it.proposal, it.expired = False, True
             if drop:
                 self.items = [i for i in self.items if i.id != drop]
@@ -552,7 +553,7 @@ class Sequence:
         rng = self.rng
         with open(self.spec, encoding="utf-8") as fh:
             text = fh.read()
-        decided, seen = [], self.seen_proposals()
+        decided, seen = [], self.seen_proposals() - set(self.round_chunks)   # BL-711: an answered proposal stays open
         for it, s, label in cands:
             if s in ("pick", "pick+note"):
                 text = text_of_edit_set_decided(text, it.id, label)

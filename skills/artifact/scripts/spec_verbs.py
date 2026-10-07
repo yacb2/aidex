@@ -49,7 +49,8 @@ The short of it:
     add-item   REFUSES a second call with the same id (two different items
                would end up sharing a paste key; one would shadow the other).
     decide     IDEMPOTENT for the same verdict (byte-identical spec, rebuild
-               still runs); a DIFFERENT verdict overwrites, because
+               still runs; on a `proposal=` item the first call also drops
+               `proposal=`, BL-711); a DIFFERENT verdict overwrites, because
                `owner-changed` — the reader revising an earlier answer — is one
                of the four documented round labels, and `wrap_report.py`
                already re-stamps `data-decided-round` when the verdict text
@@ -388,29 +389,10 @@ def _reply_answer(reply, item_id, ids, labels=(), many=False):
     whether a bare `- [marker]` line (question, show-me, not-now...) sits in it.
     None when the reply has no block for the id. `[provisional]` picks are not
     counted: not a decision yet."""
-    if not reply:
+    found = _reply_block(reply, item_id, ids)
+    if found is None:
         return None
-    alts = "|".join(re.escape(i) for i in sorted(set(ids) | {item_id},
-                                                 key=len, reverse=True))
-    head_any = re.compile(r"^(?:[ \t]*#{2,3}[ \t]|<!--|[ \t]*(?:" + alts
-                          + r")(?![\w-])[ \t]*[:·])")
-    head = re.compile(r"^[ \t]*(#{2,3}[ \t]+)?" + re.escape(item_id)
-                      + r"(?![\w-])[ \t]*[:·](.*)$")
-    lines = reply.split("\n")
-    block, chat_form = None, False
-    for k, line in enumerate(lines):
-        m = head.match(line)
-        if not m:
-            continue
-        cur = [] if m.group(1) else [m.group(2)]
-        chat_form = not m.group(1)
-        for nxt in lines[k + 1:]:
-            if head_any.match(nxt):
-                break
-            cur.append(nxt)
-        block = cur
-    if block is None:
-        return None
+    block, chat_form = found
     real, notes, other, marked = [], [], False, False
     # the composer's page-defect sub-block closes the item's block and is no
     # note and no answer (check_artifact.split_defect)
@@ -441,6 +423,35 @@ def _reply_answer(reply, item_id, ids, labels=(), many=False):
     return real, notes, other, marked
 
 
+def _reply_block(reply, item_id, ids):
+    """`(lines, chat_form)` of the LAST block of the saved reply for `item_id`
+    (its head line's remainder first in the chat form), or None."""
+    if not reply:
+        return None
+    alts = "|".join(re.escape(i) for i in sorted(set(ids) | {item_id},
+                                                 key=len, reverse=True))
+    head_any = re.compile(r"^(?:[ \t]*#{2,3}[ \t]|<!--|[ \t]*(?:" + alts
+                          + r")(?![\w-])[ \t]*[:·])")
+    head = re.compile(r"^[ \t]*(#{2,3}[ \t]+)?" + re.escape(item_id)
+                      + r"(?![\w-])[ \t]*[:·](.*)$")
+    lines = reply.split("\n")
+    block, chat_form = None, False
+    for k, line in enumerate(lines):
+        m = head.match(line)
+        if not m:
+            continue
+        cur = [] if m.group(1) else [m.group(2)]
+        chat_form = not m.group(1)
+        for nxt in lines[k + 1:]:
+            if head_any.match(nxt):
+                break
+            cur.append(nxt)
+        block = cur
+    if block is None:
+        return None
+    return block, chat_form
+
+
 def _reply_allows_free_text(reply, item_id, ids, labels=(), many=False):
     """True when the LAST block of the saved reply for `item_id` answers it
     with the kit's Other choice, or with one of `labels` plus a note. A bare
@@ -453,18 +464,23 @@ def _reply_allows_free_text(reply, item_id, ids, labels=(), many=False):
     return other or (bool(real) and bool(notes))
 
 
-def _bare_picks(spec_text, reply):
+def _bare_picks(spec_text, reply, proposals=()):
     """`[(item id, picked option)]` for the items the saved `reply` answers with
     an option and nothing else (no note, marker or Other) that the spec has not
-    decided: the picks a `new-round` would carry into the next round as open."""
+    decided: the picks a `new-round` would carry into the next round as open.
+    `proposals` (BL-711) is the ids the reader saw as proposals on the answered
+    page: a proposal is decided on the spec, but a pick on it is a correction, so
+    it is named like an open item's."""
     if not reply:
         return []
+    reply = check_artifact._live_reply(reply)     # the latest full paste supersedes earlier ones (BL-598)
     tree = _parse(spec_text, "the spec")
     ids = _ids_of(tree, "item")
     out = []
     for ident in ids:
         node = _by_id(tree, ident)
-        if node.attrs.get("decided", "").strip():
+        if node.attrs.get("decided", "").strip() and not (
+                ident in proposals and "proposal" in node.attrs):
             continue
         try:
             labels = [spec_build.PLAIN.sub("", l).strip()
@@ -489,7 +505,10 @@ def decide(spec_text, item_id, verdict, reply=None):
     """Record `#item_id`'s verdict as `decided="…"` on its fence.
 
     IDEMPOTENT for the same verdict: the spec comes back byte-identical and the
-    caller still rebuilds, so running it twice is safe. A DIFFERENT verdict
+    caller still rebuilds, so running it twice is safe. The one exception is an
+    item still carrying `proposal=` (BL-711): the first call drops that attribute,
+    since deciding a proposal is the writer settling what the reader answered it
+    with; the second call is then byte-identical. A DIFFERENT verdict
     OVERWRITES rather than refusing — `owner-changed`, the reader revising an
     earlier answer, is one of the four labels a round's brief carries, and
     `wrap_report.stamp_decided_rounds` already handles it: a decided item whose
@@ -580,13 +599,16 @@ def decide(spec_text, item_id, verdict, reply=None):
     # The same verdict in another spelling (`Dos` for a recorded `**Dos**`, or
     # back) is already recorded: rewriting it would break idempotence and reset
     # the round stamp (wrap_report compares this plain form too since BL-545).
+    lines = _split(spec_text)
+    # BL-711: deciding a proposal is the writer settling what the reader answered it
+    # with, so it stops being a proposal (else `new-round` would keep it open forever).
+    unproposed = "proposal" in node.attrs and _drop_attr(lines, node, "proposal")
     if (spec_build.PLAIN.sub("", node.attrs.get("decided", "")).strip()
             == spec_build.PLAIN.sub("", verdict).strip()):
-        return spec_text
-    lines = _split(spec_text)
+        return "\n".join(lines) if unproposed else spec_text
     old_verdict = node.attrs.get("decided", "").strip()
     if not _set_attr(lines, node, "decided", verdict):
-        return spec_text
+        return "\n".join(lines) if unproposed else spec_text
     _update_ledger_row(lines, tree, node, old_verdict, verdict)
     return "\n".join(lines)
 
@@ -667,10 +689,19 @@ def _drop_attr(lines, node, name):
     return True
 
 
-def _expire_proposals(text, answered_html):
+def _expire_proposals(text, answered_html, reply=None):
     """`proposal=yes` (BL-692) lasts one round: an item that carried it on the
     saved answered page has been seen by the reader, so it becomes an ordinary
-    settled item and folds."""
+    settled item and folds. Unless the reply asked about it (BL-711): a proposal
+    has the ask chips and `[not-now]` like an open item, so a block for it that
+    holds a bare `- [marker]` line means the reader did NOT accept it, and it
+    stays a proposal, unsettled and out of the ledger. So does a real pick, the
+    Other choice or a note: the composer sends nothing for an untouched proposal,
+    so ANY content but page-defect text in its block (a chat-form line, a reworded
+    option) is the reader answering it, and it takes the open-item path
+    (`_bare_picks`, then `decide`). "Marked" is read
+    with check_artifact.marker_duties_of, the reader of the duty check, so both
+    sides agree across several saved pastes."""
     if not answered_html:
         return text
     seen = check_artifact.proposal_ids(answered_html)
@@ -679,13 +710,26 @@ def _expire_proposals(text, answered_html):
     tree = _parse(text, "the spec")
     lines = _split(text)
     hit = False
+    ids = _ids_of(tree, "item")
+    # Marks are read from the whole file, as the duty check reads them; the block's own
+    # content from the LIVE reply, where a later full paste supersedes an earlier one.
+    marked = {i for i, marks in check_artifact.marker_duties_of(reply or "")
+              if set(marks) - {"page-defect"}}
+    live = check_artifact._live_reply(reply or "")
     for n in _walk(tree):
         if n.block_type == "item" and n.id in seen and "proposal" in n.attrs:
+            if n.id in marked:
+                continue                 # asked about, not accepted
+            found = _reply_block(live, n.id, ids)
+            if found is not None and any(
+                    l.strip() and l.strip() != "- [page-defect]" for l in
+                    check_artifact.split_defect("\n".join(found[0]))[0].split("\n")):
+                continue                 # anything but defect text: the reader answered it
             hit |= _drop_attr(lines, n, "proposal")
     return "\n".join(lines) if hit else text
 
 
-def new_round(spec_text, dropped=(), retitled=(), answered_html=None):
+def new_round(spec_text, dropped=(), retitled=(), answered_html=None, reply=None):
     """`_sync_ledger`, then record `dropped` and `retitled` ids on the masthead.
 
     `dropped` (BL-533) is the ids this round takes OFF the page: the author
@@ -712,7 +756,7 @@ def new_round(spec_text, dropped=(), retitled=(), answered_html=None):
     # saved answered snapshot (BL-692). One written this turn is absent from it and
     # stays a proposal, whichever order the verbs run in; with no snapshot nothing
     # expires.
-    text = _expire_proposals(spec_text, answered_html)
+    text = _expire_proposals(spec_text, answered_html, reply)
     text = _sync_ledger(text)
     clean = lambda ids: [i for i in (d.strip().lstrip("#") for d in ids) if i]
     dropped = list(dict.fromkeys(clean(dropped)))
@@ -1099,7 +1143,7 @@ def new_round_file(spec_path, out=None, lang=None, dropped=(), retitled=()):
     reply = _prev_file(spec_path, out, ".reply.md")
 
     def guarded(text):
-        picks = _bare_picks(text, reply)
+        picks = _bare_picks(text, reply, check_artifact.proposal_ids(answered or ""))
         if picks:
             raise VerbError(
                 "the saved reply answers %s with a plain option that is not "
@@ -1109,7 +1153,7 @@ def new_round_file(spec_path, out=None, lang=None, dropped=(), retitled=()):
                 % (", ".join("#" + i for i, _ in picks),
                    "; ".join("decide --id %s --verdict \"%s\"" % (i, v)
                              for i, v in picks)))
-        return new_round(text, dropped, retitled, answered)
+        return new_round(text, dropped, retitled, answered, reply)
     return apply_edit(spec_path,
                       guarded, out=out, lang=lang, needs_page=True)
 

@@ -255,6 +255,21 @@ rc="$(run "$R/page.html" --prev "$R/.aidex-artifact-prev/page.html")"
 [[ "$rc" == "0" ]] && ok "A7. an item decided this round is exempt from its own marked duty" \
   || fail "A7: rc=$rc $(cat "$TMP/out")"
 
+# ---- A7b. BL-711: a proposal the reader ASKED about is not exempt ------------
+# A proposal carries the ask chips now, so a reply can mark it [show-me]. The new page still
+# carries decided (the proposal is not settled), but the duty is owed: judged against the
+# answered snapshot, where the item was a proposal.
+save_reply '' '### Q1 · Q1
+
+- [show-me]'
+{ printf '%s' "$(cat "$R/.aidex-artifact-prev/page.answered.html")" | sed 's|<section class="consult-item" data-id="Q1"|<section class="consult-item" data-decided data-proposal data-id="Q1"|'; } > "$TMP/ans.html"
+cp "$TMP/ans.html" "$R/.aidex-artifact-prev/page.answered.html"
+decided_page "$R/page.html"        # still decided on the new page, no figure
+rc="$(run "$R/page.html" --prev "$R/.aidex-artifact-prev/page.html")"
+[[ "$rc" == "1" ]] && grep -q 'consult-marker-duties.*Q1.*show-me' "$TMP/out" \
+  && ok "A7b. a proposal marked [show-me] and answered with no figure FAILS (not exempt as decided)" \
+  || fail "A7b: rc=$rc $(cat "$TMP/out")"
+
 # ============================================================================
 # Part C — save-reply.sh: writes both files verbatim and prints the DUTIES
 # ============================================================================

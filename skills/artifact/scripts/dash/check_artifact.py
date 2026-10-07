@@ -3749,7 +3749,9 @@ def check_marker_duties(new_path):
     paste = open(reply, encoding="utf-8", errors="replace").read()
     answered_text = open(answered, encoding="utf-8", errors="replace").read()
     answered_bodies = dict(consult_item_bodies(answered_text))
-    decided_now = decided_ids(text)
+    # A proposal on the answered page was ASKED about, not accepted, when the reply marks it
+    # (BL-711): it is still decided on the new page, but its marked duty is owed.
+    decided_now = decided_ids(text) - proposal_ids(answered_text)
     try:
         import wrap_report
         new_texts = wrap_report.question_texts(text)
