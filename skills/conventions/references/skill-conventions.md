@@ -340,12 +340,12 @@ by Claude Code, so its `model`/`effort`/`tools` would be ignored when pasted as 
 `tests/test-agent-registration.sh` fails on one. Each description says which skill launches
 it and that it is not for direct use. Every agent declares `effort:`, `haiku` included (Haiku 5.5 honours it; the Haiku 4.5 loader dropped it).
 
-**Declare `model` AND `effort`. Both, always (except `effort` on `haiku`)** — enforced by
+**Declare `model` AND `effort`. Both, always, `haiku` included** — enforced by
 `scripts/test_registry_lockstep.py` check 7.
 
 `model` alone is half a decision. On an effort-capable model an absent `effort:` is not a
 neutral default: the agent inherits the effort of whatever session happened to spawn it.
-Probed on Claude Code 2.1.220 (2026-07-26), reading the per-request `effort` field from
+Probed on Claude Code 2.1.220 (2026-07-26, Haiku 4.5 rows historical), reading the per-request `effort` field from
 each subagent's own transcript (`<session>/subagents/*.jsonl`):
 
 | Agent model | Declares | Spawning session | Agent ran at |
@@ -353,8 +353,9 @@ each subagent's own transcript (`<session>/subagents/*.jsonl`):
 | sonnet | nothing | `--effort low` | **low** |
 | sonnet | nothing | `--effort high` | **high** |
 | sonnet | `effort: high` | `--effort low` | **high** (declaration wins) |
-| haiku | nothing | `--effort high` | **no effort at all** |
-| haiku | `effort: low` | `--effort high` | **no effort at all** |
+| haiku (4.5, historical) | nothing | `--effort high` | **no effort at all** |
+| haiku (4.5, historical) | `effort: low` | `--effort high` | **no effort at all** |
+| haiku 5.5 | `effort: medium` | any | **medium** (WF-001 probe 2, 2026-10-08: `docsweep-extract` and `docsweep-write` declared haiku/medium; each transcript records effort `medium`) |
 
 The case that matters is an undeclared *judgement* agent on an effort-capable model: its
 depth is set by its caller. For a safety gate such as the batch arbiter, that means the
@@ -367,8 +368,8 @@ states the intended depth and takes effect the day the agent is moved to an effo
 model. Declare it anyway; do not claim a haiku agent "wastes reasoning" without it.
 That day came with Haiku 5.5 (2026-10-07, the `haiku` alias from Claude Code 2.1.293): it
 honours a declared `effort:` on the subagent path (freshness-checker output 4.0k / 8.2k /
-50k tokens at low / high / max) and defaults to `medium` without one. The two haiku rows
-above are the Haiku 4.5 measurement.
+50k tokens at low / high / max) and defaults to `medium` without one. The two Haiku 4.5 rows
+above are historical; the Haiku 5.5 row is the current behaviour.
 
 Pick by what the agent does, not by its model: deterministic walks and script-runners
 `low`; comparison and inventory judgement `medium`; root-cause analysis, verification,

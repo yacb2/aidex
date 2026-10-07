@@ -79,8 +79,9 @@ parameters were defaulted. Full rule:
    ([`../conventions/references/worklist-conventions.md`](../conventions/references/worklist-conventions.md)).
    Fix the order once here; do not re-ask per item at run time.
 4. **Per-agent model + effort.** For each stage, assign `model` + `effort` and say why
-   (breadth → `sonnet/medium`; adversarial verify / synthesis → `opus/high`; mechanical
-   transform → `sonnet/low`). This table is the spec's distinctive payload — see
+   (extraction behind a verifier → `haiku/medium`; breadth → `sonnet/medium`; adversarial
+   verify / synthesis → `opus/high`; mechanical transform → `sonnet/low`). Add a Tools
+   cell per row. This table is the spec's distinctive payload — see
    §"Per-agent model table" in the conventions.
 5. **Stop condition + gate policy.** The machine gate each agent's output must pass, and
    the run's publication gate (`publish: ask | preauthorized`). Mirror the work-list's
@@ -118,14 +119,17 @@ parameters were defaulted. Full rule:
    {model, effort})` options, and the work-list into the items array. The two-stage gate
    (Bash verifier → conditional arbiter prompt) and kill-resume come from the
    plan-exec CORE.
-   - **The spec is the binding carrier; the `.workflow.js` is generated here, at
-     launch, and is disposable.** Write it into the session scratchpad (or an equivalent
+   - **The spec is the binding carrier; by default the `.workflow.js` is generated here,
+     at launch, and is disposable** (a spec may opt in to a versioned script launched by
+     `scriptPath` for repeated runs; see the conventions). Write it into the session scratchpad (or an equivalent
      transient location), never `.context/workflows/`; do not commit it and do not keep
      it after the run. If it ever diverges from the spec, the spec wins — regenerate.
      (See §"Carrier authority — spec-only" in the conventions.)
    - **Any plan a generated prompt references must be by `plan/<slug>` type-ref resolved
      at launch** via the two-folder lookup, never a frozen active path — the active path
      dies when the plan archives.
+   - Read the conventions § Gotchas before generating the script (no filesystem, wrap
+     `agent()` calls, aggregate per unit).
 4. Only execute the `Workflow` call if the user explicitly asks you to start it now;
    otherwise print the launch plan (form + args shape) for them to confirm.
 

@@ -48,15 +48,18 @@ updated: {{DATE}}
 ## Per-agent model + effort
 
 <!-- The distinctive payload of a workflow-spec. One row per stage. Map
-     model/effort to the work: breadth → sonnet/medium; adversarial verify or
+     model/effort to the work: extraction behind a verifier → haiku/medium (cap the
+     input under 100K tokens); breadth → sonnet/medium; adversarial verify or
      synthesis → opus/high; mechanical transform → sonnet/low. These become the
-     agent(prompt, {model, effort}) options at launch. -->
+     agent(prompt, {model, effort, agentType}) options at launch. Tools is a cost
+     line (~14k-49k per agent by toolset): agent() has no tools option, so it travels
+     through agentType; "default" means paying the full prefix, say why. -->
 
-| Stage | Agent | Model | Effort | Why |
-|---|---|---|---|---|
-| find | finders ×N | sonnet | medium | breadth |
-| verify | skeptics ×3 | opus | high | adversarial |
-| synth | synthesizer | opus | high | judgment |
+| Stage | Agent | Model | Effort | Tools / skills | Why |
+|---|---|---|---|---|---|
+| extract | workers ×N | haiku | medium | Read Grep Glob | cheap recall |
+| verify | skeptics ×3 | opus | high | Read Grep Glob Bash | adversarial |
+| synth | synthesizer | opus | high | Read | judgment |
 
 ## Stop condition + gate policy
 
@@ -110,6 +113,21 @@ updated: {{DATE}}
 
 ```
 ```
+
+## Optional: experiment arms, measures, cost, run log
+
+<!-- Delete this block for a one-off. For a repeated or A/B run, fill the arms,
+     measures and decision criteria BEFORE run 2. See the conventions § Optional sections.
+     If the .workflow.js is kept in the repo (versioned, launched by scriptPath), say so
+     in Launch with the path and why. -->
+
+- **Arms:** <arm = model/effort/tools/prompt variant>
+- **Measures + decision criteria (fixed before run 2):**
+- **Cost estimate:** agents x per-agent floor + output
+- **Run log:**
+
+| Run | Date | Arm | Run id | Result | Cost | Changed |
+|---|---|---|---|---|---|---|
 
 ---
 

@@ -192,13 +192,14 @@ skill's `references/`, cited by the skills that need it (see
 ```
 "Check my project's documentation health"
 → aidex launches parallel subagents:
-  - context-auditor (haiku): checks .context/ structure
-  - skills-auditor (haiku): checks skill frontmatter, structure
+  - context-auditor (sonnet): checks .context/ structure
+  - skills-auditor (sonnet): checks skill frontmatter, structure
   - symlink-checker (haiku): verifies all symlinks
-  - memory-auditor (haiku): checks MEMORY.md bloat
-  - freshness-checker (sonnet): detects stale docs
+  - memory-auditor (sonnet): checks MEMORY.md bloat
+  - freshness-checker (haiku): detects stale docs
   - plugin-auditor (haiku): flags unused plugin agents
   - context-cost-analyzer (haiku): attributes idle token cost
+  - conventions-auditor (haiku): runs validate.py over the canon
 
 → Reports findings with health score
 → Suggests fixes: "Want me to clean MEMORY.md? Archive old plans? Fix broken symlinks?"
