@@ -115,6 +115,12 @@ STRINGS = {
 # what travels in the reply.
 HINT_SEP = " — "
 RECOMMENDED = "{recommended}"
+# The words an item's boolean attrs (free, proposal) take, and the negatives an
+# author might write for `decided=` meaning "not decided". decided= is a flag
+# (YES_VALUES) or a verdict text, so only the negatives are refused, and not
+# when the item has an option of that label (`decide --verdict No`).
+YES_VALUES = ("yes", "true")
+NO_WORDS = ("no", "false", "0")
 CHOSEN = "{chosen}"       # BL-496: a decided item's winning option, checked, not recommended
 REC_MARK = re.compile(r"\s*(?:" + re.escape(RECOMMENDED) + "|" + re.escape(CHOSEN)
                       + r")\s*")
@@ -625,6 +631,9 @@ def _option(text):
     return label.strip(), hint.strip(), rec, chosen
 
 
+# A hyphen or double hyphen set apart by spaces, in an option with no ` — `:
+# the author meant a hint and used the wrong dash.
+_WRONG_HINT_SEP = re.compile(r"\s(-|--)\s")
 _OPT_PAREN = re.compile(r"\([^)]*\)")
 # A lone letter in parentheses points at another option ("Igual que (a), pero
 # al revés"): a reference, not a reason, so it is set aside before the read.
@@ -653,8 +662,16 @@ def _refuse_option_shape(node, opts):
     are set aside before the read.
     """
     for text in opts:
-        label = _option(text)[0]
+        label, hint = _option(text)[:2]
         bare = _OPT_LETTER_REF.sub("", re.sub(r"`[^`]*`", "", label)).strip()
+        if not hint and _WRONG_HINT_SEP.search(bare):
+            raise SpecBuildError(
+                node.line, "item %s option %r separates its hint with %r: the "
+                "separator is %r (space, em dash, space), as in "
+                "`label {recommended}%shint`; a hint with another dash would "
+                "become part of the label the reader's reply pastes"
+                % (node.id, label, _WRONG_HINT_SEP.search(bare).group(1),
+                   HINT_SEP, HINT_SEP))
         why = None
         if _OPT_PAREN.search(bare):
             why = "carries a parenthetical"
@@ -909,6 +926,14 @@ def emit_item(node, ctx):
             "{chosen} is the winner of a decided item (decided=yes), so add "
             "decided or drop the marker")
     # Read in the plain form the fold shows (BL-545): `**yes**` folds to "yes".
+    plain = PLAIN.sub("", decided).strip()
+    if (opts and plain.lower() in NO_WORDS
+            and plain not in [PLAIN.sub("", _option(t)[0]).strip() for t in opts]):
+        raise SpecBuildError(
+            node.line, "`item` %s decided=%s reads as \"not decided\" but "
+            "ships as a verdict: leave decided off to keep the item open, or "
+            "write what was decided (decided=yes, or the verdict as text)"
+            % (node.id, decided))
     if PLAIN.sub("", decided).strip().lower() in contract_defects.NOT_A_VERDICT:
         flag, check_recommended = " data-decided", True
         recommended = sum(1 for t in opts if _option(t)[2])
@@ -928,16 +953,20 @@ def emit_item(node, ctx):
                 "as decided=\"…\"" % decided)
     elif decided:
         flag += ' data-decided="%s"' % esc(decided)
-    if a.get("free", "").strip() in ("yes", "true"):
+    if "free" in a and a["free"].strip() not in YES_VALUES:
+        raise SpecBuildError(
+            node.line, "`item` free=%r is not a value (it takes: %s)"
+            % (a["free"], ", ".join(YES_VALUES)))
+    if a.get("free", "").strip() in YES_VALUES:
         flag += " data-free"
     # `proposal=yes` (BL-692): decided by the writer THIS round, awaiting the
     # reader's correction. The composer keeps it in place with its options and notes box live
     # instead of folding it away as an earlier round's settled answer.
-    if "proposal" in a and a["proposal"].strip() not in ("yes", "true"):
+    if "proposal" in a and a["proposal"].strip() not in YES_VALUES:
         raise SpecBuildError(
-            node.line, "`item` proposal=%r is not a value (it takes: yes, true)"
-            % a["proposal"])
-    if a.get("proposal", "").strip() in ("yes", "true"):
+            node.line, "`item` proposal=%r is not a value (it takes: %s)"
+            % (a["proposal"], ", ".join(YES_VALUES)))
+    if a.get("proposal", "").strip() in YES_VALUES:
         if not decided:
             raise SpecBuildError(
                 node.line, "`item` proposal=yes needs decided=: a proposal is a "
@@ -1808,7 +1837,7 @@ def _refuse_item_id_collisions(tree):
     group-item-id-collision). The source shows no duplicate, so no check on the
     page can see it before the composer runs; the spec is where it is written.
     """
-    first = {}
+    first, folded = {}, {}
     for node in _walk(tree):
         ident = node.id or ("notes" if node.block_type == "notes" else "")
         if not ident:
@@ -1821,6 +1850,14 @@ def _refuse_item_id_collisions(tree):
                 "this `%s`: the composer gives every item its id at run time, so "
                 "the two collide on the page — rename one"
                 % (ident, prev.block_type, prev.line, node.block_type))
+        if node.block_type in ("item", "notes"):
+            kin = folded.setdefault(ident.lower(), node)
+            if kin is not node and (kin.id or "notes") != ident:
+                raise SpecBuildError(
+                    node.line, "id #%s differs only by case from #%s (the `%s` "
+                    "at line %d): the reply names items by id, and a reader "
+                    "or a verdict cannot tell Q1 from q1 apart — rename one"
+                    % (ident, kin.id or "notes", kin.block_type, kin.line))
 
 
 # What makes a page a consultation: an item, the general-notes item, or a
@@ -1901,6 +1938,36 @@ def _refuse_entities(spec_text):
                 "page once, so the reader would see %r literally. Write `%s` "
                 "instead%s" % (m.group(0), m.group(0), instead,
                                " (inside a quoted attr)" if in_attr else ""))
+
+
+def _refuse_span_tones(spec_text):
+    """Refuse a `[x]{.pill .tone}` / `{.chip .tone}` span with a malformed or
+    unknown tone, naming its line (the tones are `md_body.SPAN_TONES`)."""
+    fence = None
+    for n, ln in enumerate(spec_text.split("\n"), 1):
+        before, fence = fence, md_body.fence_state(ln, fence)
+        if before is not None or fence is not None:
+            continue
+        for kind, tone in md_body.bad_spans(ln):
+            raise SpecBuildError(
+                n, "%s tone %r is not one the kit knows: use one of %s"
+                % (kind, tone, ", ".join(sorted(md_body.SPAN_TONES))))
+
+
+# The classes a block fence may carry: `note {.warn}`, `callout {.warn}` and a
+# `section {.wide}` are the ones the corpus and the kit use; any other class
+# reaches the page unstyled (and a typo of `warn` silently drops the emphasis).
+BLOCK_CLASSES = ("warn", "wide")
+
+
+def _refuse_block_classes(tree):
+    for node in _walk(tree):
+        for c in node.classes:
+            if c not in BLOCK_CLASSES:
+                raise SpecBuildError(
+                    node.line, "`%s` class %r is not one a block takes (it "
+                    "takes: %s)" % (node.block_type, "." + c,
+                                    ", ".join("." + k for k in BLOCK_CLASSES)))
 
 
 def _backtick_chunks(spec_text):
@@ -2007,6 +2074,8 @@ def build(spec_text, lang=None, base_dir=".", page=None):
     ctx.tree = tree
     _refuse_links(spec_text)
     _refuse_entities(spec_text)
+    _refuse_span_tones(spec_text)
+    _refuse_block_classes(tree)
     _refuse_literal_backticks(spec_text)
     _refuse_title_links(tree)
     _refuse_item_id_collisions(tree)

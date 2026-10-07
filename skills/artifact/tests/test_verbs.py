@@ -797,11 +797,19 @@ try:
             "--out", elsewhere)
     check("--out chooses the page", r.returncode == 0
           and os.path.isfile(elsewhere), r.stdout + r.stderr)
-    r = run("decide", spec, "--id", "Q1", "--verdict", "no", "--out", spec)
+    r = run("decide", spec, "--id", "Q1", "--verdict", "YAML", "--out", spec)
     check("--out pointed at the spec itself is refused",
           r.returncode == 1 and "is the spec itself" in r.stderr, r.stderr)
     check("...and the spec was not written first",
           'decided="Fences"' in read(spec))
+    # M1: a verdict equal to a bold or numeric option label must survive the rebuild
+    # (decided=No / decided=0 read as "not decided" when compared with the raw label).
+    for label, verdict in (("**No**", "No"), ("0", "0")):
+        sp = fresh("negword-" + verdict, PAGE.replace(
+            "- YAML anidado — estructura explícita", "- %s — estructura explícita" % label))
+        r = run("decide", sp, "--id", "Q1", "--verdict", verdict)
+        check("decide --verdict %s on an option %s rebuilds (exit 0)" % (verdict, label),
+              r.returncode == 0 and 'decided="%s"' % verdict in read(sp), r.stdout + r.stderr)
 
     print()
     print("== decide: several --id/--verdict pairs in one call (BL-497) ==")
