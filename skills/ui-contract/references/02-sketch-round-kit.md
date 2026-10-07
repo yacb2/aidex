@@ -64,25 +64,23 @@ gallery-rows table of `skills/artifact/references/04-block-vocabulary.md`.
 
 The agent that makes the change also writes the rows, and tends to list only what was
 asked. Measured: all 8 A reps renamed a shared label key that also changed a dialog title
-and button; with a separate re-capture agent the rows flagged those cells `unrequested`
-4/4, with the impl agent doing its own rows 0/4. So: every row whose visible change the
-owner's answer did not ask for gets `kind: "unrequested"` and a `look` line naming it. The one exception: when the changed region repeats one already shown in another row of the round, no row is emitted and the knock-on goes in that row's look text.
+and button; with a separate re-capture agent the rows flagged those cells 4/4,
+with the impl agent doing its own rows 0/4. So: every row whose visible change the
+owner's answer did not ask for is an `unrequested` row with a one-line cause ([row kinds](../../artifact/references/04-block-vocabulary.md#gallery--scriptsdashgallery_itemspy-rows-json-in)).
 
 **Alternatives that differ in what they show with data and when empty (BL-691).** The sketch brief asks the capturing agent for BOTH states of every option in ONE rows file: each option's `captures` entry is `{"with-data": path, "empty": path}` (alternatives rows, `04-block-vocabulary.md`), so the page shows option A's two states side by side, then option B's, under one which-one pick. Never a second gallery of "the same options, calm state": the reader compares options, not states, and two galleries ask the same decision twice (the asset_lab round that cost an extra round).
 
-An alternatives gallery IS the question: no parallel text item restates its options. No row of ANY kind (sample, unrequested, review) whose highlighted region repeats one already shown in another row of the round: the build refuses it, and its knock-on goes in one line of that row's look text.
+An alternatives gallery (alternatives mode, [rules](../../artifact/references/04-block-vocabulary.md#gallery--scriptsdashgallery_itemspy-rows-json-in)) IS the question: no parallel text item restates its options. No row of ANY kind whose highlighted region repeats one already shown in another row of the round: the build refuses it, and its knock-on goes in one line of that row's look text.
 
 ## Rows that depend on an open question
 
 A full-page row built on the recommended option of a consult item the owner has not
 decided asks for approval of that option twice (BL-690). Mark the row
 `"depends_on": "<item id>"` in the rows file: while the item is open the page shows it
-as context only (no verdict, no notes, one line naming the item), and an `unrequested`
-row that exists only because of the pending option stays on the page folded, with the same
-one line and no captures (its id is kept: a round that loses an id fails the id-stability check). Put the
-open item before the gallery in the spec; the build refuses the other order. Once the
-item is decided in the spec the row renders normally. Fields: `skills/artifact/references/04-block-vocabulary.md`
-gallery-rows table.
+as context only, and a row that exists only because of the pending option stays folded
+(its id is kept: a round that loses an id fails the id-stability check). Put the open item
+before the gallery in the spec; the build refuses the other order. Fields:
+`skills/artifact/references/04-block-vocabulary.md` gallery-rows table.
 
 ## The sketch worktree
 

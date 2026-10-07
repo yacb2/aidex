@@ -169,7 +169,11 @@ def _ledger_keys(ledger):
         for ln in child.raw_body:
             if md_body.MARKER.match(ln):
                 row = md_body.MARKER.sub("", ln, count=1).strip()
-                out.append(row.partition(SEP)[0].strip())
+                key, sep, _ = row.partition(SEP)
+                # A row with no ` — ` has no key: it ships as `.v` alone and
+                # names no id (`emit_ledger`, `check_artifact.ledger_ids`).
+                if sep:
+                    out.append(key.strip())
     return out
 
 
@@ -543,16 +547,32 @@ def decide(spec_text, item_id, verdict, reply=None):
         raise VerbError("an empty verdict for #%s — pass the chosen option's "
                         "label (see the saved-reply rule in the docstring)"
                         % item_id)
-    # On an item with options, `yes` makes the builder check the {recommended}
-    # option: the author's advice, not what the reader chose. The verdict is
-    # the chosen option's label (LOOP-006 review).
-    if verdict.strip().lower() in contract_defects.NOT_A_VERDICT:
+    # On an item with options, `yes` makes the builder check the {chosen}
+    # option, else the {recommended} one: the author's advice, not what the
+    # reader chose. The verdict is the chosen option's label (LOOP-006 review).
+    # Read in the plain form, as the builder reads it (`**Yes**` is `Yes`).
+    said_plain = spec_build.PLAIN.sub("", verdict).strip()
+    if said_plain.lower() in contract_defects.NOT_A_VERDICT:
         try:
             offers = spec_build.has_options(node)
+            labelled = [l for l in spec_build.option_labels(node)
+                        if spec_build.PLAIN.sub("", l).strip().lower()
+                        == said_plain.lower()]
+            chosen_plain = [spec_build.PLAIN.sub("", c).strip().lower()
+                            for c in spec_build.chosen_labels(node)]
         except SpecBuildError as exc:
             raise VerbError("#%s cannot be read (line %d: %s)"
                             % (item_id, exc.line, exc.message))
-        if offers:
+        # An option LABELLED `Yes` is a verdict when it is the one {chosen}
+        # option: that is the option the flag makes the builder check.
+        if labelled and chosen_plain != [said_plain.lower()]:
+            raise VerbError(
+                "#%s has an option labelled %r, but the builder reads "
+                "decided=%s as the settled flag and checks the {chosen} "
+                "option, else the {recommended} one, whatever its label: mark "
+                "the %r option {chosen} first, then decide"
+                % (item_id, said_plain, said_plain, labelled[0]))
+        if offers and not labelled:
             raise VerbError(
                 "#%s has options, and %r would record its {recommended} option "
                 "as the verdict whatever the reader chose — pass the chosen "
@@ -634,7 +654,8 @@ def _update_ledger_row(lines, tree, node, old_verdict, verdict):
             line = lines[i].rstrip("\r")
             if not line.startswith("- "):
                 continue
-            if line[2:].split(SEP, 1)[0].strip() != node.id:
+            key, sep, _ = line[2:].partition(SEP)
+            if not sep or key.strip() != node.id:     # key-less: no id (_ledger_keys)
                 continue
             if line in (row(old_verdict), "- %s%s%s" % (node.id, SEP, title)):
                 lines[i] = row(verdict) + ("\r" if lines[i].endswith("\r") else "")

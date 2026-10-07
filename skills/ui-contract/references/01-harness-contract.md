@@ -306,30 +306,10 @@ does not match still fails.
 **The review surface may be a generated board instead of one image** (ADR, second
 amendment of 2026-09-21): a static HTML file over the same baselines, one tile per cell
 and project, in the shipped tree a sibling script of the composer that imports its lists.
-Every property below holds for it unchanged; detect which one the project has and record
-that one's path.
+Every property below holds for it unchanged; detect which one the project has. Either is the
+developer's lens, never what the Execution log records as the review surface (SKILL.md, "Verified" part 1).
 
-**The owner's review surface is a consultation page, not the board** (ADR, fourth
-amendment of 2026-09-23; rows reshaped by the 2026-09-27 consultation, D1-D3). The board
-script also prints the owner's review rows as JSON — in the shipped tree
-`--rows-json <gallery> --variants <v,v> --changed <cell,cell> --actual-dir <run output>`,
-the variants and cells being item 5 of the plan's UI-contract section. One row per
-declared cell in each chosen variant, as `before` (the baseline the run compared against,
-absent for a new screen) and `after` (the run's render), plus one `unrequested` row per
-undeclared cell that rendered differently in ANY variant, the other variants where it
-changed listed in `also`; a declared cell that is not applicable comes as its reason. Paths are relative to the repo root, the
-output is deterministic, and a declared cell with no baseline is refused like the board
-does. A NEW screen has no baseline and no `before`: the emitter takes a `--new` cell list
-(refused for a cell that already has a baseline) and reads baselines only for the chosen
-variants. Every shown row carries a `look` line (one sentence: what to look at in this
-picture); the spec route (`::: gallery rows=`) refuses a shown row without it, while
-`gallery-items.sh` alone renders the row and exits 0, so an emitter that does not write it
-gets it added before the page is built. The same goes for `noBefore` (a reason string on a single-capture row whose before is lost or unreachable, instead of the "new screen" label): the emitters never write it, the author adds it to the emitted rows before the build and likewise `decided_note` (the "decidido, corrígeme si no" text of a still-open row, rendered as a callout under the captures). Named highlights (BL-607): for each element a row should outline, the capture step writes `<capture>.regions.json` next to the PNG (`shots/x.png` gets `shots/x.regions.json`), a `{"name": {"x","y","w","h"}}` map from Playwright `locator.boundingBox()` scaled to the capture's own pixels (device scale factor applied; full-page captures add the scroll offset). The author then writes `"highlight": "@name"` and `gallery-items.sh` resolves it, refusing a missing sidecar, an unknown name or a region outside the capture; a changed full-page row (capture 320x600 or larger) with no highlight is refused (BL-688), so the capture step writes the sidecar for every such cell's changed region (format and rule: `04-block-vocabulary.md`, gallery rows); literal pixels remain the fallback. For alternatives (N labelled variants of one cell)
-the rows document declares them once and the reply parses back with `--rows` (SKILL.md,
-"Verified" part 1). An empty `rows` (everything matched) means no gallery block on the page. The
-artifact kit's `gallery-items.sh` turns that document into consultation items
-(`/aidex:artifact`, `04-block-vocabulary.md` § `gallery` pins the shape). The board and
-the image remain the developer's lens while building: nothing reads a page built from them, and a session never opens one in the owner's browser (BL-705); after a UI fix the owner is handed the consultation artifact.
+**The owner's review surface is a consultation page, not the board** (ADR, fourth amendment of 2026-09-23; rows reshaped by the 2026-09-27 consultation, D1-D3). The board script also prints the owner's review rows as JSON — in the shipped tree `--rows-json <gallery> --variants <v,v> --changed <cell,cell> --actual-dir <run output>`, the variants and cells being item 5 of the plan's UI-contract section. What the emitter owes: one row per declared cell in each chosen variant, paths relative to the repo root, deterministic output, a declared cell with no baseline refused like the board does, and for a NEW screen a `--new` cell list (refused for a cell that already has a baseline) that reads baselines only for the chosen variants. Everything else about a row is the artifact kit's: the schema, the `look` line every shown row carries, `noBefore`, `decided_note`, unrequested rows, alternatives, the highlight rule and the reply parsing are in [Gallery rows](../../artifact/references/02-local-first-artifacts.md#gallery-rows-screenshots-the-reader-rules-on-one-row-per-screen-state) and the [`gallery` block table](../../artifact/references/04-block-vocabulary.md#gallery--scriptsdashgallery_itemspy-rows-json-in); a key the emitter does not write is added by the author before the page is built. For highlights the capture step writes `<capture>.regions.json` next to every PNG (a `{"name": {"x","y","w","h"}}` map from Playwright `locator.boundingBox()` in the capture's own pixels, plus the scroll offset on a full-page shot) so the author can write `"highlight": "@name"`. The board and the image remain the developer's lens while building: nothing reads a page built from them, and a session never opens one in the owner's browser (BL-705); after a UI fix the owner is handed the consultation artifact.
 
 **A component-scoped consultation** (owner 2026-10-02): when only one component changes
 (a button's hover, tooltip, loading and disabled states; a dialog; a card; a section; a
@@ -340,8 +320,7 @@ carries ONE item with every state of it, the owner approving all or some of them
 whenever context matters (placement, neighbours, the AFTER beside the BEFORE). The
 component's cells still go through the gate like any other (a distinct render each, `ready`
 specific to the state). The gallery rows document carries it as
-one row of `kind: "states"` (`04-block-vocabulary.md` § `gallery`): N captures in one item,
-a checkbox per state, and `gallery-reply.sh --rows` returns which states were approved.
+one row of `kind: "states"` (N captures, a checkbox per state; `gallery-reply.sh --rows` returns which were approved): [`gallery` block table](../../artifact/references/04-block-vocabulary.md#gallery--scriptsdashgallery_itemspy-rows-json-in).
 
 A small composer script turns one gallery's baselines into a single image: rows are the
 matrix cells, columns the four projects.
@@ -352,12 +331,13 @@ matrix cells, columns the four projects.
 - **A declared cell with no image is an error, not a gap in the grid.** A sheet that
   quietly renders five of six cells is worse than no sheet.
 - **The output path is the last line of stdout**, into a gitignored scratch directory.
-  That path is what the Execution log records and what the word "verified" points at.
+  That path is for the caller (verify-ui reads it); the word "verified" points at the
+  consultation page, not at this image (SKILL.md, "Verified" part 1).
 - Desktop tiles are scaled down and mobile tiles stay native: a desktop frame squeezed to
   a mobile column is unreadable evidence.
 - `gallery_board.py` and `gallery_contact_sheet.py` are tracked shared infrastructure in a
   project that adopted the harness: they read the fork's own gallery matrix (cells,
-  not-applicable reasons, `look` lines) from its `frontend/tests/demo/*-gallery.demo.spec.ts`,
+  not-applicable reasons and the per-row look sentences) from its `frontend/tests/demo/*-gallery.demo.spec.ts`,
   so a project adopting them edits no list, it keeps its specs. They need `uv` and `pillow`.
 
 ## 7. Who owns the style-lint allowlist
