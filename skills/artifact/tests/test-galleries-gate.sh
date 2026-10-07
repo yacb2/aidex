@@ -5,7 +5,8 @@
 # refused, stale migration, nothing written into the manifest), each page condition firing on a crafted
 # bad page (kit marker and styles, missing cell, tile count, distinct image CONTENT, image file, hidden
 # image, visible caption, shared after-capture, undeclared section, zero cells), the probe verdict rule,
-# its single call and its attribution per page, the pin, the one-line stdout and the exit codes. Every
+# its single call and its attribution per page, which image each tile shows, both halves of the pin (the
+# generated half refused at import), the migration's expected refusal, the one-line stdout and the exit codes. Every
 # cell was seen red against a mutated copy of the gate (GALLERIES_GATE_UNDER_TEST).
 # Layer: script-level (stdlib Python driven from bash), because the contract is the CLI's.
 # Run with: bash skills/artifact/tests/test-galleries-gate.sh
@@ -158,6 +159,34 @@ check(len(asrc) == 3, "the alternatives row shows three tiles", asrc)
 fires("two alternatives with the same bytes under another src", ahtml.replace(asrc[1], "rebuilt000-assets/gallery/dup.png"),
       "CELL:distinct", Da, alt, copy=[(os.path.join("rebuilt000-assets", "gallery", os.path.basename(asrc[0])), os.path.join("rebuilt000-assets", "gallery", "dup.png"))])
 check("CELL:distinct" not in [c for c, _ in gg.check_page(variant(alt, "alt-ok", ahtml), Da)], "three different alternatives are not flagged")
+# which image a tile shows: swapping two tiles' files keeps every count, name and distinct-content rule green
+def swapped(built, name, a, b):
+    """The built page's dir copied, the bytes of image files a and b (page-relative) exchanged."""
+    d = os.path.dirname(variant(built, name, open(built["page"], encoding="utf-8").read()))
+    pa, pb = os.path.join(d, a), os.path.join(d, b)
+    da, db = open(pa, "rb").read(), open(pb, "rb").read()
+    open(pa, "wb").write(db)
+    open(pb, "wb").write(da)
+    return os.path.join(d, os.path.basename(built["page"]))
+def tile_src(page_html, rid, tile):
+    s = re.search(r'data-id="%s".*?data-tile="%s"><img src="([^"]+)"' % (re.escape(rid), re.escape(tile)), page_html, re.S)
+    return urllib.parse.unquote(s.group(1))
+import urllib.parse
+r0, r1 = D[0][0]["id"], D[0][1]["id"]
+got = [c for c, _ in gg.check_page(swapped(good, "swap-after", tile_src(html, r0, "after"), tile_src(html, r1, "after")), D)]
+check(got.count("CELL:content") == 2 and "CELL:distinct" not in got and "CELL:duplicate-after" not in got,
+      "two rows' after-images exchanged (before/after of a pair, counts and distinctness intact) is CELL:content", got)
+check("CELL:content" in [c for c, _ in gg.check_page(variant(good, "renamed-tile", html.replace('data-tile="after"', 'data-tile="zzz"', 1)), D)],
+      "a tile the row does not declare (renamed data-tile) is CELL:content")
+check(any("missing tile 'before'" in m for c, m in gg.check_page(variant(good, "after-twice", html.replace('data-tile="before"', 'data-tile="after"', 1)), D)),
+      "a pair showing the after tile twice and no before tile names the missing tile")
+check("CELL:content" in [c for c, _ in gg.check_page(swapped(alt, "swap-alt", asrc[0], asrc[1]), Da)],
+      "two alternatives' images exchanged (captures[id]) is CELL:content")
+st = build(by_tag["gen:states-row"])
+Ds, shtml = decl(st), open(st["page"], encoding="utf-8").read()
+check(gg.check_page(st["page"], Ds) == [], "a real states page passes", gg.check_page(st["page"], Ds))
+check("CELL:content" in [c for c, _ in gg.check_page(swapped(st, "swap-st", tile_src(shtml, Ds[0][0]["id"], "empty"), tile_src(shtml, Ds[0][0]["id"], "loaded")), Ds)],
+      "two states' images exchanged (states[i].capture) is CELL:content")
 # an identical before/after pair is valid input ("unchanged"): never judged
 same = build(by_tag["gen:identical-pair"])
 check(same["kind"] == "built" and gg.check_page(same["page"], decl(same)) == [], "a before/after pair with identical bytes passes (it means unchanged)", gg.check_page(same["page"], decl(same)) if same["page"] else same["kind"])
@@ -257,6 +286,8 @@ def tree(d):
     return sorted((os.path.join(dp, f), os.path.getmtime(os.path.join(dp, f))) for dp, _, fs in os.walk(d) for f in fs) \
         + sorted(os.path.join(dp, x) for dp, ds, _ in os.walk(d) for x in ds)
 fake("p_clean3.sh", 'echo "INVARIANTS pages=$# violations=0"')
+PAREN = "carries a parenthetical"
+gg.MIGRATED_EXPECT = {"refused-one": PAREN, "resid": PAREN, "tb": PAREN}
 m1 = os.path.join(tmp, "man1")
 manifest(m1, "refused-one", base % OLD_OPTS, base % OK_OPTS)
 manifest(m1, "builds-one", base % OK_OPTS, base % OK_OPTS)
@@ -288,6 +319,15 @@ shutil.rmtree(os.path.join(m3, "gone", "root", "shots"))
 res = quiet(gg.measure, quiet(gg.manifest_units, m3))
 check([c for c, _ in res[0][1]] == ["BUILD:source-missing"], "a missing capture is reported as source-missing, still a failure", res[0][1])
 
+# an original refused for ANOTHER reason than the one recorded is a failure naming it, never a fallback
+for nm, table in (("other-reason", {"other-reason": "has no 'look' line"}), ("unrecorded", {})):
+    gg.MIGRATED_EXPECT = table
+    mx = os.path.join(tmp, "man_" + nm)
+    manifest(mx, nm, base % OLD_OPTS, base % OK_OPTS)
+    res = quiet(gg.measure, quiet(gg.manifest_units, mx))
+    check("BUILD:new-refusal" in [c for c, _ in res[0][1]] and res[0][2] is False and "parenthetical" in " ".join(d for _, d in res[0][1]),
+          "an original refused for a reason the migration does not record (%s) fails as new-refusal and names the reason" % nm, res[0][1:])
+gg.MIGRATED_EXPECT = {"tb": PAREN, "resid": PAREN}
 # only a REFUSAL falls back to the migrated copy; the corpus's own residue never counts against a build
 tbk = script("b_oldtb.py", 'import subprocess, sys\nif "(the old way)" in open(sys.argv[1]).read():\n    sys.stderr.write("Traceback (most recent call last):\\nValueError: boom\\n"); sys.exit(1)\nsys.exit(subprocess.call([sys.executable, "%s"] + sys.argv[1:]))\n' % os.path.join(gg.SCRIPTS, "spec_build.py"))
 m5 = os.path.join(tmp, "man5")
@@ -361,9 +401,17 @@ check(run_main([], n=Y + 1) == (1, "galleries: %d/%d (pin %d)\n" % (Y + 1, Y + 1
 check(run_main([], n=Y - 1) == (1, "galleries: %d/%d (pin %d)\n" % (Y - 1, Y - 1, Y)), "X == Y below the pin exits 1 and names the pin", run_main([], n=Y - 1))
 check(run_main(["--verbose"], fails=(0, 1)) == (1, "galleries: %d/%d\n" % (Y - 2, Y)), "--verbose adds nothing to stdout")
 check(run_main(["--expected"]) == (0, "%d\n" % Y), "--expected prints the pinned count and exits 0")
-os.environ["AIDEX_GALLERIES_PIN"] = "7"
-check(gg.pinned() == 7, "the pin can be overridden for tests only through the environment")
-del os.environ["AIDEX_GALLERIES_PIN"]
+# the generated half of Y is a literal checked at import: a case dropped or added refuses the gate (rc != 0, no stdout)
+src = open(gate).read()
+src = src.replace("HERE = os.path.dirname(os.path.abspath(__file__))", "HERE = %r" % os.path.dirname(os.path.abspath(gate)), 1)
+drop = '    c = new("bad-unknown-dependency", "refusal-only")\n    c.row("waits", depends_on="Q99")\n'
+add = '    c = new("one-more")\n    c.row("x")\n'
+for what, mutated in (("dropped", src.replace(drop, "", 1)), ("added", src.replace("    return cases\n", add + "    return cases\n", 1))):
+    assert mutated != src
+    mp = script("gate_%s.py" % what, mutated)
+    r = subprocess.run([sys.executable, mp, "--expected"], capture_output=True, text=True)
+    check(r.returncode != 0 and r.stdout == "" and "GENERATED_PIN" in r.stderr and "Traceback" not in r.stderr,
+          "a generated case %s refuses the gate loudly: GENERATED_PIN is a literal, not len(generated_cases())" % what, (r.returncode, r.stdout, r.stderr))
 PY
 
 echo "== the CLI: one stdout line, stderr carries the detail =="

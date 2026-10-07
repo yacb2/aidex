@@ -9,13 +9,15 @@ goes to stderr. Exit 0 iff X == Y and Y equals the pinned count (`--expected` pr
 `--only` measures the units whose tag contains the substring (a replay aid: the pin check then
 fails by design).
 
-Units (Y = MANIFEST_PIN + the generated set, pinned in PINNED):
+Units (Y = MANIFEST_PIN + GENERATED_PIN, both literals; the generated set is checked against
+GENERATED_PIN at import, so dropping a case refuses the gate instead of shrinking Y):
   (a) the FROZEN MANIFEST: <corpus>/galleries/<name>/ holds a harvested ui-contract gallery spec
       (spec.md), its rows, its captures under root/ and its relative assets, harvested once by
       galleries_harvest.py. Each is rebuilt with TODAY's builder in a temp tree of symlinks (never
       written into the corpus). The original is tried first; <corpus>/galleries/migrated/<name>/
-      is built instead ONLY while the original is refused (one row in galleries/MIGRATIONS.md
-      each); a migrated copy beside an original that builds is reported `stale migration` and
+      is built instead ONLY while the original is refused for the reason MIGRATED_EXPECT records for it (one row in
+      galleries/MIGRATIONS.md each; an original refused for any OTHER reason is a BUILD:new-refusal
+      failure naming that reason); a migrated copy beside an original that builds is reported `stale migration` and
       ignored. The live walk of the projects is a stderr census ("K gallery specs on disk not in
       the manifest") and never fails.
   (b) the fixed GENERATED set below: gallery specs plus rows.json and PNG captures built here.
@@ -26,17 +28,20 @@ A unit PASSES when it builds and
   2. the page carries the kit this checkout ships: `<meta name="artifact-kit">` with the
      VERSION of assets/artifact-kit, and the kit's tokens.css and components.css verbatim,
   3. every gallery declares at least one shown cell, every declared cell renders (section
-     exists, tiles equal the captures it declares, each tile's image file exists with real
-     size and is not hidden, each caption is visible), an alternatives or states row never
-     shows two tiles with the same image CONTENT, no two shown rows of one gallery share an
-     after-capture content hash, and no section with tiles is undeclared. A before/after pair
-     with identical bytes is valid input ("unchanged") and is not judged.
+     exists, one tile per declared capture, each tile shows the capture the row declares for it
+     (sha256 of the image file against sha256 of the declared file: before, after, captures[id],
+     states[i].capture), each tile's image file exists with real size and is not hidden, each
+     caption is visible), an alternatives or states row never shows two tiles with the same
+     image CONTENT, no two shown rows of one gallery share an after-capture content hash, and no
+     section with tiles is undeclared. A before/after pair with identical bytes is valid input
+     ("unchanged") and is not judged: whether the builder should refuse an identical pair whose
+     look line claims a change is an OPEN OWNER QUESTION, pending an owner ruling.
 or it is refused loudly (non-zero exit, a message, no traceback, no page, no residue) and its
 INTENT allows that: `valid` may not be refused; `refusal-only` (invalid input) must be refused
 with a message naming the `gallery` block (or the case's own `expect`).
 
 Test seams: AIDEX_RENDER_PROBE replaces scripts/render-probe.sh; AIDEX_GALLERIES_MANIFEST the
-manifest dir; AIDEX_GALLERIES_PROJECTS the projects dir (census); AIDEX_GALLERIES_PIN the pin.
+manifest dir; AIDEX_GALLERIES_PROJECTS the projects dir (census).
 """
 import argparse
 import concurrent.futures
@@ -62,12 +67,28 @@ KIT = os.path.join(SKILL, "assets", "artifact-kit")
 sys.path.insert(0, SCRIPTS)
 sys.path.insert(0, os.path.join(SCRIPTS, "dash"))
 import gallery_items  # noqa: E402
+import spec_build  # noqa: E402
 import spec_parser  # noqa: E402
 
 SPEC_BUILD = os.path.join(SCRIPTS, "spec_build.py")
 PROBE = os.environ.get("AIDEX_RENDER_PROBE") or os.path.join(SCRIPTS, "render-probe.sh")
 PROJECTS = os.environ.get("AIDEX_GALLERIES_PROJECTS") or os.path.expanduser("~/Documents/projects")
 MANIFEST_PIN = 13           # galleries/<name>/ dirs in the manifest (harvested 2026-10-07)
+GENERATED_PIN = 31          # len(generated_cases()), checked at import next to PINNED
+# Why today's builder refuses each ORIGINAL that has a migrated copy: a substring of its message. The
+# copy is measured only while the original is refused for this reason; any other refusal is a new defect.
+_PAREN = "carries a parenthetical"
+_HL = "needs a 'highlight'"
+MIGRATED_EXPECT = {
+    "asset_lab_ws__.context__artifacts__2026-09-29-bl011-esqueleto-revision__bl011-esqueleto-revision": "has no 'look' line",
+    "asset_lab_ws__.context__artifacts__2026-10-01-inicio-rediseno-consulta__inicio-rediseno-consulta": _HL,
+    "asset_lab_ws__.context__artifacts__2026-10-03-actividades-rediseno-consulta__actividades-rediseno-consulta": _PAREN,
+    "asset_lab_ws__.context__artifacts__2026-10-03-revision-operaciones-consulta__revision-operaciones-consulta": "is pixel-identical to the one of",
+    "echo_lab_ws__.context__plans__2026-10-01-access-delivery__accesos-review": _PAREN,
+    "echo_lab_ws__.context__plans__2026-10-01-access-delivery__s3-review": _PAREN,
+    "echo_lab_ws__.context__plans__2026-10-01-access-delivery__s5-review": _HL,
+    "echo_lab_ws__.context__research__2026-10-03-voice-pairs-page__r2-consulta": _PAREN,
+}
 BUILD_TIMEOUT = 120
 PROBE_TIMEOUT = 900
 WORKERS = max(2, min(6, os.cpu_count() or 2))
@@ -297,6 +318,7 @@ def manifest_units(mdir):
         m = os.path.join(mdir, "migrated", name)
         if os.path.isfile(os.path.join(m, "spec.md")):
             u["alt"] = unit(m, name, True)
+            u["alt_expect"] = MIGRATED_EXPECT.get(name)
         out.append(u)
     return out
 
@@ -325,6 +347,12 @@ def classify_build(rc, output, page_exists, residue):
     if not output.strip():
         return "silent-refusal"
     return "refused"
+
+
+def said_of(out):
+    lines = [ln.strip() for ln in out.strip().splitlines() if ln.strip()]
+    return next((ln for ln in lines if "`gallery`" in ln or "has no file" in ln or ln.startswith("FAIL [")),
+                lines[0] if lines else "")[:240]
 
 
 def build_unit(root, n, u):
@@ -356,9 +384,7 @@ def build_unit(root, n, u):
     prev = os.path.join(d, ".aidex-artifact-prev")
     residue = os.path.isdir(prev) and bool(os.listdir(prev))
     kind = classify_build(rc, out, os.path.exists(page), residue)
-    lines = [ln.strip() for ln in out.strip().splitlines() if ln.strip()]
-    said = next((ln for ln in lines if "`gallery`" in ln or "has no file" in ln or ln.startswith("FAIL [")),
-                lines[0] if lines else "")[:240]
+    said = said_of(out)
     res["kind"], res["out"] = kind, out
     if kind == "refused":
         if u["intent"] == "valid":
@@ -468,6 +494,12 @@ def declared_cells(spec_text, base_dir):
         except (SystemExit, OSError):
             problems.append(("CELL:none", "gallery %s: rows %r cannot be read" % (n.id, n.attrs.get("rows"))))
             continue
+        try:
+            root = (os.path.normpath(os.path.join(base_dir, n.attrs["root"])) if "root" in n.attrs
+                    else spec_build._checkout_root(n, base_dir))
+        except spec_build.SpecBuildError as exc:
+            problems.append(("CELL:none", "gallery %s: no capture root: %s" % (n.id, exc)))
+            continue
         shown = 0
         for row in doc["rows"]:
             if not isinstance(row, dict):
@@ -477,7 +509,7 @@ def declared_cells(spec_text, base_dir):
             if "dropped" in row or "notApplicable" in row or rid in dropped:
                 continue
             shown += 1
-            cells.append({"id": rid, "row": row, "gallery": doc["gallery"]})
+            cells.append({"id": rid, "row": row, "gallery": doc["gallery"], "root": root})
         if not shown:
             problems.append(("CELL:none", "gallery %s (%s) declares no shown cell" % (n.id, n.attrs.get("rows"))))
     return cells, all_ids, problems
@@ -495,6 +527,39 @@ def declared_tiles(row):
     return n
 
 
+def declared_captures(row, root):
+    """{tile id: capture file} the builder shows for a row: before, after, captures[id] (or
+    captures[id][state] as `id-state`) and states[i].capture, joined to the gallery's root."""
+    out = {}
+    def put(tile, path):
+        if isinstance(path, str):
+            out[tile] = os.path.join(root, path.lstrip("/"))
+    for k in ("before", "after"):
+        if k in row:
+            put(k, row[k])
+    if isinstance(row.get("captures"), dict):
+        for aid, v in row["captures"].items():
+            if isinstance(v, dict):
+                for st, path in v.items():
+                    put("%s-%s" % (aid, st), path)
+            else:
+                put(aid, v)
+    if isinstance(row.get("states"), list):
+        for st in row["states"]:
+            if isinstance(st, dict):
+                put(st.get("id"), st.get("capture"))
+    return out
+
+
+def file_hash(path):
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+    except OSError:
+        return None
+    return hashlib.sha256(data).hexdigest() if data else None
+
+
 def parse_page(html):
     p = Sections()
     p.feed(html)
@@ -504,13 +569,7 @@ def parse_page(html):
 
 def content_hash(page, src):
     """sha256 of the image file a tile's src names, beside the page; None when there is no such file."""
-    path = os.path.join(os.path.dirname(page), urllib.parse.unquote(src))
-    try:
-        with open(path, "rb") as f:
-            data = f.read()
-    except OSError:
-        return None
-    return hashlib.sha256(data).hexdigest() if data else None
+    return file_hash(os.path.join(os.path.dirname(page), urllib.parse.unquote(src)))
 
 
 def check_page(page, declared):
@@ -541,15 +600,24 @@ def check_page(page, declared):
         if len(tiles) != want:
             fails.append(("CELL:tiles", "%s declares %d capture(s), the page shows %d" % (rid, want, len(tiles))))
         hashes = []
+        want_files = declared_captures(row, c["root"])
         for t in tiles:
             h = content_hash(page, t["src"]) if t["src"] else None
             hashes.append(h)
+            if t["tile"] not in want_files:
+                fails.append(("CELL:content", "%s shows tile %r, which the row does not declare" % (rid, t["tile"])))
+            elif h is not None and h != file_hash(want_files[t["tile"]]):
+                fails.append(("CELL:content", "%s tile %r shows %r, not the capture the row declares (%s)"
+                              % (rid, t["tile"], t["src"], want_files[t["tile"]])))
             if h is None:
                 fails.append(("CELL:image", "%s tile %r has no image file (or an empty one) at %r" % (rid, t["tile"], t["src"])))
             if t["img_hidden"]:
                 fails.append(("CELL:image-hidden", "%s tile %r: the image is hidden or has no size" % (rid, t["tile"])))
             if t["hidden"] or not t["caption"].strip():
                 fails.append(("CELL:caption", "%s tile %r has no visible caption" % (rid, t["tile"])))
+        # A tile shown twice with another missing passes the count and membership checks above.
+        for name in sorted(set(want_files) - {t["tile"] for t in tiles}):
+            fails.append(("CELL:content", "%s is missing tile %r" % (rid, name)))
         if row.get("kind") in ("alternatives", "states"):
             known = [h for h in hashes if h]
             if len(set(known)) != len(known):
@@ -613,8 +681,13 @@ def measure(units):
                 if b["kind"] == "built":
                     print("galleries-gate: stale migration: %s builds as it is, migrated copy ignored" % u["tag"], file=sys.stderr)
                 elif b["kind"] == "refused":
-                    b = built[id(u["alt"])]
-                    b["unit"] = dict(u["alt"], tag=u["tag"])
+                    want = u.get("alt_expect")
+                    if want and want in b["out"]:
+                        b = built[id(u["alt"])]
+                        b["unit"] = dict(u["alt"], tag=u["tag"])
+                    else:
+                        b["fails"].append(("BUILD:new-refusal", "refused for a reason the migration does not cover "
+                                           "(expected %r): %s" % (want, said_of(b["out"]))))
             chosen.append(b)
         for b in chosen:
             if b["page"]:
@@ -636,11 +709,10 @@ def measure(units):
         shutil.rmtree(root, ignore_errors=True)
 
 
-PINNED = MANIFEST_PIN + len(generated_cases())
-
-
-def pinned():
-    return int(os.environ.get("AIDEX_GALLERIES_PIN") or PINNED)
+PINNED = MANIFEST_PIN + GENERATED_PIN
+# Y is pinned in both halves: a generated case dropped from the table must not read as green.
+if len(generated_cases()) != GENERATED_PIN:
+    raise SystemExit("galleries_gate: %d generated cases, GENERATED_PIN is %d" % (len(generated_cases()), GENERATED_PIN))
 
 
 def census(mdir, verbose):
@@ -662,7 +734,7 @@ def main(argv):
     ap.add_argument("--only", default="")
     a = ap.parse_args(argv)
     if a.expected:
-        print(pinned())
+        print(PINNED)
         return 0
     mdir = manifest_dir()
     results = measure(make_units(mdir, a.only))
@@ -689,10 +761,10 @@ def main(argv):
     line = "galleries: %d/%d" % (x, y)
     if migrated:
         line += " (%d migrated)" % migrated
-    if y != pinned():
-        line += " (pin %d)" % pinned()
+    if y != PINNED:
+        line += " (pin %d)" % PINNED
     print(line)
-    return 0 if x == y and y == pinned() else 1
+    return 0 if x == y and y == PINNED else 1
 
 
 if __name__ == "__main__":
