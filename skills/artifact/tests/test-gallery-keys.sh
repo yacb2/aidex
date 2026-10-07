@@ -35,12 +35,20 @@ if [[ -z "$module" ]] || ! command -v node >/dev/null 2>&1; then
 fi
 
 GROOT="$TMP/root"
+# before (shots/) a different grey from the after: the builder refuses identical live pairs
+gal_grey() {   # the after of every live row has a grey of its own: a repeated highlighted region is refused too
+  [[ $d == shots ]] && { echo 96; return; }
+  case "$t:$cell" in
+    light-desktop:with-data) echo 110;; light-desktop:empty) echo 120;; dark-desktop:with-data) echo 130;; dark-desktop:empty) echo 140;;
+    light-mobile:with-data) echo 150;; light-mobile:empty) echo 160;; dark-mobile:with-data) echo 170;; *) echo 180;;
+  esac
+}
 for d in shots actual; do for cell in with-data empty; do
   for t in light-desktop dark-desktop; do
-    mkdir -p "$GROOT/$d/$t" && python3 "$HERE/png_fixture.py" "$GROOT/$d/$t/audit-$cell.png" 400 200
+    mkdir -p "$GROOT/$d/$t" && python3 "$HERE/png_fixture.py" "$GROOT/$d/$t/audit-$cell.png" 400 200 $(gal_grey)
   done
   for t in light-mobile dark-mobile; do
-    mkdir -p "$GROOT/$d/$t" && python3 "$HERE/png_fixture.py" "$GROOT/$d/$t/audit-$cell.png" 100 200
+    mkdir -p "$GROOT/$d/$t" && python3 "$HERE/png_fixture.py" "$GROOT/$d/$t/audit-$cell.png" 100 200 $(gal_grey)
   done
 done; done
 # A states row rides along: its arrows walk ITS states, not the block's before/after.
@@ -53,7 +61,10 @@ d["rows"].append({"cell": "btn", "variant": "light-desktop", "kind": "states",
                              for i in ("default", "hover", "loading")]})
 json.dump(d, open(sys.argv[2], "w"))
 PY
-echo '{"shown": {"x": 20, "y": 20, "w": 100, "h": 50}}' > "$GROOT/actual/light-desktop/audit-empty.regions.json"  # BL-688: rows.json highlights the new screen
+echo '{"shown": {"x": 20, "y": 20, "w": 100, "h": 50}}' > "$GROOT/actual/light-desktop/audit-empty.regions.json"
+echo '{"shown": {"x": 20, "y": 20, "w": 100, "h": 50}}' > "$GROOT/actual/light-desktop/audit-with-data.regions.json"
+echo '{"shown": {"x": 5, "y": 20, "w": 80, "h": 50}}' > "$GROOT/actual/light-mobile/audit-with-data.regions.json"
+echo '{"shown": {"x": 5, "y": 20, "w": 80, "h": 50}}' > "$GROOT/actual/dark-mobile/audit-empty.regions.json"  # BL-688: rows.json highlights the new screen
 bash "$SCRIPTS/gallery-items.sh" "$TMP/rows.json" --root "$GROOT" --page "$TMP/page.html" --group-id E \
   --group-title "Galería audit" > "$TMP/group.html" || { echo "FAIL: gallery-items.sh refused the fixture"; exit 1; }
 python3 - "$FIX/frame.html" "$TMP/group.html" "$TMP/body.html" <<'PY'

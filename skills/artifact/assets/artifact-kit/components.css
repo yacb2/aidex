@@ -603,7 +603,15 @@ dialog.kit-mark-note::backdrop { background: rgba(0, 0, 0, 0.3); }
 .kit-ask label:hover { background: var(--paper-sunk); color: var(--ink); }
 .kit-ask label:has(input:checked) { color: var(--ink); }
 .kit-ask input[type="checkbox"] { accent-color: var(--accent); margin: 0; }
-/* A phone is 21-24rem of usable width: nine chips wrap to three or four rows
+/* The page-defect report: a quiet button under the ask row that opens its own box. */
+.kit-defect:where(:not(svg *)) { margin-top: 0.4rem; font-family: var(--sans); font-size: 0.82rem; color: var(--muted); }
+.kit-defect-btn:where(:not(svg *)) { font: inherit; color: inherit; background: none; border: 0; padding: 0.1rem 0.3rem;
+                  border-radius: 3px; cursor: pointer; text-decoration: underline dotted; }
+.kit-defect-btn:hover { background: var(--paper-sunk); color: var(--ink); }
+.kit-defect-box { display: block; margin-top: 0.3rem; }
+.kit-defect-box[hidden] { display: none; }
+.kit-defect-box textarea { display: block; width: 100%; margin-top: 0.2rem; }
+/* A phone is 21-24rem of usable width: eight chips wrap to three or four rows
    there, and each row has to stay tappable. The chips keep their size (a 0.82rem
    target is already the floor); what gives is the space between them and the
    lead-in, which takes a line of its own so no chip is orphaned beside it. */
@@ -650,7 +658,7 @@ dialog.kit-mark-note::backdrop { background: rgba(0, 0, 0, 0.3); }
    not one of the two answers the item is asking for. */
 .fieldrow { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
 .consult-clear:where(:not(svg *)) { display: none; }
-.consult-item.has-answer .consult-clear:where(:not(svg *)) { display: inline; }
+.consult-item:is(.has-answer, .has-defect) .consult-clear:where(:not(svg *)) { display: inline; }
 .consult-clear:where(:not(svg *)) { align-self: flex-end; background: none; border: none; padding: 0.1rem 0.2rem;
                  font-family: var(--sans); font-size: 0.72rem; text-transform: uppercase;
                  letter-spacing: 0.09em; color: var(--muted); cursor: pointer; }

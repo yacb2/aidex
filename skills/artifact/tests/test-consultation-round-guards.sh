@@ -411,7 +411,7 @@ printf '%s' '### x-full-light-desktop · x · full · light-desktop
 # --new-round keeps working: the row rebuilt wraps, and round 3 builds.
 FL="$TMP/flow"; mkdir -p "$FL/shots" "$FL/actual" "$FL/pages"
 (cd "$FL" && git init -q .)
-python3 "$SKILL/tests/png_fixture.py" "$FL/shots/a.png" 16 9
+python3 "$SKILL/tests/png_fixture.py" "$FL/shots/a.png" 16 9 96   # a before that differs from the after (the builder refuses identical pairs)
 python3 "$SKILL/tests/png_fixture.py" "$FL/actual/a.png" 16 9
 cat > "$FL/pages/rows.json" <<'J'
 {"gallery": "audit", "variants": ["light-desktop"], "rows": [
@@ -447,7 +447,7 @@ wflow() {  # wflow <name> <reply> <rows.py mutation of d for round 2>; leaves rc
   local n="$1" W="$TMP/wait-$1"
   mkdir -p "$W/shots" "$W/actual" "$W/pages"
   (cd "$W" && git init -q .)
-  python3 "$SKILL/tests/png_fixture.py" "$W/shots/a.png" 16 9
+  python3 "$SKILL/tests/png_fixture.py" "$W/shots/a.png" 16 9 96   # a before that differs from the after (the builder refuses identical pairs)
   python3 "$SKILL/tests/png_fixture.py" "$W/actual/a.png" 16 9
   cat > "$W/pages/rows.json" <<'J'
 {"gallery": "audit", "variants": ["light-desktop"], "rows": [
@@ -678,6 +678,78 @@ n="$(printf '%s\n' "$out_e3" | grep -c '^Q1 \[')"
   || fail "E3: got $n line(s): $out_e3"
 
 # ============================================================================
+# Part DEF — the composer's page-defect SUB-BLOCK (LOOP-008 Q10): a
+# `#### Fallo de la página` heading at the end of the item's block. It is read
+# as the page-defect marker was, its text is quoted in the printed duty, and
+# its text is never read as markers of its own.
+# ============================================================================
+PAGEG="$TMP/pageg/page.html"
+mkdir -p "$TMP/pageg"
+page "$PAGEG" '' 'The question, asked as a question'
+out_g="$(printf '%s' '### Q1 · Q1
+
+- Option A
+
+#### Page problem
+
+el titulo tiene un error de encoding' | bash "$SAVE_REPLY" "$PAGEG")"
+printf '%s\n' "$out_g" | grep >/dev/null '^Q1 \[page-defect\].*"el titulo tiene un error de encoding"' \
+  && ok "DEF1. a page-defect sub-block prints the page-defect duty with the reported text quoted" \
+  || fail "DEF1: $out_g"
+
+save_reply '' '### Q1 · Q1
+
+#### Fallo de la página
+
+- [show-me]
+nada se ve'
+page "$R/page.html" ''
+rc="$(run "$R/page.html" --prev "$R/.aidex-artifact-prev/page.html")"
+[[ "$rc" == "0" ]] && ok "DEF2. a line inside the page-defect text is not read as a marker (no show-me duty)" \
+  || fail "DEF2: rc=$rc $(cat "$TMP/out")"
+
+# G3. the report is what follows the LAST heading: a note that holds the literal
+# heading line is note text, not a report (the composer always emits it last).
+PAGEG3="$TMP/pageg3/page.html"
+mkdir -p "$TMP/pageg3"
+page "$PAGEG3" '' 'The question, asked as a question'
+out_g3="$(printf '%s' '### Q1 · Q1
+
+- Option A
+
+mi nota cita esto:
+
+#### Page problem
+
+texto de la nota que no es un reporte
+
+#### Page problem
+
+el reporte real' | bash "$SAVE_REPLY" "$PAGEG3")"
+printf '%s\n' "$out_g3" | grep >/dev/null '"el reporte real"' \
+  && ! printf '%s\n' "$out_g3" | grep >/dev/null 'no es un reporte' \
+  && ok "DEF3. a heading line inside a note is not the report: the LAST heading starts it" \
+  || fail "DEF3: $out_g3"
+
+# DEF4. two saves: Q1's report in save 1 must not swallow save 2 (an appended
+# paste under the `<!-- reply saved ... -->` separator, here a chat-form Q2 line).
+PAGEG4="$TMP/pageg4/page.html"
+mkdir -p "$TMP/pageg4"
+page "$PAGEG4" '' 'The question, asked as a question'
+printf '%s' '### Q1 · Q1
+
+#### Page problem
+
+el titulo sale roto' | bash "$SAVE_REPLY" "$PAGEG4" >/dev/null
+out_g4="$(printf '%s' 'Q2: si, la B
+- [show-me]' | bash "$SAVE_REPLY" "$PAGEG4")"
+printf '%s\n' "$out_g4" | grep >/dev/null '^Q1 \[page-defect\].*"el titulo sale roto"$' \
+  && ! printf '%s\n' "$out_g4" | grep >/dev/null 'si, la B' \
+  && ! printf '%s\n' "$out_g4" | grep >/dev/null '^Q1 \[show-me\]' \
+  && ok "DEF4. a report does not swallow the next appended save: its quote is its own text" \
+  || fail "DEF4: $out_g4"
+
+# ============================================================================
 # Part F — finding 3: [more-examples] strips comments/script/style, and a
 # <figure> wrapping its own visual counts ONCE, not twice.
 # ============================================================================
@@ -731,7 +803,7 @@ no entiendo'
 page "$R/page.html" '' 'The question, asked as a question,'   # same punctuation-only edit
 rc="$(run "$R/page.html" --prev "$R/.aidex-artifact-prev/page.html")"
 [[ "$rc" == "0" ]] && ok "G2. [explain-state] PASSes on the same punctuation-only edit (any body change counts)" \
-  || fail "G2: rc=$rc $(cat "$TMP/out")"
+  || fail "DEF2: rc=$rc $(cat "$TMP/out")"
 
 save_reply '' '### Q1 · Q1
 

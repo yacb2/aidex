@@ -412,6 +412,9 @@ def _reply_answer(reply, item_id, ids, labels=(), many=False):
     if block is None:
         return None
     real, notes, other, marked = [], [], False, False
+    # the composer's page-defect sub-block closes the item's block and is no
+    # note and no answer (check_artifact.split_defect)
+    block = check_artifact.split_defect("\n".join(block))[0].split("\n")
     for i, raw in enumerate(block):
         t = raw.strip()
         if not t:

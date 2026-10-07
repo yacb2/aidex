@@ -642,8 +642,8 @@ saying some form of "I do not understand this task" — the owner's words were *
 dando contexto asumiendo que conozco qué es lo que está y qué es lo que no está"*.
 
 So every open item carries an injected **ask row** (`.kit-ask`, kit v18, BL-381; seven
-chips since kit v19) under its answer: one line, "Antes de responder necesito…", with
-seven checkboxes. Ticking any of them pastes a fixed marker as a mark under that item's
+chips since kit v19; the page-defect chip left it for a button, LOOP-008 Q10) under its answer: one line, "Antes de responder necesito…", with
+eight checkboxes. Ticking any of them pastes a fixed marker as a mark under that item's
 id, and **which** markers is the whole point:
 
 | Marker | What it asks for | What the rewrite owes | Gate |
@@ -656,7 +656,7 @@ id, and **which** markers is the whole point:
 | **`[reframe]`** | The item is asking the wrong thing | **Re-frame the item, never just re-explain it.** Every other marker assumes the question is the right one; this one says it is not. The notes say why. The next round returns a DIFFERENT question — re-scoped, split, or dropped — and says in one line what changed and why. An item that comes back re-explained under the same framing has not been answered. | `check_marker_duties`: the item's question fingerprint (`changed_questions`'s) must differ from the answered snapshot |
 | **`[show-me]`** | A different instrument | A mockup, a diagram, a before/after, worked examples. Not more prose: the reader has said prose is not the shape that will land. | `check_marker_duties`: a figure, image, svg or diagram inside the item |
 | **`[more-examples]`** | More worked examples, not a longer explanation | More visuals, tables or example blocks than the last round carried — never the same shape stretched longer. | `check_marker_duties`: visual+table+example count must be higher than the answered snapshot |
-| **`[page-defect]`** | The page itself is broken (encoding, a dead control, a rendering bug) — never a route back to `[reframe]` for it | Fix the page defect in place. Nothing about the item's question changes, so nothing is re-asked. | none — a page defect is not a re-ask |
+| **`[page-defect]`** (legacy bare line; since LOOP-008 Q10 the composer pastes a sub-block instead) | The page itself is broken (encoding, a dead control, a rendering bug) — never a route back to `[reframe]` for it. The control is no chip: each open item has a "Report a page problem" button that opens its OWN box, apart from the notes. The report travels as the LAST sub-block of the item's `### ` block: a `#### Page problem` line (`#### Fallo de la página` on an es page), a blank line, the reader's text verbatim. An item with only a report still pastes its `### ` block with just that sub-block; the report is never an answer and never makes one provisional. `spec_verbs`, `save-reply.sh`, `check-artifact` and the gallery-row reader all cut the sub-block (from its LAST heading line) before reading the item's block, so its lines are neither notes, markers nor verdicts; a chat-form `Q2: ...` line inside the text still ends the block, the same exposure notes have. | Fix the page defect in place. Nothing about the item's question changes, so nothing is re-asked. `save-reply.sh` prints the duty line with the reported text quoted. | none — a page defect is not a re-ask |
 
 A gallery row has no body to rewrite, so its explain-why and reframe text go in the row's `note` list (§ Gallery rows), never packed into `look`. `[more-examples]` on a gallery row is answered with another capture or a table, not a note: the duty check counts visuals and tables, not `<li>` lines.
 

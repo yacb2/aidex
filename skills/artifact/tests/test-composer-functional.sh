@@ -513,7 +513,7 @@ window.addEventListener('load', function () {
     var exState = ask('[explain-state]'), exOpts = ask('[explain-options]'),
         exWhy = ask('[explain-why]'), exSimpler = ask('[explain-simpler]'),
         exQuestion = ask('[question]'), exReframe = ask('[reframe]'), exShow = ask('[show-me]'),
-        exMore = ask('[more-examples]'), exDefect = ask('[page-defect]');
+        exMore = ask('[more-examples]');
     var pre = document.querySelector('[data-id="Q1"] input[data-label="Option A"]');
     if (pre) { pre.checked = true; pre.dispatchEvent(new Event('change', { bubbles: true })); }
     /* An option AND asks: the item is PROVISIONAL, and the page has to say so
@@ -559,22 +559,52 @@ window.addEventListener('load', function () {
     });
     document.getElementById('consult-copy').click();
     if (exMore) { exMore.checked = false; exMore.dispatchEvent(new Event('change', { bubbles: true })); }
-    /* [page-defect] must NOT make the answer provisional — it names a defect
-     * IN THE PAGE, not a gap in the question, so the answer stands. It focuses
-     * the notes box exactly like [question] does. */
-    /* Blur first: a synthetic .click() above may not have moved focus off the
-     * notes box, and a stale focus there would pass this check for free. */
+    /* The page-defect report (LOOP-008 Q10) is a button that opens its OWN
+     * box, apart from the notes. It must not make the answer provisional, it
+     * must travel as a labelled sub-block at the END of the item's block, and
+     * alone (no answer) it still travels. Blur first so a stale focus on the
+     * notes box cannot pass the focus check for free. */
     document.activeElement.blur();
-    if (exDefect) { exDefect.checked = true; exDefect.dispatchEvent(new Event('change', { bubbles: true })); }
+    var dBtn = document.querySelector('[data-id="Q1"] .kit-defect-btn');
+    var dBox = document.querySelector('[data-id="Q1"] textarea.kit-defect-text');
+    var notesBox = document.querySelector('[data-id="Q1"] textarea:not(.kit-defect-text)');
+    var dHiddenBefore = dBox ? dBox.closest('.kit-defect-box').hidden : null;
+    if (dBtn) dBtn.click();
+    var focusedDefect = dBox && document.activeElement === dBox;
+    var dOpen = dBox ? !dBox.closest('.kit-defect-box').hidden : false;
+    notesBox.value = 'una nota'; notesBox.dispatchEvent(new Event('input', { bubbles: true }));
+    dBox.value = 'el boton | se ve roto'; dBox.dispatchEvent(new Event('input', { bubbles: true }));
+    if (dBtn) dBtn.click();   /* filled: stays open */
+    var dStaysOpen = dBox ? !dBox.closest('.kit-defect-box').hidden : false;
     var provWithDefect = document.querySelectorAll('[data-id="Q1"] .kit-provisional').length;
-    var focusedDefect = document.activeElement === document.querySelector('[data-id="Q1"] textarea');
     var dcap = '';
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText: function (s) { dcap = s; return Promise.resolve(); } }
     });
     document.getElementById('consult-copy').click();
-    if (exDefect) { exDefect.checked = false; exDefect.dispatchEvent(new Event('change', { bubbles: true })); }
+    /* a defect alone: release the answer and the note */
+    if (pre) { pre.checked = false; pre.dispatchEvent(new Event('change', { bubbles: true })); }
+    notesBox.value = ''; notesBox.dispatchEvent(new Event('input', { bubbles: true }));
+    var dAnswered = document.querySelector('[data-id="Q1"]').classList.contains('has-answer');
+    var donly = '';
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: function (s) { donly = s; return Promise.resolve(); } }
+    });
+    document.getElementById('consult-copy').click();
+    /* saved and restored by the store, like the other free fields */
+    var stored = (localStorage.getItem(Object.keys(localStorage).filter(function (k) { return k.indexOf('aidex-kit-answers:') === 0; })[0]) || '');
+    var dStored = stored.indexOf('el boton') !== -1;
+    /* with the defect alone, Clear is shown (and empties the box) though nothing is answered */
+    var clearBtn = document.querySelector('[data-id="Q1"] .consult-clear');
+    var clearShown = clearBtn ? getComputedStyle(clearBtn).display !== 'none' : false;
+    if (clearBtn) clearBtn.click();
+    var clearEmptied = dBox.value === '';
+    if (dBtn) dBtn.click();   /* Clear closed the emptied box: open it again... */
+    if (dBtn) dBtn.click();   /* ...and an empty box closes on the next click */
+    var dClosed = dBox ? dBox.closest('.kit-defect-box').hidden : false;
+    if (pre) { pre.checked = true; pre.dispatchEvent(new Event('change', { bubbles: true })); }
     /* Restore the state the rest of the scenario (the notNow paste checks
      * below) expects. */
     [exState, exWhy, exQuestion].forEach(function (c) {
@@ -592,7 +622,7 @@ window.addEventListener('load', function () {
     document.getElementById('consult-copy').click();
     var rowEl = row;
     document.title = 'EXPLAINED|ROW=' + (row ? '1' : '0')
-      + '|CHIPS=' + [exState, exOpts, exWhy, exSimpler, exQuestion, exReframe, exShow, exMore, exDefect].filter(Boolean).length
+      + '|CHIPS=' + [exState, exOpts, exWhy, exSimpler, exQuestion, exReframe, exShow, exMore].filter(Boolean).length
       + '|TERMCHIP=' + (row && row.querySelector('input[data-label="[explain-term]"]') ? '1' : '0')
       + '|TERMBOX=' + document.querySelectorAll('[data-id="Q1"] .kit-term').length
       + '|PROVBEFORE=' + provBefore + '|PROVON=' + provOn + '|PROVOFF=' + provOff
@@ -600,7 +630,10 @@ window.addEventListener('load', function () {
       + '|PROVNOASKS=' + provNoAsks + '|PROVWITHMORE=' + provWithMore + '|PROVWITHDEFECT=' + provWithDefect
       + '|FOCUSDEFECT=' + (focusedDefect ? '1' : '0')
       + '|MCAP=' + mcap.replace(/[|<>\n]/g, ' ')
-      + '|DCAP=' + dcap.replace(/[|<>\n]/g, ' ')
+      + '|DCAP=' + dcap.replace(/[|<>]/g, ' ').replace(/\n/g, '~')
+      + '|DONLY=' + donly.replace(/[|<>]/g, ' ').replace(/\n/g, '~')
+      + '|DSTATE=' + [dHiddenBefore ? 1 : 0, dOpen ? 1 : 0, dStaysOpen ? 1 : 0, dClosed ? 1 : 0, dAnswered ? 1 : 0, dStored ? 1 : 0, clearShown ? 1 : 0, clearEmptied ? 1 : 0].join('')
+      + '|DCHIP=' + (row && row.querySelector('input[data-label="[page-defect]"]') ? 1 : 0)
       + '|FOCUSNOTES=' + (focused ? '1' : '0')
       + '|CHIPTYPE=' + (exState ? exState.type : '')
       + '|CHIPINGROUP=' + (exState && exState.closest('.opts') ? '1' : '0')
@@ -1217,7 +1250,7 @@ tr="$(rows_title en 0)"
 # (the text with the fold closed) and the restore of round 1's answer are what the composer decides.
 mkdir -p "$TMP/g629/shots/light-desktop" "$TMP/g629/actual/light-desktop"
 for c629 in empty loaded; do
-  python3 "$SKILL/tests/png_fixture.py" "$TMP/g629/shots/light-desktop/audit-$c629.png" 160 90
+  python3 "$SKILL/tests/png_fixture.py" "$TMP/g629/shots/light-desktop/audit-$c629.png" 160 90 96   # a before that differs from the after: the builder refuses identical pairs
   python3 "$SKILL/tests/png_fixture.py" "$TMP/g629/actual/light-desktop/audit-$c629.png" 160 90
 done
 row629() {  # row629 <cell> <extra row keys, json fragment starting with a comma, or empty>
@@ -1521,8 +1554,8 @@ t="$(run 'phase=explain')"
 [[ "$t" == *EXPLAINED* ]] || fail "the explain phase did not run: $t"
 [[ "$t" == *"ROW=1"* ]] \
   || fail "BL-381: no ask row was injected on the option item: $t"
-[[ "$t" == *"CHIPS=9"* ]] \
-  || fail "BL-381 + census 2026-09-20 + BL-505: the ask row does not carry the nine tagged asks (state, options, why, simpler, question, reframe, show-me, more-examples, page-defect): $t"
+[[ "$t" == *"CHIPS=8"* ]] \
+  || fail "BL-381 + census 2026-09-20 + BL-505: the ask row does not carry the eight tagged asks (state, options, why, simpler, question, reframe, show-me, more-examples): $t"
 [[ "$t" == *"TERMCHIP=0"* && "$t" == *"TERMBOX=0"* ]] \
   || fail "census 2026-09-20: the 'what is X' chip (or its term box) is still injected — 0 uses in 333 answered items, replaced by [question]: $t"
 [[ "$t" == *"FOCUSNOTES=1"* ]] \
@@ -1551,17 +1584,24 @@ t="$(run 'phase=explain')"
   || fail "BL-505: [more-examples] ticked beside a chosen answer did not mark the item provisional — it must combine like every other ask: $t"
 [[ "$t" == *"MCAP="*"[more-examples]"* ]] \
   || fail "BL-505: the copied reply does not carry the [more-examples] marker under the item: $t"
-# BL-505: [page-defect] must NOT make the answer provisional — it names a
-# defect in the PAGE, not a gap in the question.
+# LOOP-008 Q10: the page-defect report is a button + its own box, not a chip.
+[[ "$t" == *"DCHIP=0"* ]] \
+  || fail "LOOP-008 Q10: the [page-defect] checkbox chip is still in the ask row: $t"
 [[ "$t" == *"PROVWITHDEFECT=0"* ]] \
-  || fail "BL-505: [page-defect] ticked beside a chosen answer marked it provisional — a page defect does not put the answer in question: $t"
+  || fail "BL-505: a page-defect report beside a chosen answer marked it provisional — a page defect does not put the answer in question: $t"
 [[ "$t" == *"FOCUSDEFECT=1"* ]] \
-  || fail "BL-505: ticking [page-defect] did not focus the notes box, where the reader describes what broke: $t"
+  || fail "LOOP-008 Q10: the report button did not focus its own box: $t"
+# DSTATE digits: hidden-before, open-after-click, stays-open-while-filled, closed-when-empty, defect-only-answered(must be 0), stored
+[[ "$t" == *"DSTATE=11110111"* ]] \
+  || fail "LOOP-008 Q10: the report box did not hide/open/stay/close/store as specified (want DSTATE=11110111 = hidden, opens, stays open while filled, closes when empty, defect alone is NOT an answer, stored, Clear shown for a defect alone, Clear empties the box): $t"
 dcapfield="$(printf '%s' "$t" | sed -nE 's/.*\|DCAP=([^|]*)\|.*/\1/p')"
-[[ "$dcapfield" == *"[page-defect]"* ]] \
-  || fail "BL-505: the copied reply does not carry the [page-defect] marker under the item: $t"
-[[ "$dcapfield" == *"[provisional]"* ]] \
-  && fail "BL-505: the copied reply qualified the answer as [provisional] when only [page-defect] was ticked beside it: $dcapfield"
+[[ "$dcapfield" == *"### Q1 · The probed question~~- Option A (recomendada)~~una nota~~#### Fallo de la página~~el boton   se ve roto" ]] \
+  || fail "LOOP-008 Q10: the copied reply is not answer + note + a '#### Fallo de la página' sub-block at the END of the item block: [$dcapfield]"
+[[ "$dcapfield" == *"[provisional]"* || "$dcapfield" == *"[page-defect]"* ]] \
+  && fail "LOOP-008 Q10: the copied reply carries [provisional] or the retired [page-defect] marker: $dcapfield"
+donlyfield="$(printf '%s' "$t" | sed -nE 's/.*\|DONLY=([^|]*)\|.*/\1/p')"
+[[ "$donlyfield" == *"### Q1 · The probed question~~#### Fallo de la página~~el boton   se ve roto" && "$donlyfield" != *"- "* ]] \
+  || fail "LOOP-008 Q10: a defect with no answer did not emit just its ### block with the sub-block: [$donlyfield]"
 [[ "$t" == *"EXNOGROUP=1"* ]] \
   || fail "BL-381: an item with no option group got no ask row — the row lives on the ITEM now, so the v15 cost is gone: $t"
 [[ "$t" == *"EXNOTES=0"* ]] \
@@ -3862,7 +3902,7 @@ rm -rf "$TMP/profile"
 ALT_ROOT="$TMP/altroot"
 mkdir -p "$ALT_ROOT/shots"
 python3 "$SKILL/tests/png_fixture.py" "$ALT_ROOT/shots/a.png" 16 9
-python3 "$SKILL/tests/png_fixture.py" "$ALT_ROOT/shots/d.png" 16 9
+python3 "$SKILL/tests/png_fixture.py" "$ALT_ROOT/shots/d.png" 16 9 96
 cat > "$TMP/alt-rows.json" <<'JSON'
 {"gallery": "skel", "variants": ["light-desktop"],
  "alternatives": [{"id": "a", "label": "Esqueleto A"}, {"id": "drawer", "label": "Con cajón"}],
@@ -4706,6 +4746,7 @@ done
 # Layer: browser, because where the block is drawn and which controls are injected are the composer's calls.
 WTG="$TMP/wtg"; mkdir -p "$WTG/root/shots"
 python3 "$SKILL/tests/png_fixture.py" "$WTG/root/shots/a.png" 16 9
+python3 "$SKILL/tests/png_fixture.py" "$WTG/root/shots/b.png" 16 9 96   # the before: differs from a.png, the builder refuses identical pairs
 wtg_page() {  # wtg_page <name> <rows json path>; Q14 open in G0, then the generated gallery E
   local n="$1"
   bash "$SKILL/scripts/gallery-items.sh" "$2" --root "$WTG/root" --page "$TMP/reports/$n.html" \
@@ -4753,7 +4794,7 @@ PROBE
 cat > "$WTG/rows1.json" <<'J'
 {"gallery": "audit", "variants": ["light-desktop"], "rows": [
  {"cell": "inicio", "variant": "light-desktop", "kind": "review", "depends_on": "Q14", "look": "El inicio",
-  "before": "shots/a.png", "after": "shots/a.png"}]}
+  "before": "shots/b.png", "after": "shots/a.png"}]}
 J
 t1="$(wtg_page wtg1 "$WTG/rows1.json")"
 [[ "$t1" == *"|WAITING=1|INSEC=0|INFOLD=0|Q14FIRST=1|CLEAR=0|Q14CLEAR=1|"* ]] \
@@ -4761,9 +4802,9 @@ t1="$(wtg_page wtg1 "$WTG/rows1.json")"
 cat > "$WTG/rows2.json" <<'J'
 {"gallery": "audit", "variants": ["light-desktop"], "rows": [
  {"cell": "earlier", "variant": "light-desktop", "kind": "review", "decided": "Aprobada", "look": "Antes",
-  "before": "shots/a.png", "after": "shots/a.png"},
+  "before": "shots/b.png", "after": "shots/a.png"},
  {"cell": "loaded", "variant": "light-desktop", "kind": "unrequested", "depends_on": "Q14", "look": "Las filas",
-  "before": "shots/a.png", "after": "shots/a.png"}]}
+  "before": "shots/b.png", "after": "shots/a.png"}]}
 J
 t2="$(wtg_page wtg2 "$WTG/rows2.json")"
 [[ "$t2" == *"|WAITING=1|INSEC=0|INFOLD=0|Q14FIRST=1|CLEAR=0|Q14CLEAR=1|CLOSED=1|"* ]] \

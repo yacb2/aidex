@@ -185,8 +185,8 @@ sample-row-asks-nothing
     the row is held to the same rule (and to carrying `data-asks-nothing`),
     the finding names the item, a row placed before its item fails (the
     open decision goes first), and so does a row still waiting on an item that
-    is decided (the wait is out of date). The composer's runtime chips (the page-defect flag
-    included) are not in the source and are not judged here.
+    is decided (the wait is out of date). The composer's runtime controls (the ask chips and
+    the page-problem button) are not in the source and are not judged here.
 """
 
 

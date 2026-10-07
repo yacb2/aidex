@@ -3539,6 +3539,35 @@ REPLY_BLOCK = re.compile(r"^## ", re.M)
 # BL-569: a reply pasted in chat format (`Q1: ...`, `### Q1 · ...`) is a reply
 # too (SKILL.md: chat replies are saved the same way as composer replies).
 _MARK_TOKEN = re.compile(r"\[([a-z][a-z-]*)\]")
+# The composer's page-defect report (LOOP-008 Q10): a `#### Fallo de la página`
+# (en: `#### Page problem`) sub-block at the END of an item's `### ` block, the
+# reader's text verbatim under it. It is no part of the answer and no marker.
+from reply_defect import DEFECT_HEAD, split_defect, blank_defects   # noqa: E402,F401
+
+
+def _block_end(reply_text, start, end):
+    """Where an item block that starts at `start` ends: at the next `## `
+    heading or the `<!-- reply saved ... -->` separator of an appended save,
+    whichever comes first, else at `end` (the next `### ` item)."""
+    for stop in (REPLY_BLOCK.search(reply_text, start, end),
+                 _SAVE_SEP.search(reply_text, start, end)):
+        if stop:
+            end = stop.start()
+    return end
+
+
+def defect_reports_of(reply_text):
+    """{item id: reported page-defect text}: the newest non-empty report per id
+    across every `### <id> · ` block of the (appended-to) reply."""
+    out = {}
+    heads = list(REPLY_ITEM.finditer(reply_text))
+    for k, h in enumerate(heads):
+        end = heads[k + 1].start() if k + 1 < len(heads) else len(reply_text)
+        end = _block_end(reply_text, h.end(), end)
+        text = split_defect(reply_text[h.end():end])[1]
+        if text:
+            out[h.group(1)] = text
+    return out
 
 
 # composer.js ASKS + `[not-now]` + the `[provisional]` qualifier, minus
@@ -3573,6 +3602,7 @@ def _reply_has_answer(reply_text, ident, ids=()):
             if head_any.match(nxt):
                 break
             block.append(nxt)
+        block = split_defect("\n".join(block))[0].split("\n")
         # composer.js isProvisional: an ask marker other than [page-defect]
         # beside an answer makes it provisional, so it decides nothing
         # only the KNOWN marker names count: `[readme](url)`, `- [x] done`
@@ -3651,11 +3681,12 @@ def marker_duties_of(reply_text):
         end = heads[k + 1].start() if k + 1 < len(heads) else len(reply_text)
         # A `## ` heading ends the item's block too: the next block's own note
         # (BL-701) sits under it, and is not this item's answer.
-        block = REPLY_BLOCK.search(reply_text, h.end(), end)
-        if block:
-            end = block.start()
+        end = _block_end(reply_text, h.end(), end)
         ident = h.group(1)
-        marks = ASK_LINE.findall(reply_text, h.end(), end)
+        rest, defect = split_defect(reply_text[h.end():end])
+        marks = ASK_LINE.findall(rest)
+        if defect and "page-defect" not in marks:
+            marks.append("page-defect")
         if not marks:
             continue
         if ident not in marks_by_id:
@@ -4034,6 +4065,7 @@ def _picked_only(reply_text, ident, ids):
             if head_any.match(nxt):
                 break
             block.append(nxt)
+        block = split_defect("\n".join(block))[0].split("\n")
         body = [b.strip() for b in block if b.strip()]
         picked = None
         if (body and all(b.startswith("- ") for b in body)

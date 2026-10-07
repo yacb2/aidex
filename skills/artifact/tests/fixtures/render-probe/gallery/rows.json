@@ -3,12 +3,12 @@
  "shots_dir": "shots", "actual_dir": "actual",
  "rows": [
   {"cell": "with-data", "variant": "light-desktop", "kind": "review",
-   "before": "shots/light-desktop/audit-with-data.png", "after": "actual/light-desktop/audit-with-data.png"},
+   "before": "shots/light-desktop/audit-with-data.png", "after": "actual/light-desktop/audit-with-data.png", "highlight": "@shown"},
   {"cell": "empty", "variant": "light-desktop", "kind": "review",
    "after": "actual/light-desktop/audit-empty.png", "highlight": "@shown"},
   {"cell": "with-data", "variant": "light-mobile", "kind": "review",
-   "before": "shots/light-mobile/audit-with-data.png", "after": "actual/light-mobile/audit-with-data.png"},
+   "before": "shots/light-mobile/audit-with-data.png", "after": "actual/light-mobile/audit-with-data.png", "highlight": "@shown"},
   {"cell": "empty", "variant": "dark-mobile", "kind": "unrequested",
-   "before": "shots/dark-mobile/audit-empty.png", "after": "actual/dark-mobile/audit-empty.png"}
+   "before": "shots/dark-mobile/audit-empty.png", "after": "actual/dark-mobile/audit-empty.png", "highlight": "@shown"}
  ]
 }

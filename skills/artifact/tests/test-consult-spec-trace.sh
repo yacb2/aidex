@@ -227,6 +227,23 @@ spec "Sí" ""
 build && ok "17. an answer carrying only [page-defect] still decides Q1" \
   || fail "17. $(cat "$TMP/build.out")"
 
+# 17b. the composer's page-defect SUB-BLOCK (LOOP-008 Q10) is no note and no answer
+newpage defectsub
+spec "" ""; build
+printf '### Q1 · x\n\n- Sí: cerrarlo ahora\n\n#### Fallo de la página\n\n- [show-me]\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "17b. save-reply.sh failed"
+spec "Sí" ""
+build && ok "17b. a pick followed by a page-defect sub-block whose text is only a marker line still decides Q1" \
+  || fail "17b. $(cat "$TMP/build.out")"
+
+newpage defectonly
+spec "" ""; build
+printf '### Q1 · x\n\n#### Fallo de la página\n\nel botón no carga\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "17c. save-reply.sh failed"
+spec "Sí" ""
+build; rc=$?
+[[ "$rc" != "0" ]] && grep -q 'consult-decided-trace.*Q1' "$TMP/build.out" \
+  && ok "17c. a page-defect sub-block alone does not decide Q1" \
+  || fail "17c. rc=$rc out=$(cat "$TMP/build.out")"
+
 # 18. an inline [page-defect] token is no answer either (the strip, not the ask rule)
 newpage inlinedefect
 spec "" ""; build

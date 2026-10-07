@@ -33,10 +33,10 @@ ok()   { printf '  ok: %s\n' "$*"; }
 
 ROOT="$TMP/repo"
 mkdir -p "$ROOT" && git -C "$ROOT" init -q
-png() { mkdir -p "$(dirname "$ROOT/$1")"; python3 "$SKILL/tests/png_fixture.py" "$ROOT/$1" "$2" "$3"; }
+png() { mkdir -p "$(dirname "$ROOT/$1")"; python3 "$SKILL/tests/png_fixture.py" "$ROOT/$1" "$2" "$3" ${4:-}; }
 png shots/list-a.png 160 90
 png shots/list-drawer.png 160 90
-png shots/base.png 160 90
+png shots/base.png 160 90 96   # the before: differs from next.png (the builder refuses identical pairs)
 png shots/next.png 160 90
 
 # The rows document of an alternatives review: the variants are declared ONCE

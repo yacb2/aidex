@@ -93,6 +93,13 @@ build --new-round; rc=$?
   && ok "h. a provisional pick with an ask marker left open raises no pick finding" \
   || fail "h. rc=$rc $(cat "$TMP/build.out")"
 
+# j. a bare pick plus the composer's page-defect sub-block is still a bare pick
+round1 '### Q1 · ¿Cerramos el item ahora?\n\n- Sí: cerrarlo ahora (recommended)\n\n#### Fallo de la página\n\ntexto roto\n' pickdefect
+build --new-round; rc=$?
+[[ "$rc" != "0" ]] && grep -q 'consult-round-pick.*Q1' "$TMP/build.out" \
+  && ok "j. a pick plus a page-defect sub-block left open FAILS, naming Q1" \
+  || fail "j. rc=$rc out=$(cat "$TMP/build.out")"
+
 # i. two picks, the opening build decides only Q1: FAIL naming Q2, not Q1
 round1 "$PICK"'\n### Q2 · ¿Aplazamos?\n\n- Sí: aplazarlo (recommended)\n' partial
 spec "Sí"; build --new-round; rc=$?

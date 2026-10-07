@@ -1227,6 +1227,20 @@ Contexto dos.
         refuses("M3 54: ...and refused when the saved reply is %s" % label,
                 lambda reply=reply: decide(PAGE, "Q1", "Usar X", reply),
                 "none of its options")
+    # The composer's page-defect sub-block (LOOP-008 Q10) is no note: an option
+    # beside it is still a bare pick, so it opens no free-text verdict.
+    for label, head in (("es", "Fallo de la p\u00e1gina"), ("en", "Page problem")):
+        refuses("M3 54: ...and refused when the saved reply is an option + a "
+                "page-defect sub-block (%s)" % label,
+                lambda head=head: decide(
+                    PAGE, "Q1", "Usar X",
+                    "### Q1 \u00b7 T\n\n- YAML anidado\n\n#### %s\n\nel bot\u00f3n no carga\n" % head),
+                "none of its options")
+    check("M3 54: a real note BEFORE a page-defect sub-block still opens free text",
+          'decided="Usar X"' in decide(
+              PAGE, "Q1", "Usar X",
+              "### Q1 \u00b7 T\n\n- YAML anidado\n\nSolo si es opcional\n\n"
+              "#### Fallo de la p\u00e1gina\n\nel bot\u00f3n no carga\n"))
     # An option-shaped line that is no option of the item is an invention too.
     for label, reply in (
             ("a chat-form invented option + a note",
@@ -1344,6 +1358,9 @@ Contexto dos.
           "decide --id" not in r.stderr, r.stdout + r.stderr)
     r = run("new-round", nr("nr-pd", "### Q1 \u00b7 T\n\n- YAML anidado\n- [page-defect]\n"))
     check("M3 new-round: a pick + [page-defect] still blocks (the answer stands)",
+          r.returncode == 1 and "decide --id Q1" in r.stderr, r.stdout + r.stderr)
+    r = run("new-round", nr("nr-pd2", "### Q1 \u00b7 T\n\n- YAML anidado\n\n#### Fallo de la p\u00e1gina\n\nse ve roto\n"))
+    check("M3 new-round: a pick + a page-defect sub-block still blocks (the sub-block is no note)",
           r.returncode == 1 and "decide --id Q1" in r.stderr, r.stdout + r.stderr)
     # A provisional pick whose label matches as written (the label ends in the
     # suffix) is the only case that reaches the provisional skip.

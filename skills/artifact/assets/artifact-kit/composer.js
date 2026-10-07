@@ -78,8 +78,9 @@
       askShowTitle: 'A mockup, a diagram, a before/after, worked examples \u2014 not more prose.',
       askMore: 'more examples',
       askMoreTitle: 'I already saw examples; I want more or different ones. The ones there stay.',
-      askDefect: 'the page is broken',
-      askDefectTitle: 'Something about the page looks or works wrong (broken text, something that does not load). Say it in the notes.',
+      defectBtn: 'Report a page problem',
+      defectLabel: 'What is wrong with the page',
+      defectHead: 'Page problem',
       provisional: 'Provisional: you chose an option and asked for something as well. The next round answers the ask and keeps this question open, with that option already ticked.',
       toLight: 'Light',
       toDark: 'Dark',
@@ -202,8 +203,9 @@
       askShowTitle: 'Un mockup, un diagrama, un antes/despu\u00e9s, ejemplos concretos \u2014 no m\u00e1s prosa.',
       askMore: 'm\u00e1s ejemplos',
       askMoreTitle: 'Ya vi ejemplos; quiero m\u00e1s o distintos. Los que est\u00e1n se quedan.',
-      askDefect: 'la p\u00e1gina tiene un error',
-      askDefectTitle: 'Algo de la p\u00e1gina se ve o funciona mal (texto roto, algo que no carga). Dilo en las notas.',
+      defectBtn: 'Reportar un fallo de la p\u00e1gina',
+      defectLabel: 'Qu\u00e9 est\u00e1 mal en la p\u00e1gina',
+      defectHead: 'Fallo de la p\u00e1gina',
       provisional: 'Provisional: elegiste una opci\u00f3n y adem\u00e1s pediste algo. La pr\u00f3xima ronda responde lo que pediste y deja esta pregunta abierta, con esa opci\u00f3n ya marcada.',
       toLight: 'Claro',
       toDark: 'Oscuro',
@@ -320,7 +322,6 @@
   var REFRAME = '[reframe]';
   var SHOW_ME = '[show-me]';
   var MORE_EXAMPLES = '[more-examples]';
-  var PAGE_DEFECT = '[page-defect]';
   var NOT_NOW = '[not-now]';
   /* Not a chip and never ticked: a qualifier the composer appends to a chosen
    * option when an ask sits beside it. See isProvisional. */
@@ -823,7 +824,8 @@
    * selected adds only its typed note; once the selection differs it adds what
    * an answered item does (the option plus the note). */
   function replyBody(el) {
-    if (!isProposal(el) || selChanged(el)) return readItem(el);
+    if (!isProposal(el)) return withDefect(el, readItem(el));
+    if (selChanged(el)) return readItem(el);
     return [].map.call(el.querySelectorAll('textarea'), function (t) { return t.value.trim(); }).filter(Boolean).join('\n\n');
   }
   /* Settled by an earlier round's answer: what collapseDecided folds away. */
@@ -872,10 +874,9 @@
    * notes box is for, it qualifies an answer rather than being one, and an ask
    * typed beside prose leaves the item plainly open — nothing to qualify.
    *
-   * `[page-defect]` (BL-505) is excluded from what makes an answer provisional:
-   * it reports a defect IN THE PAGE, not a gap in the question, so ticking it
-   * beside a chosen answer does not put that answer in question — the answer
-   * stands, only the rendering needs fixing. */
+   * The page-defect report (BL-505, now its own box) is no ask chip at all: it
+   * reports a defect IN THE PAGE, not a gap in the question, so it never puts a
+   * chosen answer in question — the answer stands, only the rendering needs fixing. */
   function answerMarks(el) {
     return [].slice.call(el.querySelectorAll(
       '.opts input[type="radio"]:checked, .opts input[type="checkbox"]:checked'
@@ -891,13 +892,9 @@
     return [].slice.call(el.querySelectorAll('.kit-ask input[type="checkbox"]:checked'));
   }
 
-  function provisionalAskMarks(el) {
-    return askMarks(el).filter(function (i) { return (i.dataset.label || '') !== PAGE_DEFECT; });
-  }
-
   function isProvisional(el) {
     if (isDecided(el)) return false;
-    if (!provisionalAskMarks(el).length) return false;
+    if (!askMarks(el).length) return false;
     return answerMarks(el).length > 0 || answerValues(el).length > 0;
   }
 
@@ -925,10 +922,23 @@
     el.querySelectorAll('[contenteditable]').forEach(function (c) {
       if (c.textContent.trim()) parts.push(c.textContent.trim());
     });
-    el.querySelectorAll('textarea').forEach(function (t) {
+    el.querySelectorAll('textarea:not(.kit-defect-text)').forEach(function (t) {
       if (t.value.trim()) parts.push(t.value.trim());
     });
     return parts.join('\n\n');
+  }
+
+  /* The page-defect report (LOOP-008 Q10) is not part of the answer: it has its
+   * own box (`.kit-defect-text`), readItem never reads it, so it does not make
+   * the item answered or provisional. It travels as a labelled sub-block at the
+   * END of the item's `### ` block, text verbatim. */
+  function defectText(el) {
+    var t = el.querySelector('textarea.kit-defect-text');
+    return t ? t.value.trim() : '';
+  }
+  function withDefect(el, body) {
+    var d = defectText(el);
+    return d ? (body ? body + '\n\n' : '') + '#### ' + L.defectHead + '\n\n' + d : body;
   }
 
   /* `n` counts ITEMS. The markdown array also carries one `## G1 · title` line
@@ -1002,6 +1012,8 @@
       markProvisional(el);
       var body = readItem(el);
       el.classList.toggle('has-answer', !!body);
+      /* A report alone is no answer, but Clear must reach it (components.css). */
+      el.classList.toggle('has-defect', !!defectText(el));
       if (links[i]) links[i].classList.toggle('done', !!body);
       if (!notes) total++;
       if (body) {
@@ -1011,9 +1023,17 @@
          * grouping the reader answered under, not a flat list of ids. */
         var g = el.closest('.consult-group');
         if (g && g !== lastGroup) putHead(g);
-        put(el, '### ' + el.dataset.id + ' · ' + (el.dataset.title || '') + '\n\n' + body);
+        put(el, '### ' + el.dataset.id + ' · ' + (el.dataset.title || '') + '\n\n' + withDefect(el, body));
       }
-      else if (!notes) blank.push(el.dataset.id);
+      else {
+        if (!notes) blank.push(el.dataset.id);
+        /* A defect alone still travels: the item is unanswered, the report is not. */
+        if (defectText(el)) {
+          var dg = el.closest('.consult-group');
+          if (dg && dg !== lastGroup) putHead(dg);
+          put(el, '### ' + el.dataset.id + ' · ' + (el.dataset.title || '') + '\n\n' + withDefect(el, ''));
+        }
+      }
     });
     /* A block with a note and no answered item still owes its heading + note. */
     noteGroups().forEach(function (g) {
@@ -1094,7 +1114,8 @@
     { k: 's', q: 'select' },
     { k: 't', q: 'input[type="text"]' },
     { k: 'c', q: '[contenteditable]' },
-    { k: 'a', q: 'textarea' }
+    { k: 'a', q: 'textarea:not(.kit-defect-text)' },
+    { k: 'd', q: 'textarea.kit-defect-text' }
   ];
 
   function freeValue(el) {
@@ -1151,7 +1172,7 @@
      * the item, so leaving it in would change every fingerprint the moment the
      * kit gained these controls, and every answer stored by a reader mid-thread
      * would read as "the question changed" and be dropped on the upgrade. */
-    clone.querySelectorAll('.kit-tag, .consult-proposal, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-more, .kit-provisional, .kit-marks-tile, .kit-marks-list, .consult-kicker').forEach(function (c) { c.remove(); });
+    clone.querySelectorAll('.kit-tag, .consult-proposal, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-defect, .kit-more, .kit-provisional, .kit-marks-tile, .kit-marks-list, .consult-kicker').forEach(function (c) { c.remove(); });
     /* The generator's own <details> keeps its radios in the question (a row
      * built before it existed hashed them flat), but its summary word is chrome:
      * left in, every stored gallery answer would read as a changed question. */
@@ -1514,7 +1535,7 @@
    * One line, not five: chips with a title each and no hint lines, because
    * the two v16 radios cost four lines per group and the whole complaint about
    * these pages is their length. Seven chips since v19, nine since v20 (BL-505:
-   * `[more-examples]`, `[page-defect]`); at phone width the row
+   * `[more-examples]`; the page-defect chip became a button + box); at phone width the row
    * wraps, which components.css tightens rather than hides — a disclosed chip
    * costs the one thing the mining shows the reader lacks, seeing it exists.
    *
@@ -1531,9 +1552,45 @@
     [QUESTION, 'askQuestion', 'askQuestionTitle'],
     [REFRAME, 'askReframe', 'askReframeTitle'],
     [SHOW_ME, 'askShow', 'askShowTitle'],
-    [MORE_EXAMPLES, 'askMore', 'askMoreTitle'],
-    [PAGE_DEFECT, 'askDefect', 'askDefectTitle']
+    [MORE_EXAMPLES, 'askMore', 'askMoreTitle']
   ];
+  /* The page-defect report: a button that reveals its OWN textarea, apart from
+   * the answer's notes box. Clicking again hides it only while it is empty.
+   * Replaces the `[page-defect]` chip (LOOP-008 Q10); older pages' bare marker
+   * is still read by the session-side readers. */
+  function defectBlock() {
+    var wrap = document.createElement('div');
+    wrap.className = 'kit-defect';
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'kit-defect-btn';
+    btn.textContent = L.defectBtn;
+    btn.setAttribute('aria-expanded', 'false');
+    var box = document.createElement('label');
+    box.className = 'kit-defect-box';
+    box.hidden = true;
+    box.appendChild(document.createTextNode(L.defectLabel));
+    var ta = document.createElement('textarea');
+    ta.className = 'kit-defect-text';
+    ta.rows = 3;
+    box.appendChild(ta);
+    btn.addEventListener('click', function () {
+      if (box.hidden) { box.hidden = false; btn.setAttribute('aria-expanded', 'true'); ta.focus(); }
+      else if (!ta.value.trim()) { box.hidden = true; btn.setAttribute('aria-expanded', 'false'); }
+    });
+    wrap.appendChild(btn);
+    wrap.appendChild(box);
+    return wrap;
+  }
+  /* A box holding text stays open (after a restore); an emptied one closes (Clear). */
+  function syncDefects() {
+    document.querySelectorAll('.kit-defect').forEach(function (w) {
+      var box = w.querySelector('.kit-defect-box'), ta = w.querySelector('textarea');
+      box.hidden = !ta.value.trim();
+      w.querySelector('button').setAttribute('aria-expanded', box.hidden ? 'false' : 'true');
+    });
+  }
+
   function addAskRows() {
     items.forEach(function (el) {
       if (isDecided(el) || el.classList.contains('consult-notes')) return;
@@ -1558,10 +1615,7 @@
          * replaces carried its own text box and was never used once in 333
          * answered items; the box the item already has is the one the reader
          * types in. */
-        /* `[page-defect]` (BL-505) names the page itself, not the question, but
-         * the words describing what broke have nowhere else to go either —
-         * same notes box, same focus rule as `[question]`. */
-        if (spec[0] === QUESTION || spec[0] === PAGE_DEFECT) {
+        if (spec[0] === QUESTION) {
           input.addEventListener('change', function () {
             if (!input.checked) return;
             /* The item's own notes box first, its free-prose box second, and
@@ -1570,7 +1624,7 @@
              * focusing nothing is how the chip would silently do nothing. */
             /* Never the hidden kit-marks channel of a gallery row: focusing
              * it would put the cursor nowhere the reader can see. */
-            var box = el.querySelector('textarea:not(.kit-marks)') || el.querySelector('[contenteditable]')
+            var box = el.querySelector('textarea:not(.kit-marks):not(.kit-defect-text)') || el.querySelector('[contenteditable]')
                    || document.querySelector('.consult-notes textarea');
             if (box) box.focus();
           });
@@ -1580,7 +1634,7 @@
       /* After the LAST option group when there is one — below the answer, as
        * a second surface — else before the first field label, else at the end. */
       /* A gallery row folds the row into a <details>: the reader's job there
-       * is a verdict and a note, and the nine chips are a second form. */
+       * is a verdict and a note, and the eight chips are a second form. */
       var put = row;
       if (isGalleryRow(el)) {
         put = document.createElement('details');
@@ -1598,6 +1652,9 @@
         if (label) label.parentNode.insertBefore(put, label);
         else el.appendChild(put);
       }
+      /* At the END of the item, after the notes box: the item's first textarea stays
+       * its notes box for every reader of the DOM (pages, tests). */
+      el.appendChild(defectBlock());
     });
   }
 
@@ -1684,6 +1741,7 @@
       el.querySelectorAll(kind.q).forEach(function (x) { setFreeValue(x, ''); });
     });
     delete copied[el.dataset.id];
+    syncDefects();
     redrawMarks();                    /* the marks were in a textarea: cleared too */
     // save() rebuilds the whole store from the page, so an emptied item drops
     // out of localStorage on its own — there is no per-key delete to keep in
@@ -2966,6 +3024,7 @@
     releasableRadios();
     exclusiveNotNow();
     var recovered = restore();
+    syncDefects();
     openFilledMore();
     redrawMarks();
     /* Shown when anything was DROPPED too, not only when something was
