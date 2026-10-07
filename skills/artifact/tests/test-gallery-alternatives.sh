@@ -270,7 +270,7 @@ import json, sys
 r = json.load(sys.stdin)['rows']
 sys.exit(0 if r[0]['verdict'] == 'Con cajón' and r[1]['states'][0]['approved'] else 1)" \
     && ok "two rows documents of one gallery keep both label sets (--rows $first.json first)" \
-    || fail "the chosen alternative was lost with --rows $first.json first: $(bash "$REPLY" --rows "$TMP/$first.json" --rows "$TMP/$second.json" "$TMP/r10.txt" 2>&1 | tr '\n' ' ' | head -c 300)"
+    || fail "the chosen alternative was lost with --rows $first.json first: $(bash "$REPLY" --rows "$TMP/$first.json" --rows "$TMP/$second.json" "$TMP/r10.txt" > "$TMP/r10.out" 2>&1; tr '\n' ' ' < "$TMP/r10.out" | cut -c1-300)"
 done
 
 echo "== labels are validated and stored trimmed =="
