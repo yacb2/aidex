@@ -284,6 +284,7 @@ refuses the whole call.
 Idempotent: a key already in the ledger is left untouched. It does **not** move a round
 counter — the round lives in `<meta name="consult-round">`, which the wrap derives from
 the contract baseline, and a second writer would only disagree with it.
+`new-round` refuses (exit 1, nothing written) while the saved reply holds a bare option pick the spec has not decided, and names the `decide --id Qn --verdict "<option>"` command to run first; Other, option + note, a question or a provisional answer may be carried open.
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/spec_verbs.py" new-round <name>.spec.md
