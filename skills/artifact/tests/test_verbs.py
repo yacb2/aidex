@@ -1175,6 +1175,12 @@ Contexto dos.
               not os.path.exists(os.path.join(os.path.dirname(nb), "page.html"))
               and read(nb) == nb_spec_before)
 
+    zb = fresh("zero-page", build=False)
+    open(os.path.join(os.path.dirname(zb), "page.html"), "w").close()
+    r = run("decide", zb, "--id", "Q1", "--verdict", "Fences de Pandoc")
+    check("M3 52: a zero-byte page.html counts as not built: exit 1, no page",
+          r.returncode == 1 and "no page" in r.stderr, r.stdout + r.stderr)
+
     # 54: a verdict that is none of the item's options is refused, naming both;
     # an option label (any spelling of the markup) and an item without options
     # still take any text.
@@ -1213,6 +1219,43 @@ Contexto dos.
         refuses("M3 54: ...and refused when the saved reply is %s" % label,
                 lambda reply=reply: decide(PAGE, "Q1", "Usar X", reply),
                 "none of its options")
+    # An option-shaped line that is no option of the item is an invention too.
+    for label, reply in (
+            ("a chat-form invented option + a note",
+             "Q1: Opción inventada\n\nGracias\n"),
+            ("a kit-form invented option + a note",
+             "### Q1 · T\n\n- Algo que no es opcion\n\nnota\n"),
+            ("a provisional option + a note",
+             "### Q1 · T\n\n- YAML anidado [provisional]\n\nnota\n"),
+            ):
+        refuses("M3 54: ...and refused when the saved reply is %s" % label,
+                lambda reply=reply: decide(PAGE, "Q1", "Usar X", reply),
+                "none of its options")
+    check("M3 54: a chat-form option whose note repeats its text is still option + note",
+          'decided="Usar X"' in decide(
+              PAGE, "Q1", "Usar X", "Q1:YAML anidado\nYAML anidado\n"))
+    # The reply the composer pastes carries the badge suffix on a recommended
+    # option (composer.js recSuffix: ' (recomendada)' / ' (recommended)').
+    for label, reply in (
+            ("a recommended option + a note (es)",
+             "### Q1 · T\n\n- Fences de Pandoc (recomendada)\n\nmatiz\n"),
+            ("a recommended option + a note (en)",
+             "### Q1 · T\n\n- Fences de Pandoc (recommended)\n\nnote\n"),
+            ("an English Other + a note",
+             "### Q1 · T\n\n- Other \u2014 see my notes\n\nnote\n")):
+        check("M3 54: free text is recorded when the saved reply is %s" % label,
+              'decided="Usar X"' in decide(PAGE, "Q1", "Usar X", reply))
+    NN = PAGE.replace(
+        "- Fences de Pandoc \u2014 prosa con marcas m\u00ednimas {recommended}\n"
+        "- YAML anidado \u2014 estructura expl\u00edcita",
+        "- Todav\u00eda no migrar\n- Migrar ya")
+    check("M3 54: an option whose label begins with the Not-now words is an "
+          "option, so option + note opens free text",
+          NN != PAGE and 'decided="Usar X"' in decide(
+              NN, "Q1", "Usar X", "### Q1 \u00b7 T\n\n- Todav\u00eda no migrar\n\nnota\n"))
+    check("M3 54: a REAL chat-form option + a note still opens free text",
+          'decided="Usar X"' in decide(
+              PAGE, "Q1", "Usar X", "Q1: YAML anidado\n\nSolo si es opcional\n"))
     refuses("...an Other for ANOTHER id does not open Q1",
             lambda: decide(PAGE, "Q1", "Usar X",
                            OTHER_REPLY.replace("Q1", "Q2")), "none of its options")
@@ -1248,6 +1291,12 @@ Contexto dos.
           'decided="Uno, dos, Tres"' in decide(MANY, "Q1", "Uno, dos, Tres"))
     refuses("...and a part that is no label still refuses",
             lambda: decide(MANY, "Q1", "Uno, Cuatro"), "none of its options")
+    AB = MANY.replace("- Uno, dos\n- Uno\n- Tres", "- A, B\n- A\n- B")
+    check("M3: select=many finds the partition `A, B` + `A` + `B` past a first "
+          "partition that repeats a label",
+          AB != MANY and 'decided="A, B, A, B"' in decide(AB, "Q1", "A, B, A, B"))
+    refuses("M3: select=many refuses a label named twice",
+            lambda: decide(MANY, "Q1", "Uno, Uno"), "none of its options")
 
     # 75: the rebuild follows the project profile when the masthead is silent
     # (the builder CLI's rule), instead of a hard-coded --lang es.

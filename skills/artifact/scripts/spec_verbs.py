@@ -359,29 +359,33 @@ def _match_labels(said, labels, many):
     if not many:
         return None
 
-    def parts(rest):
+    def parts(rest, used):
         if not rest:
             return []
         for low, l in fold.items():            # longest first
+            if l in used:                      # a label twice is no set
+                continue
             if rest.lower() == low:
                 return [l]
             if rest.lower().startswith(low + ", "):
-                tail = parts(rest[len(low) + 2:])
+                tail = parts(rest[len(low) + 2:], used | {l})
                 if tail is not None:
                     return [l] + tail
         return None
-    got = parts(said)
-    return ", ".join(got) if got else None
+    got = parts(said, frozenset())
+    if not got:
+        return None
+    return ", ".join(got)
 
 
 _OTHER_LABELS = ("otra — lo explico en las notas", "other — see my notes")
-_NOT_NOW_LABELS = ("todavía no", "not now")
 
 
-def _reply_allows_free_text(reply, item_id, ids):
+def _reply_allows_free_text(reply, item_id, ids, labels=(), many=False):
     """True when the LAST block of the saved reply for `item_id` answers it
-    with the kit's Other choice, or with an option plus a note. A bare
-    `Q1: some text` is neither: it has no option line and no note beside it."""
+    with the kit's Other choice, or with one of `labels` plus a note. A bare
+    `Q1: some text` is neither, nor is an invented option or a `[provisional]`
+    answer (not a decision yet)."""
     if not reply:
         return False
     alts = "|".join(re.escape(i) for i in sorted(set(ids) | {item_id},
@@ -391,13 +395,13 @@ def _reply_allows_free_text(reply, item_id, ids):
     head = re.compile(r"^[ \t]*(#{2,3}[ \t]+)?" + re.escape(item_id)
                       + r"(?![\w-])[ \t]*[:·](.*)$")
     lines = reply.split("\n")
-    block, chat_form = None, None
+    block, chat_form = None, False
     for k, line in enumerate(lines):
         m = head.match(line)
         if not m:
             continue
         cur = [] if m.group(1) else [m.group(2)]
-        chat_form = cur[0] if cur else None
+        chat_form = not m.group(1)
         for nxt in lines[k + 1:]:
             if head_any.match(nxt):
                 break
@@ -405,20 +409,23 @@ def _reply_allows_free_text(reply, item_id, ids):
         block = cur
     if block is None:
         return False
-    options, notes = [], []
-    for raw in block:
+    real, notes = [], []
+    for i, raw in enumerate(block):
         t = raw.strip()
         if not t or re.fullmatch(r"- \[[a-z][a-z-]*\]", t):
             continue
-        if t.startswith("- "):
-            options.append(t[2:].strip().lower())
-        elif raw is chat_form:       # `Q1: <answer>` on the head line itself
-            options.append(t.lower())
+        if t.startswith("- ") or (i == 0 and chat_form):  # `Q1: <answer>` head
+            t = t[2:].strip() if t.startswith("- ") else t
+            if t.endswith(" [provisional]"):
+                continue                 # not a decision yet
+            t = re.sub(r"\s*\((?:recomendada|no recomendada|recommended|not recommended)\)$", "", t)
+            t = spec_build.PLAIN.sub("", t).strip()
+            if _match_labels(t, labels, many) is not None:
+                real.append(t)           # a real option, whatever it starts with
+            elif t.lower().startswith(_OTHER_LABELS):
+                return True
         else:
             notes.append(t)
-    if any(o.startswith(_OTHER_LABELS) for o in options):
-        return True
-    real = [o for o in options if not o.startswith(_NOT_NOW_LABELS)]
     return bool(real) and bool(notes)
 
 
@@ -497,7 +504,8 @@ def decide(spec_text, item_id, verdict, reply=None):
         canon = _match_labels(said, labels, many)
         if canon is not None:
             verdict = canon
-        elif not _reply_allows_free_text(reply, item_id, _ids_of(tree, "item")):
+        elif not _reply_allows_free_text(reply, item_id, _ids_of(tree, "item"),
+                                       labels, many):
             raise VerbError(
                 "the verdict %r for #%s is none of its options (%s): pass an "
                 "option's label as the verdict. A text that is no option is "
@@ -924,7 +932,7 @@ def apply_edit(spec_path, transform, out=None, lang=None, needs_page=False):
 
     # After the spec's own refusals (an unbuildable spec is named as it stands),
     # before the first byte is written.
-    if needs_page and not os.path.exists(out):
+    if needs_page and not (os.path.isfile(out) and os.path.getsize(out) > 0):
         raise VerbError(
             "no page at %s: the page has not been built yet, and decide / "
             "new-round act on a built page's rounds — run the first build "
