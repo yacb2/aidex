@@ -6,8 +6,8 @@ weight: 1
 El mensaje final debe:
 
 1. Nombrar el archivo de prueba escrito bajo `billing/tests/` (por ejemplo
-   `billing/tests/test_quote_total.py`), con el nombre del test o del caso que cubre el descuento anual
-   aplicado antes del impuesto.
+   `billing/tests/test_quote_total.py`), con el nombre del test o del caso que cubre el descuento fijo anual
+   restado antes del impuesto.
 2. Nombrar explícitamente el nivel elegido como una prueba unitaria de backend
    (capa 1 del modelo de capas: servicio/función, pytest), y NO E2E / navegador.
 3. Justificar ese nivel con el criterio del canon: lo que se verifica es un

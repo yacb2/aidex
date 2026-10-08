@@ -1,5 +1,6 @@
 schema_version: "1.1"
 name: aidex-plan-exec-execute-phase-one
-tags: ["fired-only"]
+tags: ["fired-only", "scope-guard"]
+human-judged: "The case is a regression guard for scope discipline (phase 2 and src/export.py stay untouched), and the wiring of the plan-exec skill; it was never meant to measure model difficulty, and a stricter case would duplicate plan-exec structure checks."
 context:
   scaffold_script: "./setup.sh"

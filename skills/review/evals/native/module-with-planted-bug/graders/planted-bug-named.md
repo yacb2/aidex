@@ -3,16 +3,20 @@ type: llm
 weight: 1
 ---
 
-El mensaje final debe nombrar, con archivo y línea, el bug
-de correctitud plantado en `src/pricing/discounts.py`: `discount_cents` multiplica
-el subtotal por `coupon.percent_off` sin dividir entre 100, así que un cupón de
-10% descuenta 10 veces el subtotal y el total sale negativo. Basta con que el
-hallazgo identifique esa función y describa el efecto (descuento desproporcionado,
-total negativo o mal calculado); no hace falta que proponga el parche.
+El mensaje final debe nombrar, con archivo y línea, el bug de correctitud plantado en
+`src/pricing/totals.py`: `order_total` calcula el impuesto sobre el subtotal previo al
+descuento (`int(subtotal * TAX_RATE)`), pero el docstring del módulo y el contrato dicen
+"subtotal, descuento del cupón, luego impuesto", es decir, el impuesto debe calcularse
+sobre el subtotal ya descontado. Debe nombrar `totals.py` con su línea y explicar el
+orden descuento-luego-impuesto que se viola (el cliente paga impuesto sobre un monto
+que ya no debe). No hace falta que proponga el parche.
+
+Reportar `discount_cents` en `discounts.py` como bug NO cuenta: ya divide entre 100 y es
+correcta.
 
 Suma, pero no es obligatorio, que también reporte la función muerta
 `legacy_format_money` en `src/pricing/cart.py`, que nadie llama.
 
 Falla si el mensaje final no nombra ningún hallazgo concreto con su ubicación, si
 solo describe el módulo o propone un plan de revisión sin resultados, o si el bug
-de `discount_cents` no aparece.
+de `totals.py` (impuesto sobre el subtotal sin descuento) no aparece.

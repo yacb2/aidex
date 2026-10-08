@@ -6,13 +6,13 @@ printf '# quotes-api\n\nPlain Django-shaped billing service. Tests run with pyte
 
 cat > billing/services.py <<'PY'
 TAX_RATE = 0.21
-ANNUAL_DISCOUNT = 0.10
+ANNUAL_DISCOUNT = 10.0
 
 
 def quote_total(subtotal, plan):
-    """Total for a quote. Annual plans discount BEFORE tax."""
+    """Total for a quote. Annual plans subtract a flat discount BEFORE tax."""
     if plan == "annual":
-        subtotal = subtotal * (1 - ANNUAL_DISCOUNT)
+        subtotal = subtotal - ANNUAL_DISCOUNT
         return round(subtotal * (1 + TAX_RATE), 2)
     return round(subtotal * (1 + TAX_RATE), 2)
 PY
