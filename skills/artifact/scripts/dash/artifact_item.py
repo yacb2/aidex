@@ -247,6 +247,22 @@ def sidecar_of(page):
     return have[0], have[0].endswith(".body.md")
 
 
+def staged_of(sidecar, is_md):
+    """BL-731 (owner: staging): `put` writes here, never to the sidecar, so the
+    sidecar keeps the last content that PASSED until a wrap of this file passes and
+    retires it (wrap_report's PASS cleanup). Several puts before one wrap stack:
+    each reads this file when it exists, so `get` and the next `put` see the edit."""
+    suffix = ".body.md" if is_md else ".body"
+    return sidecar[:-len(suffix)] + ".staged" + suffix
+
+
+def source_of(page):
+    """The content a unit is read from: the staged edit when there is one."""
+    sidecar, is_md = sidecar_of(page)
+    staged = staged_of(sidecar, is_md)
+    return (staged if os.path.isfile(staged) else sidecar), staged, is_md
+
+
 def read_text(path):
     with open(path, "rb") as fh:
         return fh.read().decode("utf-8")
@@ -290,7 +306,7 @@ def wrap_hint(page, sidecar):
 
 
 def cmd_list(page):
-    sidecar, is_md = sidecar_of(page)
+    sidecar, _, is_md = source_of(page)
     text, units = units_of(sidecar, is_md)
     total = len(text.encode("utf-8"))
     print("%s  (%d units, %d B)" % (sidecar, len(units), total))
@@ -302,7 +318,7 @@ def cmd_list(page):
 
 
 def cmd_get(page, uid):
-    sidecar, is_md = sidecar_of(page)
+    sidecar, _, is_md = source_of(page)
     text, units = units_of(sidecar, is_md)
     src = one_unit(units, uid, sidecar).source(text)
     sys.stdout.write(src if src.endswith("\n") else src + "\n")
@@ -355,9 +371,9 @@ def cmd_put(page, uid, src_file):
         die("%s is built from %s, so its HTML is an output: the next spec_build.py\n"
             "  would silently revert this edit. Edit the spec (or use spec_verbs.py\n"
             "  add-item | decide | new-round) and rebuild. Nothing was written." % (page, spec))
-    sidecar, is_md = sidecar_of(page)
-    text, units = units_of(sidecar, is_md)
-    unit = one_unit(units, uid, sidecar)
+    source, staged, is_md = source_of(page)
+    text, units = units_of(source, is_md)
+    unit = one_unit(units, uid, source)
     new = read_text(src_file)
 
     old = unit.source(text)
@@ -377,13 +393,13 @@ def cmd_put(page, uid, src_file):
     after = md_units(out) if is_md else html_units(out)
     moved = _outline_delta(units, after, uid, is_md)
 
-    with open(sidecar, "wb") as fh:
+    with open(staged, "wb") as fh:
         fh.write(out.encode("utf-8"))
     print("%s · %s · %d B -> %d B"
-          % (sidecar, uid, len(old.encode("utf-8")), len(piece.encode("utf-8"))))
+          % (staged, uid, len(old.encode("utf-8")), len(piece.encode("utf-8"))))
     if moved:
         print("nested: " + " ".join(moved))
-    print("next: " + wrap_hint(os.path.abspath(page), sidecar))
+    print("next: " + wrap_hint(os.path.abspath(page), staged))
     return 0
 
 

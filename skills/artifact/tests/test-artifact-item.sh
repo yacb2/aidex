@@ -138,9 +138,9 @@ cat > "$TMP/c1-new.html" <<'HTML'
 HTML
 bash "$ITEM" put "$TMP/reports/page.html" c1 "$TMP/c1-new.html" > "$TMP/put.out" 2>&1 \
   || fail "put c1 exits non-zero: $(cat "$TMP/put.out")"
-assert_only_unit_changed "$TMP/before.body" "$PREV/page.html.body" "$TMP/c1.html" "$TMP/c1-new.html" \
+assert_only_unit_changed "$TMP/before.body" "$PREV/page.html.staged.body" "$TMP/c1.html" "$TMP/c1-new.html" \
   "put replaces the item and leaves every other byte alone"
-grep -q "^next: .*wrap-report.sh --title 'Probe page' --lang en --in .*page.html.body --out .*reports/page.html$" "$TMP/put.out" \
+grep -q "^next: .*wrap-report.sh --title 'Probe page' --lang en --in .*page.html.staged.body --out .*reports/page.html$" "$TMP/put.out" \
   && ok "put prints the wrap command to run next, with the page's own title and lang" \
   || fail "put's next-step line is wrong: $(grep next "$TMP/put.out")"
 grep -q "c1 · [0-9]* B -> [0-9]* B" "$TMP/put.out" \
@@ -149,7 +149,7 @@ bash "$ITEM" get "$TMP/reports/page.html" c1 | grep >/dev/null "asked better" \
   && ok "the outline still addresses the rewritten unit, still nested" || fail "the rewritten unit is not addressable"
 
 # ...and the round closes: the edited sidecar is still a wrappable page.
-bash "$WRAP" --title "Probe page" --lang en --in "$PREV/page.html.body" --out "$TMP/reports/page.html" \
+bash "$WRAP" --title "Probe page" --lang en --in "$PREV/page.html.staged.body" --out "$TMP/reports/page.html" \
   >/dev/null 2>"$TMP/wrap2.err" \
   && ok "the edited sidecar wraps and passes the contract" \
   || fail "the edited sidecar no longer wraps: $(tail -3 "$TMP/wrap2.err")"
@@ -182,12 +182,12 @@ if bash "$ITEM" put "$TMP/reports/page.html" G1 "$TMP/G1-add.html" >"$TMP/add.ou
 else fail "put refuses a block that gained an item: $(cat "$TMP/add.out")"; fi
 grep -q "nested: +c3" "$TMP/add.out" && ok "put names the nested id it added" \
   || fail "put does not say which nested id appeared: $(cat "$TMP/add.out")"
-assert_only_unit_changed "$TMP/before-add.body" "$PREV/page.html.body" \
+assert_only_unit_changed "$TMP/before-add.body" "$PREV/page.html.staged.body" \
   "$TMP/G1-before.html" "$TMP/G1-add.html" "the block grew by one item and nothing outside it moved"
 bash "$ITEM" list "$TMP/reports/page.html" | grep >/dev/null -x "  c3 · item · [0-9]* B · Third claim" \
   && ok "the item added inside the block is addressable on its own" \
   || fail "the added item is not in the outline"
-bash "$WRAP" --title "Probe page" --lang en --in "$PREV/page.html.body" --out "$TMP/reports/page.html" \
+bash "$WRAP" --title "Probe page" --lang en --in "$PREV/page.html.staged.body" --out "$TMP/reports/page.html" \
   >/dev/null 2>"$TMP/wrap3.err" && ok "the grown block still wraps and passes the contract" \
   || fail "the grown block no longer wraps: $(tail -3 "$TMP/wrap3.err")"
 
@@ -197,19 +197,19 @@ if bash "$ITEM" put "$TMP/reports/page.html" G1 "$TMP/G1-before.html" >"$TMP/rm.
 else fail "put refuses a block that lost an item: $(cat "$TMP/rm.out")"; fi
 grep -q "nested: -c3" "$TMP/rm.out" && ok "put names the nested id it removed" \
   || fail "put does not say which nested id went away: $(cat "$TMP/rm.out")"
-assert_only_unit_changed "$TMP/before-rm.body" "$PREV/page.html.body" \
+assert_only_unit_changed "$TMP/before-rm.body" "$PREV/page.html.staged.body" \
   "$TMP/G1-add.html" "$TMP/G1-before.html" "the block shrank by one item and nothing outside it moved"
 
 # ...but an id the sidecar already uses elsewhere is still refused, and the
 # message names the collision rather than the count.
-cp "$PREV/page.html.body" "$TMP/guard-collide.body"
+cp "$PREV/page.html.staged.body" "$TMP/guard-collide.body"
 insert_item "$TMP/G1-before.html" "$TMP/G1-collide.html" notes "Stolen id"
 if bash "$ITEM" put "$TMP/reports/page.html" G1 "$TMP/G1-collide.html" >"$TMP/collide.out" 2>&1; then
   fail "put accepts a nested id that already exists elsewhere in the sidecar"
 elif grep -q "notes" "$TMP/collide.out" && grep -qi "already" "$TMP/collide.out"; then
   ok "a nested id colliding with one elsewhere is refused, and the id is named"
 else fail "the collision refusal does not name the id: $(cat "$TMP/collide.out")"; fi
-cmp -s "$TMP/guard-collide.body" "$PREV/page.html.body" || fail "the refused collision put wrote to the sidecar"
+cmp -s "$TMP/guard-collide.body" "$PREV/page.html.staged.body" || fail "the refused collision put wrote to the sidecar"
 
 # ---------------------------------------------------------------------------
 # 2. Refusals. Each one is a silent wrong edit if it is not refused.
@@ -219,7 +219,7 @@ elif grep -q "no unit 'c9'" "$TMP/e.txt" && grep -q "c1" "$TMP/e.txt"; then
   ok "an unknown id is refused and the known ids are named"
 else fail "the unknown-id message does not list what is there: $(cat "$TMP/e.txt")"; fi
 
-cp "$PREV/page.html.body" "$TMP/guard.body"
+cp "$PREV/page.html.staged.body" "$TMP/guard.body"
 printf '<section class="consult-item" data-id="c7"><h3>Renumbered</h3></section>\n' > "$TMP/c1-wrongid.html"
 if bash "$ITEM" put "$TMP/reports/page.html" c1 "$TMP/c1-wrongid.html" >"$TMP/e1.txt" 2>&1; then
   fail "put accepts a replacement carrying a different id"
@@ -256,7 +256,7 @@ elif grep -q "page.spec.md" "$TMP/e5.txt"; then
 else fail "the spec-built refusal does not name the spec: $(cat "$TMP/e5.txt")"; fi
 rm -f "$TMP/reports/page.spec.md"
 
-cmp -s "$TMP/guard.body" "$PREV/page.html.body" && ok "every refused put wrote nothing" \
+cmp -s "$TMP/guard.body" "$PREV/page.html.staged.body" && ok "every refused put wrote nothing" \
   || fail "a refused put modified the sidecar"
 
 # No sidecar at all — the one case a reviser meets on a page that predates it. The page
@@ -282,7 +282,7 @@ printf '# Informe\n\n## Uno\n\nViejo.\n' > "$TMP/pipe.md"
 bash "$WRAP" --title Pipe --lang es --in "$TMP/pipe.md" --out "$TMP/reports/pipemd.html" >/dev/null 2>&1
 printf '## Uno\n\nNuevo.\n' | bash "$ITEM" put "$TMP/reports/pipemd.html" sec-uno /dev/stdin >/dev/null 2>"$TMP/pipe2.err"
 rc=$?
-[[ $rc -eq 0 ]] && grep -q "Nuevo." "$PREV/pipemd.html.body.md" \
+[[ $rc -eq 0 ]] && grep -q "Nuevo." "$PREV/pipemd.html.staged.body.md" \
   && ok "artifact-item put <file> accepts /dev/stdin" \
   || fail "put from /dev/stdin: rc=$rc $(head -c 300 "$TMP/pipe2.err")"
 
@@ -344,7 +344,7 @@ cp "$TMP/gt/.aidex-artifact-prev/g.html.body" "$TMP/gt-before.body"
 printf '<img data-id="fig1" data-title="antes>después" src="data:image/gif;base64,R0lGOD" alt="El diagrama, v2">' > "$TMP/gt-new.txt"
 bash "$ITEM" put "$TMP/gt/g.html" fig1 "$TMP/gt-new.txt" >/dev/null 2>&1 \
   || fail "put on a void unit fails"
-assert_only_unit_changed "$TMP/gt-before.body" "$TMP/gt/.aidex-artifact-prev/g.html.body" \
+assert_only_unit_changed "$TMP/gt-before.body" "$TMP/gt/.aidex-artifact-prev/g.html.staged.body" \
   "$TMP/gt-fig1.txt" "$TMP/gt-new.txt" "put on a void unit replaces the whole tag and nothing else"
 
 # A replacement whose markup does not CLOSE the way it looks. Both shapes below
@@ -419,7 +419,7 @@ cp "$TMP/crlf/.aidex-artifact-prev/w.html.body" "$TMP/crlf-before.body"
 bash "$ITEM" get "$TMP/crlf/w.html" c1 > "$TMP/crlf-c1.html" 2>&1
 printf '<section class="consult-item" data-id="c1"><h3>Uno, otra vez</h3></section>' > "$TMP/crlf-new.html"
 bash "$ITEM" put "$TMP/crlf/w.html" c1 "$TMP/crlf-new.html" >/dev/null 2>&1 || fail "put on a CRLF sidecar fails"
-assert_only_unit_changed "$TMP/crlf-before.body" "$TMP/crlf/.aidex-artifact-prev/w.html.body" \
+assert_only_unit_changed "$TMP/crlf-before.body" "$TMP/crlf/.aidex-artifact-prev/w.html.staged.body" \
   "$TMP/crlf-c1.html" "$TMP/crlf-new.html" "a CRLF sidecar keeps its line endings outside the unit"
 [[ $(grep -c $'\r' "$TMP/crlf/.aidex-artifact-prev/w.html.body") == 4 ]] \
   && ok "all four CR bytes survive the edit" \
@@ -476,7 +476,7 @@ cp "$PREV/md.html.body.md" "$TMP/md-before.md"
 printf '## Qué encontramos\n\nReescrito: la configuración tiene dos claves.\n' > "$TMP/md-new.md"
 bash "$ITEM" put "$TMP/reports/md.html" sec-qu-encontramos "$TMP/md-new.md" >"$TMP/mdput.out" 2>&1 \
   || fail "put on a markdown sidecar fails: $(cat "$TMP/mdput.out")"
-python3 - "$TMP/md-before.md" "$PREV/md.html.body.md" <<'PY'
+python3 - "$TMP/md-before.md" "$PREV/md.html.staged.body.md" <<'PY'
 import sys
 b, a = (open(p, encoding="utf-8").read() for p in sys.argv[1:3])
 head = "# Informe de prueba\n\nUna línea de resumen.\n\n"
@@ -494,7 +494,7 @@ PY
 
 # A renamed heading changes the slug, so the id the reviser addressed would stop
 # existing: refused. This is the markdown half of "ids are never renumbered".
-cp "$PREV/md.html.body.md" "$TMP/md-guard.md"
+cp "$PREV/md.html.staged.body.md" "$TMP/md-guard.md"
 printf '## Otro título\n\nTexto.\n' > "$TMP/md-renamed.md"
 if bash "$ITEM" put "$TMP/reports/md.html" sec-notes "$TMP/md-renamed.md" >"$TMP/e6.txt" 2>&1; then
   fail "put accepts a markdown section whose heading renames its id"
@@ -510,12 +510,61 @@ elif grep -q "number of \`## \` sections (3 -> 4)" "$TMP/e7.txt" && grep -q "ren
   ok "adding a section inside a markdown put is refused, and the message says why"
 else fail "the md section-count refusal is unclear: $(cat "$TMP/e7.txt")"; fi
 
-cmp -s "$TMP/md-guard.md" "$PREV/md.html.body.md" && ok "the refused md put wrote nothing" \
+cmp -s "$TMP/md-guard.md" "$PREV/md.html.staged.body.md" && ok "the refused md put wrote nothing" \
   || fail "a refused md put modified the sidecar"
 
-bash "$WRAP" --title "Informe" --lang es --in "$PREV/md.html.body.md" --out "$TMP/reports/md.html" \
+bash "$WRAP" --title "Informe" --lang es --in "$PREV/md.html.staged.body.md" --out "$TMP/reports/md.html" \
   >/dev/null 2>"$TMP/wrapmd2.err" \
   && ok "the edited markdown sidecar wraps and passes the contract" \
   || fail "the edited markdown sidecar no longer wraps: $(tail -3 "$TMP/wrapmd2.err")"
+
+# ---------------------------------------------------------------------------
+# BL-731 (owner: staging). `put` writes the edit to a staging file beside the
+# sidecar and the sidecar changes only when a wrap PASSES. Before this, put
+# rewrote the sidecar itself, so a failing wrap restored the page but left the
+# sidecar holding the failing content, and the wrap's "left exactly as they
+# were" was false. The rule for several puts before one wrap: each put applies
+# on top of the staged content, and a passing wrap retires the staging file.
+bash "$WRAP" --title "Staged" --lang en --in "$TMP/body.html" --out "$TMP/reports/st.html" \
+  >/dev/null 2>"$TMP/st0.err" || fail "the staging probe does not wrap: $(tail -3 "$TMP/st0.err")"
+cp "$PREV/st.html.body" "$TMP/st-passing.body"
+cat > "$TMP/st-bad.html" <<'HTML'
+<section class="consult-item" data-id="c1" data-free data-title="First claim">
+    <h3>zzzbroken: no notes box any more</h3>
+  </section>
+HTML
+bash "$ITEM" put "$TMP/reports/st.html" c1 "$TMP/st-bad.html" > "$TMP/st-put1.out" 2>&1 \
+  || fail "BL-731: put of the failing c1 exits non-zero: $(cat "$TMP/st-put1.out")"
+cmp -s "$TMP/st-passing.body" "$PREV/st.html.body" \
+  && ok "BL-731: put leaves the sidecar alone until a wrap passes" \
+  || fail "BL-731: put rewrote the sidecar before any wrap"
+next1="$(sed -n 's/^next: //p' "$TMP/st-put1.out")"
+eval "$next1" >/dev/null 2>"$TMP/st-wrap1.err" && fail "BL-731: the probe edit was meant to FAIL the contract and passed"
+cmp -s "$TMP/st-passing.body" "$PREV/st.html.body" \
+  && ok "BL-731: after a failing wrap the sidecar is still the last passing content" \
+  || fail "BL-731: a failing wrap left the failing content in the sidecar: $(grep -c zzzbroken "$PREV/st.html.body") zzzbroken line(s)"
+cat > "$TMP/st-c2.html" <<'HTML'
+<section class="consult-item" data-id="c2" data-free data-title="Segunda afirmación">
+    <h3>zzzsecond edit, staged on top</h3>
+    <p class="fieldlabel">Notes on this one</p>
+    <textarea></textarea>
+  </section>
+HTML
+bash "$ITEM" put "$TMP/reports/st.html" c2 "$TMP/st-c2.html" > "$TMP/st-put2.out" 2>&1 \
+  || fail "BL-731: the second put exits non-zero: $(cat "$TMP/st-put2.out")"
+bash "$ITEM" get "$TMP/reports/st.html" c1 | grep >/dev/null zzzbroken \
+  && ok "BL-731: a second put applies on top of the staged edit (get reads the staged content)" \
+  || fail "BL-731: the second put dropped the first staged edit"
+bash "$ITEM" put "$TMP/reports/st.html" c1 "$TMP/c1-new.html" > "$TMP/st-put3.out" 2>&1 \
+  || fail "BL-731: the fixing put exits non-zero: $(cat "$TMP/st-put3.out")"
+next3="$(sed -n 's/^next: //p' "$TMP/st-put3.out")"
+if eval "$next3" >/dev/null 2>"$TMP/st-wrap3.err"; then
+  grep -q "asked better" "$PREV/st.html.body" && grep -q "zzzsecond" "$PREV/st.html.body" \
+    && ok "BL-731: a passing wrap lands both staged edits in the sidecar" \
+    || fail "BL-731: the passing wrap did not land the staged edits in the sidecar"
+  ls "$PREV" | grep >/dev/null '^st\.html\.staged' \
+    && fail "BL-731: the staging file outlived the passing wrap: $(ls "$PREV" | grep staged)" \
+    || ok "BL-731: a passing wrap retires the staging file"
+else fail "BL-731: the fixed staged content does not wrap: $(tail -3 "$TMP/st-wrap3.err")"; fi
 
 [[ $failures -eq 0 ]] && echo "PASS: artifact item" || { echo "FAILED: $failures"; exit 1; }

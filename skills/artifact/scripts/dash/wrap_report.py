@@ -1306,8 +1306,10 @@ def main():
     # that failed before it, render and source alike, is answered and goes.
     try:
         os.makedirs(baseline_dir, exist_ok=True)
+        # `.staged.body*` is artifact-item put's pending edit (BL-731): a pass lands it.
         for stale in (baseline + ".body", baseline + ".body.md", baseline + ".failed",
-                      baseline + ".failed.body", baseline + ".failed.body.md"):
+                      baseline + ".failed.body", baseline + ".failed.body.md",
+                      baseline + ".staged.body", baseline + ".staged.body.md"):
             if stale != body_file and os.path.isfile(stale):
                 os.unlink(stale)
                 # The hygiene note calls this one work, not residue, and leaves the

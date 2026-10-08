@@ -512,8 +512,12 @@ SAME path. Concretely:
   after it, so it is refused and put one section at a time. Markup that does not close
   the way it is written — a self-closing `<div/>`, an unclosed nested element — is
   refused as well: a browser reads both as swallowing the items that follow, and the
-  contract check passes either way. It edits the sidecar only:
-  the wrap is what verifies the contract, so it stays a separate step you can see fail.
+  contract check passes either way. It never edits the sidecar itself: it writes
+  `<page>.html.staged.body` (`.staged.body.md`) beside it, and the wrap command it
+  prints reads that file, so the sidecar changes on a PASS only, like every other
+  source (BL-731). Several puts before one wrap stack: `get` and the next `put` read
+  the staged file while it exists, and the passing wrap retires it. The wrap is what
+  verifies the contract, so it stays a separate step you can see fail.
   A page with no sidecar is the fallback above, and the error says so.
 - **The reply states the absolute path** of what was written, so the reader can tell
   whether the tab they are looking at is the file that was just produced.
