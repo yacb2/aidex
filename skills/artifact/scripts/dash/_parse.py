@@ -32,12 +32,16 @@ def _strip_quotes(v):
 
 
 def front_matter(path):
+    """`front_matter_text` of the file at `path`."""
+    return front_matter_text(read_text(path))
+
+
+def front_matter_text(text):
     """Parse a leading `---` front-matter block into a dict of str->str.
 
     Tolerates surrounding quotes on values. Returns {} if the file has no
     front-matter block (does not open at line 1 with `---`).
     """
-    text = read_text(path)
     lines = text.splitlines()
     if not lines or lines[0].strip() != "---":
         return {}
@@ -59,16 +63,15 @@ def md_table(lines):
     of lists of cell strings. The separator row (---|---) is skipped. Returns
     ([], []) if no table is found.
     """
-    if isinstance(lines, str):
-        lines = lines.splitlines()
-
     def cells(line):
         s = line.strip()
         if s.startswith("|"):
             s = s[1:]
         if s.endswith("|"):
             s = s[:-1]
-        return [c.strip() for c in s.split("|")]
+        # A literal pipe inside a cell is escaped as `\|` (GFM, and the audit
+        # canon); split only on unescaped pipes, then unescape.
+        return [c.strip().replace("\\|", "|") for c in re.split(r"(?<!\\)\|", s)]
 
     headers, rows, in_table = [], [], False
     for line in lines:

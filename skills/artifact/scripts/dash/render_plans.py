@@ -36,7 +36,18 @@ def _phases_overview(text):
     return []
 
 
-def _rollup(root, plans_dir):
+def _phase_counts(row, base_dir):
+    """(done, total) task checkboxes of the phase file a Phases Overview row
+    links, or None when the row links no existing file."""
+    m = _LINK.search(row[1] if len(row) > 1 else "")
+    if m:
+        pf = os.path.join(base_dir, m.group(1))
+        if os.path.isfile(pf):
+            return P.checkbox_counts(P.read_text(pf))
+    return None
+
+
+def _rollup(plans_dir):
     pd = glob.escape(plans_dir)  # the workspace path is data, not a pattern (foo-[bl-9] roots)
     plans = []
     # single-file plans
@@ -73,13 +84,22 @@ def _rollup(root, plans_dir):
 
     rows, open_n = [], 0
     for slug, path in plans:
-        fm = P.front_matter(path)
+        text = P.read_text(path)
+        fm = P.front_matter_text(text)
         status = fm.get("status", "")
         if status not in ("complete", "done", "closed", "dropped"):
             open_n += 1
-        text = P.read_text(path)
-        n_phases = len(_phases_overview(text))
-        done, total = P.checkbox_counts(text)
+        over = _phases_overview(text)
+        n_phases = len(over)
+        # The phase files the Phases Overview links (the canon keeps checkboxes
+        # out of the index); a plan whose table links no existing file counts
+        # its own checkboxes.
+        counts = [c for c in (_phase_counts(r, os.path.dirname(path)) for r in over)
+                  if c is not None]
+        if counts:
+            done, total = sum(c[0] for c in counts), sum(c[1] for c in counts)
+        else:
+            done, total = P.checkbox_counts(text)
         rows.append([
             S.esc(fm.get("title", slug)),
             S.pill(status or "—", STATUS_TONE.get(status, "")),
@@ -101,7 +121,7 @@ def _rollup(root, plans_dir):
     return out
 
 
-def _progress(root, plans_dir, slug):
+def _progress(plans_dir, slug):
     multi = os.path.join(plans_dir, slug, "00-index.md")
     single = os.path.join(plans_dir, slug + ".md")
     if os.path.isfile(multi):
@@ -113,22 +133,16 @@ def _progress(root, plans_dir, slug):
     else:
         P.die(f"no plan '{slug}' at {multi} or {single}")
 
-    fm = P.front_matter(index_path)
     text = P.read_text(index_path)
+    fm = P.front_matter_text(text)
     over = _phases_overview(text)
 
     phase_rows, tot_done, tot_all, phases_complete = [], 0, 0, 0
     if over:
         for r in over:
             phase = r[0] if len(r) > 0 else ""
-            file_cell = r[1] if len(r) > 1 else ""
             desc = r[2] if len(r) > 2 else ""
-            m = _LINK.search(file_cell)
-            done = total = 0
-            if m:
-                pf = os.path.join(base_dir, m.group(1))
-                if os.path.isfile(pf):
-                    done, total = P.checkbox_counts(P.read_text(pf))
+            done, total = _phase_counts(r, base_dir) or (0, 0)
             tot_done += done
             tot_all += total
             if total and done == total:
@@ -154,7 +168,7 @@ def _progress(root, plans_dir, slug):
     cols = [("Phase", "s"), ("Description", "s"), ("Progress", "s")]
     sections = [
         tiles,
-        S.card("Phase progress", S.table("phases", cols, phase_rows, mod_first=True),
+        S.card("Phase progress", S.table("phases", cols, phase_rows),
                search_id="phases"),
     ]
     html = S.page(fm.get("title", slug), sections, f"plans {slug}")
@@ -168,5 +182,5 @@ def render(root, slug=None):
     if not os.path.isdir(plans_dir):
         P.die(f"no plans directory at {plans_dir}")
     if slug:
-        return _progress(root, plans_dir, slug)
-    return _rollup(root, plans_dir)
+        return _progress(plans_dir, slug)
+    return _rollup(plans_dir)

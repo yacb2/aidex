@@ -56,8 +56,6 @@ def main(argv):
     print(f"root: {os.path.abspath(root)}", file=sys.stderr)
     try:
         out = _dispatch(root, target, arg)
-    except SystemExit:
-        raise
     except Exception as e:  # never leak a traceback to the user
         P.die(f"{type(e).__name__}: {e}")
     print(out)

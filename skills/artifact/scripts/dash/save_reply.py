@@ -48,6 +48,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _usage import read_stdin  # noqa: E402
 import check_artifact as ca  # noqa: E402
 import gallery_reply  # noqa: E402
 from gallery_items import VERDICTS  # noqa: E402
@@ -187,10 +188,10 @@ def gallery_duties_for(reply_text, ordinary=(), states=None):
     return out
 
 
-def _quote_report(text, limit=140):
-    """The reader's page-defect text on one quoted line, cut at `limit`."""
+def _quote_report(text):
+    """The reader's page-defect text on one quoted line, cut at 140 characters."""
     one = " ".join(text.split())
-    return '"' + (one[:limit - 1] + "\u2026" if len(one) > limit else one) + '"'
+    return '"' + (one[:139] + "\u2026" if len(one) > 140 else one) + '"'
 
 
 def duties_for(reply_text, ordinary=(), states=None):
@@ -270,6 +271,9 @@ def save_reply(page_path, reply_text):
     return duties_for(reply_text, ordinary, states), reply_path, answered_path, False
 
 
+SAVE_FORM = "save-reply.sh <page.html> [<reply-file>|-]  (or pipe the reply on stdin)"
+
+
 def main(argv):
     if not argv:
         print("ERROR: usage: save-reply.sh <page.html> [<reply-file>|-]",
@@ -283,7 +287,7 @@ def main(argv):
     where = "on stdin" if reply_arg == "-" else reply_arg
     try:
         if reply_arg == "-":
-            reply_text = sys.stdin.read()
+            reply_text = read_stdin(SAVE_FORM)
         else:
             with open(reply_arg, encoding="utf-8") as fh:
                 reply_text = fh.read()

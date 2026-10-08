@@ -51,6 +51,7 @@ SCRIPTS = os.path.join(SKILL, "scripts")
 sys.path.insert(0, SCRIPTS)
 sys.path.insert(0, os.path.join(SCRIPTS, "dash"))
 
+import check_artifact                                        # noqa: E402
 import spec_verbs                                            # noqa: E402
 from spec_verbs import VerbError, add_item, decide, new_round  # noqa: E402
 
@@ -230,6 +231,41 @@ for flag in ("yes", "TRUE", "1", " yes "):
             "pass the chosen option's label")
 check("...and records a label verdict on the same item",
       'decided="Fences de Pandoc"' in decide(PAGE, "Q1", "Fences de Pandoc"))
+# An option LABELLED `Yes` (mutations_gate's English `Sí`): the builder reads
+# decided=Yes as the settled flag and checks the {chosen} option, else the
+# {recommended} one. When the {chosen} one is labelled Yes, the verdict is the
+# reader's own choice and is recorded; otherwise the page could check another
+# option, so the refusal must say what to do, not ask for the label it was
+# given (u5-verbs B-c18).
+YES_OPTS = "- Fences de Pandoc — prosa con marcas mínimas {recommended}\n" \
+           "- YAML anidado — estructura explícita"
+try:
+    got = decide(PAGE.replace(YES_OPTS, "- Yes {chosen}\n- No"), "Q1", "Yes")
+except VerbError as exc:
+    got = str(exc)
+check("decide records 'Yes' when it is the label of the {chosen} option",
+      'decided="Yes"' in got, got)
+refuses("decide refuses 'Yes' when the builder would check another option",
+        lambda: decide(PAGE.replace(YES_OPTS, "- Yes\n- No {recommended}"),
+                       "Q1", "Yes"),
+        "mark the 'Yes' option {chosen} first")
+refuses("...and reads the verdict in its plain form, as the builder does",
+        lambda: decide(PAGE.replace(YES_OPTS, "- Yes\n- No {recommended}"),
+                       "Q1", "**Yes**"),
+        "mark the 'Yes' option {chosen} first")
+
+PREFIXED = ('::: masthead {title="T" visual="none: x"}\nUna.\n:::\n\n'
+            '::: group {#G1 title="G"}\n'
+            '::: item {#Q1 title="Q1 · ¿Seguimos?" decided=yes}\n?\n\n- A {recommended}\n- B\n:::\n'
+            ':::\n')
+check("new-round writes the ledger row from the title the page shows (id prefix stripped)",
+      "- Q1 — ¿Seguimos?\n" in new_round(PREFIXED), new_round(PREFIXED))
+_rowed = ('::: masthead {title="T" visual="none: x"}\nUna.\n:::\n\n'
+          '::: ledger\n- Q1 — ¿Seguimos?\n:::\n\n'
+          '::: group {#G1 title="G"}\n'
+          '::: item {#Q1 title="Q1 · ¿Seguimos?"}\n?\n\n- A\n- B\n:::\n:::\n')
+check("decide rewrites an existing row built from the stripped title",
+      "- Q1 — ¿Seguimos? (B)\n" in decide(_rowed, "Q1", "B"), decide(_rowed, "Q1", "B"))
 
 print()
 print("== new-round: the ledger, keyed by id ==")
@@ -265,6 +301,55 @@ check("with no snapshot nothing expires (a mid-round --drop/--retitle)",
       and new_round(two).count("proposal=yes") == 2, new_round(two))
 check("...whether or not a retitle rides along",
       new_round(two, retitled=["Q1"]).count("proposal=yes") == 2)
+# BL-711: a proposal now carries the ask chips and [not-now], so the reader can answer it
+# with something other than "fine". A reply block for it that holds an ask or [not-now]
+# means it was NOT accepted: it stays a proposal (open), with no ledger row.
+for mark in ("[not-now]", "[show-me]"):
+    reply = "### Q2 \u00b7 Marcador de columna\n\n- %s\n" % mark
+    kept = new_round(two, answered_html=SNAP, reply=reply)
+    check("a proposal the reply marks %s does not expire: it stays proposal=yes with no ledger row" % mark,
+          kept.count("proposal=yes") == 2 and "- Q2" not in kept, kept)
+H2 = "### Q2 \u00b7 Marcador de columna\n\n"
+PICK = H2 + "- No, un atributo nuevo\n"
+OTHER = H2 + "- Otra \u2014 lo explico en las notas\n\nusa una tercera\n"
+NOTE = H2 + "vale, pero cambia el texto\n"
+# A proposal the reader answered with a real pick, Other or a note is NOT accepted: it takes the
+# open-item path (the 225f968e guard names the pick, new-round keeps it a proposal).
+for what, rep_ in (("a changed pick", PICK), ("Other + note", OTHER), ("a note", NOTE)):
+    kept = new_round(two, answered_html=SNAP, reply=rep_)
+    check("a proposal the reader answered with %s stays proposal=yes with no ledger row" % what,
+          kept.count("proposal=yes") == 2 and "- Q2" not in kept, kept)
+check("_bare_picks names a proposal's changed pick like an open item's (the guard that refuses new-round)",
+      spec_verbs._bare_picks(two, PICK, {"Q2"}) == [("Q2", "No, un atributo nuevo")]
+      and spec_verbs._bare_picks(two, PICK) == [], spec_verbs._bare_picks(two, PICK, {"Q2"}))
+settled_pick = new_round(decide(two, "Q2", "No, un atributo nuevo", PICK), answered_html=SNAP, reply=PICK)
+check("...and once the writer decides it, the item is no longer a proposal and new-round files it",
+      "- Q2 \u2014 Marcador de columna (No, un atributo nuevo)" in settled_pick
+      and settled_pick.count("proposal=yes") == 1, settled_pick)
+# One reader for "asked about": the duty check reads the union of every saved paste, so a show-me in an
+# earlier paste keeps the proposal open even when the last paste holds only a note (and they agree).
+TWO_SAVES = ("## G1 \u00b7 Formato del spec\n\n" + H2 + "- [show-me]\n\n<!-- reply saved 2026-10-07 page:abc same-round -->\n\n"
+             "## G1 \u00b7 Formato del spec\n\n" + H2 + "vale\n")
+check("a show-me in an earlier saved paste keeps the proposal open and the duty is owed (both agree)",
+      new_round(two, answered_html=SNAP, reply=TWO_SAVES).count("proposal=yes") == 2
+      and any(i == "Q2" for i, _ in check_artifact.marker_duties_of(TWO_SAVES)))
+check("a page-defect sub-block alone (the composer's shape) is no reason to keep a proposal open",
+      new_round(two, answered_html=SNAP,
+                reply="## G1 \u00b7 Formato del spec\n\n" + H2 + "#### Fallo de la p\u00e1gina\n\nel texto se corta\n").count("proposal=yes") == 1)
+# A reply the parsers cannot classify is still the reader answering: any content but defect text keeps it open.
+for what, rep_ in (("a chat-form note", "Q2: vale pero cambia el texto\n"),
+                   ("a line that matches no option (reworded since)", H2 + "- No, un atributo distinto\n")):
+    kept = new_round(two, answered_html=SNAP, reply=rep_)
+    check("a proposal answered with %s stays proposal=yes with no ledger row" % what,
+          kept.count("proposal=yes") == 2 and "- Q2" not in kept, kept)
+# Same round, the reader went back to the proposal: the later FULL paste has no Q2 block and supersedes
+# the earlier one, as check_artifact reads it (BL-598). Neither the guard nor the expiry may read paste 1.
+REVERT = ("## G1 \u00b7 Formato del spec\n\n" + H2 + "- No, un atributo nuevo\n"
+          "\n<!-- reply saved 2026-10-07 page:abc same-round -->\n\n"
+          "## G2 \u00b7 Otro\n\n### Q1 \u00b7 Fences o YAML\n\n- Fences de Pandoc\n")
+check("a same-round full paste without the proposal supersedes the earlier pick: no guard, and it expires",
+      spec_verbs._bare_picks(two, REVERT, {"Q2"}) == []
+      and new_round(two, answered_html=SNAP, reply=REVERT).count("proposal=yes") == 1)
 # decide after new-round must move the ledger row's verdict as well.
 settled = new_round(decide(PAGE, "Q1", "Fences de Pandoc"))
 redecided = decide(settled, "Q1", "YAML anidado")
@@ -335,6 +420,28 @@ refuses("...and reads the compound key by TOKEN, not whole-string",
         "already used by a ledger row")
 check("...while an id no ledger token names is still accepted",
       '::: item {#Q8 title="Otra"}' in add_item(SETTLED, "G1", "Q8", "Otra"))
+
+# A row with no ` — ` has no KEY: `emit_ledger` ships it as a `.v` cell alone
+# and `check_artifact.ledger_ids` reads no id out of it. Its words are prose,
+# so they name no settled item (u5-verbs B-c17).
+FREE_ROW = PAGE.replace(
+    "::: notes",
+    "::: ledger\n- Se cerró Q2 en la reunión general\n:::\n\n::: notes", 1)
+check("new-round still files a decided item a KEY-LESS row mentions in prose",
+      "- Q2 — Marcador de columna\n" in new_round(FREE_ROW), new_round(FREE_ROW))
+try:
+    free_add = add_item(FREE_ROW, "G1", "general", "Otra")
+except VerbError as exc:
+    free_add = str(exc)
+check("...and add-item accepts an id that is only a word of a key-less row",
+      '::: item {#general title="Otra"}' in free_add, free_add)
+BARE_ROW = PAGE.replace("::: notes", "::: ledger\n- Q2\n:::\n\n::: notes", 1)
+bare_rows = [ln for ln in decide(new_round(BARE_ROW), "Q2",
+                                 "No, un atributo nuevo").split("\n")
+             if ln.startswith("- Q2 — ")]
+check("...and decide moves the row new-round wrote, not a key-less `- Q2` row",
+      len(bare_rows) == 1 and bare_rows[0].endswith("(No, un atributo nuevo)"),
+      str(bare_rows))
 
 NESTED_LEDGER = PAGE.replace(
     "::: item {#Q1",
@@ -772,8 +879,9 @@ try:
     check("...and calls no emitter: the only spec_build names it touches are "
           "the ones a caller may",
           touched == ["HINT_SEP", "LANGS", "PLAIN", "build", "chosen_labels",
-                     "hand_edit_defect", "has_options", "main",
-                     "option_labels", "page_title", "resolve_lang"],
+                     "clean_item_title", "hand_edit_defect", "has_options",
+                     "main", "option_labels", "page_title",
+                     "refuse_missing_visual", "resolve_lang"],
           str(touched))
     writes = re.findall(r'open\(([^,]+), "w"', source)
     check("...and the only file it opens for writing is the spec's own temp",
@@ -799,13 +907,27 @@ try:
                  '"kind": "review", "look": "the table", "after": "%s"}]}' % rel)
     try:
         first_build(gspec)
-        gout = spec_verbs.decide_file(gspec, "Q1", V)
+        gout = spec_verbs.decide_many_file(gspec, [("Q1", V)])
         check("decide on a gallery spec returns the page it rebuilt",
               gout == os.path.join(gdir, "page.html"), gout)
         check("...whose tiles link the copies beside it",
               'src="page-assets/gallery/' in read(gout))
     except (VerbError, spec_verbs.BuildFailed) as exc:
         fail("decide on a gallery spec was refused: %s" % exc)
+
+    print()
+    print("== a verb on a spec the builder refuses for its visual ==")
+    # The verb's pre-check must see the CLI's own visual refusal, and name the
+    # spec as unbuildable as it stands rather than blame the edit.
+    novis = fresh("novisual", build=False, text=PAGE.replace(
+        ' visual="none: la decisión es de formato y no tiene forma que dibujar"', "", 1))
+    try:
+        spec_verbs.decide_many_file(novis, [("Q1", V)])
+        fail("decide on a spec with no visual= was not refused")
+    except VerbError as exc:
+        check("decide on a spec with no visual= names the masthead rule and the spec as it stands",
+              "needs visual=" in str(exc) and "unbuildable as it stands" in str(exc),
+              str(exc))
 
     print()
     print("== the CLI's own edges ==")
@@ -1342,6 +1464,18 @@ Contexto dos.
     r2 = run("new-round", bp)
     check("M3 new-round: succeeds once the pick is decided",
           r.returncode == 0 and r2.returncode == 0, r.stderr + r2.stderr)
+    # BL-711, file route: a proposal the reader re-picked is refused like an open item's pick, and
+    # deciding it ends its proposal state, so the next round files exactly one ledger row.
+    pr = nr("nr-prop", "## G1 \u00b7 Formato del spec\n\n### Q2 \u00b7 Marcador de columna\n\n- No, un atributo nuevo\n", two)
+    r = run("new-round", pr)
+    check("M3 new-round: a re-picked proposal exits 1 naming the decide command",
+          r.returncode == 1 and "decide --id Q2" in r.stderr, r.stdout + r.stderr)
+    r = run("decide", pr, "--id", "Q2", "--verdict", "No, un atributo nuevo")
+    r2 = run("new-round", pr)
+    check("...and once decided (proposal dropped) new-round files exactly one Q2 ledger row",
+          r.returncode == 0 and r2.returncode == 0
+          and read(pr).count("- Q2 \u2014") == 1
+          and not re.search(r"#Q2[^}]*proposal", read(pr)), r.stderr + r2.stderr + read(pr)[-900:])
     for label, reply in (
             ("an Other answer", OTHER_REPLY),
             ("an option + a note", NOTE_REPLY),

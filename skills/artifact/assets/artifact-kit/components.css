@@ -594,10 +594,12 @@ dialog.kit-mark-note::backdrop { background: rgba(0, 0, 0, 0.3); }
    injected control at all, and its inputs are disabled by the composer, which
    is what stops a settled answer from re-composing into every later round. */
 .consult-item[data-decided] { border-style: dashed; }
-.consult-item[data-decided] .opts label { cursor: default; }
-.consult-item[data-decided] .opts label:hover { background: none; }
-.consult-item[data-decided] .opts label:not(:has(input:checked)) { opacity: 0.55; }
+.consult-item[data-decided]:not([data-proposal]) .opts label { cursor: default; }
+.consult-item[data-decided]:not([data-proposal]) .opts label:hover { background: none; }
+.consult-item[data-decided]:not([data-proposal]) .opts label:not(:has(input:checked)) { opacity: 0.55; }
 .consult-item[data-decided] input:disabled { accent-color: var(--accent-dim); }
+/* A PROPOSAL (data-proposal) is drawn as an open item: live radios and the same controls, set apart
+   by its dashed border alone (BL-711). */
 /* An empty reply box on a settled item carries no record and cannot be typed
    into, so it is a dead control, not history. It is hidden with its label; one
    that HAS text stays, because then it is part of what was answered. */
@@ -891,3 +893,9 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .kit-ask-more .kit-ask-lead { display: none; }
 /* A folded group that holds a mark says so on its summary. */
 .opts-more:has(input:checked) > summary, .kit-ask-more:has(input:checked) > summary { color: var(--ink); font-weight: 600; }
+
+/* Study-page checks (BL-715): feedback after a pick; the global [hidden] rule hides the withheld hint and badge. */
+.kit-unanswered .opts label:not(:hover):has(input[data-recommended]) { background: none; }
+.kit-feedback:where(:not(svg *)) { font-family: var(--sans); font-size: 0.85rem; font-weight: 600; margin: 0.4rem 0 0; }
+.kit-feedback.ok:where(:not(svg *)) { color: var(--accent); }
+.kit-feedback.no:where(:not(svg *)) { color: var(--muted); }

@@ -27,23 +27,14 @@ the prior art, and a disagreement between the two is a bug in the tokenizer.
 - [An `item`'s option list: one choice or a set](#an-items-option-list-one-choice-or-a-set)
 - [What counts as malformed](#what-counts-as-malformed)
 - [Two layers, and why](#two-layers-and-why)
-- [Worked example](#worked-example)
 - [Related](#related)
 
 ## Provenance, and what is NOT installed
 
-The syntax is Pandoc's fenced-div grammar (`:::` fences, curly-brace attrs, nesting),
-borrowed as a **documented grammar spec, not as a dependency** — see
-`.context/research/2026-09-23-declarative-page-spec-prior-art.md` (Family 1) in the
-workspace repo for the survey that settled this. Do not re-research it.
-
-- **No Pandoc binary is installed** and none will be. Nothing here shells out to `pandoc`.
-- **No `markdown-it-py`, no `mdit-py-plugins`, no MyST, no Markdoc, no Djot port.** They
-  are all pip installs; this repo is stdlib-only.
-- What ships is a hand-written stdlib Python tokenizer over the subset below. The subset
-  is deliberately smaller and stricter than Pandoc's: **everything Pandoc leaves optional,
-  this grammar either requires or forbids**, so there is exactly one way to write each
-  construct and every rejection has a line number.
+The syntax is Pandoc's fenced-div grammar (`:::` fences, curly-brace attrs, nesting) as a
+hand-written stdlib tokenizer over a stricter subset: everything Pandoc leaves optional,
+this grammar requires or forbids, so each construct has one spelling and every rejection
+has a line number. Nothing shells out to `pandoc`; no markdown library is installed.
 
 Prose inside a block is rendered by the existing `scripts/dash/md_body.py` subset
 (headings, paragraphs, `-`/`1.` lists, pipe tables, fenced code, `` ` ``, `**`, `_`).
@@ -64,14 +55,6 @@ carries no meaning, below.)
 
 `\\`, `` \` ``, `\*`, `\_` and `\[` put the character itself in the page. Nothing
 else is escapable, and the backslash before anything else is a backslash.
-
-This is the one thing the conversion of the frozen sample had to ADD to `md_body`
-rather than wrap. A page wrote `.context/worklists/_archive/*-report.md` as plain
-prose and it shipped as `.context/worklists/archive/-report.md`, one `<em>` in the
-middle: the underscore and the asterisk were both eaten, silently, on a page
-`check-artifact` passes. `_inline`'s own docstring already named that exact path
-as the thing backticks protect — but backticks are a monospace font the author did
-not ask for, so they are a workaround, not the answer.
 
 - **Inside a code span the backslash is literal.** `` `a\_b` `` shows `a\_b`.
   CommonMark's rule, and the reason is that a path in backticks is the one place
@@ -106,6 +89,10 @@ the target may hold one level of balanced parentheses and no whitespace.
   `line 3: link target 'javascript:alert(1)' is refused: ...`. The markdown route
   (`wrap-report.sh --in x.md`) does not stop: it renders a refused link as plain
   text, `label (target)`, with no href.
+- **Id in `title=`:** an item title starting with its own id and a separator (`Q1 · `, `Q1: `,
+  `Q1 - `, `Q1 — `, `Q1. `) is stripped by the builder with a stderr note naming the line;
+  `Q1 seguimos` (no separator) is refused with `repeats its id`. A `section` written with
+  `title=` and no `heading=` is read as `heading=` the same way (both given: refused).
 - **Not in `title=`:** the title is also the rail entry and a decided item's
   summary, where it shows as raw text. A link there is refused with the fence's line.
 - **Not a link:** inside a code span or a code fence, or after `\[` (which reaches
@@ -202,27 +189,9 @@ any number:
   decides what the `\_` means. That is the same layering rule as everywhere else here:
   each layer consumes its own escapes and passes the rest down untouched.
 
-  The escape is an ADDITION; the rule used to be "there are no escape sequences, so a
-  value cannot itself contain a `"`". It was the one gap in the grammar that a page in
-  the frozen sample could not be converted around:
-  one sample report page writes an
-  `<h2>` with a phrase in straight double quotes (in shape, `<h2>Dos tareas quedaron
-  "en espera" …</h2>`), and a `group`'s `heading` is **visible text**. The alternatives were all worse. Rewriting the quote to a
-  typographic `”` — what the drafting aid did, on stderr, where nobody read it — changes
-  a character the author typed, which is exactly the silent drop the rest of this file
-  is written against. Admitting single-quoted values would give the grammar two spellings
-  of one construct, against the subset rule above ("exactly one way to write each
-  construct"). An entity spelling (`&quot;`) would put a second escaping vocabulary next
-  to `md_body`'s backslashes, in the one file that has to keep them apart.
-
-  The refusals either side of it are unchanged and still carry their line: a value whose
-  closing quote never arrives is still "never closed" (and `key="abc\"` is that case —
-  the escaped quote does not close anything), and `key="abc\\"x` still refuses with
-  "text runs straight on after the quoted value".
-
-  **`spec_verbs.py` writes this syntax through `spec_parser.quote_value()`**, the one
-  writer, so a verb that sets a title with a quote in it produces a line the tokenizer
-  reads back character for character. It used to refuse such a title outright.
+  Refusals keep their line: a quote that never closes (`key="abc\"` is that case) and
+  text running straight on after the closing quote. `spec_verbs.py` writes this syntax
+  through `spec_parser.quote_value()`.
 - **Unquoted:** `key=value` where value matches `[^\s"'{}]+`. Use it for slugs, numbers
   and booleans. Anything with a space must be quoted.
 - **Empty is quoted only:** `key=""` is a valid empty value; `key=` is malformed.
@@ -252,67 +221,28 @@ builder, not tokenizer.
 A `group` needs no child for its own free text: the build closes every group with
 its notes box (BL-701; `04-block-vocabulary.md`), so a spec never writes one.
 
-Two of those refusals moved during the corpus conversion, and both moved because a
-real page said something the grammar could not:
-
 - **A decided-but-correctable point is an `item decided=yes proposal=yes` in its consult group** (BL-687, BL-692: `proposal=yes` keeps it in place instead of folding it as settled), with the other items of its round: not a top-level `callout`, not a `ledger` row (the ledger holds what EARLIER rounds settled). `04-block-vocabulary.md` § `item` has the shape; `tests/fixtures/decided-items.spec.md` is a built example.
-- **`item` at the document's top level now BUILDS.** It used to be refused with
-  "`item` may only appear in `group`". 4 of the 30 sampled pages (13%) write a
-  decision outside any block, and a grammar that cannot say what a real page says
-  cannot convert it. The rule itself has not gone anywhere: `check_artifact.py`'s
-  `check_shape` fails the built page, names the item and cites § 8.4, and
-  `wrap-report.sh --out` runs it before the page lands — so an ungrouped item
-  still cannot ship. What went was the second copy of one rule, in the builder,
-  which refused the page before the rule's owner could speak.
-- **`item`, `masthead` and `note` accept a nested `note` or `callout`.** 3 pages put
-  a framed aside inside a decision, 11 in all, and every one qualifies *that*
-  question; 1 page opens with two asides inside its `masthead`, both about the page
-  rather than about any one block; 1 page closes an aside with a quieter one inside
-  it. In all three hosts the aside keeps the position it was written in — an item
-  that warns between its question and its options is not warning about its options,
-  and a masthead's aside written under the standfirst is not the standfirst. One
-  list for the three hosts, because `note` and `callout` are one construct at two
-  volumes: a host that took the quieter one and refused the louder one would be an
-  asymmetry with nothing behind it. Everything else these could nest is still
-  refused, by the same `PARENTS` table.
-- **An `item` also accepts a nested figure block** — `figure`, `chart`, `graph`, `video` or
-  `diagram`, all alike, in the position it was written. 4 figures of the corpus
-  illustrate one decision from inside it, and placing them before the item detached
-  them from it. `masthead` and `note` do not: a drawing there is a page-level figure
-  in the wrong place (`spec_build.FIGURE_BLOCKS`).
-
-  One exception to "alike" (BL-493, BL-626): **two or more ADJACENT `figure`s**
-  (`.png`/`.jpg`/`.jpeg`/`.svg`, mixed or not) in an item render as one thumbnail
-  grid, `.gal.shots`, with `data-cols` = min(n, 4). Blank lines between them keep the
-  run; any other block (a `chart`, a `graph`, a `diagram`, a nested `note`/`callout`),
-  a sentence or the option list ends it. Each run is its own grid and its own viewer
-  walk ("1 / n"), so written order is kept; a lone figure stays full width. There is
-  no opt-out: to keep two figures apart, write a sentence between them.
-
-  Every `figure` of an item has the viewer, grid or not (the builder marks a lone one
-  `data-viewer`): "Ampliar" opens one image at a time, its `title` as caption, Left/Right
-  or the previous/next buttons to page, an svg at its viewBox width so its text stays as
-  drawn. `chart`, `diagram` and `graph` are not `figure` blocks and get no viewer.
-
-  A `masthead`'s **standfirst** is the first paragraph of the masthead's own prose,
-  not of whatever it happens to emit first: an aside written above the standfirst
-  stays above it and is not promoted.
+- **`item` at the document's top level builds**, but `check_artifact`'s `check_shape` fails
+  the built page (an item outside a block, § 8.4), so an ungrouped item cannot ship.
+- **`item`, `masthead` and `note` accept a nested `note` or `callout`**, in the position
+  written (an aside between the question and the options stays there). Everything else
+  they could nest is refused by the `PARENTS` table.
+- **An `item` also accepts a nested figure block** (`figure`, `chart`, `graph`, `video`,
+  `diagram`), in written order; `masthead` and `note` do not (`spec_build.FIGURE_BLOCKS`).
+  Two or more ADJACENT `figure`s (`.png`/`.jpg`/`.jpeg`/`.svg`) in an item render as one
+  thumbnail grid (`.gal.shots`, `data-cols` = min(n, 4)); any other block, a sentence or
+  the option list ends the run, so write a sentence between two figures to keep them
+  apart. Every `figure` of an item opens the "Ampliar" viewer (Left/Right or buttons to
+  page, an svg at its viewBox width); `chart`, `diagram` and `graph` get none.
+- A `masthead`'s **standfirst** is the first paragraph of its own prose; an aside written
+  above it stays above it.
 
 ## `section`: a page section that is not a `group`
 
-Added 2026-09-24, and it is the third thing the corpus said the grammar could not.
-19 of the 30 sampled pages open their visual section, their ledger section or a
-reference section with the same markup — `<section id="…"><div class="sec-head">`,
-an eyebrow line and an `<h2>` — 106 occurrences in all. With no spelling for it the
-conversion wrote the head's two strings as loose top-level prose, and a build that
-keeps every word of a page it does not keep the structure of fails the contract in
-two places its ORIGINAL passes:
-
-- `check_artifact.check_shape` strips a `.sec-head` subtree before it looks for a
-  preamble, so the same two strings as a bare `<p>` + `<h3>` read as "prose before
-  the first block" — 9 sampled pages;
-- `check_artifact`'s `rail` rule indexes `.main > section[id]`, so an `<h2>` that
-  is not inside one is a heading missing from the page's index.
+An id'd `<section>` with a `.sec-head` (eyebrow and `h2`): the visual section, the ledger
+section or a reference section. Without it the head's strings become loose prose, which
+`check_artifact`'s `consult-shape` reads as "prose before the first block" and its `rail`
+rule reads as a heading missing from the index.
 
 ```
 ::: section {#sec-ledger eyebrow="Lo ya decidido · 3" heading="Dónde quedó la ronda anterior"}
@@ -336,12 +266,9 @@ nothing and is answered by nobody.
 
 ## The page's language
 
-A `masthead` may declare `lang="es"` or `lang="en"`. It is the page's language: it
-becomes `<html lang>` through `wrap-report.sh` and it selects the kit chrome's
-strings. 2 of the 30 sampled pages are written in English, and with the language
-fixed at the builder's `es` default they built into `<html lang="es">` over an
-English body — which `check_artifact`'s `lang` rule fails (BL-279), on pages whose
-originals pass.
+A `masthead` may declare `lang="es"` or `lang="en"`: the page's language. It becomes
+`<html lang>` through `wrap-report.sh` and selects the kit chrome's strings; a body in the
+other language fails `check_artifact`'s `lang` rule (BL-279).
 
 - A second `masthead` is refused ("second masthead"): a page has exactly one.
 - A page built from a spec with a `masthead` carries `<meta name="spec-built">`; check-artifact then fails it if a hand edit leaves zero or two mastheads. A spec with no `masthead` (a fragment, or a page titled by `--title`) carries no stamp. The CLI still refuses an answerable spec with neither a masthead nor `--title` ("no document title").
@@ -412,43 +339,21 @@ not drawn. A separator row (`|---|---|`) may appear and is skipped. The column n
 become the legend, and a chart draws no legend when it has one series or when a column
 name is blank.
 
-| Rule | Refused example | What the message says |
-|---|---|---|
-| A CSV row is exactly `label,value` | `a,1,2`, `a1` | how many fields it found, and that a label with a comma in it — or a second series — is a pipe table |
-| A table row has the header's column count | a 2-cell row under a 3-cell header | both counts; a chart table is not ragged |
-| A table has at least 2 columns | `\| solo \|` | the label column plus at least one series |
-| At most 8 series columns | a 10-column header | `--s1..--s8` is the whole palette; fold the rest into one "other" column or split the chart |
-| A table has at least one data row | header alone | there is nothing to draw |
-| Every label is non-empty | `,7` | the label is what the axis says |
-| Every value is a number | `1,5`, `1e3`, `NaN`, `0x10`, `` | the cell, the column, and — for a decimal comma, the most likely one on a Spanish page — the value rewritten with a point |
+Refused at the row's line, naming the cell and the fix: a CSV row that is not exactly
+`label,value`; a table row whose cell count differs from the header; fewer than 2
+columns; more than 8 series columns (`--s1..--s8` is the whole palette: fold the rest into
+one "other" column or split the chart); no data row; an empty label; a non-number.
 
-The accepted number is `[+-]?(digits[.digits] | .digits)`: a decimal **point**, no
-exponent, no hex, no thousands separator, and no `NaN`/`inf`. That is narrower than
-`float()` on purpose — `float("nan")` succeeds and then draws a bar of NaN pixels, which
-every browser paints as nothing at all, with no error anywhere. A chart that silently
-renders wrong is the outcome this grammar exists to prevent.
+A value is a number `[+-]?(digits[.digits] | .digits)`: a decimal **point**, no exponent,
+hex, thousands separator, `NaN` or `inf` (a NaN bar would paint as nothing, silently).
 
-**What the drawing does with the rows (`bar` and `line`).** The value axis is ticked at
-round values (1, 2 or 5 x 10^n) and **0 is always a tick**; each end of the axis is the
-data's end rounded out to half a step and labelled, so -36.23 .. 272.87 ticks at
--50 / 0 / 100 / 200 / 300. The left margin is the widest tick label's width. Numbers are
-written the page's way: a decimal comma on an `es` page, U+2212 for minus, `+` on the
-positives of a mixed-sign chart; each value keeps its own decimals (two, or three
-significant digits for a small one, so a nonzero value never reads `0`). Category labels
-wrap at their spaces or, when they cannot, are thinned keeping the first and the last. Three
-optional attrs:
+Optional attrs on `bar` and `line` (`type=stacked` takes none: it has no value axis):
 
 | Attr | Values | Effect |
 |---|---|---|
 | `labels` | `on`, `off` | a value label on every bar (default `on` for `bar`, `off` for `line`); a label that would touch another moves one line out, and if that is taken too the smaller one is not drawn — never an overlap. Every bar and point carries a `<title>` tooltip with its series, category and value either way |
 | `y-title` | text | the value axis's title, horizontal, above the plot |
 | `x-title` | text | the category axis's title, under the category labels |
-
-The figure carries two renderings: the wide one (720 units, every text 11 units) and a
-narrow one (300 units, text 12, bars drawn horizontally with the label past each bar's
-end), and a container query shows the narrow one when the figure is under 720 px wide —
-so no chart text is under 11 px on a 390 px phone. `type=stacked` takes none of the three
-attrs: it has no value axis.
 
 ### `type=stacked`: horizontal stacked bars
 
@@ -469,27 +374,14 @@ horizontal bars; one row is a segmented progress bar.
 :::
 ```
 
-A segment's value is written under it when the row has two or more segments whose value,
-at two decimals, is not `0`, and the number fits the segment's width; a lone segment's value is the total, and a narrow
-one is carried by the total and the legend. Text is `currentColor` under the bar, never
-inside a segment: four series slots sit below 3:1 against the light page, so no single
-text colour is legible on every segment. A zero cell is a zero-width segment and carries
-no number, and neither does a positive cell below the two-decimal precision (`0.004`
-would print as `0`): its segment is drawn at its true width and its value only enters the
-total. A row whose cells are all zero draws a bar of width 0 and the total `0`.
+Text is `currentColor` under the bar, never inside a segment; a zero cell is a zero-width
+segment with no number.
 
-| Rule | Refused example | What the message says |
-|---|---|---|
-| Every cell is zero or positive | `\| r1 \| 4 \| -1 \|` | the column and the value, that a segment is laid end to end on the row's total scale so it cannot be negative, and that signed values are `type=bar` |
-| The totals leave at least 200 px for the bars | a `unit` of ~70+ characters | at the **fence's** line (`SpecBuildError`): how many px the totals written past the bars leave, and to shorten `unit` |
+A negative cell is refused (signed values are `type=bar`), and so is a `unit` so long that
+the totals leave under 200 px for the bars (at the fence's line).
 
-Every other rule of the table above applies unchanged — the 8-series cap, the number
-grammar, the ragged-row and empty-label refusals.
-
-What is NOT a body rule, because it belongs to the block and not to a row: a missing or
-unknown `type`, and an empty body.
-Those are `SpecBuildError` at the **fence's** line — the author edits the fence for each
-of them, not a row.
+The other rules above apply unchanged. A missing or unknown `type` and an empty body are
+refused at the fence's line.
 
 ## The `diagram` body: boxes, arrows and lanes
 
@@ -498,12 +390,9 @@ sees a prose run, and the rules below are read by the BUILDER
 (`scripts/diagram_layout.py`, called from `emit_diagram`). A malformed line raises the
 same `SpecSyntaxError`, carrying the line **inside** the fence.
 
-`shape` is required and has no default — `row` (or its spelling `pipeline`),
-`before-after`, `cycle`, `tree`, `compare`. The set is closed, on purpose: the deterministic-diagrams
-prior-art note (`.context/research/2026-09-23-deterministic-diagrams-prior-art.md`)
-recommends this hand-rolled grid for the shapes the corpus actually draws and Graphviz
-as the fallback for anything needing real graph layout — the `graph` block below, an
-optional dependency.
+`shape` is required and has no default: `row` (or its spelling `pipeline`), `before-after`,
+`cycle`, `tree`, `compare`. The set is closed; anything needing real graph layout is the
+`graph` block below.
 
 A diagram holds at most **8 boxes** (`MAX_BOXES`). A ninth fails at the fence's line
 with "split it into two figures": past that a picture is read box by box, not at a glance.
@@ -545,17 +434,9 @@ rev -> esc
 :::
 ```
 
-A label ending in `?` is a **decision**, drawn as a rounded box sized to its text. A `row`
-is **ranked** in declaration order: each box takes the next column, or a later one when a
-box it is pointed at from is further on. Two consecutive boxes that one box points at
-share a column, stacked, at the column's width — a branch, not a longer row; nothing
-else is stacked. An arrow to a later column than the next runs on its own lane over the
-top of the columns between; one back to an earlier column runs on its own lane under
-them, in `flg`, leaving and entering by the bottom faces; one between two boxes of a
-stack runs down its own track in the gap beside it. Every route turns only in the gaps
-between columns or outside the row, so no arrow is ever drawn through a box, and each
-role has its own port on a box (in, out, skip, back), so two arrows that share no box
-never share a line or a point.
+A label ending in `?` is a **decision**, drawn as a rounded box. The engine ranks a `row`
+in declaration order and routes every arrow around the boxes; two consecutive boxes that
+one box points at share a column (a branch).
 
 ```
 ::: diagram {#flujo shape=row title="Cada parte se delega o se queda"}
@@ -573,28 +454,9 @@ d -> s
 :::
 ```
 
-`dir` (`row` only) is `lr` (ranks left to right) or `tb` (one box per line, top to
-bottom, in declaration order). Unset, it is `lr` when that drawing fits the page's 720
-units; when it does not, the columns wrap into as many `lr` rows as the page needs, each
-row read left to right and the next one under it, with an arrow that crosses to another
-row going out by the gap after its box, along the space between the two rows and in by
-the gap before its target (no box lies in either, so it never passes through one; a
-backward arrow is the same in `flg`). `tb` only when even one column per row is over the
-page. A wrapped row whose one-row drawing is at most 952 units (the widest the kit's
-column gets, 59.5rem) ships that drawing too, shown in place of the wrapped one whenever
-the figure itself is that wide (a container query on the figure: 888 px at a 1280
-viewport, 632 at 1024). An explicit `dir=lr` stays ONE row however wide, and `dir=tb` one box per line: the
-author forced them. An `lr` drawing wider than 320 units also gets a `tb` twin,
-and the figure shows the twin at 48rem and under: the kit stretches a figure to its
-column, and at 390 px a wide flow would draw its text under 11 px. A `tb` drawing is
-narrowed toward those 320 units by wrapping a long label and a long sublabel, each on its
-own, onto more lines at spaces only. It is held to 320 when every box can get narrow
-enough; a single word too wide for the room its detour arrows leave is drawn whole, not
-cut, and the drawing is then wider than 320 and its text smaller at 390.
-
-A `before-after` wider than 320 units gets a twin too, shown at 48rem and under when it is
-the narrower of the two: each lane one box per line, lane A above the rule above lane B,
-labels wrapped toward 320 the same way (BL-526).
+`dir` (`row` only) is `lr` or `tb` (one box per line). Unset, the engine picks `lr` and
+wraps it into rows when it does not fit the page; `dir=lr` stays one row however wide.
+A drawing wider than 320 units also gets a narrow twin shown on a phone, automatically.
 
 ```
 ::: diagram {shape=before-after title="A mano contra el spec"}
@@ -607,51 +469,26 @@ b1: Escribir las cajas
 :::
 ```
 
-**A box is sized to its label, before anything is placed** (the plan's Q10). Labels are
-drawn in the kit's `--sans` token (`style="font-family:var(--sans)"` on the root), and
-the width is the larger of `chart_svg._text_width` (0.62 em per character, East-Asian
-Wide and Fullwidth ones counted twice) and `check_artifact`'s own proportional estimate,
-counting **characters**, never bytes. The root also carries a `max-width` of 1 px per
-unit, so a short row is never stretched past body size. Nothing is ever clipped: a
-drawing wider than its column scales down as one figure, and a single box wider than
-the page is refused instead.
+Refused at the line, naming the cause and the fix: an arrow to an undeclared box, a box
+declared twice, an arrow from a box to itself, two arrows on one line (`a -> b -> c`:
+write one per hop), an empty label, a sublabel bar with nothing after it, a box wider
+than the page (move the sentence into prose), `lane` outside `before-after`, a
+`before-after` without exactly two filled lanes, an arrow across the two lanes (write a
+`shape=row`). Lanes may hold different numbers of boxes.
 
-| Rule | Refused example | What the message says |
-|---|---|---|
-| Every arrow names a declared box | `a -> zzz` | which end is unknown, and the boxes that do exist |
-| A box is declared once | `a:` twice | the line the first declaration is on |
-| An arrow joins two different boxes | `a -> a` | a loop on one box says nothing the box does not |
-| One arrow per line | `a -> b -> c` | write a chain as one line per hop |
-| Every label is non-empty | `a:` | a box is sized to its label and an empty one has nothing to read |
-| A sublabel bar is followed by a sublabel | `a: Cortar` and a bar with nothing after it | to write the second line or drop the bar |
-| A box fits the page | a 89-column label | the width it needs against the page's 720, and to move the sentence into prose |
-| `lane` belongs to `before-after` | `lane X` in a `row` | that shape draws one run, so there is no lane to open |
-| `before-after` has exactly two lanes, both filled | one lane, three lanes, an empty one | the count found; the shape IS the comparison |
-| A `before-after` arrow joins neighbours of ONE lane | `a -> b` across the lanes | that the room a `row` bows it through is taken by the other lane, and to write the flow as `shape=row` |
-
-Lanes may hold **different numbers of boxes** — three above and one below is a real page,
-and each lane is placed on its own.
-
-What is NOT a body rule, because it belongs to the block and not to a line: a missing or
-unknown `shape`, a `dir` other than `lr`/`tb` or on a shape other than `row`, an empty
-body, and a `cycle` with one box (the ring it would be placed
-on has no second point). Those are `SpecBuildError` at the **fence's** line.
+A missing or unknown `shape`, a `dir` other than `lr`/`tb` or on a shape other than `row`,
+an empty body and a one-box `cycle` are refused at the fence's line.
 
 What the renderer does with the three classes, so a reader can tell the arrows apart:
 `acc` is a box, `mut` is a forward arrow, a lane title and the dividing rule, and `flg`
-is an arrow that goes **backward** — the retry, the edge that runs against a ring. Every
-shape is painted `currentColor` so `components.css` themes it; there is no hex anywhere
-in the emitter, and no `var()` in a presentation attribute (the browser does not resolve
-one there and falls back to black, which is invisible in dark mode).
+is an arrow that goes **backward** — the retry, the edge that runs against a ring. Never
+write a colour: the renderer paints `currentColor` and the kit classes.
 
 ## The `tree` shape: parents, children and marks
 
 `shape=tree` draws one root and its descendants. Boxes are the same `name: Label | sub`
-lines. A **parent-child line is `parent -> child`**, the arrow the other shapes already
-use: a model writing a figure has one edge syntax to remember, the arrow points the way
-the picture reads (down), and an indented outline was rejected because indentation is
-invisible to the tokenizer's `name:` rule and a wrong indent would silently re-parent a
-box. Children are drawn left to right in the order their arrows are written.
+lines. A **parent-child line is `parent -> child`**; children are drawn left to right in the
+order their arrows are written.
 
 Four **mark lines** follow the boxes (a mark may also come before its box; the name is
 checked once every box is known). Each starts with a reserved first word and a space, so
@@ -680,30 +517,13 @@ flg e2
 :::
 ```
 
-**Layout.** Top-down, by the Buchheim-Walker algorithm (Buchheim, Juenger, Leipert,
-"Improving Walker's Algorithm to Run in Linear Time", Graph Drawing 2002; the linear-time
-Reingold-Tilford): a parent is centred over its first and last child and each subtree is
-pushed against its left neighbour only as far as the two contours force. Edges are
-orthogonal: down from the parent, along a run between the two levels, down into the child's
-top middle, drawn with the same stroke, arrowhead and corner radius as every shape.
+A tree is laid out top-down; one wider than 320 units also gets a stacked outline for a
+phone, and is never refused for width.
 
-**Width.** A top-down tree wider than 320 units also gets a twin for 390 px, when the twin is the narrower of the two, shown at 48rem
-and under, like a `row`. The twin (and the main drawing, when the top-down one is wider
-than the page's 720) is the **outline**: one box per row in preorder, each level 44 units
-right of its parent, an edge leaving its parent by a spine on the left and turning into the
-child's left face, long labels wrapped at spaces. A tree is never refused for width; it is
-stacked, because a tree that fits nowhere has a shape worth keeping and a narrow drawing of
-it is still a tree.
-
-| Rule | Refused example | What the message says |
-|---|---|---|
-| A box has one parent | `a -> c` then `b -> c`, refused at the second | the parent it already has; a shape with two is a graph (`::: graph`) |
-| No cycle | `a -> b`, `b -> a` | the arrow that closes it (the last-declared of the ring), and to use `shape=cycle` |
-| One root | two boxes with no parent | refused at the line of the one WITHOUT children (the first root that has children is the tree's): join it under a box, or draw two figures |
-| A mark names a declared box | `badge zzz: x` | the boxes that do exist, at the mark's line |
-| A mark is written once per kind | two badges, or `acc` and `flg`, on one box | the line of the first |
-| A badge has a box and text | `badge a:` | which of the two is missing |
-| A mark is a `tree` line | `lock a` in a `row` | that `lock` is reserved to the tree shape |
+Refused at the line: a box with two parents (that is a `graph`), a cycle (use
+`shape=cycle`), two roots (join one under a box or draw two figures), a mark naming an
+undeclared box, two marks of one kind on a box, a badge without box or text, and
+`lock`/`badge` outside a `tree`.
 
 The cap of 8 boxes applies to a tree; badges are not boxes and do not count.
 
@@ -750,38 +570,16 @@ outcome Ana puede editar Serie X y Ep. 2 (en alerta)
 :::
 ```
 
-**Layout.** Each body is laid out by its own shape and only moved. Both frames get the
-same width (the widest content of either, at least 200 units). Side by side they share
-one top, one height and three baselines: the titles at one y, the bodies top-aligned, the
-outcome's first line at one y under the taller body, even when the bodies differ in height.
-The two panels sit **side by side when that drawing fits the page's 720 units**; when it does
-not, they are tried side by side again with each body in its own narrow drawing (a tree's
-outline, a row's `tb`); only when that is still wider than 720 is **A stacked above B**, each
-frame as tall as its own content. A drawing wider than 320
-units also gets a twin for 390 px, shown at 48rem and under, when the twin is the narrower
-of the two: A above B, with each body's own narrow drawing (a tree's outline, a row's `tb`). Each body is laid out to 296 units (320 less the frame's two paddings), so the whole twin,
-frames included, stays within 320 unless a word or a title is wider than that, a
-tree is too deep for the room, or a tree's outline is not narrower than its top-down
-drawing.
-A body is taken from its narrow drawing in the stacked one too when its top-down drawing is
-wider than the room a frame leaves. A compare is never refused for width.
+**Layout.** Both frames get one width; side by side when that fits 720 units, else A above
+B. A narrow twin for a phone is automatic, and a compare is never refused for width.
 
 The cap of 8 boxes counts the boxes of **both** panels; badges are not boxes.
 
-| Rule | Refused example | What the message says |
-|---|---|---|
-| Two panels | one `panel`, or a third | refused at the third's line, or at the only one's: option A against option B |
-| Every line is under a panel | a box, or `outcome`, before the first `panel` | the line, and that it belongs to a panel |
-| A panel has a body shape and a title | `panel Opción A`, `panel tree` | which of the two is missing |
-| A panel has boxes | a `panel` with only an `outcome` | refused at the panel line |
-| A panel has one outcome, with text | none, two, or a bare `outcome` | refused at the panel line (none) or the line (two, empty) |
-| A title or an outcome word fits a frame | a title, or one unbreakable word, wider than 664 units (720 less two frames' padding and margin) | refused at its line: shorten it. A shorter long word only widens both frames |
-| Every arrow names a box of its own panel | `x -> r` in panel B, `r` declared in A | the boxes of that panel do not include it |
-| At most one panel is `recommended` | `recommended` in both, or twice in one | the line of the first |
-| `acc` belongs to the recommended panel | `acc x` in a panel without `recommended` | refused at the mark's line |
-| Marks belong to a tree body | `lock x` in a `row` panel | that `lock` is reserved to the tree shape |
-| A body is a valid tree or row | two parents, a cycle, a forest | the tree and row refusals, at the author's line |
-| `dir=` is a `row` attribute | `dir=lr` on a compare | refused at the fence |
+Refused at the line: not exactly two panels; a box or `outcome` before the first `panel`;
+a `panel` missing its body shape or title, its boxes, or its single `outcome`; a title or
+unbreakable word wider than 664 units; an arrow naming a box of the other panel; more
+than one `recommended`; `acc` in a panel that is not `recommended`; `lock` in a `row`
+panel; an invalid tree or row body; `dir=` on a compare.
 
 ## The `figure` block: a drawing from a file
 
@@ -805,53 +603,32 @@ the page here, still on the spec route. It has **no body** — the drawing is th
   inline SVG carries its own text.
 - `title` is the `<figcaption>`, as on `chart` and `diagram`. `#id` and classes land on
   the `<figure>`.
-- `highlight="x,y,w,h"` (BL-619, `.png`/`.jpg` only) outlines one region of the capture,
-  in the **image's own pixels** (x, y from the top-left). It becomes the same
-  percentage overlay a gallery row's `highlight` draws (`gal-hl-layer`), so it scales with
-  the image. The builder measures the file (PNG header or JPEG SOF marker) and refuses a
-  region outside it, naming the figure: x, y >= 0, w, h > 0, x+w <= image width,
-  y+h <= image height (touching the far edge is allowed). Four plain numbers only: no
-  `@name`, no list. On an `.svg` it is refused: outline inside the drawing instead.
-  The figure is wrapped in `.fig-hl` (kit class), its img at the width a plain figure's gets;
-  in an item's thumbnail grid a highlighted figure keeps its own aspect ratio instead of the shared 4:3 frame (every thumbnail is fit whole, never cropped, BL-694), so the
-  outline stays on its region.
-- An `.svg` is **never shown wider than its viewBox** (BL-511): the builder reads the
-  root's viewBox width and writes `style="max-width:<width>px"` on the `<figure>`, so a
-  360-wide drawing shows at 360 px on a wide screen and still shrinks to the column at
-  390. The kit's `figure svg { width: 100% }` had stretched it to the whole column (2.5x
-  at 1280). The drawing itself stays byte for byte; a root with no viewBox, or one that
-  is not four numbers with a positive width, gets no cap. So author at display size, with
-  text at about 12-14 units. check-artifact WARNs (`figure-tall`) on any figure whose
-  root viewBox is over 500 units tall. The same check runs on a bare `.svg` file (root element `<svg>`) given to check-artifact.sh, so a figure drawer's own gate run shows it.
+- `highlight="x,y,w,h"` (BL-619, `.png`/`.jpg` only) outlines one region in the **image's
+  own pixels** (x, y from the top-left): four plain numbers, inside the image (touching
+  the far edge is allowed), refused otherwise and on an `.svg`.
+- An `.svg` is never shown wider than its viewBox: author at display size, text at about
+  12-14 units. check-artifact WARNs (`figure-tall`) on a viewBox over 500 units tall.
 
-An `.svg` is checked before it is inlined, by `check_artifact.svg_embed_sanitize` —
-the rules live there and the builder keeps no copy. It is an **allowlist over a real
-parse**, and each refusal names the element or attribute:
+An `.svg` is checked before it is inlined, by `check_artifact.svg_embed_sanitize` (the
+rules live there; each refusal names the element or attribute). It is an allowlist over a
+strict-XML parse:
 
-| Rule | Why |
-|---|---|
-| the file parses as strict XML (`xml.etree`), its root is `<svg>`, and it declares no `<!DOCTYPE>`/`<!ENTITY>`; comments and an XML prolog around the root are dropped | anything the XML parser and a browser's HTML parser could read differently is refused, not guessed at |
-| elements: `svg g defs title desc rect circle ellipse line polyline polygon path text tspan marker use symbol clipPath mask linearGradient radialGradient stop pattern style` — nothing else, never in a foreign namespace | no `<script>`, `<a>`, `<image>`, `<animate>`, `<foreignObject>` or any HTML element: nothing that runs, fetches or navigates |
-| attributes: geometry, presentation, text, `id`/`class`/`style`, `role`/`aria-*`; no `on*`, nothing unknown, no namespace but `xlink:href`, `xml:space`, `xml:lang` | an attribute not on the list is one nobody has checked |
-| `href` / `xlink:href`: a `#fragment` only (no `data:`) | the page must stand alone offline |
-| `style="…"` and the `<style>` text, judged by shape: no backslash (a CSS escape can spell anything), no unclosed comment, no `@`-rule, no `</`, no `javascript:`/`expression`/`behavior`/`-moz-binding`, no function but `var calc min max clamp`, the colour functions and the transforms, and `url(` only as exactly `url(#id)`; the `<style>` text also holds no `<`, `&` or `]]>` and is written to the page unescaped | CSS that loads or runs something, or reads differently to an HTML and an XML parser |
-| figure CSS sets **paint and text only**: `fill`, `stroke`, `stroke-*`, `fill-opacity`, `fill-rule`, `opacity`, `font-family`, `font-size`, `font-weight`, `font-style`, `font-variant`, `text-anchor`, `dominant-baseline`, `letter-spacing`, `text-decoration`, `paint-order`, `marker-*`, `vector-effect`, `visibility` — no other property (`position`, `display`, `background`, `content`, `transform`, sizes, custom-property definitions) | a `<style>` in an inline `<svg>` is a stylesheet of the whole page, and `position:fixed` lifts a drawing out of its `<figure>` — both confirmed in headless Chrome |
-| a `<style>` selector is one or more compounds of type, `.class` and `#id`, joined by a space or `>`, in a comma list — no `*`, `html`, `body`, pseudo-class or pseudo-element, attribute selector, `~` or `+`; and the builder rewrites every selector to `svg[data-embed="<key>"] <selector>`, `<key>` being the first 8 hex of the file's sha256, written on the root | no rule can match outside the figure that carries it |
-| the root `<svg>` carries no `transform`, `overflow` or `display` attribute | each moves or unclips the drawing against the page |
-| no hex (`#fff`, `#1E5F4B`, `#1E5F4BCC`) or colour-function (`rgb()`, `hsl()`, `hwb()`, `lab()`, `lch()`, `oklab()`, `oklch()`, `color()`) `fill` or `stroke` — attribute, `style="…"` (CSS comments ignored) or `<style>` | a literal colour cannot clear both themes; paint with `currentColor` or a kit class |
+- Root `<svg>`, no `<!DOCTYPE>`/`<!ENTITY>`; elements only `svg g defs title desc rect
+  circle ellipse line polyline polygon path text tspan marker use symbol clipPath mask
+  linearGradient radialGradient stop pattern style`: no `<script>`, `<a>`, `<image>`,
+  `<animate>`, `<foreignObject>`, no `on*` attribute, `href`/`xlink:href` only `#fragment`.
+- `style` and `<style>` set paint and text properties only (`fill`, `stroke`, `stroke-*`,
+  `opacity`, `font-*`, `text-anchor`, `letter-spacing`, `marker-*`, ...), with selectors of
+  type, `.class` and `#id`; no `@`-rule, backslash, `url(` other than `url(#id)`.
+- The root carries no `transform`, `overflow` or `display`.
+- No hex or colour-function `fill`/`stroke` (attribute, `style` or `<style>`): paint with
+  `currentColor` or a kit class.
 
-The page gets the **parsed tree, re-serialised** — every text node and value escaped —
-never a slice of the file, so what the browser reads is exactly what was checked. An HTML
-named character reference such as `&middot;` (inline SVG copied out of a page carries
-them) is read as its character.
+A file that breaks a rule is **refused, never repaired**: fix the file (figure-sonnet
+draws with `currentColor` and the kit's classes) or keep the drawing off the page.
 
-A file that breaks a rule is **refused, never repaired**: a builder that rewrote a colour
-would ship a drawing its author never saw. Fix the file (figure-sonnet draws with
-`currentColor` and the kit's classes), or keep the drawing off the page.
-
-`SpecBuildError` at the **fence's** line, for: no `src`, an absolute `src`, an extension
-that is not one of the four, a file that does not exist, a png/jpg with no `alt`, a body,
-a file with no `<svg>` element, and any SVG rule above.
+A missing `src`, an absolute `src`, an unknown extension, a missing file, a png/jpg with
+no `alt`, a body and a file with no `<svg>` are refused at the fence's line.
 
 ## The `video` block: a local film, by reference
 
@@ -864,21 +641,14 @@ A film enters the page through the spec route with no post-build step. It has **
 
 - `src` is **relative to the spec file**, as `figure`'s is; absolute paths are refused, the
   file must exist, and the type is `.mp4` or `.webm`.
-- The film is **referenced, never inlined**: a page carries `<video controls
-  preload="metadata" src="…">`, not a data URI (four films would take a page past 15 MB).
-  Built with `-o`, the emitted path is rewritten relative to the PAGE, so the film plays
-  while the page stays next to it; the film is not copied.
-- The `src` is URL-encoded in the page (`#`, `?` and spaces), so the browser fetches the whole file name.
-- A `<video>` counts as the page's visual for check-artifact, like an `<svg>` or `<img>`.
+- The film is **referenced, never inlined** (`<video controls preload="metadata">`); built
+  with `-o`, its path is rewritten relative to the PAGE and the film is not copied, so it
+  stays next to the page. A `<video>` counts as the page's visual for check-artifact.
 - `title` is the `<figcaption>`. `#id` and classes land on the `<figure class="video">`,
   which `components.css` sizes to the column in both themes.
-- `poster` (optional, BL-593) is the still the player shows before play: relative to the
-  spec, must exist, `.png`, `.jpg`, `.jpeg` or `.webp`, an absolute path is refused. It is
-  emitted as `<video poster="…">` and rewritten relative to the page under `-o`, like `src`.
-- The kit caps the player at `max-height: 80vh` (BL-593), so a 3:4 film never grows taller
-  than the viewport at 1280 px; the letterbox is the sunk paper.
-- A `video` also nests inside an `item` (BL-547), like a figure, in written order: it is in
-  an item's list (`ASIDES` + `FIGURE_BLOCKS`). A `note` still refuses it at the fence's line.
+- `poster` (optional) is the still shown before play: relative to the spec, must exist,
+  `.png`, `.jpg`, `.jpeg` or `.webp`.
+- A `video` nests inside an `item` like a figure; a `note` refuses it.
 
 ## The `graph` body: DOT, laid out by Graphviz
 
@@ -911,27 +681,11 @@ is `fill="currentColor"`, and the labels are drawn in the kit's `--mono` stack �
 build passes `fontname=monospace` as the default, so Graphviz sizes each box with a
 monospace advance.
 
-A graph is shown at **most 1.2x its viewBox width** (`graph_svg.GRAPH_SCALE`, BL-513;
-a `diagram` is capped at 1x, `MAX_SCALE`): the builder writes `style="max-width:<1.2 x width>px"` on the
-graph's root `<svg>` (not on the `<figure>`, so the caption keeps the column), and it
-still shrinks to the column at 390. The kit's `figure svg { width: 100% }` had stretched
-a 62-wide vertical chain to the whole column (14.3x at 1280).
-
-| Refused, at the fence's line | Why |
-|---|---|
-| an empty body | a graph with nothing in it has nothing to draw |
-| no `dot` on PATH | the message carries the install line; the build never falls back to an empty figure |
-| DOT Graphviz rejects | Graphviz's own message, with `line N (spec line M)` for the DOT line it names |
-| a colour (`color=`, `fillcolor=`, `fontcolor=`, `bgcolor=` other than black) | a literal colour is right in one theme at most |
-| a `class=` other than `acc`, `mut`, `flg` | the kit styles those three and no other |
-| a link (`URL=`, `href=`), an image (`image=`) | a figure is a drawing, not a navigation or an embed |
-| a font (`fontname=`) other than the default | the boxes are sized for the kit's `--mono` stack, and it is the only font drawn |
-| any element or attribute outside the cleaned SVG's whitelist (a `<script>`, an `on*=`, a `style=`, `href`/`src`) | Graphviz does not escape `"` inside some attributes, so a DOT can write markup into its own output; the parsed SVG is checked, not the DOT |
-| a `dot` that runs past 30 s | a graph that takes longer to lay out is too big for a figure |
-
-Deterministic for a given Graphviz: the same spec builds byte-identical output, every
-Graphviz `id=` and `<title>` is dropped (so two graphs on one page share no id), and the
-Graphviz version is written in a comment inside the `<figure>`.
+Refused at the fence's line: an empty body; no `dot` on PATH (the message carries the
+install line); DOT that Graphviz rejects (its message, with the DOT line); a colour
+(`color=`, `fillcolor=`, `fontcolor=`, `bgcolor=`); a `class=` other than `acc`, `mut`,
+`flg`; a link or image (`URL=`, `href=`, `image=`); a `fontname=`; any markup outside
+the cleaned SVG's whitelist; a `dot` that runs past 30 s.
 
 ## `gallery` rows and `item dropped=`
 
@@ -981,7 +735,9 @@ the declaration lasts ONE round: every `new-round` replaces `retitled-ids` with 
 `--retitle` list and removes it when the call names none, so a later reword of the same id
 must be declared again. The id must still be in the spec. Start every round with
 `new-round`; a rebuild by other means keeps the previous declaration. (`new-round` also settles
-the `proposal=yes` items the reader saw on the saved answered page, BL-692; it changes nothing
+the `proposal=yes` items the reader saw on the saved answered page, BL-692, except one the saved
+reply answered (an ask or `[not-now]` in any saved paste, a re-pick, Other or a note), which stays an
+open proposal until the writer `decide`s it, BL-711; it changes nothing
 about ones written this turn.)
 
 ## An `item`'s heading: `heading=` over `title=` (BL-652)
@@ -995,13 +751,9 @@ becomes the situation lead (`.consult-lead`) under the h3, as for a title-headed
 Without `heading=` nothing changes. Adding `heading=` to an item on a live page changes its h3, so its `questionHash` changes once and typed-but-unsent text reads blank once (as BL-576). `heading=` follows the `title=` quoting rules and is
 not a retitle: `consult-ids` and `check_prev` read `data-title` only.
 
-**The title is shown, never hidden (LOOP-008, kit rail = `data-title`).** The rail lists an
-item by its `data-title`, so when the h3 is a question or a `heading=` that differs from the
-title, the builder prints the title above it as a kicker, `<p class="eyebrow consult-kicker">`,
-and the rail label is visible text of that item (NAV-4). A title that equals the h3 gets no
-kicker. The kicker renders the title as inline markdown (`title="`RTK.md`"` shows a code
-span); `data-title`, so the rail label and the composed reply, carries the plain text with
-no markers.
+**The title is shown, never hidden.** When the h3 is a question or a `heading=` that differs
+from the title, the builder prints the title above it as a kicker (`eyebrow consult-kicker`),
+because the rail lists the item by `data-title`.
 
 ## An `item`'s option list: one choice or a set
 
@@ -1072,58 +824,12 @@ Not malformed, on purpose: an **unknown block type**, an **unknown attr key**, a
 **Builder** = meaning: which types exist, which attrs each one takes, which are
 required, what may nest inside what.
 
-The split is what makes the error messages useful. A shape error names a line and a
-character; a vocabulary error names a block type and an attribute, and can list the
-alternatives. Folding the vocabulary into the tokenizer would turn "`chrt` is not a
-block type — did you mean `chart`?" into "unexpected token at line 42".
-
-## Worked example
-
-```
-Sesión del 23 de septiembre. Tres preguntas abiertas y una decisión ya cerrada.
-
-::: group {#g1 title="Formato del spec"}
-La consulta de hoy: qué escribe el agente cuando la página cambia.
-
-::: item {#q1 title="¿Fences o YAML?"}
-Los dos se parsean igual de bien. La diferencia está en lo que el agente
-escribe sin equivocarse.
-
-- Fences de Pandoc — prosa con marcas mínimas {recommended}
-- YAML anidado — estructura explícita, prosa incómoda
-- HTML a mano — lo de hoy
-:::
-
-::: note
-`item` acepta prosa y listas; la lista de opciones es prosa para el tokenizer
-y opciones para el builder.
-:::
-:::
-
-::: chart {#c1 type=bar title="Bytes por página" unit=KB}
-| Página | KB |
-|---|---|
-| consulta A | 37 |
-| consulta B | 74 |
-:::
-```
-
-Reads as:
-
-1. A top-level **prose block** (the first line).
-2. A **`group`** block, `id=g1`, `title="Formato del spec"`, whose body is, in order:
-   a prose run, a nested **`item`** block (`id=q1`, its own `title`, body = prose run +
-   list), and a nested **`note`** block with no attrs.
-3. A **`chart`** block, `id=c1`, three keyed attrs, body = one prose run that the
-   `chart` builder reads as a pipe table of data rows.
-
-Note what the tokenizer does *not* do here: it does not know that `{recommended}` marks
-an option, that `type=bar` is one of a closed set, or that a `chart` body must be a
-table. Those are three separate builder rules, each with its own error.
+A shape error names a line and a character; a vocabulary error names a block type and an
+attribute and lists the alternatives.
 
 ## Related
 
 - `04-block-vocabulary.md` — the closed set of block types, their attrs and corpus counts.
-- `01-dash-conventions.md` — the GENERATED contract every built page carries.
+- `01-dash-conventions.md` — the GENERATED header contract of rendered board pages.
 - `02-local-first-artifacts.md` — the page contract `check-artifact` enforces on the
   HTML the build emits.

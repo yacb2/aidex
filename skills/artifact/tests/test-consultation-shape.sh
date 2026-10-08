@@ -216,6 +216,40 @@ rc="$(run "$TMP/read.html")"
 # --- a group relabelled across rounds is a note, not a failure (BL-612) --------
 # A block's title is a label, not a claim a reply points at: --prev reports it
 # and passes. An item retitled under the same id still fails (consult-ids).
+# --- BL-714: profile="study" lifts ONLY the two prose rules ---------------------
+smeta='<meta name="consult-profile" content="study">'
+sec1='<section id="sec-t1"><div class="sec-head"><h2>Teaching one</h2></div><p>The idea.</p></section>'
+sec2='<section id="sec-t2"><div class="sec-head"><h2>Teaching two</h2></div><p>The next idea.</p></section>'
+studybody() {  # studybody <meta> <extra-before-first-group>
+  printf '%s' "$1$visual$header$2$sec1$(group G1 'Check one' "$(item Q1 'First')")$sec2$(group G2 'Check two' "$(item Q2 'Second')")$notes$bars"
+}
+mkpage "$TMP/st-ok.html" "$(studybody "$smeta" '')"
+rc="$(run "$TMP/st-ok.html")"
+[[ "$rc" == 0 ]] || fail "study: section, check, section, check passes: $(cat "$TMP/out")"
+mkpage "$TMP/st-none.html" "$(studybody '' '')"
+rc="$(run "$TMP/st-none.html")"; expect_fail "same page without the study meta (between)" "prose between blocks"
+grep -q "prose before the first block" "$TMP/out" || fail "same page without the study meta: no preamble FAIL: $(cat "$TMP/out")"
+# (i) the ledger-shape rule still runs on a study page
+badled='<div class="ledger"><p>x</p></div>'
+mkpage "$TMP/st-led.html" "$(studybody "$smeta" "$badled")"
+rc="$(run "$TMP/st-led.html")"; expect_fail "study page, non-ledger before the first group" "is not a ledger"
+# (ii) a bare item between sections is still outside any block
+mkpage "$TMP/st-loose.html" "$smeta$visual$header$sec1$(group G1 'Check one' "$(item Q1 'First')")$sec2$(item Q2 'Loose')$notes$bars"
+rc="$(run "$TMP/st-loose.html")"; expect_fail "study page, bare item between sections" "sits outside any block"
+# (iii) the value is read exactly
+for v in study-off STUDY; do
+  mkpage "$TMP/st-$v.html" "$(studybody "<meta name=\"consult-profile\" content=\"$v\">" '')"
+  rc="$(run "$TMP/st-$v.html")"; expect_fail "content=$v is not the study profile" "prose between blocks"
+done
+mkpage "$TMP/st-name.html" "$(studybody '<meta name="consult-profile-x" content="study">' '')"
+rc="$(run "$TMP/st-name.html")"; expect_fail "name=consult-profile-x is not the profile meta" "prose between blocks"
+mkpage "$TMP/st-data.html" "$(studybody '<meta data-name="consult-profile" content="study">' '')"
+rc="$(run "$TMP/st-data.html")"; expect_fail "data-name= is not the profile meta" "prose between blocks"
+# (iv) the meta only inside a <script> does not relax the page
+mkpage "$TMP/st-script.html" "$(studybody '<script>var m = &#39;<meta name="consult-profile" content="study">&#39;;</script>' '')"
+sed -i.x "s/&#39;/'/g" "$TMP/st-script.html"
+rc="$(run "$TMP/st-script.html")"; expect_fail "profile meta inside a script" "prose between blocks"
+
 mkpage "$TMP/v1.html" "$good"
 mkpage "$TMP/v2.html" "$visual$header$ledger$(group G1 'A different context' "$(item Q1 'First')$(item Q2 'Second')")$(group G2 'Context two' "$(item Q3 'Third')")$notes$bars$ref"
 rc="$(run "$TMP/v2.html" --prev "$TMP/v1.html")"

@@ -50,6 +50,7 @@ import sys
 import urllib.parse
 
 import md_body
+from _usage import UsageParser
 import png_pixels
 
 LANGS = ("es", "en")
@@ -165,10 +166,8 @@ ALSO = {"es": "también en: ", "en": "also in: "}
 NOTES_LABEL = {"es": "Notas sobre esta fila", "en": "Notes on this row"}
 NOTES_PLACEHOLDER = {"es": "Qué cambiar…", "en": "What to change…"}
 # The block's own free text (BL-701): the gallery group closes with the same
-# box spec_build.emit_group writes for every other group.
-GROUP_NOTES_LABEL = {"es": "Notas de este bloque", "en": "Notes on this block"}
-GROUP_NOTES_PLACEHOLDER = {"es": "Lo que afecta a todo el bloque…",
-                           "en": "Anything about the block as a whole…"}
+# box spec_build.emit_group writes for every other group; the strings are the
+# kit's own (md_body.CHROME groupNotes / groupNotesPh).
 
 ROW_ID = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)+$")
 SLUG = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
@@ -264,11 +263,18 @@ def check_path(value, cell, tile):
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
+def capture_path(root, rel):
+    """A capture's file under `root`. `render` strips the root's trailing slash,
+    so `--root /` arrives as "": `or "/"` keeps it from reading relative to the
+    working directory. A gallery row's `rel` has passed check_path, so it is
+    relative; spec_build's figure highlight passes an absolute path, which
+    os.path.join keeps as is — do not rewrite this as string concatenation."""
+    return os.path.join(root or "/", rel)
+
+
 def png_size(root, value, cell, tile):
     """(width, height) of the capture, read from its IHDR chunk."""
-    # `render` strips the root's trailing slash, so `--root /` arrives as "":
-    # joined as is, the capture would be read relative to the working directory.
-    full = os.path.join(root or "/", value)
+    full = capture_path(root, value)
     try:
         with open(full, "rb") as fh:
             head = fh.read(24)
@@ -334,7 +340,7 @@ def load(path):
         seen_labels = set()
         for a in alts:
             low = a["label"].casefold()
-            if a["label"].casefold() in reserved:
+            if low in reserved:
                 die("alternative label %r is reserved (the none-of-them and "
                     "Other choices paste under it)" % a["label"])
             if MARKER_LABEL.match(a["label"]):
@@ -392,7 +398,7 @@ def check_option_states(caps, alts, cell):
         for st in first:
             check_path(caps[a["id"]][st], cell, "%s/%s" % (a["id"], st))
     ids = [a["id"] + "-" + st for a in alts for st in first]
-    if len(set(ids)) != len(ids) or set(ids) & set(TILES):
+    if len(set(ids)) != len(ids):
         die("row '%s': the option and state ids make the same tile name "
             "twice (%s); rename an option or a state" % (cell, " ".join(ids)))
     return first
@@ -422,7 +428,7 @@ def named_region(root, path, name, cell, tile):
     """BL-607: the {x, y, w, h} of "@name", read from `<capture>.regions.json`
     (the capture's path with `.png` swapped), a {"name": {x, y, w, h}} map in
     the capture's own pixels written by the harness's capture step."""
-    side = os.path.join(root or "/", re.sub(r"\.png$", "", path, flags=re.I)
+    side = capture_path(root, re.sub(r"\.png$", "", path, flags=re.I)
                         + ".regions.json")
     try:
         with open(side, encoding="utf-8") as fh:
@@ -474,6 +480,28 @@ def check_highlight(value, cell, key="highlight"):
                 % (cell, r))
         out.append((r["x"], r["y"], r["w"], r["h"]))
     return out
+
+
+def check_dropped(row, cell):
+    """The stripped `dropped` reason of a row that left the question set."""
+    reason = row["dropped"]
+    if not isinstance(reason, str) or not reason.strip():
+        die("row '%s': 'dropped' must be a non-empty string (why it left "
+            "the question set)" % cell)
+    if "decided" in row:
+        die("row '%s' is both dropped and decided — it left the "
+            "question set or it was settled, not both" % cell)
+    return reason.strip()
+
+
+def check_decided(row, cell):
+    """The stripped `decided` verdict. Blank in the plain form the fold shows
+    (BL-545): "**" is no verdict."""
+    if not isinstance(row["decided"], str) \
+            or not md_body.PLAIN.sub("", row["decided"]).strip():
+        die("row '%s': 'decided' must be a non-empty string (the "
+            "verdict)" % cell)
+    return row["decided"].strip()
 
 
 def check_row(row, variants, n, alts=None, require_look=False):
@@ -547,20 +575,9 @@ def check_row(row, variants, n, alts=None, require_look=False):
         out = {"cell": cell, "kind": None, "after": reason.strip(),
                "title": check_title(row, cell)}
         if "dropped" in row:
-            gone = row["dropped"]
-            if not isinstance(gone, str) or not gone.strip():
-                die("row '%s': 'dropped' must be a non-empty string (why it "
-                    "left the question set)" % cell)
-            if "decided" in row:
-                die("row '%s' is both dropped and decided — it left the "
-                    "question set or it was settled, not both" % cell)
-            out["dropped"] = gone.strip()
+            out["dropped"] = check_dropped(row, cell)
         elif "decided" in row:
-            if not isinstance(row["decided"], str) \
-                    or not md_body.PLAIN.sub("", row["decided"]).strip():
-                die("row '%s': 'decided' must be a non-empty string (the "
-                    "verdict)" % cell)
-            out["decided"] = row["decided"].strip()
+            out["decided"] = check_decided(row, cell)
         return out
     variant = row.get("variant")
     if not isinstance(variant, str) or not SLUG.match(variant):
@@ -574,15 +591,9 @@ def check_row(row, variants, n, alts=None, require_look=False):
     # answer history keeps a home, and the reason takes the place of the
     # captures (which are often gone by then).
     if "dropped" in row:
-        reason = row["dropped"]
-        if not isinstance(reason, str) or not reason.strip():
-            die("row '%s': 'dropped' must be a non-empty string (why it left "
-                "the question set)" % cell)
-        if "decided" in row:
-            die("row '%s' is both dropped and decided — it left the "
-                "question set or it was settled, not both" % cell)
         return {"cell": cell, "variant": variant, "kind": kind,
-                "dropped": reason.strip(), "title": check_title(row, cell)}
+                "dropped": check_dropped(row, cell),
+                "title": check_title(row, cell)}
     # A review row is a variant the owner chose; an unrequested one may be any
     # variant the harness captured — that is the point of it.
     if kind == "review" and variant not in variants:
@@ -606,12 +617,7 @@ def check_row(row, variants, n, alts=None, require_look=False):
                 % (cell, layout, ", ".join(LAYOUTS)))
         out["layout"] = layout
     if "decided" in row:
-        # Blank in the plain form the fold shows (BL-545): "**" is no verdict.
-        if not isinstance(row["decided"], str) \
-                or not md_body.PLAIN.sub("", row["decided"]).strip():
-            die("row '%s': 'decided' must be a non-empty string (the "
-                "verdict)" % cell)
-        out["decided"] = row["decided"].strip()
+        out["decided"] = check_decided(row, cell)
     if "answer" in row:
         out["answer"] = row["answer"].strip()
     # What the owner should look at on THIS row (BL-516: a cell with no stated
@@ -771,8 +777,8 @@ def changed_overview(root, r):
     if r.get("before") is None:
         return True
     png_size(root, r["before"], r["cell"], "before")
-    with open(os.path.join(root or "/", r["before"]), "rb") as fb, \
-            open(os.path.join(root or "/", r["after"]), "rb") as fa:
+    with open(capture_path(root, r["before"]), "rb") as fb, \
+            open(capture_path(root, r["after"]), "rb") as fa:
         return fb.read() != fa.read()
 
 
@@ -791,14 +797,14 @@ def row_regions(root, r):
     """The AFTER-capture regions a row highlights, resolved to (x, y, w, h)."""
     out = []
     for reg in r["highlight"]:
-        out.append(named_region(root, r["after"].lstrip("/"), reg, r["cell"],
+        out.append(named_region(root, r["after"], reg, r["cell"],
                                 "after") if isinstance(reg, str) else reg)
     return out
 
 
 def region_pixels(root, r, regions):
     try:
-        with open(os.path.join(root or "/", r["after"].lstrip("/")), "rb") as fh:
+        with open(capture_path(root, r["after"]), "rb") as fh:
             data = fh.read()
     except OSError:
         return None          # the render loop refuses the missing capture itself
@@ -821,9 +827,9 @@ def same_places(a, b, root):
             if ha != hb:
                 return False
             continue
-        ra = named_region(root, a["after"].lstrip("/"), ha, a["cell"], "after") \
+        ra = named_region(root, a["after"], ha, a["cell"], "after") \
             if isinstance(ha, str) else ha
-        rb = named_region(root, b["after"].lstrip("/"), hb, b["cell"], "after") \
+        rb = named_region(root, b["after"], hb, b["cell"], "after") \
             if isinstance(hb, str) else hb
         if tuple(ra) != tuple(rb):
             return False
@@ -854,7 +860,7 @@ def check_redundant_regions(root, doc, variants, alts, require_look):
     for n, row in enumerate(doc["rows"], 1):
         r = check_row(row, variants, n, alts, require_look)
         if r["kind"] not in DROP_ORDER or "dropped" in r \
-                or "highlight" not in r or not r.get("after"):
+                or "highlight" not in r:
             continue
         regions = row_regions(root, r)
         shape = [(w, h) for _, _, w, h in regions]
@@ -886,11 +892,8 @@ def check_redundant_regions(root, doc, variants, alts, require_look):
 
 
 def full_pixels(root, path, w, h):
-    try:
-        with open(os.path.join(root or "/", path.lstrip("/")), "rb") as fh:
-            return png_pixels.crop(fh.read(), 0, 0, w, h)
-    except OSError:
-        return None          # the render loop refuses the missing capture itself
+    with open(capture_path(root, path), "rb") as fh:
+        return png_pixels.crop(fh.read(), 0, 0, w, h)
 
 
 def check_identical_pairs(root, doc, variants, alts, require_look):
@@ -901,9 +904,9 @@ def check_identical_pairs(root, doc, variants, alts, require_look):
     for n, row in enumerate(doc["rows"], 1):
         r = check_row(row, variants, n, alts, require_look)
         if r["kind"] not in ("review", "unrequested") or "decided" in r or "dropped" in r \
-                or not r.get("before") or not r.get("after"):
+                or not r.get("before"):
             continue
-        same = r["before"].lstrip("/") == r["after"].lstrip("/")
+        same = r["before"] == r["after"]
         if not same:
             size = png_size(root, r["after"], r["cell"], "after")
             if png_size(root, r["before"], r["cell"], "before") != size:
@@ -952,9 +955,8 @@ def figure(root, path, tile, caption, cell, alt, assets, copies,
     (`assets` None) there is nowhere to copy to, and a `file://` src pins the
     page to this machine and to captures the next run wipes (LOOP-006
     img-src-portable), so the tile is refused."""
-    path = path.lstrip("/")
     width, height = png_size(root, path, cell, tile)
-    full = os.path.join(root or "/", path)
+    full = capture_path(root, path)
     if assets is None:
         die("row '%s': a gallery needs the page it goes into, to copy its "
             "captures beside it: build with -o <out.html> (gallery-items.sh "
@@ -1007,25 +1009,40 @@ def notes(lang):
             % e(NOTES_PLACEHOLDER[lang])]
 
 
+def na_row_id(gallery, cell):
+    """The id of a not-applicable cell, which has no variant (the writer's and
+    the reply parser's one spelling)."""
+    return "%s-%s-not-applicable" % (gallery, cell)
+
+
+def dropped_section(ident, title, heading, title_src, reason, lang,
+                    variant=None):
+    """The lines of a dropped row: the reason where the tiles were, and a
+    decided mark so the composer folds it and counts it nowhere."""
+    attrs = ' data-id="%s" data-title="%s" data-heading="%s"' \
+        % (e(ident), e(title), e(heading))
+    if variant is not None:
+        attrs += ' data-variant="%s"' % e(variant)
+    return (['  <section class="consult-item consult-gallery"%s'
+             ' data-decided="%s" data-dropped="%s">'
+             % (attrs, e(DROPPED_WORD[lang] + ": " + reason), e(reason)),
+             '    <h3>%s</h3>' % heading_html(title_src, heading),
+             '    <p class="gal-na">%s</p>' % e(reason)]
+            + notes(lang) + ['  </section>'])
+
+
 def na_row(gallery, cell, reason, lang, alts=False, dropped=None,
            decided=None, heading=None):
     """`<gallery>-<cell>-not-applicable`, titled `<gallery> · <cell>`: a
     not-applicable cell has no variant. The suffix keeps the id apart from the
     old light/dark matrix's `<gallery>-<cell>`, whose verdicts were given on
     four captures, not on a reason."""
-    ident = "%s-%s-not-applicable" % (gallery, cell)
+    ident = na_row_id(gallery, cell)
     title = "%s · %s" % (gallery, cell)
     title_src, heading = heading, row_heading(heading, cell)
     if dropped is not None:
-        return "\n".join(
-            ['  <section class="consult-item consult-gallery" data-id="%s"'
-             ' data-title="%s" data-heading="%s" data-decided="%s"'
-             ' data-dropped="%s">'
-             % (e(ident), e(title), e(heading),
-                e(DROPPED_WORD[lang] + ": " + dropped), e(dropped)),
-             '    <h3>%s</h3>' % heading_html(title_src, heading),
-             '    <p class="gal-na">%s</p>' % e(dropped)]
-            + notes(lang) + ['  </section>'])
+        return "\n".join(dropped_section(ident, title, heading, title_src,
+                                         dropped, lang))
     choices = list(VERDICTS[lang])
     if alts:
         choices[0] = (choices[0][0], NA_AGREE[lang])
@@ -1048,7 +1065,7 @@ def pending_on(r, items):
     nothing already. A dependency on an item the page lacks, or one placed
     after the gallery, is refused: the open decision goes first."""
     dep = r.get("depends_on")
-    if dep is None or r["kind"] is None:
+    if dep is None:
         return None
     settled, before = (False, True) if items is None else items.get(dep, (None, None))
     if settled is None:
@@ -1228,7 +1245,7 @@ def render(doc, root, group_id, group_title, lang, page=None,
                     % (unrequested[cell], n, cell))
             unrequested[cell] = n
         if kind is None:
-            na_id = "%s-%s-not-applicable" % (gallery, cell)
+            na_id = na_row_id(gallery, cell)
             if na_id in ids:
                 die("rows %d and %d are both cell '%s' not applicable — one "
                     "row per cell, dropped or not (they share the id '%s')"
@@ -1257,15 +1274,8 @@ def render(doc, root, group_id, group_title, lang, page=None,
         # mark so the composer folds it and counts it nowhere.
         if "dropped" in r:
             reason = r["dropped"]
-            add('  <section class="consult-item consult-gallery" data-id="%s"'
-                ' data-title="%s" data-heading="%s" data-variant="%s"'
-                ' data-decided="%s" data-dropped="%s">'
-                % (e(ident), e(title), e(heading), e(variant),
-                   e(DROPPED_WORD[lang] + ": " + reason), e(reason)))
-            add('    <h3>%s</h3>' % heading_html(r.get("title"), heading))
-            add('    <p class="gal-na">%s</p>' % e(reason))
-            out.extend(notes(lang))
-            add('  </section>')
+            out.extend(dropped_section(ident, title, heading, r.get("title"),
+                                       reason, lang, variant))
             continue
         # BL-690: an unrequested row whose only change is a still-open option is
         # not asked this round, but its id stays (a round that loses an id fails
@@ -1348,7 +1358,7 @@ def render(doc, root, group_id, group_title, lang, page=None,
                            alt + st["label"], assets, copies))
         elif kind == "alternatives":
             for a in alts:
-                if not option_states or not r.get("option_states"):
+                if not option_states:
                     add(figure(root, r["captures"][a["id"]], a["id"],
                                a["label"], cell, alt + a["label"], assets,
                                copies, regions))
@@ -1408,9 +1418,9 @@ def render(doc, root, group_id, group_title, lang, page=None,
         out.extend(notes(lang))
         add('  </section>')
     add('  <div class="group-notes">')
-    add('    <p class="fieldlabel">%s</p>' % e(GROUP_NOTES_LABEL[lang]))
+    add('    <p class="fieldlabel">%s</p>' % e(md_body.chrome("groupNotes", lang)))
     add('    <textarea placeholder="%s"></textarea>'
-        % e(GROUP_NOTES_PLACEHOLDER[lang]))
+        % e(md_body.chrome("groupNotesPh", lang)))
     add('  </div>')
     add('</section>')
     if assets is not None:
@@ -1424,8 +1434,10 @@ def render(doc, root, group_id, group_title, lang, page=None,
 
 
 def main(argv):
-    ap = argparse.ArgumentParser(
+    ap = UsageParser(
         prog="gallery-items.sh",
+        form="gallery-items.sh <rows.json> --root <abs repo root> --page <out.html> "
+             "--group-id <id> --group-title <title> [--lang es|en]",
         description="Turn a gallery rows JSON into one consult-group of "
                     "before/proposed review rows.")
     ap.add_argument("rows", metavar="<rows.json>",

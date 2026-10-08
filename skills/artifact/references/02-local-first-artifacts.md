@@ -1,7 +1,7 @@
 # Local-first artifacts — the full procedure
 
-Canon for route B of the local-first artifact contract. The six gates and the
-request-shape routing are carried by this skill's `description:` and by `SKILL.md`
+Canon for route B of the local-first artifact contract. The request-shape routing is
+carried by this skill's `description:` and by `SKILL.md`
 (the always-on `artifacts-local-first` rule retired with the plugin migration);
 everything below is loaded when an artifact is actually being built.
 
@@ -71,7 +71,7 @@ renderer already produces.
 turns it into the kit's markup, wraps it and runs the contract check in one command.
 The page is a build output: it is regenerated, never hand-edited.
 
-The boundary with Route B below is exact, and it is decision **d3** of the plan:
+The boundary with Route B below is exact (decision **d3**):
 
 | The page | What you write |
 |---|---|
@@ -79,50 +79,45 @@ The boundary with Route B below is exact, and it is decision **d3** of the plan:
 | Already has a `.spec.md` | edit that `.spec.md` (this route) |
 | Exists as HTML with no `.spec.md` | **leave it on Route B.** Do not migrate it |
 
-Route B is not deprecated and no page is converted as a side effect of touching it.
 `check-artifact` is the net on both routes: a page that fails it never lands.
 
-### The three files this route is made of
+### Where each question is answered
 
-| Layer | File | What it owns |
-|---|---|---|
-| Grammar | `references/03-spec-grammar.md` | `:::` fences, `{…}` attrs, nesting, what is malformed |
-| Vocabulary | `references/04-block-vocabulary.md` | the closed set of block types, their attrs, corpus counts |
-| Verbs | `scripts/spec_verbs.py` | the per-operation edits: `add-item`, `decide`, `new-round` |
-
-Read the grammar file for syntax questions and the vocabulary file for "which block
-says this". The table below is the index, not a replacement for either.
+Syntax (`:::` fences, `{…}` attrs, nesting, what is malformed): `references/03-spec-grammar.md`.
+Block types, their attrs and examples: `references/04-block-vocabulary.md`. Per-operation
+edits: `scripts/spec_verbs.py` (`add-item`, `decide`, `new-round`).
 
 ### The vocabulary, in one table
 
-The list is closed — an unknown type is refused by name with the known set printed. `spec_build.EMITTERS` is the dispatch these come from, and
-`tests/test_lockstep.py` fails if this list and that dispatch ever disagree.
+The list is closed: an unknown type is refused by name with the known set printed
+(`spec_build.EMITTERS`; `tests/test_lockstep.py` fails if this list and that dispatch
+disagree). `04-block-vocabulary.md` § The types owns what each one is and takes.
 
-| Type | Fence? | What it is | Required attrs |
-|---|---|---|---|
-| `masthead` | yes | the opening block: eyebrow, `h1`, standfirst, byline | — (`title=` or a `# ` line, never both) |
-| `section` | yes | a page section that is not a decision block | `#id`, `heading` |
-| `group` | yes | a titled block one or more decisions come from | `#id` |
-| `item` | yes | one decision: question, options, notes field; may nest an aside or a figure block | `#id` |
-| `notes` | yes | the general-notes item; exactly one per consultation | — |
-| `gallery` | yes | a screenshot-state gallery built from a rows JSON | `rows` |
-| `ledger` | yes | what earlier rounds settled | — |
-| `verdict` | yes | the scoreboard strip of a comparison | — |
-| `callout` | yes | a framed aside the reader must not skim past; an empty one is refused | — |
-| `note` | yes | the quieter aside; `{.warn}` is its one class; an empty one is refused (it renders as an empty framed bar) | — |
-| `chart` | yes | bars, lines or stacked bars drawn from data rows (rung 1) | `type` |
-| `diagram` | yes | boxes and arrows in a closed shape: row, pipeline, before-after, cycle, tree, compare (rung 1) | `shape` |
-| `graph` | yes | boxes and edges in DOT, laid out by Graphviz with the kit classes (rung 2) | — |
-| `figure` | yes | a drawing from a file: figure-sonnet's SVG or a screenshot (rung 3) | `src` |
-| `video` | yes | a local film played in the page, by relative path, never inlined | `src` |
-| `prose` | **no** | a run of markdown outside any fence — the implicit default | — |
-| `num` | **no** | a right-aligned numeric column: mark it `\|---:\|` in the table | — |
-| `pill` | **no** | an inline status tag: `[confianza alta]{.pill .high}` | — |
-| `chip` | **no** | an inline outcome label: `[deferred]{.chip .chip-kill}` | — |
+| Type | Fence? |
+|---|---|
+| `masthead` | yes |
+| `section` | yes |
+| `group` | yes |
+| `item` | yes |
+| `notes` | yes |
+| `gallery` | yes |
+| `ledger` | yes |
+| `verdict` | yes |
+| `callout` | yes |
+| `note` | yes |
+| `chart` | yes |
+| `diagram` | yes |
+| `graph` | yes |
+| `figure` | yes |
+| `video` | yes |
+| `prose` | **no** |
+| `num` | **no** |
+| `pill` | **no** |
+| `chip` | **no** |
 
-The four "no" rows are refused as fences on purpose, each with a message saying where
-the construct really goes. `::: prose` in particular is refused rather than rendered:
-its body would live in a child node and the whole body used to leave the page silently.
+The four "no" rows are refused as fences, each with a message saying where the construct
+really goes (`prose` is markdown outside any fence; `num` is the `|---:|` column marker;
+`pill` is `[confianza alta]{.pill .high}`; `chip` is `[deferred]{.chip .chip-kill}`).
 
 ### Worked example: a whole page, written and built
 
@@ -179,73 +174,60 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/spec_build.py" <name>.spec.md \
   -o <name>.html --check
 ```
 
-It prints the page path and the check's last line. On a spec error it prints
-`<spec>:<line>: <message>` and exits 1, and **nothing is written**. Without `-o` the
-page BODY goes to stdout, which is how you look at a build without landing a file;
-`--check` needs `-o`, because the contract cannot be checked against a pipe.
+Call it by that absolute path from any cwd, and write the command out each time: a
+command held in a shell variable runs as one word under zsh. It prints the page path and
+the check's last line. On a spec error it prints `<spec>:<line>: <message>`, exits 1 and
+writes **nothing**. Without `-o` the page BODY goes to stdout; `--check` needs `-o`.
 
-Six things, five of them carried by this example, each of which costs a rebuild if
-you get it wrong:
+Rules of the example, each enforced by a refusal that names the line or the check:
 
-- **`visual=` on the masthead is REQUIRED on a consultation page.** A page with
-  questions that carries no `<svg>`, `<img>`, `<canvas>` or `<video>` and no `visual=` fails the
-  build with `no visual and no <meta name="consult-visual" content="none: why">`, and
-  nothing is written. Three honest values:
-  - `visual="svg"` / `visual="img"` — the page HAS a drawing. That is why the example
-    above says `svg`: its `chart` block draws one. Declaring it on a page with no
-    drawing is a false statement, and it fails the same check anyway.
-  - `visual="none: <why>"` — the honest answer when the subject has no shape: a naming
-    decision, a yes/no on a policy, a list of files to approve. Write the real reason;
-    `none: tbd`, `none: todo` and the template's own `none: replace this with the
-    reason` are refused by name.
-  - Nothing at all — only on a READ page, one with no reply surface at all (no
-    `item`, no `notes`). The consultation rules, this one included, do not look at it.
-- **`lang="es"` on the masthead is the PAGE's language** and wins over `--lang`. Set it
-  to the project profile's language (`## Language` in `.context/profiles/artifact.md`): a
-  masthead or `--lang` that contradicts the profile fails `lang-follows-profile`. Only a
-  `human-verification.*` page is English against the profile (D-04). An English page
-  without `lang=` builds into `<html lang="es">` and fails the contract.
-- **The title is written once** — either `title="…"` on the fence or a `# ` line in the
-  body. Both on one masthead is refused, not resolved.
-- **`{recommended}` is not an attr.** It sits at the end of an option line, inside the
-  block's prose, and the `item` builder reads it there.
-- **An item's first `-` list is its options, and a second one is refused** at its line:
-  number an explanation list (`1.`) or move it into a `note`. An item title that repeats
-  its id (`title="X1 — …"` on `#X1`) is refused at the fence (`item-title-repeats-id`).
-- **`decided=yes` is an ordinary keyed attr.** The grammar has no bare flags, so
-  `{… decided}` alone is malformed. On an item with options, `decided=yes` (or
-  `true`/`1`) checks the option marked `{recommended}`, because the fold shows the
-  checked option as the verdict. The build refuses it when no option is marked, and
-  when two are marked on a `select=one` item; write `decided="<the chosen label>"`
-  instead. The `decide` verb refuses `--verdict yes` on an item with options for the
-  same reason: it would record the recommendation, not what the reader chose.
-- **A paragraph dense with code is refused.** Four or more `code` tokens or
-  `;`-separated clauses in one paragraph, three or more file paths joined in a
-  sentence, or three prose sentences inside a code block: the build stops with
-  `<spec>:<line>: mixed-content-types: …`, the line being that paragraph's. Write the
-  facts as a list or a table. The builder refuses exactly what the contract fails on
-  the built page (§ 5, the page-contract classes).
+- **`visual=` on the masthead is REQUIRED on a consultation page**: with questions and no
+  `<svg>`, `<img>`, `<canvas>` or `<video>`, the build fails `no visual and no <meta
+  name="consult-visual" content="none: why">`. Values: `svg` / `img` (the page HAS a
+  drawing; declaring one that is absent is false and fails the same check),
+  `none: <why>` with the real reason (`none: tbd`, `none: todo` and the template's
+  placeholder are refused by name), or nothing on a READ page (no `item`, no `notes`).
+- **`lang="es"` on the masthead is the PAGE's language** and wins over `--lang`. Set it to
+  the profile's language (`## Language` in `.context/profiles/artifact.md`); a contradiction
+  fails `lang-follows-profile`, and only a `human-verification.*` page is English against
+  the profile (D-04). An English page without `lang=` fails `lang`.
+- **The title is written once**: `title="…"` or a `# ` line, both is refused.
+- **`{recommended}` is not an attr**: it ends an option line inside the block's prose.
+- **An item's first `-` list is its options; a second one is refused** (number an
+  explanation list `1.` or move it into a `note`). A title repeating its id
+  (`title="X1 — …"` on `#X1`) is refused (`item-title-repeats-id`).
+- **`decided=yes` is a keyed attr** (no bare flags: `{… decided}` is malformed). On an item
+  with options it checks the `{recommended}` option; the build refuses it when none, or
+  two on a `select=one` item, are marked: write `decided="<the chosen label>"`. The
+  `decide` verb refuses `--verdict yes` on an item with options for the same reason.
+- **A paragraph dense with code is refused**: four or more `code` tokens or `;` clauses,
+  three or more file paths joined in a sentence, or three prose sentences in a code block
+  stop the build with `<spec>:<line>: mixed-content-types: …`. Write the facts as a list
+  or a table (§ 5, the page-contract classes).
 
 ### The ordering trap the contract enforces
 
-`check_artifact`'s `consult-shape` rule allows only the masthead, a figure and the
-ledger before the first `group`. A `section` head is stripped before that rule looks,
-so a section whose body is only a `chart` may sit up there — but **a section with its
-own PROSE before the first group fails the build**, with `prose before the first block`
-naming the section's heading. Measured on this file's own example on 2026-09-24: moving
-the `section` below the `notes` block turned the same spec from a refusal into
-`artifact contract OK`. Reference material goes after the questions.
+`check_artifact`'s `consult-shape` rule allows only the masthead, a figure and the ledger
+before the first `group`. A `section` head is stripped before that rule looks, so a
+section whose body is only a `chart` may sit up there, but **a section with its own
+PROSE before the first group fails the build** (`prose before the first block`, naming the
+heading). Reference material goes after the questions.
+
+**Study pages are the exception, declared.** A page that teaches and then asks puts
+`profile="study"` on its `masthead` (builds `<meta name="consult-profile" content="study">`;
+any other value is refused). `consult-shape` then stops judging `prose before the first
+block` and `prose between blocks`: write `section`, `group`, `section`, `group` in the order
+the reader meets them. Every other rule still applies. On a study page the composer
+withholds `{recommended}` and the option hints until the reader picks, then shows them with
+one `Correcto` / `No exactamente` line; the copied reply is unchanged.
 
 ### The verbs: editing a page that already exists
 
 **Never edit the built HTML, and never hand-rewrite the spec's structure.** A verb is a
-text transform on the spec: it addresses its target by the `#id` the spec wrote, refuses
-atomically (a verb that cannot find its id, or whose result would not build, writes
-nothing), and rebuilds the page itself. The author's formatting survives — no reflow, no
-attr reordering, no re-quoting.
-
-All three take `<spec.md>`, plus `--out <page.html>` (default: the spec's name with
-`.html`) and `--lang es|en`.
+text transform on the spec: it addresses its target by `#id`, refuses atomically (a verb
+that cannot find its id, or whose result would not build, writes nothing) and rebuilds the
+page itself, keeping the author's formatting. All three take `<spec.md>`, plus `--out
+<page.html>` (default: the spec's name with `.html`) and `--lang es|en`.
 
 **`add-item`** — a new `::: item` at the END of a group. Refuses a second call with the
 same id, because two items sharing a paste key means one shadows the other.
@@ -258,18 +240,15 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/spec_verbs.py" add-item <name>.spec.md \
   --option "No, en otro sitio"
 ```
 
-**`decide`** — records a verdict as `decided="…"` on the item's fence, rewriting that one
-attr span and leaving the other bytes of the line alone. Idempotent for the same verdict;
-a different verdict overwrites, because a reader revising an earlier answer is one of the
-four documented round labels. The verdict is the chosen option's label: `yes` is refused on an
-item with options (§ Worked example, `decided=yes`). On such an item any other text is refused
-too, unless the saved reply (`save-reply.sh`) answers that id with the kit's Other choice
-("Otra — lo explico en las notas" / "Other — see my notes") or with an option plus a note: then
-the outcome that is no single option is recorded as written. "Todavía no" never qualifies, and
-a select=many verdict is the labels joined by `, `. `decide` and `new-round` need a built page
-(build it first with `spec_build.py -o`); every verb refuses a rebuild over a page that differs
-from what the last build wrote (hand-edited, restored from git, or left by an unfinished
-build), and takes the page language from the masthead `lang=`, else the project profile.
+**`decide`** — records a verdict as `decided="…"` on the item's fence (idempotent for the
+same verdict; a different one overwrites, since a reader may revise). The verdict is the
+chosen option's label: `yes` is refused on an item with options (§ Worked example,
+`decided=yes`), and so is any other text unless the saved reply (`save-reply.sh`) answers
+that id with the kit's Other choice or an option plus a note ("Todavía no" never
+qualifies); a select=many verdict is the labels joined by `, `. `decide` and `new-round`
+need a built page (`spec_build.py -o` first); every verb refuses a rebuild over a page that
+differs from what the last build wrote (hand-edited, restored from git, or left by an
+unfinished build) and takes the page language from the masthead `lang=`, else the profile.
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/spec_verbs.py" decide <name>.spec.md \
@@ -280,11 +259,12 @@ One reader reply that decides several items is ONE call: repeat the pair
 (`--id Q1 --verdict "…" --id Q2 --verdict "…"`). The page rebuilds once, and a refused pair
 refuses the whole call.
 
-**`new-round`** — syncs the ledger to the decided items, one row per decision keyed by id.
-Idempotent: a key already in the ledger is left untouched. It does **not** move a round
-counter — the round lives in `<meta name="consult-round">`, which the wrap derives from
-the contract baseline, and a second writer would only disagree with it.
-`new-round` refuses (exit 1, nothing written) while the saved reply holds a bare option pick the spec has not decided, and names the `decide --id Qn --verdict "<option>"` command to run first; Other, option + note, a question or a provisional answer may be carried open.
+**`new-round`** — syncs the ledger to the decided items, one row per decision keyed by id;
+idempotent. It does **not** move a round counter (the wrap derives `consult-round` from the
+contract baseline). It refuses (exit 1, nothing written) while the saved reply holds a
+bare option pick the spec has not decided, and names the `decide --id Qn --verdict
+"<option>"` command to run first; Other, option + note, a question or a provisional
+answer may be carried open.
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/spec_verbs.py" new-round <name>.spec.md
@@ -292,7 +272,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/spec_verbs.py" new-round <name>.spec.md
 
 Proposals expire by themselves (BL-692): an `item decided=yes proposal=yes` loses `proposal=yes`
 and files its ledger row only if the saved answered page (`.aidex-artifact-prev/<stem>.answered.html`)
-carried `data-proposal` on it, i.e. the reader saw it. A NEW proposal written this turn is absent from
+carried `data-proposal` on it, i.e. the reader saw it, AND the saved reply left it untouched (BL-711: no reply block for it, or only page-defect text). A proposal the reply marked (an ask or `[not-now]`, in any saved paste), re-picked, answered with Other or with a note stays `proposal=yes` and out of the ledger: it takes the open-item path, so `new-round` refuses a bare re-pick until the writer `decide`s it (the 225f968e guard), and `decide` on a proposal ends its proposal state. A NEW proposal written this turn is absent from
 that page and stays a proposal, in any order of verbs (an id that already expired and is marked
 `proposal=yes` again in the same round is expired again by the next `new-round`: write a fresh id); with no saved page nothing expires, so a
 mid-round `new-round --drop/--retitle` is safe. `decide` on an item the ledger already names also
@@ -302,16 +282,10 @@ a hand-written row is left byte-identical and the verb says so on stderr.
 Each verb prints the rebuilt page's path on stdout and the contract check's lines on
 stderr; a refusal prints `spec-verbs <verb>: <why>` and exits 1 with the spec untouched.
 
-**What a successful verb run looks like, and where its answer is.** A verb builds
-TWICE: first a trial build into a throwaway directory — that is what lets it refuse
-atomically, leaving the spec untouched when the result would not build — and then the
-real one. So one run prints two `artifact contract OK` lines and two sets of wrap
-output, and the second pair is the one that landed. **The authoritative result is the
-LAST line of stdout: the absolute path of the page that now exists.** Everything above
-it is the two builds reporting — the FIRST path printed is inside a
-`spec-verbs-trial-…` temp directory and is deleted before the run ends. A run that
-ends with a path succeeded; a run that failed printed `spec-verbs <verb>: <why>` and
-exited 1 instead.
+A verb builds TWICE (a trial build into a throwaway directory, then the real one), so a
+run prints two `artifact contract OK` lines. **The authoritative result is the LAST line of
+stdout: the absolute path of the page that now exists**; the first path printed is in a
+deleted `spec-verbs-trial-…` directory. A failed run ends with `spec-verbs <verb>: <why>`.
 
 ### The figure ladder: which block draws a figure
 
@@ -325,10 +299,9 @@ highest rung that carries the figure's meaning without loss**:
 | 3 | `figure` | what neither can draw: a screen mockup or wireframe, a screenshot, a grid of text cells, an illustration | a drawn settings screen with its three states |
 
 Drop a rung only when the one above loses something the page relies on, and say what in
-the caption's neighbourhood, not silently. A rung-3 drawing is figure-sonnet's job: it
-writes an `.svg` that passes the `figure` block's rules (strict XML, allowlisted
-elements, kit classes and `currentColor`, no literal colour) and returns its path; the
-spec embeds it with `::: figure {src="…" title="…"}`. Nobody inlines SVG in a spec.
+the caption's neighbourhood. A rung-3 drawing is figure-sonnet's job: an `.svg` that
+passes the `figure` block's rules (`03-spec-grammar.md` § The `figure` block), embedded
+with `::: figure {src="…" title="…"}`. Nobody inlines SVG in a spec.
 
 **A consult figure that shows a structure or compares options is a `diagram`**:
 `shape=tree` for one structure, `shape=compare` for option A vs B (each panel a tree
@@ -346,53 +319,14 @@ is never enough: the owner will ask for the mockup and a round is lost (BL-630).
 
 ### The `chart` block
 
-The one block whose body is **data, not prose**. Two forms, chosen by the first non-blank
-line of the body; mixing them in one body is refused.
-
-`label,value` lines — one series:
-
-```
-::: chart {#c2 type=bar title="Bytes por página" unit=KB}
-consulta A,37
-consulta B,74
-:::
-```
-
-A pipe table — the multi-series form, and the only one with column names:
-
-```
-::: chart {#c3 type=line title="Rondas por consulta"}
-| Ronda | Preguntas | Cerradas |
-|---|---|---|
-| r1 | 8 | 2 |
-| r2 | 6 | 5 |
-:::
-```
-
-`type` is required and is `bar`, `line` or `stacked` (horizontal bars, one segment per
-series column, the row's total at its end; one series column is plain horizontal bars,
-and a negative cell is refused). `title` becomes the `<figcaption>`, `unit`
-labels the axis (on `stacked`, the totals), `#id` becomes the figure's id. `labels=off`,
-`y-title` and `x-title` are optional on `bar`/`line` (`03-spec-grammar.md` § The `chart` body). The first table row names the columns;
-its first cell names the label column and is not drawn; the rest become the legend, and
-no legend is drawn for a single series. At most **8** series — `--s1..--s8` is the whole
-palette, and past it the answer is one "other" column or a second chart, never a cycled
-colour. Every fill is `var(--sN)` and every rule and label is `currentColor`: there is no
-literal colour in the emitter, because the kit declares those slots in four theme blocks
-and a fifth would only ever agree with one of them.
-
-Every value must be a number matching `[+-]?(digits[.digits] | .digits)` — no exponent,
-no hex, no thousands separator, no `NaN`. That is narrower than `float()` on purpose:
-`float("nan")` succeeds and then draws a bar of NaN pixels, which every browser paints
-as nothing at all, with no error anywhere. A decimal comma gets a message naming the
-cell, the column and the value rewritten with a point.
+Body, forms and refusals: `03-spec-grammar.md` § The `chart` body.
+`type` is required and is `bar`, `line` or `stacked`; at most 8 series (`--s1..--s8`).
 
 ### What the spec route does NOT change
 
-The contract, the anchor, the sibling path, the publish policy and the consultation
-rules of §8 are all unchanged — the spec is a way of WRITING the page, not a different
-page. `wrap-report.sh` is still what wraps it (`spec_build.py` calls it over stdin), the
-check is still the gate, and the reply still states the absolute path. A page that passes
+The contract, the anchor, the sibling path, the publish policy and the consultation rules
+of §8 are unchanged: `wrap-report.sh` wraps the page (`spec_build.py` calls it over
+stdin), the check is the gate, and the reply states the absolute path. A page that passes
 the build goes through § The quality loop below before it is opened or handed over.
 
 ---
@@ -430,7 +364,8 @@ lines). A stale tile of an earlier build is deleted first.
 **Step 3, the handoff.** Launch the grader with exactly these things: the user's request
 in their words, the absolute path of the manifest `<n>-shots.json` (not the two full-page
 shots), the files the probe printed as written this run (the caller records them before
-launching, so the grader can refuse a stale tile), the absolute path of
+launching, so the grader can refuse a stale tile), the profile's `viewports: desktop`
+line when `.context/profiles/artifact.md` declares it, the absolute path of
 `references/05-visual-review.md`, and for a round built over a reply the DUTIES list,
 which the grader maps to items by id. Never the spec, the HTML or your own notes: a builder
 that explains its page to the grader is grading it itself. The grader returns the
@@ -641,8 +576,7 @@ the reader knows the file tree. On one real round 12 of 26 items came back as fr
 saying some form of "I do not understand this task" — the owner's words were *"me estás
 dando contexto asumiendo que conozco qué es lo que está y qué es lo que no está"*.
 
-So every open item carries an injected **ask row** (`.kit-ask`, kit v18, BL-381; seven
-chips since kit v19; the page-defect chip left it for a button, LOOP-008 Q10) under its answer: one line, "Antes de responder necesito…", with
+So every open item carries an injected **ask row** (`.kit-ask`, kit v18, BL-381; the page-defect chip left it for a button, LOOP-008 Q10) under its answer: one line, "Antes de responder necesito…", with
 eight checkboxes. Ticking any of them pastes a fixed marker as a mark under that item's
 id, and **which** markers is the whole point:
 
@@ -1404,12 +1338,11 @@ messages and the tests; § 8.4 is the block shape.
    tenemos, qué es lo que sobra, y qué es lo que propones… es demasiada información
    para leer de golpe en un párrafo"* — with the note that replies in the chat do the
    same. Every table still goes inside `.tw` (§4). `check-artifact.sh` warns
-   (`consult-facts`) on a paragraph inside a block or an item that carries four or
-   more `<code>` tokens or semicolon-joined clauses — the shape both incidents had, and
-   one an explanatory paragraph does not. It is a warning because it is a proxy for the
-   shape, not the shape: it is cleared by rewriting the paragraph as rows, never by a
-   waiver. Whether a paragraph under the threshold is still a list of facts is a rule
-   you hold.
+   (`consult-facts`) only on the leftovers of that shape (semicolons inside `<code>`, a
+   `Fuente:` line); a paragraph with four or more `<code>` tokens or semicolon-joined
+   clauses fails `mixed-content-types` and `spec_build` refuses it. Cleared by rewriting
+   the paragraph as rows, never by a waiver. Whether a paragraph under the threshold is
+   still a list of facts is a rule you hold.
 
    **An item with options states which one the session recommends, and why.** The
    recommendation is not optional and not a neutral menu — that is a separate rule the
@@ -1470,15 +1403,15 @@ messages and the tests; § 8.4 is the block shape.
    each: the situation, what was chosen, why) and the reader only corrects. Each point is an
    `item decided=yes proposal=yes` (BL-687, BL-692): without `proposal=yes` the kit reads it as an
    earlier round's settled answer and folds it into the bottom "N preguntas ya resueltas" section,
-   hiding the correction box. A proposal keeps its options live with the proposed one pre-selected: a changed selection or a typed note is the correction that reaches the reply (BL-700). `check-artifact` WARNS (`consult-round1-decided`) on a round-1 page that carries a
+   hiding the correction box. A proposal keeps its options live with the proposed one pre-selected: a changed selection, a typed note, a ticked ask chip (show-me, explain, ...) or `[not-now]` is the correction that reaches the reply, and the item carries the same discussion controls as an open one (BL-700, BL-711). A reply that asks about a proposal (an ask or `[not-now]`) keeps it a proposal at `new-round` and its marked duty is checked. `check-artifact` WARNS (`consult-round1-decided`) on a round-1 page that carries a
    decided item with neither `proposal=yes` nor `dropped=`: nothing can be settled before the first reply. Only the
    rest become items. Inside a gallery, that
    block goes in the `decided_note` of a row still open (a callout under the captures), never in the
    row's Qué mirar line.
 
    **An item that comes back with 3+ ask markers is rewritten, not patched.** Three or
-   more of `[explain-state]`, `[explain-options]`, `[explain-simpler]`, `[explain-why]`,
-   `[show-me]` on one item mean "I cannot start". Rewrite it from the situation (see the
+   more ask markers on one item (all but `[page-defect]` and `[not-now]`, which do not
+   count) mean "I cannot start". Rewrite it from the situation (see the
    lead rule above) with a figure; do not answer it marker by marker.
 
    **Who writes the situation lines (decided 2026-09-29, BL-503).** The main session,
@@ -1585,13 +1518,13 @@ page this fixes, and a hand translation is no longer recognised as a default to 
 Adding a language is one entry in `composer.js`'s `STRINGS` table and no code.
 
 **Since kit v18, every open item carries an ASK ROW under its answer, and every option
-group ends with a "not now" choice** (BL-381); since kit v19 the row is seven chips and an
+group ends with a "not now" choice** (BL-381); since kit v19 an
 option answered alongside an ask is marked provisional. The row is the successor of the v12 per-item
 checkbox, the v15 in-group radio and the v16 pair; what survives from each: it is injected
 (v12), the general-notes item carries none (v15), the marks name WHICH gap (v16). What v18
 retires is exclusivity — see *When the reader says the question is unreadable* above for
 the evidence. The rule is one line: the composer appends the row after the item's last
-`.opts` group (or before its first field label when it has none), seven checkboxes with a
+`.opts` group (or before its first field label when it has none), eight checkboxes with a
 tagged vocabulary, and appends `Todavía no` as the last choice of every option group:
 
 | | |
@@ -1601,7 +1534,7 @@ tagged vocabulary, and appends `Todavía no` as the last choice of every option 
 | An item with **no option group** still gets the row | The v15 cost is gone; such an item has no "not now" though, because that choice lives in a group. |
 
 Ticking pastes the fixed markers — `[explain-state]`, `[explain-options]`, `[explain-why]`,
-`[explain-simpler]`, `[question]`, `[reframe]`, `[show-me]`, and `[not-now]` — under that
+`[explain-simpler]`, `[question]`, `[reframe]`, `[show-me]`, `[more-examples]` and `[not-now]` — under that
 item's id, and asking counts as a response rather than a blank. An option ticked with any
 of the asks beside it pastes with a `[provisional]` qualifier and carries a line saying so
 on the page; what that state means is *What a chosen option MEANS when an ask sits beside
@@ -1882,7 +1815,7 @@ kept in lockstep (checker, kit, skeleton, template, tests) plus a round of retro
 drift on every page already on disk. The contract grows when the field breaks something,
 not when a rule sounds prudent.
 
-All three requirements are enforced by `check-artifact.sh`, which `--out` already runs.
+Every requirement of this section is enforced by `check-artifact.sh`, which `--out` already runs.
 A page counts as a consultation when it offers the reader a **reply surface** — a
 `<textarea>`, a `contenteditable` element, reply boxes appended by script, or the
 composer's own `id="consult-copy"`. Not when it has the template's class names, because a
@@ -1933,7 +1866,7 @@ on a page nobody is editing is noise no one can clear.
 | `consult-opts` | an item's radio/checkbox sits outside any `.opts` wrapper — the kit styles options nowhere else, so they render unstyled and the contract passes anyway |
 | `consult-independent` | a checkbox group whose option labels each name a distinct tracked id (`BL-NNN`, a dated plan slug) — several decisions drawn as one item. Each is its own two-option radio item (BL-375). Cleared by the rewrite |
 | `consult-rec` | a `data-label` spells "(recommended)" / "(recomendada)" — the marker then travels in the pasted reply and is invisible on the page. Use `data-recommended` |
-| `consult-facts` | a paragraph in a block context or an item body carries four or more `<code>` tokens or semicolon-separated clauses — facts written as prose (§8.4, BL-269/BL-270). Cleared by the rewrite, never by a waiver |
+| `consult-facts` | a paragraph in a block context or an item body carries semicolon-separated clauses inside `<code>`, or is a `Fuente:` line, written as prose facts (§8.4, BL-269/BL-270; four or more `<code>` tokens or clauses outside `<code>` fail `mixed-content-types`). Cleared by the rewrite, never by a waiver |
 | `consult-lead-id` | the first sentence of an item's lead paragraph cites a BL-/M095-style id, a backticked path, an HTTP verb, "fila N" or "gate N" (§8.4, BL-503); a product name with a number ("Los Simpson T8") is not an id. The lead is the product situation; ids go on a `Fuente:` line. Cleared by the rewrite, never by a waiver |
 | `consult-fuente-unreadable` | on a Spanish page, an item's `Fuente:` line is made only of short codes (d4, M4, P11) and/or a few untranslated English words (phase, empty, notes …) (§8.4, BL-623). A real word beside the code keeps it clean, and so does a line of backlog ids alone (BL-617). Gallery rows and `data-decided` items are exempt from the heading check. Cleared by the rewrite, never by a waiver |
 | `consult-heading-statement` | an item with radio/checkbox options whose `<h3>` has no "?" — a statement instead of the decision question; gallery rows and `data-decided` items are exempt (§8.4, BL-623). In a spec, end the question paragraph with "?". Cleared by the rewrite, never by a waiver |
@@ -1975,8 +1908,9 @@ things about it are load-bearing:
 - **The label names the destination, not the state.** It reads `Dark` when clicking it
   makes the page dark.
 - **It leaves the viewport below the kit's breakpoint.** There the rail is a bottom bar
-  carrying the copy button, and a fixed pill sits on top of both; it joins the flow at the
-  end of the document instead.
+  carrying the copy button, and the control does not move there: the composer inserts it first in
+  `.page`, pinned absolute to the top band (`.page > .kit-theme`); a page without `.page`
+  appends it to the body.
 
 Why it is worth building rather than deleting the dead branch: pinned to the OS setting,
 neither the author nor the reader ever sees the other rendering, so a figure whose colours
@@ -2048,7 +1982,8 @@ to verify it. Two layers now exist, and they are not interchangeable:
   `rotate()`, and it is ±5 % on width, so it warns and never fails. On the 2026-09-03
   census every warning it kept was confirmed in the browser; the browser found more.
 - **`svg-scope` and `svg-contrast` at wrap time** read what the geometry checks never
-  looked at: colour. Both warn, and both are explained below.
+  looked at: colour. `svg-scope` warns; `svg-contrast` fails at the wrap (it only warns in `--census`). Both are
+  explained below.
 - **The DevTools script at authoring time** measures the rendering and is the check that
   settles a figure. Run it through the Chrome DevTools MCP on the opened page, once per
   figure, before the wrap; a page whose figures were never measured is the one that ships
@@ -2195,7 +2130,8 @@ Reasoning: `01-dash-conventions.md` § Publish is never automatic.
 
 ## Language
 
-English (D-04), unless the project style profile says otherwise.
+The page's language is the project style profile's `language:` field, else English
+(D-04); `--lang` or the masthead `lang=` overrides it for one page (intake question 5).
 
 ## The built-in `Artifact` tool competes with this skill (measured 2026-09-12)
 

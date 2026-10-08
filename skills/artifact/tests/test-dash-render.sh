@@ -99,6 +99,24 @@ cat > "$CTX/plans/testplan/02-beta.md" <<'EOF'
 - [ ] Task 2.2
 EOF
 
+# A single-file plan whose first table has a "phase" header but links no
+# phase file: its own checkboxes are its tasks.
+cat > "$CTX/plans/2026-01-01-single.md" <<'EOF'
+---
+title: "Single"
+status: open
+---
+# Single
+
+| Phase | Gate | Status |
+|---|---|---|
+| 1 | tests green | open |
+
+- [x] a
+- [ ] b
+- [ ] c
+EOF
+
 cat > "$CTX/audits/testaudit/00-inventory.md" <<'EOF'
 ---
 title: "Audit Inventory"
@@ -154,6 +172,13 @@ run "$WS" plans >/dev/null || fail "plans rollup render exited non-zero"
 [[ -f "$PL_HTML" ]] || fail "plans: rollup 00-index.html not written"
 head -1 "$PL_HTML" | grep >/dev/null '^<!-- GENERATED' || fail "plans rollup: first line missing GENERATED"
 grep -q 'Test plan' "$PL_HTML" || fail "plans rollup: plan title missing"
+# Tasks done counts the linked phase files, as the progress page does: the
+# canon keeps task checkboxes out of 00-index.md, so counting only the index
+# left every multi-file plan at '—' while its own progress page said 2/5.
+grep -q '<td class="mod">Test plan</td>.*<td>2/5</td>' "$PL_HTML" \
+  || fail "plans rollup: Tasks done for testplan should be 2/5 (the phase files), as on its progress page"
+grep -q '<td class="mod">Single</td>.*<td>1/3</td>' "$PL_HTML" \
+  || fail "plans rollup: a single-file plan whose phase table links no file should count its own checkboxes (1/3)"
 
 # --- plan progress (multi-file) ---------------------------------------------
 PP_HTML="$CTX/plans/testplan/00-index.html"
@@ -498,6 +523,32 @@ run "$WS" audit renamedaudit >/dev/null 2>"$WS/err4.txt"; rc=$?
 [[ "$rc" -eq 2 ]] || fail "audit: renamed required column should still exit 2 (got $rc)"
 grep -q '^ERROR: no findings table with ID/Status/Severity columns' "$WS/err4.txt" \
   || fail "audit: renamed-column ERROR message changed"
+
+# --- audit: an escaped pipe inside a cell does not shift the columns --------
+# (the audit canon and validate-audit.sh write a literal pipe as `\|`; splitting
+# on it read the open P0 below with status 'b` url' and severity 'open', so the
+# board counted it resolved and dropped it from P0/P1)
+mkdir -p "$WS/.context/audits/pipeaudit"
+cat > "$WS/.context/audits/pipeaudit/00-inventory.md" <<'EOF'
+---
+title: "Audit Inventory"
+status: active
+---
+# Inventory
+
+| ID | Type | Module | Summary | Status | Severity |
+|---|---|---|---|---|---|
+| A-1 | bug | auth | token in `a \| b` url | open | P0 |
+| A-2 | bug | auth | Session not rotated. | open | P1 |
+EOF
+run "$WS" audit pipeaudit >/dev/null 2>&1 || fail "audit: escaped-pipe inventory render exited non-zero"
+PAU="$WS/.context/audits/pipeaudit/00-inventory.html"
+grep -q '<span class="n">2</span><span class="l">open</span>' "$PAU" \
+  || fail "audit: escaped pipe in Summary shifted Status — open should be 2"
+grep -q '<span class="n">2</span><span class="l">P0/P1 severity</span>' "$PAU" \
+  || fail "audit: escaped pipe in Summary shifted Severity — P0/P1 should be 2"
+grep -q 'token in `a | b` url' "$PAU" \
+  || fail "audit: escaped pipe should render as a plain | in the Summary cell"
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — four renderers (backlog/plans/audit/coverage), sibling paths, GENERATED header, key values, idempotency, hand-edit overwrite, unknown-target and missing-source exit 2, empty active set renders symmetrically (missing dirs still exit 2)"

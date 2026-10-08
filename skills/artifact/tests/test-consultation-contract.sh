@@ -81,6 +81,49 @@ $composer"
 rc="$(run "$TMP/radios.html")"
 [[ "$rc" == "0" ]] || fail "1. an answered-and-annotatable item rejected: $(cat "$TMP/out")"
 
+# ---- 1b. an item left commented out is not an item -------------------------
+# A removed Q1 kept in a comment before the live Q1 is not markup: it must not
+# count as a second Q1, nor as a Q1 with no surface or notes box.
+for gone in stub copy; do
+  python3 - "$TMP/radios.html" "$TMP/commented.html" "$gone" <<'PY'
+import sys
+h = open(sys.argv[1]).read()
+a = h.index('<section class="consult-item" data-id="Q1"')
+old = ('<section class="consult-item" data-id="Q1" data-title="Old">Removed in '
+       'round 2.</section>' if sys.argv[3] == "stub"
+       else h[a:h.index("</section>", a) + len("</section>")])
+open(sys.argv[2], "w").write(h[:a] + "<!-- " + old + " -->\n" + h[a:])
+PY
+  rc="$(run "$TMP/commented.html")"
+  [[ "$rc" == "0" ]] || fail "1b. a commented-out Q1 was judged as an item: $(cat "$TMP/out")"
+done
+
+# ---- 1c. a "<!--" the browser does not read as a comment hides nothing -------
+# `<!-->` is a comment closed at once; inside a script string or an attribute
+# value it is no comment at all. None of them may swallow the live Q2 (no
+# notes box) up to the next real `-->`.
+for pre in '<!-->' "<script>var t='<!--';</script>" '<p title="use <!-- for comments">x</p>' '<p title="a > b <!-- c">x</p>'; do
+  mkpage "$TMP/stray.html" "$visual
+$gopen
+<section class=\"consult-item\" data-id=\"Q1\" data-free data-title=\"First\"><h3>First</h3><p class=fieldlabel>Free text</p><textarea></textarea></section>
+$pre
+<section class=\"consult-item\" data-id=\"Q2\" data-title=\"Pick one\">
+  <h3>Pick one</h3>
+  <div class=\"opts\">
+    <label><input type=\"radio\" name=\"Q2\" data-label=\"A\"><span>A</span></label>
+    <label><input type=\"radio\" name=\"Q2\" data-label=\"B\"><span>B</span></label>
+  </div>
+</section>
+<!-- end of questions -->
+$gclose
+$notesitem
+$bars
+$composer"
+  rc="$(run "$TMP/stray.html")"
+  [[ "$rc" == "1" ]] && grep -q "item 'Q2' has no notes box" "$TMP/out" \
+    || fail "1c. a stray '<!--' ($pre) hid the live Q2: rc=$rc $(cat "$TMP/out")"
+done
+
 # ---- 2. an item with no reply surface at all fails ------------------------
 mkpage "$TMP/empty-item.html" "$visual
 $gopen

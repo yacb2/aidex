@@ -115,6 +115,7 @@ Exit 0 = every file passes. Exit 1 = at least one violation (each printed).
 Exit 2 = usage error.
 """
 import hashlib
+import shlex
 import html as _html
 import xml.etree.ElementTree as _ET
 import os
@@ -173,8 +174,6 @@ def composer_copies(text):
 # short text) on a page meant only to be read, which is the ordinary shape of a
 # dashboard filter and was a false positive with no exit.
 FREE_TEXT = re.compile(r'<textarea|contenteditable=', re.I)
-CONSULT_STRUCTURE = re.compile(
-    r'data-id=|id=["\']?consult-copy|class=["\'][^"\']*consult-item', re.I)
 # The same thing minus the copy BUTTON (BL-331). A button is chrome; what makes
 # a page a consultation is that it carries questions. A page whose last item was
 # answered has none — §8's own model says a decided item leaves the question set
@@ -203,6 +202,26 @@ def strip_html_comments(text):
     of examples in comments, and judging them invents defects on the one page
     authors copy from."""
     return re.sub(r"<!--.*?-->", " ", text, flags=re.S)
+
+
+# BL-647: an HTML comment only in markup context. Group 1 is a raw-text element
+# (its body is not markup), group 3 a whole tag, read quote-aware so a ">"
+# inside an attribute value does not end it (an attribute value is not
+# markup), else a comment, ended where the HTML parser ends it: "<!-->",
+# "<!--->" and "--!>" close it too.
+MARKUP_COMMENT = re.compile(
+    r'(<(script|style|textarea|title|xmp|noembed|noframes|noscript|iframe)\b[^>]*>.*?</\2\s*>)'
+    r'|(<[a-z](?:[^>"\x27]|"[^"]*"|\x27[^\x27]*\x27)*>)|<!--(?:-?>|.*?--!?>)', re.S | re.I)
+
+
+def strip_item_markup(text):
+    """What the item walkers read: script/style out, then the comments the
+    browser sees as comments, so a stray "<!--" in a string, an attribute or
+    `<!-->` cannot swallow the live items up to the next "-->"."""
+    return MARKUP_COMMENT.sub(
+        lambda m: (" " if m.group(2) and m.group(2).lower() in ("script", "style")
+                   else m.group(0)) if (m.group(1) or m.group(3)) else " ",
+        text)
 
 
 # --- lang: the body must speak the language <html lang> declares (BL-279) -------
@@ -292,8 +311,7 @@ def scroll_classes(text):
     return scroll
 
 
-VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link",
-             "meta", "param", "source", "track", "wbr"}
+VOID_TAGS = contract_defects.VOID
 
 
 def unwrapped_tables(text):
@@ -314,10 +332,7 @@ def unwrapped_tables(text):
             continue
         if tag in VOID_TAGS or attrs.rstrip().endswith("/"):
             continue
-        cm = re.search(r"\bclass\s*=\s*(?:\"([^\"]*)\"|\x27([^\x27]*)\x27"
-                       r"|([^\s>]+))", attrs, re.I)
-        classes = (set(next(g for g in cm.groups() if g is not None).split())
-                   if cm else set())
+        classes = _class_tokens(attrs)
         if tag == "table" and not any(c in scroll
                                       for _, anc in stack for c in anc):
             bad += 1
@@ -367,20 +382,8 @@ def _subtree(text, tag, start):
     balance rather than an HTML parser: a page with an unclosed <p> is still
     well formed enough to answer, and counting only the item's own tag name is
     immune to it."""
-    op = re.compile(r'<' + re.escape(tag) + r'\b', re.I)
-    cl = re.compile(r'</' + re.escape(tag) + r'\s*>', re.I)
-    depth, pos = 1, start
-    while depth:
-        m_o, m_c = op.search(text, pos), cl.search(text, pos)
-        if not m_c:
-            return text[start:]            # unclosed: judge what is left
-        if m_o and m_o.start() < m_c.start():
-            depth, pos = depth + 1, m_o.end()
-        else:
-            depth, pos = depth - 1, m_c.end()
-            if not depth:
-                return text[start:m_c.start()]
-    return ""
+    inner = _subtree_closed(text, tag, start)
+    return text[start:] if inner is None else inner   # unclosed: judge what is left
 
 
 def consult_items(text):
@@ -388,6 +391,7 @@ def consult_items(text):
     The unit is the ITEM, never the box count: v1 counted `<textarea`
     occurrences against data-id, which told a radio-only page it had ids for
     boxes that did not exist."""
+    text = strip_item_markup(text)   # a commented-out item is not one
     items = []
     for m in ITEM_OPEN.finditer(text):
         # A block (`.consult-group`) carries data-id/data-title so --prev can
@@ -416,6 +420,7 @@ def consult_items(text):
 def group_ids(text):
     """The data-ids of the blocks (`.consult-group`), which `consult_items`
     skips: a context, not a claim (BL-612)."""
+    text = strip_item_markup(text)   # a commented-out item is not one
     return {next(g for g in m.groups()[1:] if g is not None)
             for m in ITEM_OPEN.finditer(text) if GROUP_CLASS.search(m.group(0))}
 
@@ -534,6 +539,7 @@ def consult_item_bodies(text):
     """[(id, body)] for every data-id item. A second walk rather than a wider
     return from `consult_items`: that one answers the contract in booleans and
     is read by the failure path, and warnings must not be able to change it."""
+    text = strip_item_markup(text)   # a commented-out item is not one
     out = []
     for m in ITEM_OPEN.finditer(text):
         ident = next(g for g in m.groups()[1:] if g is not None)
@@ -582,6 +588,8 @@ def _subtree_closed(text, tag, start):
     wrong one when it is "what does this element say". A `<p class="gal-na">`
     nobody closed then reads as a reason whose text is the verdict labels below
     it — a row with no reason and no tiles passing as not applicable.
+
+    This is the one balance walk; `_subtree` wraps it.
     """
     op = re.compile(r'<' + re.escape(tag) + r'\b', re.I)
     cl = re.compile(r'</' + re.escape(tag) + r'\s*>', re.I)
@@ -671,7 +679,6 @@ def gallery_findings(text):
         # would answer the check on behalf of a row that has no figures.
         body = strip_script_style(_subtree(text, m.group(1), m.end()))
 
-        grids = _gal_grids(body)
         if not _is_gallery_item(m.group(0), body):
             continue
 
@@ -828,9 +835,7 @@ def marks_outside_opts(body):
                 return True
         if tag in VOID_TAGS or attrs.rstrip().endswith("/"):
             continue
-        cm = ATTR_CLASS.search(attrs)
-        classes = (set(next(g for g in cm.groups() if g is not None).split())
-                   if cm else set())
+        classes = _class_tokens(attrs)
         stack.append((tag, classes))
     return False
 
@@ -851,13 +856,13 @@ REC_IN_LABEL = re.compile(r'\(\s*(?:not\s+)?(?:recommended|recomendad[ao]|no\s+'
 # dense in `<code>` tokens or `;`-joined clauses, which an explanatory paragraph
 # is not. Scanned on the innermost owner only, so a paragraph in an item is
 # reported once, under the item, never again under its block.
-FACTS_MIN = 4
+FACTS_MIN = contract_defects.FACTS_MIN
 P_BLOCK = re.compile(r'<p\b([^>]*)>(.*?)</p>', re.I | re.S)
 P_FIELDLABEL = re.compile(r'\bclass\s*=\s*["\x27][^"\x27]*\bfieldlabel\b', re.I)
 
 
 def facts_paragraphs(body):
-    """[(codes, clauses, excerpt)] for every paragraph of `body` that carries
+    """[(clauses, excerpt)] for every paragraph of `body` that carries
     FACTS_MIN or more semicolon-separated clauses only by counting those inside
     <code>: every other dense paragraph is mixed-content-types' FAIL."""
     own = _strip_subtrees(strip_html_comments(strip_script_style(body)), ITEM_OPEN)
@@ -889,7 +894,7 @@ def facts_paragraphs(body):
             continue
         if clauses >= FACTS_MIN:
             excerpt = ' '.join(prose.split())
-            out.append((codes, clauses, excerpt[:60]))
+            out.append((clauses, excerpt[:60]))
     return out
 
 
@@ -1512,7 +1517,6 @@ SVG_EMBED_ATTRS = frozenset((
 SVG_EMBED_PAINT = re.compile(
     r'^\s*(#[0-9a-fA-F]{3,8}\b|(?:rgba?|hsla?|hwb|oklch|oklab|lab|lch|color)\()',
     re.I)
-SVG_EMBED_DECL = re.compile(r'(?:^|[;{\s])(fill|stroke)\s*:\s*([^;}]+)', re.I)
 SVG_EMBED_URL_OK = re.compile(r'url\(#[A-Za-z_][\w.-]*\)', re.I)
 SVG_EMBED_URL_REF = re.compile(r'url\(#([A-Za-z_][\w.-]*)\)', re.I)
 # Attributes whose value is a space-separated list of ids (BL-452).
@@ -2397,10 +2401,8 @@ def warn_file(path):
             dense = facts_paragraphs(body)
         except Exception:                           # noqa: BLE001 — advisory
             continue
-        for codes, clauses, excerpt in dense:
-            shape = (f"{codes} <code> tokens"
-                     if codes >= FACTS_MIN and not clauses >= FACTS_MIN
-                     else f"{clauses} semicolon-separated clauses")
+        for clauses, excerpt in dense:
+            shape = f"{clauses} semicolon-separated clauses"
             warns.append(("consult-facts", name,
                           f"'{ident}' carries a paragraph with {shape} "
                           f"(\"{excerpt}…\") — more than three facts of one "
@@ -2620,9 +2622,6 @@ def h2s_outside_id_sections(flat):
     """
     from html.parser import HTMLParser
 
-    VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link",
-            "meta", "param", "source", "track", "wbr"}
-
     class P(HTMLParser):
         def __init__(self):
             super().__init__()
@@ -2639,13 +2638,13 @@ def h2s_outside_id_sections(flat):
             if tag == "h2":
                 if not any(fr[2] for fr in self.stack):
                     self.orphans += 1
-            if tag in VOID:
+            if tag in VOID_TAGS:
                 return
             self.stack.append((tag, is_main, indexable))
 
         def handle_startendtag(self, tag, attrs):
             self.handle_starttag(tag, attrs)
-            if tag not in VOID:
+            if tag not in VOID_TAGS:
                 self.stack.pop()
 
         def handle_endtag(self, tag):
@@ -2730,10 +2729,8 @@ def check_file(path):
     # it: "<!-->", "<!--->" and "--!>" close it too, else the regex would run on
     # to the next "-->" past a live load. Known limit, accepted: content:"/*"
     # inside a <style> can still swallow the rules that follow it.
-    sflat = flatten(re.sub(
-        r'(<(script|style|textarea|title|xmp|noembed|noframes|noscript|iframe)\b[^>]*>.*?</\2\s*>)|(<[a-z][^>]*>)|<!--(?:-?>|.*?--!?>)',
-        lambda m: m.group(0) if (m.group(1) or m.group(3)) else ' ',
-        text, flags=re.S | re.I))
+    sflat = flatten(MARKUP_COMMENT.sub(
+        lambda m: m.group(0) if (m.group(1) or m.group(3)) else ' ', text))
     sflat = re.sub(
         r'(<style\b[^>]*>)(.*?)(</style)',
         lambda m: m.group(1) + re.sub(r'/\*.*?\*/', ' ', m.group(2), flags=re.S)
@@ -3080,9 +3077,7 @@ TITLE_LINE = re.compile(
     r'["\'][^>]*>.*?</p\s*>', re.I | re.S)
 
 ELEM_OPEN = re.compile(r'<([a-zA-Z][\w:-]*)\b[^>]*?(/?)>', re.S)
-VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input",
-             "link", "meta", "param", "source", "track", "wbr"}
-CLASS_VAL = re.compile(r'\bclass\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>]+))', re.I)
+CLASS_VAL = ATTR_CLASS
 # A grid cell is a heading or a table away from the layout BL-426 reports, at
 # any depth: `.v` is a cell, and a table inside one cannot be capped either.
 LEDGER_BANNED = re.compile(r'<(h[1-6]|table)\b', re.I)
@@ -3155,7 +3150,71 @@ def _ledger_shape(body):
     return ", ".join(dict.fromkeys(bad))
 
 
+def _spec_index(path):
+    """({("id", id) | ("heading", text): line}, spec file name) of the
+    `<stem>.spec.md` beside the page, or ({}, "") when there is none or it does
+    not parse. The same sibling `check_spec_items` reads, used here only to put
+    a spec LINE in a refusal: a hint, never a verdict, so any failure is silence
+    and the message falls back to the page's own line."""
+    spec = os.path.splitext(os.path.abspath(path))[0] + ".spec.md"
+    if not os.path.isfile(spec):
+        return {}, ""
+    try:
+        here = os.path.dirname(os.path.abspath(__file__))
+        sys.path.insert(0, here)
+        sys.path.insert(0, os.path.join(here, os.pardir))
+        import spec_parser
+        tree = spec_parser.parse(open(spec, encoding="utf-8").read())
+    except Exception:                               # noqa: BLE001 — a hint only
+        return {}, ""
+    index = {}
+
+    def walk(nodes):
+        for nd in nodes:
+            if nd.id:
+                index.setdefault(("id", nd.id), nd.line)
+            if nd.attrs.get("dropped-ids"):
+                index[("dropped-ids", "")] = nd.attrs["dropped-ids"].split()
+            heading = nd.attrs.get("heading")
+            if heading:
+                index.setdefault(("heading", " ".join(heading.split())), nd.line)
+            walk(nd.children)
+    walk(tree)
+    return index, os.path.basename(spec)
+
+
+def _where(index, spec_name, text, kind, key, pos):
+    """`<name>.spec.md:<line>` when the spec beside the page declares the block,
+    else the page's own `line <n>` of `pos`, else ''."""
+    line = index.get((kind, key))
+    if line:
+        return f"{spec_name}:{line}"
+    return "" if pos is None else f"line {text.count(chr(10), 0, pos) + 1}"
+
+
+def _PROSE_FIX(spec_name):
+    """The one-sentence remedy for prose outside a block (before or between)."""
+    if spec_name:
+        return ("Fix: move this `::: section` below the `::: notes` fence "
+                "(reference material), or fold its text into the group whose "
+                "decision needs it")
+    return ("Fix: move this section after the general-notes item (reference "
+            "material), or fold its text into the block whose decision needs it")
+
+
+def _at(ref):
+    return f" ({ref})" if ref else ""
+
+
 SPEC_BUILT = re.compile(r'<meta\b[^>]*\bname\s*=\s*["\']?spec-built\b', re.I)
+# The masthead profiles a page may declare (BL-714). Mirrors spec_build.PROFILES;
+# test_build.py asserts the two stay equal.
+PROFILES = ("study",)
+# A whole-attribute, case-sensitive read: `data-name=` and `name="consult-profile-x"`
+# are not the profile meta.
+PROFILE_META = re.compile(
+    r'<meta(?=\s)(?=[^>]*\sname\s*=\s*["\']consult-profile["\'])'
+    r'[^>]*\scontent\s*=\s*["\']([^"\']*)["\']')
 MASTHEAD_OPEN = re.compile(
     r'<header\b[^>]*\bclass\s*=\s*["\'][^"\']*\bmasthead\b', re.I)
 
@@ -3167,6 +3226,8 @@ def check_shape(path, text):
 
     def report(msg):
         fails.append(("consult-shape", os.path.basename(path), msg))
+
+    spec_index, spec_name = _spec_index(path)
 
     # A consultation page opens with ONE masthead (a hand edit that removed it
     # or pasted a second one leaves the page without, or with two, openings).
@@ -3241,20 +3302,45 @@ def check_shape(path, text):
             continue
         ident = next(g for g in m.groups()[1:] if g is not None)
         if not in_group(m.start()):
-            report(f"item '{ident}' sits outside any block — every decision "
-                   f"lives inside a <section class=\"consult-group\"> with "
-                   f"the context it comes from (02-local-first-artifacts.md "
-                   f"§ 8.4). A block may carry one decision or several")
+            ref = _where(spec_index, spec_name, text, "id", ident, m.start())
+            fix = ("move this `::: item` inside the `::: group` whose context "
+                   "it needs, or wrap it in a new `::: group {#G… title=\"…\"}`"
+                   if spec_name else
+                   "move it inside the consult-group of the context it comes "
+                   "from, or wrap it in a new one")
+            report(f"item '{ident}'{_at(ref)} sits outside any block — every "
+                   f"decision lives inside a <section class=\"consult-group\"> "
+                   f"with the context it comes from (02-local-first-artifacts.md "
+                   f"§ 8.4). A block may carry one decision or several. Fix: {fix}")
 
     # Every block carries a decision: a context with nothing to answer is the
     # old preamble wearing a class.
-    for ident, _, a, b in groups:
-        if not any(a <= m.start() < b and not GROUP_CLASS.search(m.group(0))
-                   for m in ITEM_OPEN.finditer(text)):
-            report(f"block '{ident}' carries no decision — a context with "
-                   f"nothing to answer is prose. Move it into the block whose "
-                   f"decisions need it, or after the questions if it is "
-                   f"reference material")
+    def has_decision(a, b):
+        return any(a <= m.start() < b and not GROUP_CLASS.search(m.group(0))
+                   for m in ITEM_OPEN.finditer(text))
+
+    for ident, start, a, b in groups:
+        if not has_decision(a, b):
+            ref = _where(spec_index, spec_name, text, "id", ident, start)
+            # The block whose decision this context most likely belongs to:
+            # the next block that has one, else the last one before it.
+            deciding = [g for g in groups if g[0] != ident and has_decision(g[2], g[3])]
+            nxt = [g for g in deciding if g[1] > start] or deciding[::-1][:1]
+            near = ""
+            if nxt:
+                nref = _where(spec_index, spec_name, text, "id", nxt[0][0], nxt[0][1])
+                near = (f" (#{nxt[0][0]} at {nref})" if spec_name else
+                        f" ({nxt[0][0]}, {nref})")
+            fix = ("put a decision in it (a `::: item` inside this `::: group`), "
+                   "or, if it is only context, rewrite it as `::: section "
+                   "{#id heading=\"…\"}` below the `::: notes` fence, or fold its "
+                   "text into the group whose decision needs it"
+                   if spec_name else
+                   "put a decision in it, or, if it is only context, make it a "
+                   "plain <section id=\"…\"> after the general-notes item, or "
+                   "fold its text into the block whose decision needs it")
+            report(f"block '{ident}'{_at(ref)} carries no decision — a context "
+                   f"with nothing to answer is prose. Fix: {fix}{near}")
 
     # The general-notes item closes the question set (BL-457): no block and no
     # item after it. Reference sections after it stay allowed — they carry no
@@ -3280,12 +3366,22 @@ def check_shape(path, text):
     first = min(s for _, s, _, _ in groups)
     end = notes_m.start() if notes_m else len(text)
 
+    # BL-714: a study page (masthead profile="study") puts each check after the
+    # teaching section it tests, so ONLY the two prose rules below are lifted for
+    # it; the ledger-shape rule, items-in-blocks and notes-last still apply. The
+    # meta is read from the live markup (not a comment, not a script string).
+    study = any(m_.group(1) in PROFILES for m_ in PROFILE_META.finditer(
+        strip_html_comments(strip_script_style(text))))
+
     # Nothing but blocks between the first block and the general notes.
     for m in H2.finditer(text, first, end):
-        if not in_group(m.start()):
-            report(f"prose between blocks: \"{_h2_text(m.group(0))}\" — the "
-                   f"context a decision needs sits in its block, above the "
-                   f"decision; there is no place for a section between blocks")
+        if not study and not in_group(m.start()):
+            label = _h2_text(m.group(0))
+            ref = _where(spec_index, spec_name, text, "heading",
+                         " ".join(_html.unescape(label).split()), m.start())
+            report(f"prose between blocks: \"{label}\"{_at(ref)} — the context "
+                   f"a decision needs sits in its block, above the decision; "
+                   f"there is no place for a section between blocks. {_PROSE_FIX(spec_name)}")
 
     # Before the first block: the header, a visual section, the ledger, and the
     # section that merely contains the blocks. Anything else is the preamble
@@ -3312,12 +3408,17 @@ def check_shape(path, text):
                        f".k/.v rows, never a table; anything else goes into "
                        f"the block that needs it or after the questions")
         rest = _strip_subtrees(rest, LEDGER_SUB)
-        if PROSE.search(rest):
-            report(f"prose before the first block: \"{label}\" — "
+        if not study and PROSE.search(rest):
+            h = H2.search(fragment)
+            ref = _where(spec_index, spec_name, text, "heading",
+                         " ".join(_html.unescape(label).split()),
+                         text.find(h.group(0)) if h and h.group(0) in text else None)
+            report(f"prose before the first block: \"{label}\"{_at(ref)} — "
                    f"before the blocks only the header (title + standfirst), "
                    f"a figure and the ledger may appear. The strongest claim "
                    f"goes in the standfirst; context goes in the block that "
-                   f"needs it; reference material goes after the questions")
+                   f"needs it; reference material goes after the questions. "
+                   f"{_PROSE_FIX(spec_name)}")
 
     # The region before the first block that sits in NO section: the report
     # pages put the title, the standfirst and the ledger straight under <main>,
@@ -3749,7 +3850,9 @@ def check_marker_duties(new_path):
     paste = open(reply, encoding="utf-8", errors="replace").read()
     answered_text = open(answered, encoding="utf-8", errors="replace").read()
     answered_bodies = dict(consult_item_bodies(answered_text))
-    decided_now = decided_ids(text)
+    # A proposal on the answered page was ASKED about, not accepted, when the reply marks it
+    # (BL-711): it is still decided on the new page, but its marked duty is owed.
+    decided_now = decided_ids(text) - proposal_ids(answered_text)
     try:
         import wrap_report
         new_texts = wrap_report.question_texts(text)
@@ -3799,6 +3902,8 @@ def check_marker_duties(new_path):
         stack_eligible = markset - NO_STACK_MARKERS
         stacked = len(stack_eligible) >= 3
         if stacked or "show-me" in markset:
+            # consult_item_bodies already dropped comments and script/style: a
+            # visual in either is not one the reader sees.
             if not VISUAL_TAG.search(new_body):
                 fails.append(("consult-marker-duties", name,
                     f"{ident} was marked [show-me]"
@@ -3846,8 +3951,11 @@ def check_marker_duties(new_path):
     # warnings as a marker above; an unreadable paste has no row to judge.
     try:
         import save_reply
+        # The states the reader ticked against are the answered page's: without
+        # them a partial tick on a states row owes nothing (save_reply passes them).
         gallery = save_reply.gallery_duties_for(
-            paste, ordinary_item_ids(text) | ordinary_item_ids(answered_text))
+            paste, ordinary_item_ids(text) | ordinary_item_ids(answered_text),
+            save_reply.states_in_page(answered_text))
     except Exception as e:                          # noqa: BLE001 — fail closed
         return fails + [("consult-marker-duties", name,
                          f"the gallery-row scan did not run ({e})")], warns
@@ -3882,6 +3990,7 @@ def waiting_rows(text):
     """{data-id: item id} of gallery rows marked `data-waits-on` (BL-690): rows
     that depend on a consult item still open. They ask nothing and are not
     decided."""
+    text = strip_item_markup(text)   # a commented-out item is not one
     out = {}
     for m in ITEM_OPEN.finditer(text):
         w = re.search(r'\bdata-waits-on\s*=\s*(?:"([^"]*)"|\x27([^\x27]*)\x27|([^\s>]+))',
@@ -3892,16 +4001,25 @@ def waiting_rows(text):
     return out
 
 
+def _flagged_ids(text, flag):
+    """The `data-id`s of items carrying the boolean `data-<flag>` attribute. The
+    `(?!-)` keeps `data-decided` from matching `data-decided-round`; `decided`
+    goes through ITEM_DECIDED, the one regex the still-asked rule also reads."""
+    text = strip_item_markup(text)   # a commented-out item is not one
+    attr = ITEM_DECIDED if flag == "decided" else \
+        re.compile(r"\bdata-" + flag + r"\b(?!-)", re.I)
+    out = set()
+    for m in ITEM_OPEN.finditer(text):
+        if attr.search(m.group(0)):
+            out.add(next(g for g in m.groups()[1:] if g is not None))
+    return out
+
+
 def decided_ids(text):
     """The `data-id`s of items carrying `data-decided` (BL-359's own mark). An
     item decided in the round being checked left the question set, so a
     marker duty against it is answered and exempt (BL-504)."""
-    out = set()
-    for m in ITEM_OPEN.finditer(text):
-        if ITEM_DECIDED.search(m.group(0)):
-            ident = next(g for g in m.groups()[1:] if g is not None)
-            out.add(ident)
-    return out
+    return _flagged_ids(text, "decided")
 
 
 def _spec_item_ids(nodes):
@@ -3944,21 +4062,13 @@ def check_spec_items(path):
 
 def dropped_ids(text):
     """The `data-id`s of items carrying `data-dropped` (a spec `dropped=`)."""
-    out = set()
-    for m in ITEM_OPEN.finditer(text):
-        if re.search(r"\bdata-dropped\b(?!-)", m.group(0), re.I):
-            out.add(next(g for g in m.groups()[1:] if g is not None))
-    return out
+    return _flagged_ids(text, "dropped")
 
 
 def proposal_ids(text):
     """The `data-id`s of items carrying `data-proposal` (a spec `proposal=yes`,
     BL-692): decided by the writer this round, awaiting the reader's correction."""
-    out = set()
-    for m in ITEM_OPEN.finditer(text):
-        if re.search(r"\bdata-proposal\b(?!-)", m.group(0), re.I):
-            out.add(next(g for g in m.groups()[1:] if g is not None))
-    return out
+    return _flagged_ids(text, "proposal")
 
 
 _SAVE_SEP = re.compile(r"^<!-- reply saved .*-->[ \t]*$", re.M)
@@ -4134,6 +4244,44 @@ def check_round_pick_open(path, strict=False):
             for i in still_open]
 
 
+def gallery_row_ids(text):
+    """The data-ids of gallery ROWS (`consult-gallery` items): never spec nodes,
+    so `spec_verbs new-round --retitle` refuses them."""
+    return {next(g for g in m.groups()[1:] if g is not None)
+            for m in ITEM_OPEN.finditer(text)
+            if "consult-gallery" in _class_tokens(m.group(0))}
+
+
+def _next_free_id(ident, taken):
+    """A new id for a different question next to `ident`: `Q4` for `Q1` on a page
+    with Q1-Q3 (the highest number of that prefix plus one), `<id>-2` for an id
+    that does not end in digits. Never one in `taken`."""
+    m = re.match(r'^(.*?)(\d+)$', ident)
+    if m:
+        pref = m.group(1)
+        nums = [int(n.group(2)) for t in taken
+                for n in [re.match(r'^(.*?)(\d+)$', t)]
+                if n and n.group(1) == pref]
+        return f"{pref}{max(nums) + 1}"
+    cand, k = f"{ident}-2", 2
+    while cand in taken:
+        k += 1
+        cand = f"{ident}-{k}"
+    return cand
+
+
+def _spec_verb_cmd(new_path, flag, ids):
+    """The paste-ready `spec_verbs.py new-round` line, or '' when no spec sits
+    beside the page. Plain ids (the verb strips a `#`): `#` starts a shell comment."""
+    spec = os.path.splitext(os.path.abspath(new_path))[0] + ".spec.md"
+    if not ids or not os.path.isfile(spec):
+        return ""
+    verbs = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                         "spec_verbs.py")
+    return (f"python3 {shlex.quote(verbs)} new-round {shlex.quote(spec)} "
+            + " ".join(f"{flag} {shlex.quote(i)}" for i in ids))
+
+
 def check_prev(new_path, prev_path):
     """Requirement 1 across regenerations: an id kept between two versions
     still names the same claim, and no id disappears. A SHIFT is an id whose
@@ -4171,10 +4319,31 @@ def check_prev(new_path, prev_path):
     groups = group_ids(new_page) & group_ids(
         open(prev_path, encoding="utf-8", errors="replace").read())
     dropped = sorted(set(old) - set(new))
+    spec_index, spec_name = _spec_index(new_path)
+    spec_base = os.path.basename(os.path.splitext(os.path.abspath(new_path))[0]
+                                 + ".spec.md")
+    rows = gallery_row_ids(open(prev_path, encoding="utf-8", errors="replace").read())
     if dropped:
         new_text = open(new_path, encoding="utf-8", errors="replace").read()
         declared = dropped_declaration(new_text)
         if not surfaces_declaration(new_text):
+            undeclared = [i for i in dropped if i not in declared]
+            # ONE command for every id: the verb merges drops, and a list grown
+            # one id per refusal is the loop this message exists to end.
+            cmd = _spec_verb_cmd(new_path, "--drop",
+                                 [i for i in undeclared if i not in rows])
+            row_ids = [i for i in undeclared if i in rows]
+            tail = (f"; gallery row ids ({', '.join(row_ids)}) are not spec "
+                    f"items, add `--drop <row id>` for each only if its row "
+                    f"really left the rows file" if cmd and row_ids else "")
+            how = (f"To keep it, restore it in {spec_base} as an item marked "
+                   f"decided=\"…\" or dropped=\"reason\". To drop on purpose, "
+                   f"run `{cmd}` (every dropped spec id of this page){tail}"
+                   if cmd else
+                   f'To keep it, restore it on the page marked decided or '
+                   f'closed. To drop on purpose, declare every dropped id '
+                   f'(<meta name="consult-dropped" content="'
+                   f'{" ".join(undeclared)}">)')
             for i in dropped:
                 if i in declared:
                     notes.append(("consult-ids", os.path.basename(new_path),
@@ -4184,11 +4353,8 @@ def check_prev(new_path, prev_path):
                 fails.append(("consult-ids", os.path.basename(new_path),
                               f'id dropped between rounds — {i} ("{old[i]}") '
                               f'was on the previous version and is not on this '
-                              f'one. Ids are never removed: keep the item and '
-                              f'mark it decided or closed; a round that really '
-                              f'drops it says so (spec_verbs new-round --drop), '
-                              f'and a page declaring '
-                              f'consult-surfaces: none may drop ids'))
+                              f'one. Ids are never removed. {how}. A page '
+                              f'declaring consult-surfaces: none may drop ids'))
     # BL-323: a TRANSLATION changes every title by definition, and that is not
     # the failure this check exists for. On a real 12-item page it produced 12
     # FAILs at once, and the remedy the message proposes — append a new id — is
@@ -4203,6 +4369,21 @@ def check_prev(new_path, prev_path):
     # because a translation is also the easiest place to change a claim without
     # noticing. And the discriminant is the LANGUAGE PAIR: within one language
     # this is a failure exactly as before.
+    # The ids this loop will refuse: the reworded-on-purpose command must list
+    # them together with the ones already declared, because the verb REPLACES
+    # the page's list.
+    refused_moved = [i for i in moved if not translated and i not in groups
+                     and i not in retitled]
+    # BL-611: a declaration lasts ONE round, so an earlier round's retitle that
+    # did not move again is not renewed; row ids are not spec nodes.
+    reword_cmd = _spec_verb_cmd(
+        new_path, "--retitle",
+        sorted(i for i in (retitled & set(moved)) | set(refused_moved)
+               if i not in rows))
+    # A dropped id is gone from both pages but still taken: the page's
+    # consult-dropped declaration and the spec masthead's dropped-ids.
+    taken = (set(old) | set(new) | dropped_declaration(new_page)
+             | set(spec_index.get(("dropped-ids", ""), [])))
     for i in moved:
         if translated:
             notes.append(("consult-ids", os.path.basename(new_path),
@@ -4223,11 +4404,20 @@ def check_prev(new_path, prev_path):
                           f'was "{old[i]}", now "{new[i]}". The id stays; '
                           f'check the claim behind it did not change'))
         else:
+            ref = _where(spec_index, spec_name, "", "id", i, None)
+            same = (f"Same question reworded: run `{reword_cmd}` (every "
+                    f"reworded id of this page)" if reword_cmd else
+                    f'Same question reworded: declare it on the page '
+                    f'(<meta name="consult-retitled" content="'
+                    f'{" ".join(refused_moved)}">)')
+            fresh = _next_free_id(i, taken)
+            taken.add(fresh)
             fails.append(("consult-ids", os.path.basename(new_path),
                           f'id reused for a different claim — {i}: was '
-                          f'"{old[i]}", now "{new[i]}". Append a new id '
-                          f'instead; a reply about that id now points '
-                          f'somewhere else'))
+                          f'"{old[i]}", now "{new[i]}"{_at(ref)}. {same}. '
+                          f'A different question: give it a new id (next free: '
+                          f'{fresh}) and keep {i} as it was; a reply about {i} '
+                          f'would point somewhere else'))
     return fails, notes
 
 

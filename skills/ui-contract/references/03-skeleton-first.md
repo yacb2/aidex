@@ -20,7 +20,7 @@ makes it rework.
 2. **Review of the skeleton** — the skeleton is rendered as gallery cells and the owner
    rules on them in a consultation page (part 1 of "verified") BEFORE anything is wired.
    Its rounds are sketch rounds (SKILL.md Step 0), shaped as SKILL.md Step 3b says. Skeleton
-   **alternatives** (two layouts for one cell) use the gallery's alternatives mode, one
+   **alternatives** (two layouts for one cell) use the gallery's [alternatives mode](../../artifact/references/04-block-vocabulary.md#gallery--scriptsdashgallery_itemspy-rows-json-in), one
    which-one choice with the labels the spec writes, never before/after: a
    baseline-vs-proposed frame asks the owner to approve one alternative against the other
    as if it were the old state (`/aidex:artifact`, § Gallery rows). The owner's verdict on

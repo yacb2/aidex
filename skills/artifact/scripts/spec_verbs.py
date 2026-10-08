@@ -49,7 +49,8 @@ The short of it:
     add-item   REFUSES a second call with the same id (two different items
                would end up sharing a paste key; one would shadow the other).
     decide     IDEMPOTENT for the same verdict (byte-identical spec, rebuild
-               still runs); a DIFFERENT verdict overwrites, because
+               still runs; on a `proposal=` item the first call also drops
+               `proposal=`, BL-711); a DIFFERENT verdict overwrites, because
                `owner-changed` — the reader revising an earlier answer — is one
                of the four documented round labels, and `wrap_report.py`
                already re-stamps `data-decided-round` when the verdict text
@@ -83,7 +84,9 @@ sys.path.insert(0, os.path.join(HERE, "dash"))
 
 import check_artifact                                       # noqa: E402
 import contract_defects                                     # noqa: E402
+import gallery_items                                        # noqa: E402
 import md_body                                              # noqa: E402
+from _usage import UsageParser, usage_exit                  # noqa: E402
 import spec_build                                           # noqa: E402
 import spec_parser                                          # noqa: E402
 from spec_build import SpecBuildError                       # noqa: E402
@@ -161,13 +164,15 @@ def _ledger_keys(ledger):
     """The KEY half of each row of `ledger` — the text before the hint
     separator, exactly the span `spec_build.emit_ledger` turns into `.k`."""
     out = []
-    if ledger is None:
-        return out
     for child in ledger.children:
         for ln in child.raw_body:
             if md_body.MARKER.match(ln):
                 row = md_body.MARKER.sub("", ln, count=1).strip()
-                out.append(row.partition(SEP)[0].strip())
+                key, sep, _ = row.partition(SEP)
+                # A row with no ` — ` has no key: it ships as `.v` alone and
+                # names no id (`emit_ledger`, `check_artifact.ledger_ids`).
+                if sep:
+                    out.append(key.strip())
     return out
 
 
@@ -209,19 +214,6 @@ def _parse(text, where):
     except SpecSyntaxError as exc:
         raise VerbError("%s does not parse (line %d: %s) — fix the spec before "
                         "a verb can edit it" % (where, exc.line, exc.message))
-
-
-def _quotable(value):
-    """An attr value spelled for a fence line, escapes included.
-
-    `spec_parser.quote_value` and nothing else: this file WRITES the syntax the
-    tokenizer reads, and a second opinion here about which characters need a
-    backslash is how the two stop agreeing. It used to REFUSE a value holding a
-    double quote, because the grammar had no escape for one; it has had `\\"`
-    since the corpus conversion (`03-spec-grammar.md` § Values and quoting), so
-    a title the author really wrote now round-trips instead of being rejected.
-    """
-    return spec_parser.quote_value(value)
 
 
 def _blankish(lines, index):
@@ -283,7 +275,7 @@ def add_item(spec_text, group_id, item_id, title, body="", options=()):
                         "has are: %s" % (group_id,
                                          ", ".join("#" + i for i in known)
                                          or "(none)"))
-    block = ['::: item {#%s title=%s}' % (item_id, _quotable(title))]
+    block = ['::: item {#%s title=%s}' % (item_id, spec_parser.quote_value(title))]
     body_lines = [ln for ln in body.split("\n")] if body else []
     while body_lines and not body_lines[-1].strip():
         body_lines.pop()
@@ -378,7 +370,7 @@ def _match_labels(said, labels, many):
     return ", ".join(got)
 
 
-_OTHER_LABELS = ("otra — lo explico en las notas", "other — see my notes")
+_OTHER_LABELS = tuple(o.lower() for o in gallery_items.OTHER)
 
 
 def _reply_answer(reply, item_id, ids, labels=(), many=False):
@@ -388,29 +380,10 @@ def _reply_answer(reply, item_id, ids, labels=(), many=False):
     whether a bare `- [marker]` line (question, show-me, not-now...) sits in it.
     None when the reply has no block for the id. `[provisional]` picks are not
     counted: not a decision yet."""
-    if not reply:
+    found = _reply_block(reply, item_id, ids)
+    if found is None:
         return None
-    alts = "|".join(re.escape(i) for i in sorted(set(ids) | {item_id},
-                                                 key=len, reverse=True))
-    head_any = re.compile(r"^(?:[ \t]*#{2,3}[ \t]|<!--|[ \t]*(?:" + alts
-                          + r")(?![\w-])[ \t]*[:·])")
-    head = re.compile(r"^[ \t]*(#{2,3}[ \t]+)?" + re.escape(item_id)
-                      + r"(?![\w-])[ \t]*[:·](.*)$")
-    lines = reply.split("\n")
-    block, chat_form = None, False
-    for k, line in enumerate(lines):
-        m = head.match(line)
-        if not m:
-            continue
-        cur = [] if m.group(1) else [m.group(2)]
-        chat_form = not m.group(1)
-        for nxt in lines[k + 1:]:
-            if head_any.match(nxt):
-                break
-            cur.append(nxt)
-        block = cur
-    if block is None:
-        return None
+    block, chat_form = found
     real, notes, other, marked = [], [], False, False
     # the composer's page-defect sub-block closes the item's block and is no
     # note and no answer (check_artifact.split_defect)
@@ -441,6 +414,35 @@ def _reply_answer(reply, item_id, ids, labels=(), many=False):
     return real, notes, other, marked
 
 
+def _reply_block(reply, item_id, ids):
+    """`(lines, chat_form)` of the LAST block of the saved reply for `item_id`
+    (its head line's remainder first in the chat form), or None."""
+    if not reply:
+        return None
+    alts = "|".join(re.escape(i) for i in sorted(set(ids) | {item_id},
+                                                 key=len, reverse=True))
+    head_any = re.compile(r"^(?:[ \t]*#{2,3}[ \t]|<!--|[ \t]*(?:" + alts
+                          + r")(?![\w-])[ \t]*[:·])")
+    head = re.compile(r"^[ \t]*(#{2,3}[ \t]+)?" + re.escape(item_id)
+                      + r"(?![\w-])[ \t]*[:·](.*)$")
+    lines = reply.split("\n")
+    block, chat_form = None, False
+    for k, line in enumerate(lines):
+        m = head.match(line)
+        if not m:
+            continue
+        cur = [] if m.group(1) else [m.group(2)]
+        chat_form = not m.group(1)
+        for nxt in lines[k + 1:]:
+            if head_any.match(nxt):
+                break
+            cur.append(nxt)
+        block = cur
+    if block is None:
+        return None
+    return block, chat_form
+
+
 def _reply_allows_free_text(reply, item_id, ids, labels=(), many=False):
     """True when the LAST block of the saved reply for `item_id` answers it
     with the kit's Other choice, or with one of `labels` plus a note. A bare
@@ -453,18 +455,23 @@ def _reply_allows_free_text(reply, item_id, ids, labels=(), many=False):
     return other or (bool(real) and bool(notes))
 
 
-def _bare_picks(spec_text, reply):
+def _bare_picks(spec_text, reply, proposals=()):
     """`[(item id, picked option)]` for the items the saved `reply` answers with
     an option and nothing else (no note, marker or Other) that the spec has not
-    decided: the picks a `new-round` would carry into the next round as open."""
+    decided: the picks a `new-round` would carry into the next round as open.
+    `proposals` (BL-711) is the ids the reader saw as proposals on the answered
+    page: a proposal is decided on the spec, but a pick on it is a correction, so
+    it is named like an open item's."""
     if not reply:
         return []
+    reply = check_artifact._live_reply(reply)     # the latest full paste supersedes earlier ones (BL-598)
     tree = _parse(spec_text, "the spec")
     ids = _ids_of(tree, "item")
     out = []
     for ident in ids:
         node = _by_id(tree, ident)
-        if node.attrs.get("decided", "").strip():
+        if node.attrs.get("decided", "").strip() and not (
+                ident in proposals and "proposal" in node.attrs):
             continue
         try:
             labels = [spec_build.PLAIN.sub("", l).strip()
@@ -489,7 +496,10 @@ def decide(spec_text, item_id, verdict, reply=None):
     """Record `#item_id`'s verdict as `decided="…"` on its fence.
 
     IDEMPOTENT for the same verdict: the spec comes back byte-identical and the
-    caller still rebuilds, so running it twice is safe. A DIFFERENT verdict
+    caller still rebuilds, so running it twice is safe. The one exception is an
+    item still carrying `proposal=` (BL-711): the first call drops that attribute,
+    since deciding a proposal is the writer settling what the reader answered it
+    with; the second call is then byte-identical. A DIFFERENT verdict
     OVERWRITES rather than refusing — `owner-changed`, the reader revising an
     earlier answer, is one of the four labels a round's brief carries, and
     `wrap_report.stamp_decided_rounds` already handles it: a decided item whose
@@ -523,16 +533,32 @@ def decide(spec_text, item_id, verdict, reply=None):
         raise VerbError("an empty verdict for #%s — pass the chosen option's "
                         "label (see the saved-reply rule in the docstring)"
                         % item_id)
-    # On an item with options, `yes` makes the builder check the {recommended}
-    # option: the author's advice, not what the reader chose. The verdict is
-    # the chosen option's label (LOOP-006 review).
-    if verdict.strip().lower() in contract_defects.NOT_A_VERDICT:
+    # On an item with options, `yes` makes the builder check the {chosen}
+    # option, else the {recommended} one: the author's advice, not what the
+    # reader chose. The verdict is the chosen option's label (LOOP-006 review).
+    # Read in the plain form, as the builder reads it (`**Yes**` is `Yes`).
+    said_plain = spec_build.PLAIN.sub("", verdict).strip()
+    if said_plain.lower() in contract_defects.NOT_A_VERDICT:
         try:
             offers = spec_build.has_options(node)
+            labelled = [l for l in spec_build.option_labels(node)
+                        if spec_build.PLAIN.sub("", l).strip().lower()
+                        == said_plain.lower()]
+            chosen_plain = [spec_build.PLAIN.sub("", c).strip().lower()
+                            for c in spec_build.chosen_labels(node)]
         except SpecBuildError as exc:
             raise VerbError("#%s cannot be read (line %d: %s)"
                             % (item_id, exc.line, exc.message))
-        if offers:
+        # An option LABELLED `Yes` is a verdict when it is the one {chosen}
+        # option: that is the option the flag makes the builder check.
+        if labelled and chosen_plain != [said_plain.lower()]:
+            raise VerbError(
+                "#%s has an option labelled %r, but the builder reads "
+                "decided=%s as the settled flag and checks the {chosen} "
+                "option, else the {recommended} one, whatever its label: mark "
+                "the %r option {chosen} first, then decide"
+                % (item_id, said_plain, said_plain, labelled[0]))
+        if offers and not labelled:
             raise VerbError(
                 "#%s has options, and %r would record its {recommended} option "
                 "as the verdict whatever the reader chose — pass the chosen "
@@ -580,15 +606,28 @@ def decide(spec_text, item_id, verdict, reply=None):
     # The same verdict in another spelling (`Dos` for a recorded `**Dos**`, or
     # back) is already recorded: rewriting it would break idempotence and reset
     # the round stamp (wrap_report compares this plain form too since BL-545).
+    lines = _split(spec_text)
+    # BL-711: deciding a proposal is the writer settling what the reader answered it
+    # with, so it stops being a proposal (else `new-round` would keep it open forever).
+    unproposed = "proposal" in node.attrs and _drop_attr(lines, node, "proposal")
     if (spec_build.PLAIN.sub("", node.attrs.get("decided", "")).strip()
             == spec_build.PLAIN.sub("", verdict).strip()):
-        return spec_text
-    lines = _split(spec_text)
+        return "\n".join(lines) if unproposed else spec_text
     old_verdict = node.attrs.get("decided", "").strip()
     if not _set_attr(lines, node, "decided", verdict):
-        return spec_text
+        return "\n".join(lines) if unproposed else spec_text
     _update_ledger_row(lines, tree, node, old_verdict, verdict)
     return "\n".join(lines)
+
+
+def _ledger_row(item_id, title, verdict):
+    """The ledger row `new-round` writes for a decided item. `yes`/`true` is
+    the plain "this is settled" mark and says nothing a row should repeat; any
+    other value is the verdict TEXT the author wrote and belongs in the row
+    beside the title. `_update_ledger_row` rebuilds the same row to find it."""
+    v = verdict.strip()
+    return "- %s%s%s" % (item_id, SEP, title if v in ("yes", "true", "")
+                         else "%s (%s)" % (title, v))
 
 
 def _update_ledger_row(lines, tree, node, old_verdict, verdict):
@@ -598,19 +637,19 @@ def _update_ledger_row(lines, tree, node, old_verdict, verdict):
     Any other row for this id is hand-written: it stays byte-identical and the
     caller is told. A compound key (`c1 + c12`) or no row at all is left alone.
     Line numbers are stable: the attr edit never adds or removes a line."""
-    title = node.attrs.get("title", "").strip() or node.id
+    title = spec_build.clean_item_title(
+        node.id, node.attrs.get("title", "").strip()) or node.id
 
     def row(v):
-        v = v.strip()
-        return "- %s%s%s" % (node.id, SEP, title if v in ("yes", "true", "")
-                             else "%s (%s)" % (title, v))
+        return _ledger_row(node.id, title, v)
 
     for ledger in _ledgers(tree):
         for i in range(ledger.line, _end_line(ledger) - 1):
             line = lines[i].rstrip("\r")
             if not line.startswith("- "):
                 continue
-            if line[2:].split(SEP, 1)[0].strip() != node.id:
+            key, sep, _ = line[2:].partition(SEP)
+            if not sep or key.strip() != node.id:     # key-less: no id (_ledger_keys)
                 continue
             if line in (row(old_verdict), "- %s%s%s" % (node.id, SEP, title)):
                 lines[i] = row(verdict) + ("\r" if lines[i].endswith("\r") else "")
@@ -627,17 +666,17 @@ def _set_attr(lines, node, name, value):
     brace = line.find("{")
     if brace < 0:                        # `item` requires an #id; a masthead may not
         pad = "" if line.endswith(" ") else " "
-        new = line + pad + "{%s=%s}" % (name, _quotable(value))
+        new = line + pad + "{%s=%s}" % (name, spec_parser.quote_value(value))
     else:
         spans = {}
         _, _, _, end = spec_parser._parse_attrs(node.line, line, brace, spans)
         if name in spans:
             lo, hi = spans[name]
-            new = line[:lo] + "%s=%s" % (name, _quotable(value)) + line[hi:]
+            new = line[:lo] + "%s=%s" % (name, spec_parser.quote_value(value)) + line[hi:]
         else:
             close = end - 1              # the index of the closing '}'
             pad = "" if (close and line[close - 1] in " \t") else " "
-            new = (line[:close] + pad + "%s=%s" % (name, _quotable(value))
+            new = (line[:close] + pad + "%s=%s" % (name, spec_parser.quote_value(value))
                    + line[close:])
     if new == line:
         return False
@@ -667,10 +706,19 @@ def _drop_attr(lines, node, name):
     return True
 
 
-def _expire_proposals(text, answered_html):
+def _expire_proposals(text, answered_html, reply=None):
     """`proposal=yes` (BL-692) lasts one round: an item that carried it on the
     saved answered page has been seen by the reader, so it becomes an ordinary
-    settled item and folds."""
+    settled item and folds. Unless the reply asked about it (BL-711): a proposal
+    has the ask chips and `[not-now]` like an open item, so a block for it that
+    holds a bare `- [marker]` line means the reader did NOT accept it, and it
+    stays a proposal, unsettled and out of the ledger. So does a real pick, the
+    Other choice or a note: the composer sends nothing for an untouched proposal,
+    so ANY content but page-defect text in its block (a chat-form line, a reworded
+    option) is the reader answering it, and it takes the open-item path
+    (`_bare_picks`, then `decide`). "Marked" is read
+    with check_artifact.marker_duties_of, the reader of the duty check, so both
+    sides agree across several saved pastes."""
     if not answered_html:
         return text
     seen = check_artifact.proposal_ids(answered_html)
@@ -679,13 +727,26 @@ def _expire_proposals(text, answered_html):
     tree = _parse(text, "the spec")
     lines = _split(text)
     hit = False
+    ids = _ids_of(tree, "item")
+    # Marks are read from the whole file, as the duty check reads them; the block's own
+    # content from the LIVE reply, where a later full paste supersedes an earlier one.
+    marked = {i for i, marks in check_artifact.marker_duties_of(reply or "")
+              if set(marks) - {"page-defect"}}
+    live = check_artifact._live_reply(reply or "")
     for n in _walk(tree):
         if n.block_type == "item" and n.id in seen and "proposal" in n.attrs:
+            if n.id in marked:
+                continue                 # asked about, not accepted
+            found = _reply_block(live, n.id, ids)
+            if found is not None and any(
+                    l.strip() and l.strip() != "- [page-defect]" for l in
+                    check_artifact.split_defect("\n".join(found[0]))[0].split("\n")):
+                continue                 # anything but defect text: the reader answered it
             hit |= _drop_attr(lines, n, "proposal")
     return "\n".join(lines) if hit else text
 
 
-def new_round(spec_text, dropped=(), retitled=(), answered_html=None):
+def new_round(spec_text, dropped=(), retitled=(), answered_html=None, reply=None):
     """`_sync_ledger`, then record `dropped` and `retitled` ids on the masthead.
 
     `dropped` (BL-533) is the ids this round takes OFF the page: the author
@@ -712,7 +773,7 @@ def new_round(spec_text, dropped=(), retitled=(), answered_html=None):
     # saved answered snapshot (BL-692). One written this turn is absent from it and
     # stays a proposal, whichever order the verbs run in; with no snapshot nothing
     # expires.
-    text = _expire_proposals(spec_text, answered_html)
+    text = _expire_proposals(spec_text, answered_html, reply)
     text = _sync_ledger(text)
     clean = lambda ids: [i for i in (d.strip().lstrip("#") for d in ids) if i]
     dropped = list(dict.fromkeys(clean(dropped)))
@@ -795,14 +856,10 @@ def _sync_ledger(spec_text):
     for node in decided:
         if node.id in keys:
             continue
-        title = node.attrs.get("title", "").strip() or node.id
+        title = spec_build.clean_item_title(
+            node.id, node.attrs.get("title", "").strip()) or node.id
         verdict = node.attrs["decided"].strip()
-        # `yes`/`true` is the plain "this is settled" mark and says nothing a
-        # row should repeat; any other value is the verdict TEXT the author
-        # wrote and belongs in the row beside the title.
-        value = title if verdict in ("yes", "true") else "%s (%s)" % (title,
-                                                                      verdict)
-        rows.append("- %s%s%s" % (node.id, SEP, value))
+        rows.append(_ledger_row(node.id, title, verdict))
     if not rows:
         return spec_text
 
@@ -957,6 +1014,7 @@ def apply_edit(spec_path, transform, out=None, lang=None, needs_page=False):
     def build_error(text):
         try:
             with tempfile.TemporaryDirectory(prefix="spec-verbs-check-") as tmp:
+                spec_build.refuse_missing_visual(text)
                 spec_build.build(text, lang=lang, base_dir=base_dir,
                                  page=os.path.join(tmp, os.path.basename(out)))
         except (SpecSyntaxError, SpecBuildError) as exc:
@@ -1059,10 +1117,6 @@ def add_item_file(spec_path, group_id, item_id, title, body="", options=(),
                       out=out, lang=lang)
 
 
-def decide_file(spec_path, item_id, verdict, out=None, lang=None):
-    return decide_many_file(spec_path, [(item_id, verdict)], out=out, lang=lang)
-
-
 def decide_many_file(spec_path, pairs, out=None, lang=None):
     """Record several `(id, verdict)` pairs, then rebuild ONCE: one reader reply
     that decides N items is one round, not N (BL-497). One refused pair refuses
@@ -1099,7 +1153,7 @@ def new_round_file(spec_path, out=None, lang=None, dropped=(), retitled=()):
     reply = _prev_file(spec_path, out, ".reply.md")
 
     def guarded(text):
-        picks = _bare_picks(text, reply)
+        picks = _bare_picks(text, reply, check_artifact.proposal_ids(answered or ""))
         if picks:
             raise VerbError(
                 "the saved reply answers %s with a plain option that is not "
@@ -1109,18 +1163,24 @@ def new_round_file(spec_path, out=None, lang=None, dropped=(), retitled=()):
                 % (", ".join("#" + i for i, _ in picks),
                    "; ".join("decide --id %s --verdict \"%s\"" % (i, v)
                              for i, v in picks)))
-        return new_round(text, dropped, retitled, answered)
+        return new_round(text, dropped, retitled, answered, reply)
     return apply_edit(spec_path,
                       guarded, out=out, lang=lang, needs_page=True)
 
 
 # --- CLI ---------------------------------------------------------------------
 def main(argv):
-    p = argparse.ArgumentParser(
+    tail = " [--out <page.html>] [--lang es|en]"
+    nr_form = ("spec_verbs.py new-round <spec.md> [--drop <#id>]... "
+               "[--retitle <#id>]..." + tail)
+    hints = {"--drop": nr_form, "--retitle": nr_form}
+    p = UsageParser(
         prog="spec_verbs.py",
+        form="spec_verbs.py add-item|decide|new-round <spec.md> [options]  "
+             "(spec_verbs.py <verb> -h lists a verb's options)",
         description="Edit a page SPEC and rebuild its page. The verbs never "
                     "touch the built HTML.")
-    subs = p.add_subparsers(dest="verb", metavar="<verb>")
+    subs = p.add_subparsers(dest="verb", metavar="<verb>", parser_class=UsageParser)
 
     def common(sp):
         sp.add_argument("spec", metavar="<spec.md>")
@@ -1132,7 +1192,9 @@ def main(argv):
                              "default: the project profile's, else es")
         return sp
 
-    a = common(subs.add_parser("add-item", help="add an item to a group"))
+    a = common(subs.add_parser("add-item", help="add an item to a group",
+        form="spec_verbs.py add-item <spec.md> --group <#id> --id <#id> --title <title> [--body <text>] [--option <line>]..." + tail,
+        hints=hints))
     a.add_argument("--group", required=True, metavar="<#id>")
     a.add_argument("--id", required=True, dest="ident", metavar="<#id>")
     a.add_argument("--title", required=True)
@@ -1140,7 +1202,9 @@ def main(argv):
     a.add_argument("--option", action="append", default=[], dest="options",
                    help="one option line; repeat it")
 
-    d = common(subs.add_parser("decide", help="record an item's verdict"))
+    d = common(subs.add_parser("decide", help="record an item's verdict",
+        form="spec_verbs.py decide <spec.md> --id <#id> --verdict <label> [--id <#id> --verdict <label>]..." + tail,
+        hints=hints))
     d.add_argument("--id", required=True, action="append", dest="ident",
                    metavar="<#id>", help="repeat --id/--verdict to record "
                    "several items from one reply; the page rebuilds once")
@@ -1153,7 +1217,8 @@ def main(argv):
                         "the reader's) and fails the build on one without")
 
     n = common(subs.add_parser(
-        "new-round", help="sync the ledger to the decided items and rebuild"))
+        "new-round", help="sync the ledger to the decided items and rebuild",
+        form=nr_form))
     n.add_argument("--drop", action="append", default=[], dest="dropped",
                    metavar="<#id>", help="any id this round removed: an item, "
                    "a group, or a gallery row id (only refused while still in "
@@ -1165,10 +1230,11 @@ def main(argv):
                    "this round reworded; its id is recorded on the masthead so "
                    "the title may change (repeat for several)")
 
-    args = p.parse_args(argv)
+    args, extra = p.parse_known_args(argv)
     if not args.verb:
-        p.print_help(sys.stderr)
-        return 2
+        p.error("a verb is required")
+    if extra:  # name the form of the verb the caller used, not the generic one
+        subs.choices[args.verb].error("unrecognized arguments: " + " ".join(extra))
 
     try:
         if args.verb == "add-item":
@@ -1178,9 +1244,9 @@ def main(argv):
         elif args.verb == "decide":
             idents = [i.lstrip("#") for i in args.ident]
             if len(set(idents)) != len(idents):
-                p.error("decide repeats an --id: one verdict per item per call")
+                subs.choices["decide"].error("decide repeats an --id: one verdict per item per call")
             if len(idents) != len(args.verdict):
-                p.error("decide needs one --verdict per --id (got %d and %d)"
+                subs.choices["decide"].error("decide needs one --verdict per --id (got %d and %d)"
                         % (len(idents), len(args.verdict)))
             out = decide_many_file(
                 args.spec, list(zip(idents, args.verdict)),
@@ -1189,10 +1255,7 @@ def main(argv):
             out = new_round_file(args.spec, out=args.out, lang=args.lang,
                                  dropped=[i.lstrip("#") for i in args.dropped],
                                  retitled=[i.lstrip("#") for i in args.retitled])
-    except VerbError as exc:
-        sys.stderr.write("spec-verbs %s: %s\n" % (args.verb, exc))
-        return 1
-    except BuildFailed as exc:
+    except (VerbError, BuildFailed) as exc:
         sys.stderr.write("spec-verbs %s: %s\n" % (args.verb, exc))
         return 1
     sys.stdout.write("%s\n" % out)

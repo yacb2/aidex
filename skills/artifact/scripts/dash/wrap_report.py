@@ -24,6 +24,8 @@ import tempfile
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import md_body  # noqa: E402
+from contract_defects import VOID  # noqa: E402
+from _usage import UsageParser, read_stdin, usage_exit  # noqa: E402
 sys.path.insert(0, os.path.join(__file__.rsplit("/", 1)[0], "..", "..", "..", "conventions", "scripts"))
 import profiles  # noqa: E402  the one profile resolver
 from _shell import document, esc  # noqa: E402
@@ -73,6 +75,8 @@ OFFER_MARKER = ".aidex-artifact-style-offered"
 # .../scripts/dash/wrap_report.py -> .../assets/artifact-kit
 KIT_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                        os.pardir, os.pardir, "assets", "artifact-kit"))
+
+SKILL_DIR = os.path.dirname(os.path.dirname(KIT_DIR))
 
 
 def split_head_style(content):
@@ -175,6 +179,15 @@ def _round_of(path):
     return int(next(g for g in m.groups() if g is not None)) if m else 0
 
 
+def _has_surface(path):
+    """Whether a page on disk carries consult items (see `CONSULT_ITEM`)."""
+    try:
+        return bool(CONSULT_ITEM.search(open(path, encoding="utf-8",
+                                             errors="replace").read()))
+    except OSError:
+        return False
+
+
 def _baseline_path(outfile):
     """The `.aidex-artifact-prev/` copy of `--out`: the last version that PASSED."""
     out = os.path.abspath(outfile)
@@ -217,17 +230,20 @@ def next_round(outfile, surface=True):
     BL-507: on a page with a consult surface this is the READER's round, not the
     wrap count. It advances only once save-reply.sh has recorded an answer to
     the current round; a re-wrap of an unanswered round keeps its number. A page
-    with no consult surface has no reader rounds and keeps counting wraps."""
+    with no consult surface has no reader rounds and keeps counting wraps — so the
+    first wrap that brings a surface to such a page is reader round 1, not that
+    wrap count carried over."""
     if not outfile:
         return 0
     out = os.path.abspath(outfile)
     baseline = _baseline_path(out)
-    if os.path.isfile(baseline):
-        prev = _round_of(baseline) or 1
-    elif os.path.isfile(out):
-        prev = _round_of(out) or 1
-    else:
+    ref = baseline if os.path.isfile(baseline) else out
+    if not os.path.isfile(ref):
         prev = 0
+    elif surface and not _has_surface(ref):
+        prev = 0
+    else:
+        prev = _round_of(ref) or 1
     if surface and prev and not round_answered(out):
         return prev
     return prev + 1
@@ -260,7 +276,10 @@ def round_meta(outfile, surface=True):
     return f'<meta name="consult-round" content="{r}">' if r else ""
 
 
-ITEM_TAG = re.compile(r'<[a-zA-Z][\w:-]*\b[^>]*\bdata-id\s*=[^>]*>', re.I)
+# Quoted values are consumed whole: a raw `>` inside one (`data-decided="A -> b"`)
+# is valid HTML, and `[^>]*` ended the tag there and spliced the stamp into it.
+_IN_TAG = r'''(?:[^>"']|"[^"]*"|'[^']*')*'''
+ITEM_TAG = re.compile(rf'<[a-zA-Z][\w:-]*\b{_IN_TAG}\bdata-id\s*={_IN_TAG}>', re.I)
 ATTR_ID = re.compile(r'\bdata-id\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>]+))', re.I)
 # `data-decided` and NOT `data-decided-round`: `\b` after "decided" is satisfied by
 # the hyphen, so the plain pattern reads the stamp as the mark it stamps.
@@ -791,8 +810,7 @@ QUESTION_DROP = re.compile(
     r'(?:kit-tag|consult-clear|kit-other|kit-notnow|kit-ask|kit-provisional)'
     r'(?=[\s"\']))'
     r'[^>]*>', re.I | re.S)
-VOID_ELEMENTS = {"area", "base", "br", "col", "embed", "hr", "img", "input",
-                 "link", "meta", "param", "source", "track", "wbr"}
+VOID_ELEMENTS = VOID
 
 
 def question_texts(text):
@@ -901,6 +919,9 @@ def held_round(outfile):
     return 0
 
 
+WRAP_FORM = "wrap-report.sh --title <title> [--lang <l>] [--favicon <e>] [--in <file>] [--out <page.html>] [--building] [--new-round]  |  wrap-report.sh --done --out <page.html>"
+
+
 def end_build(argv):
     """`--done --out <page>`: the build is over. Removes the lock, wraps nothing.
 
@@ -909,8 +930,10 @@ def end_build(argv):
     contract and was opened as final — so no property of a wrap can stand in for
     completion. The agent has to say it, once, as its own step.
     """
-    p = argparse.ArgumentParser(prog="wrap-report.sh --done",
-                                description="End a build: remove the page build lock")
+    p = UsageParser(prog="wrap-report.sh --done",
+                    form="wrap-report.sh --done --out <page.html>  (--done takes no other flag; "
+                         "--title/--in/--lang belong to the wrap form: wrap-report.sh --title <title> ...)",
+                    description="End a build: remove the page build lock")
     p.add_argument("--done", action="store_true", required=True)
     p.add_argument("--out", dest="outfile", required=True,
                    help="the page whose build is finished")
@@ -929,7 +952,8 @@ def end_build(argv):
 
 
 def main():
-    p = argparse.ArgumentParser(description="Wrap report content in the document envelope")
+    p = UsageParser(prog="wrap-report.sh", form=WRAP_FORM,
+                    description="Wrap report content in the document envelope")
     p.add_argument("--title", required=True, help="document title (browser tab)")
     p.add_argument("--lang", default=None,
                    help="BCP-47 language of the content. Default: the `language:` field of "
@@ -957,14 +981,24 @@ def main():
     # anyway would produce the one state the flag exists to prevent: output that looks
     # finished while the build runs.
     if args.building and not args.outfile:
-        print("ERROR: --building needs --out <page> — the build lock is a file beside "
-              "the page, and a wrap to stdout has no page", file=sys.stderr)
-        return 2
+        usage_exit(WRAP_FORM, "--building needs --out <page> — the build lock is a file "
+                   "beside the page, and a wrap to stdout has no page")
 
-    content = (open(args.infile, encoding="utf-8").read() if args.infile
-               else sys.stdin.read())
+    # exists, not isfile: `--in /dev/stdin` and `<(...)` are pipes; a directory is refused here too.
+    if args.infile and (not os.path.exists(args.infile) or os.path.isdir(args.infile)):
+        # Never resolved silently: a path that only exists from the skill dir is named,
+        # not followed, so the page is not built from a file the caller did not mean.
+        why = "--in: no such file: %s" % args.infile
+        near = os.path.join(SKILL_DIR, args.infile)
+        if not os.path.isabs(args.infile) and os.path.isfile(near):
+            why += " (relative to the skill dir: %s)" % near
+        usage_exit(WRAP_FORM, why)
+    if args.infile:
+        content = open(args.infile, encoding="utf-8").read()
+    else:
+        content = read_stdin(WRAP_FORM, blank_is_empty=True)
     if not content.strip():
-        print("ERROR: no content on stdin (nothing to wrap)", file=sys.stderr)
+        print("ERROR: no content in %s (nothing to wrap)" % args.infile, file=sys.stderr)
         return 2
     # A `.md` input is the close-out case (BL-345): the run already wrote a
     # durable markdown report and what is missing is the page. Keyed on the
@@ -980,9 +1014,15 @@ def main():
     raw, raw_is_md = content, bool(args.infile and args.infile.lower().endswith(".md"))
     # The style profile is looked up from where the artifact LANDS, not from the
     # cwd: a report is a sibling of its anchor and can be written into a project
-    # the run is not standing in.
-    ctx = find_context_dir(os.path.dirname(os.path.abspath(args.outfile))
-                           if args.outfile else os.getcwd())
+    # the run is not standing in. The first report lands in a `.context/reports/`
+    # that does not exist yet, so a missing leaf is looked up from its parent: one
+    # level, the same one the write below creates.
+    lookup = os.getcwd()
+    if args.outfile:
+        lookup = os.path.dirname(os.path.abspath(args.outfile))
+        if not os.path.isdir(lookup):
+            lookup = os.path.dirname(lookup)
+    ctx = find_context_dir(lookup)
     profile_lang = profile_language(ctx)
     lang = args.lang or profile_lang or "en"
     if args.lang is None and profile_lang is None:
@@ -1030,7 +1070,7 @@ def main():
     # the page, this wrap's round otherwise. Read before the lock is refreshed
     # below — a lock written by this same wrap would answer with this round.
     shown_round = held_round(args.outfile) or this_round
-    built = built_text(lang, shown_round if CONSULT_ITEM.search(body) else 0,
+    built = built_text(lang, shown_round if surface else 0,
                        when=now)
     body = insert_built_line(body, built)
     # Reset -> kit tokens -> kit components -> project delta -> the page's own

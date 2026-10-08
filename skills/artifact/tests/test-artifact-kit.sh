@@ -407,6 +407,23 @@ bash "$WRAP" --title "Delta" --favicon "🔬" --in "$TMP/delta-body.html" \
     && fail "--favicon did not replace the profile's favicon, it added to it"
 }
 
+# The FIRST report of a project lands in a `.context/reports/` that does not exist
+# yet (the wrap creates that one level). The profile lookup used to start from that
+# missing directory, find nothing, and ship the page without the delta and the
+# favicon — silently, and only on that first page.
+FIRST="$TMP/first"
+mkdir -p "$FIRST/.context/profiles"
+cp "$PROJ/.context/profiles/artifact.md" "$FIRST/.context/profiles/artifact.md"
+bash "$WRAP" --title "Delta" --in "$TMP/delta-body.html" \
+     --out "$FIRST/.context/reports/first.html" >/dev/null 2>&1 \
+  || fail "the first wrap into a not-yet-created .context/reports/ failed"
+if [[ -f "$FIRST/.context/reports/first.html" ]]; then
+  grep -q '#B4005A' "$FIRST/.context/reports/first.html" \
+    || fail "the first report into a not-yet-created .context/reports/ shipped without the project's CSS delta"
+  grep -q "$(enc '🧪')" "$FIRST/.context/reports/first.html" \
+    || fail "the first report into a not-yet-created .context/reports/ shipped without the profile's favicon"
+fi
+
 # ---------- the shipped template documents the delta without BECOMING it ---
 # The delta is the only mechanism a project has to restyle anything, and the two
 # files a new project actually starts from are this template and the reference.
@@ -622,6 +639,34 @@ q1tag="$(grep -o '<section class="consult-item"[^>]*data-id="Q1"[^>]*>' "$DPG" |
   || fail "the item carries more than one data-decided-round after an invalid hand stamp: $q1tag"
 grep -q 'data-decided-round="[0-9]\+"' <<<"$q1tag" \
   || fail "the invalid hand stamp was left in place instead of being replaced by a round: $q1tag"
+
+# F4 — a raw `>` inside a quoted attribute is valid HTML a hand-written body can
+# carry. The item-tag match used to stop at it and splice the stamp INTO the
+# verdict: `data-decided="A - data-decided-round="7"> keep"`, which the contract
+# passed and every later round read back as the verdict. Last in the tag, as the
+# field case had it: before `data-id` or `data-title`, the checker's own item
+# regex loses those attributes first.
+sed 's|data-id="Q1" data-title="Short name for this question"|& data-decided="A -> keep"|' \
+  "$TMP/body.html" > "$TMP/dbody.html"
+out="$(bash "$WRAP" --title "Decided probe" --in "$TMP/dbody.html" --out "$DPG" 2>&1)" \
+  || fail "the page whose verdict holds a raw > failed to wrap: $out"
+python3 - "$DPG" <<'PY' || fail "a raw > inside data-decided corrupted the item's tag when the round was stamped"
+import re, sys
+from html.parser import HTMLParser
+class P(HTMLParser):
+    q1 = None
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        if a.get("data-id") == "Q1" and self.q1 is None:
+            self.q1 = a
+p = P(); p.feed(open(sys.argv[1], encoding="utf-8").read())
+a = p.q1 or {}
+ok = (a.get("data-decided") == "A -> keep"
+      and re.fullmatch(r"\d+", a.get("data-decided-round") or ""))
+if not ok:
+    print("  Q1 attrs:", a, file=sys.stderr)
+sys.exit(0 if ok else 1)
+PY
 
 # ---------- the recommendation is ONE declaration, on both surfaces --------
 # It travelled in `data-label` alone once, which is the composer's copy string:

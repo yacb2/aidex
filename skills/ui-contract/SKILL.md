@@ -99,12 +99,9 @@ before that approval is a sketch round:
   The capturing agent gets the screen's `gallery-kit.md` and the project's
   `.context/profiles/ui-contract.md` (template `assets/templates/project-ui-contract.md`),
   reads only those two, runs ONE `--update-snapshots` capture (no run before or after it;
-  that is the hardening gate) and rewrites the kit. Rows whose visible change the owner's
-  answer did not ask for are marked `kind: "unrequested"` with a `look` line naming the cause.
-- **What the page shows:** the open decision first, page rows after. A full-page row whose
-  content depends on an undecided consult item shows context only (labelled with the item id)
-  or waits for the round after the decision; a row whose only change is the pending option
-  folds; a change already shown in another row is not shown.
+  that is the hardening gate) and rewrites the kit.
+- **What the page shows:** the open decision first, page rows after; the kit says which rows wait,
+  fold or are left out, and which are flagged as changes nobody asked for.
 
 Read `${CLAUDE_PLUGIN_ROOT}/skills/ui-contract/references/02-sketch-round-kit.md` before
 briefing the capturing agent.
@@ -134,9 +131,9 @@ it.** Never decide it silently.
 
 | Level | What is produced | What the owner reviews |
 |---|---|---|
-| 1 — Adjustment (one property on an existing screen) | contact sheet of that one screen, light and dark | one image |
-| 2a — New screen from a catalog pattern | the pattern (the profile's `ui_patterns_ref` index) instantiated + state gallery + gate | one sheet before, one after |
-| 2b — New screen on a reference screen | reference screen of the app named + state gallery + gate | one sheet before, one after |
+| 1 — Adjustment (one property on an existing screen) | contact sheet of that one screen, light and dark | consultation rows, before/after, light and dark |
+| 2a — New screen from a catalog pattern | the pattern (the profile's `ui_patterns_ref` index) instantiated + state gallery + gate | consultation rows of the states, before/after |
+| 2b — New screen on a reference screen | reference screen of the app named + state gallery + gate | consultation rows of the states, before/after |
 | 3 — New visual direction (only this) | a skeleton of real components on fixture data with gallery captures first (Step 3b), then the full 2a/2b flow | direction first, then the gallery |
 
 Nothing is drawn at any level, save the target-form figure of Step 0. Level 3 starts
@@ -171,7 +168,7 @@ the owner does not look):
 | mobile | only with responsive work in scope; an app with no responsive layout has no mobile variant (out of scope) |
 
 A cell in a variant nobody chose still reaches the owner if it changes without
-being part of the change, as a row marked unrequested. Only light and dark render (harness contract § 3).
+being part of the change (Step 0). Only light and dark render (harness contract § 3).
 
 A not-applicable cell carries its reason in words ("this list has no permission gate —
 the route itself is unauthenticated"), and the harness refuses a blank one at run time.
@@ -214,7 +211,7 @@ those phases into a plan**: it owns what each phase does, how it closes and the
 `ui-surface: pending-owner` rule.
 
 Phase 2 is where the UI is decided, and its rounds are sketch rounds (Step 0):
-**a budget of 2 rounds**; **one decision per cell**, each shown alone with a `look` line;
+**a budget of 2 rounds**; **one decision per cell**, each shown alone;
 the previous round's decided cells collapsed.
 
 ## Step 4 — Build the gallery, then run the gate
@@ -261,10 +258,7 @@ The word on its own is not a claim. A model looking at its own screenshots has a
 "verified in light and dark" and been disproved in three sessions. What each part is:
 
 1. **The review surface's path.** The owner reviews the gallery as gallery rows in a
-   consultation page: the project emits its rows JSON (`--rows-json` with item 5's variants
-   and cells), every shown row carries a `look` line, and the reply parses back with
-   `gallery-reply.sh`. Read `/aidex:artifact` § Gallery rows before building that page; it
-   owns the row shapes and the reply rules. That page's path is written down, with the
+   consultation page: the project emits its rows JSON (`--rows-json` with item 5's variants and cells), every shown row carries a `look` line, and the reply parses back with `gallery-reply.sh` ([Gallery rows](../artifact/references/02-local-first-artifacts.md#gallery-rows-screenshots-the-reader-rules-on-one-row-per-screen-state) owns the row shapes and the reply rules; read it before building that page). That page's path is written down, with the
    owner's verdict per row. A generated board or composed image is the developer's lens,
    never the owner's review; the owner is the final reviewer, never the model.
 2. **The gate's closing line, from a run with NO snapshot update**, including the

@@ -465,7 +465,7 @@ def _blocks(lines, depth=0):
                 deeper = len(cur) - len(cur.lstrip()) > base
                 if MARKER.match(cur) and not deeper:
                     items.append([MARKER.sub("", cur, count=1).strip(), []])
-                elif (items and cur.strip() and cur[:1].isspace()
+                elif (cur.strip() and cur[:1].isspace()
                       and not cur.lstrip().startswith("|")
                       and not HEADING.match(cur.lstrip())
                       and not FENCE.match(cur)):

@@ -325,6 +325,22 @@ duties = save_reply.save_reply(sys.argv[2], open(sys.argv[3]).read())[0]
 assert (sys.argv[4], "needs-changes", save_reply.GALLERY_NEEDS_DUTY) in duties, duties
 PY
 
+# The gate owes what save_reply printed: the row is read against the answered
+# page's states, so a partial tick (or bullets only) on a row the next round
+# leaves byte-identical fails check-artifact like any other owed gallery row.
+for body in '- Hover' '- el hover sin sombra'; do
+  rm -rf "$TMP/dg"; mkdir -p "$TMP/dg/.aidex-artifact-prev"
+  cp "$TMP/spec/s.html" "$TMP/dg/s.html"
+  cp "$TMP/spec/s.html" "$TMP/dg/.aidex-artifact-prev/s.answered.html"
+  printf '## B · Botón\n### %s · btn · save · light-desktop\n\n%s\n' "$ID" "$body" \
+    > "$TMP/dg/.aidex-artifact-prev/s.reply.md"
+  bash "$CHECK" "$TMP/dg/s.html" --prev "$TMP/dg/.aidex-artifact-prev/s.answered.html" \
+    > "$TMP/dg.out" 2>&1; rc=$?
+  [[ $rc == 1 ]] && grep -q "consult-marker-duties.*$ID owes \[needs-changes\]" "$TMP/dg.out" \
+    && ok "check-artifact: an unchanged states row answered '$body' still owes needs-changes" \
+    || fail "check-artifact let the unchanged states row answered '$body' pass: rc=$rc $(tail -3 "$TMP/dg.out")"
+done
+
 # A block whose own id ends in -states (a natural name) is not a states row.
 sed 's/{#G title/{#button-states title/' "$TMP/spec/s.spec.md" > "$TMP/spec/b.spec.md"
 ( cd "$TMP/spec" && python3 "$BUILD" b.spec.md -o b.html > "$TMP/bb.out" 2>&1 ) || fail "the #button-states spec did not build: $(tail -3 "$TMP/bb.out")"

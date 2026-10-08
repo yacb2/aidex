@@ -73,8 +73,10 @@ import json
 import re
 import sys
 
+from _usage import read_stdin
 from reply_defect import blank_defects
-from gallery_items import KINDS, NONE_OF_THEM, OTHER, VERDICTS, row_id
+from gallery_items import (KINDS, MARKER_LABEL, NONE_OF_THEM, OTHER, VERDICTS,
+                           na_row_id, row_id)
 
 NUM = r"(\d{1,3}\.\d)"
 MARK = re.compile(r"^\[mark (\S+) %s,%s %sx%s\](?: (.*))?$"
@@ -85,8 +87,9 @@ MARK = re.compile(r"^\[mark (\S+) %s,%s %sx%s\](?: (.*))?$"
 # gallery_items, which is also what refuses an alternative named like it.
 ANSWERS = {label for pairs in VERDICTS.values() for label, _ in pairs} \
     | set(OTHER)
-MARKER = re.compile(r"^\[[a-z-]+\]$")
 PROVISIONAL = " [provisional]"
+GALLERY_REPLY_FORM = ('gallery-reply.sh [--rows <rows.json>]... [--tiles "<t1> <t2> ..."] '
+                      "[<reply.md>|-]  (or pipe the reply on stdin)")
 
 
 def die(msg):
@@ -133,7 +136,7 @@ def gallery_key(ident, title, n):
     parts = title.split(" · ")
     if len(parts) == 2 and all(parts):
         # A not-applicable row has no variant; its id carries the suffix.
-        if ident == "%s-%s-not-applicable" % tuple(parts):
+        if ident == na_row_id(*parts):
             return parts + ["", "not-applicable"]
         # `<gallery>-<cell>` alone is the OLD light/dark matrix row: its
         # verdict was given on four captures, and reading it as a row of this
@@ -165,7 +168,7 @@ def parse_answer(ident, para, extra=(), alt=False, many=False):
         if label.endswith(PROVISIONAL):
             label = label[:-len(PROVISIONAL)]
             provisional = True
-        if MARKER.match(label):
+        if MARKER_LABEL.match(label):
             asks.append(label)
         elif many and label in OTHER:
             # The composer adds "Other" to every `.opts` group: it is the
@@ -174,7 +177,7 @@ def parse_answer(ident, para, extra=(), alt=False, many=False):
         elif many and (extra is None or label in extra):
             checked.append(label)
         elif (alt and extra is None and not verdict) \
-                or label in (extra if alt else ANSWERS):
+                or label in ((extra or ()) if alt else ANSWERS):
             if verdict:
                 die("line %d: row '%s' has more than one answer ('%s' on "
                     "line %d, '%s' here) — the page lets you pick one"
@@ -306,7 +309,7 @@ def main(argv):
     args = ap.parse_args(argv)
     try:
         if args.reply == "-":
-            text = sys.stdin.buffer.read().decode("utf-8-sig")
+            text = read_stdin(GALLERY_REPLY_FORM, binary=True, blank_is_empty=True).decode("utf-8-sig")
         else:
             with open(args.reply, encoding="utf-8-sig") as fh:
                 text = fh.read()
@@ -319,9 +322,11 @@ def main(argv):
         try:
             with open(path, encoding="utf-8") as fh:
                 doc = json.load(fh)
-            labels[doc["gallery"]] = {a["label"].strip() for a in
-                                      doc.get("alternatives", [])} \
-                | {pair[0] for pair in NONE_OF_THEM.values()}
+            # Merged, not assigned: a states row and an alternatives row of
+            # one gallery come in two documents with the same slug.
+            labels.setdefault(doc["gallery"], set()).update(
+                {a["label"].strip() for a in doc.get("alternatives", [])}
+                | {pair[0] for pair in NONE_OF_THEM.values()})
             for r in doc["rows"]:
                 if r.get("kind") == "states" and "states" in r:
                     states[row_id(doc["gallery"], r["cell"], r["variant"],
