@@ -3,8 +3,8 @@
 Usage: python3 prepare.py <project_root> <work_dir>
 Writes <work_dir>/manifest.json (`units`: one entry per kept unit with unit, slug, files,
 references, tokens_est; `skipped`: covered units too large or data-like to extract, with
-unit, references, reason) and <work_dir>/units/<slug>.txt (the unit's file list). Both are
-replaced on every run. The slug rule must match the Workflow script's `slug()`. Stdlib only.
+unit, references, reason) and <work_dir>/units/<slug>.txt (the unit's file list) and units/<slug>.refs.txt (its covering references). Both are
+replaced on every run. The Workflow gets its unit slugs from the manifest, never recomputes them. Stdlib only.
 
 Every `.md` under <root>/.context/references/ is a reference, except `00-profile.md` and the
 root `00-index.md`. A reference covers a unit when it:
@@ -177,6 +177,7 @@ def prepare(root, work, budget=BUDGET):
     (work / "units").mkdir(parents=True)
     for k in kept:
         (work / "units" / f"{k['slug']}.txt").write_text("\n".join(k["files"]) + "\n")
+        (work / "units" / f"{k['slug']}.refs.txt").write_text("\n".join(k["references"]) + "\n")
     manifest = {"project": root.name, "root": str(root), "units": kept, "skipped": skipped}
     (work / "manifest.json").write_text(json.dumps(manifest, indent=1) + "\n")
     return manifest

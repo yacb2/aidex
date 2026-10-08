@@ -67,6 +67,16 @@ class PrepareTest(unittest.TestCase):
         self.assertEqual(listed, "code/billing/pay.py\n")
         self.assertFalse(os.path.exists(os.path.join(self.work, "units", "code-auth.txt")))
 
+    def test_refs_file_lists_covering_references_one_per_line(self):
+        m = self.run_prepare(
+            {"code/billing/pay.py": PAD, "code/auth/login.py": PAD},
+            {"billing.md": "Payment lives in code/billing/pay.py:12.\n",
+             "money.md": "Also code/billing/pay.py.\n"}, budget=150)
+        refs = pathlib.Path(self.work, "units", "code-billing.refs.txt").read_text()
+        self.assertEqual(refs.splitlines(), m["units"][0]["references"])
+        self.assertEqual(len(m["units"][0]["references"]), 2)
+        self.assertFalse(os.path.exists(os.path.join(self.work, "units", "code-auth.refs.txt")))
+
     def test_path_cite_is_not_a_prefix_match(self):
         m = self.run_prepare(
             {"code/billing/pay.py": PAD, "code/auth/login.py": PAD},
@@ -271,7 +281,7 @@ class PrepareTest(unittest.TestCase):
         write(self.work, "manifest.json", "old")
         m = self.run_prepare({"code/billing/pay.py": PAD, "code/auth/login.py": PAD},
                              {"r.md": "code/billing/pay.py\n"}, budget=150)
-        self.assertEqual(sorted(os.listdir(self.work + "/units")), ["code-billing.txt"])
+        self.assertEqual(sorted(os.listdir(self.work + "/units")), ["code-billing.refs.txt", "code-billing.txt"])
         self.assertEqual(json.loads(pathlib.Path(self.work, "manifest.json").read_text())["units"], m["units"])
 
 
