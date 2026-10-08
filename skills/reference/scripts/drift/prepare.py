@@ -6,8 +6,8 @@ references, tokens_est; `skipped`: covered units too large or data-like to extra
 unit, references, reason) and <work_dir>/units/<slug>.txt (the unit's file list) and units/<slug>.refs.txt (its covering references). Both are
 replaced on every run. The Workflow gets its unit slugs from the manifest, never recomputes them. Stdlib only.
 
-Every `.md` under <root>/.context/references/ is a reference, except `00-profile.md` and the
-root `00-index.md`. A reference covers a unit when it:
+Every `.md` under <root>/.context/references/ is a reference, except `00-profile.md`, the
+root `00-index.md` and any reference whose front-matter says `status: dropped`. A reference covers a unit when it:
   - cites the path of one of the unit's files, or the unit's directory path, either from the
     project root or relative to the unit's own git repo (that form needs a `/`, so a bare
     `types` never matches), or as the `@/` alias of a `src/` path;
@@ -40,6 +40,8 @@ SYMBOL_RE = re.compile(
 TICKS_RE = re.compile(r"`([^`\n]+)`")
 IDENT_RE = re.compile(r"[A-Za-z_]\w*")
 COMPOUND_RE = re.compile(r"[a-z][A-Z]")
+FRONT_RE = re.compile(r"\A---\n(.*?)\n---", re.S)
+DROPPED_RE = re.compile(r"^status:\s*[\"']?dropped[\"']?\s*$", re.M)
 _spec = importlib.util.spec_from_file_location(
     "docs_census", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs-census.py"))
 census = importlib.util.module_from_spec(_spec)
@@ -67,8 +69,14 @@ def read_references(root):
     base = Path(root) / ".context" / "references"
     for p in sorted(base.rglob("*.md")):
         rel = p.relative_to(base).as_posix()
-        if rel not in ("00-profile.md", "00-index.md"):
-            refs[p.relative_to(root).as_posix()] = p.read_text(errors="replace")
+        if rel in ("00-profile.md", "00-index.md"):
+            continue
+        text = p.read_text(errors="replace")
+        # A dropped reference is nothing a maintainer would edit (BL-740).
+        front = FRONT_RE.match(text)
+        if front and DROPPED_RE.search(front.group(1)):
+            continue
+        refs[p.relative_to(root).as_posix()] = text
     return refs
 
 
