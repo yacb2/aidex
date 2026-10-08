@@ -72,6 +72,8 @@ already wants.
 """
 
 import argparse
+import contextlib
+import fcntl
 import os
 import re
 import shutil
@@ -367,7 +369,7 @@ def _match_labels(said, labels, many):
     got = parts(said, frozenset())
     if not got:
         return None
-    return ", ".join(got)
+    return ", ".join(sorted(got, key=labels.index))      # a set: the options' order
 
 
 _OTHER_LABELS = tuple(o.lower() for o in gallery_items.OTHER)
@@ -560,8 +562,8 @@ def decide(spec_text, item_id, verdict, reply=None):
     labels = [spec_build.PLAIN.sub("", l).strip()
               for l in spec_build.option_labels(node)]
     said = spec_build.PLAIN.sub("", verdict).strip()
+    many = node.attrs.get("select", "one").strip() == "many"
     if labels:
-        many = node.attrs.get("select", "one").strip() == "many"
         canon = _match_labels(said, labels, many)
         if canon is not None:
             verdict = canon
@@ -589,8 +591,10 @@ def decide(spec_text, item_id, verdict, reply=None):
     # BL-711: deciding a proposal is the writer settling what the reader answered it
     # with, so it stops being a proposal (else `new-round` would keep it open forever).
     unproposed = "proposal" in node.attrs and _drop_attr(lines, node, "proposal")
-    if (spec_build.PLAIN.sub("", node.attrs.get("decided", "")).strip()
-            == spec_build.PLAIN.sub("", verdict).strip()):
+    recorded = spec_build.PLAIN.sub("", node.attrs.get("decided", "")).strip()
+    if labels and many:                  # the same set in another order
+        recorded = _match_labels(recorded, labels, many) or recorded
+    if recorded == spec_build.PLAIN.sub("", verdict).strip():
         return "\n".join(lines) if unproposed else spec_text
     old_verdict = node.attrs.get("decided", "").strip()
     if not _set_attr(lines, node, "decided", verdict):
@@ -604,9 +608,9 @@ def _ledger_row(item_id, title, verdict):
     the plain "this is settled" mark and says nothing a row should repeat; any
     other value is the verdict TEXT the author wrote and belongs in the row
     beside the title. `_update_ledger_row` rebuilds the same row to find it."""
-    v = verdict.strip()
-    return "- %s%s%s" % (item_id, SEP, title if v in ("yes", "true", "")
-                         else "%s (%s)" % (title, v))
+    v = spec_build.PLAIN.sub("", verdict).strip().lower()   # the builder's own reading
+    return "- %s%s%s" % (item_id, SEP, title if v in contract_defects.NOT_A_VERDICT + ("",)
+                         else "%s (%s)" % (title, verdict.strip()))
 
 
 def _update_ledger_row(lines, tree, node, old_verdict, verdict):
@@ -644,8 +648,9 @@ def _set_attr(lines, node, name, value):
     line = lines[i]
     brace = line.find("{")
     if brace < 0:                        # `item` requires an #id; a masthead may not
-        pad = "" if line.endswith(" ") else " "
-        new = line + pad + "{%s=%s}" % (name, spec_parser.quote_value(value))
+        text, cr = (line[:-1], "\r") if line.endswith("\r") else (line, "")
+        pad = "" if text.endswith(" ") else " "
+        new = text + pad + "{%s=%s}" % (name, spec_parser.quote_value(value)) + cr
     else:
         spans = {}
         _, _, _, end = spec_parser._parse_attrs(node.line, line, brace, spans)
@@ -943,7 +948,34 @@ def _trial_build(spec_path, new, out_name, lang):
             "here is a spec no verb could build again" % (spec_path, rc))
 
 
+@contextlib.contextmanager
+def _spec_lock(spec_path):
+    """Hold an exclusive flock on the spec's DIRECTORY for a whole verb (read,
+    write, rebuild, rollback), so two verbs at once queue instead of losing an
+    update. Not on the file: `_write` replaces it (a new inode), which would
+    leave the path unheld the moment the first verb writes. No sidecar lock
+    file: it would litter the folder. A directory that cannot be opened (no
+    read permission) runs the verb unlocked."""
+    try:
+        fd = os.open(os.path.dirname(os.path.realpath(spec_path)), os.O_RDONLY)
+    except OSError:
+        yield
+        return
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(fd)
+
+
 def apply_edit(spec_path, transform, out=None, lang=None, needs_page=False):
+    """Run one transform over `spec_path`, then rebuild the page, with the spec
+    locked for the whole cycle (see `_spec_lock`). See `_apply_edit`."""
+    with _spec_lock(spec_path):
+        return _apply_edit(spec_path, transform, out, lang, needs_page)
+
+
+def _apply_edit(spec_path, transform, out=None, lang=None, needs_page=False):
     """Run one transform over `spec_path`, then rebuild the page.
 
     The order is the contract: read, transform, VALIDATE with the REBUILD'S OWN
@@ -986,7 +1018,11 @@ def apply_edit(spec_path, transform, out=None, lang=None, needs_page=False):
     new = transform(old)
     base_dir = os.path.dirname(os.path.abspath(spec_path))
     # The language the builder CLI would pick for this spec, not a constant.
-    lang = spec_build.resolve_lang(new, lang, out)
+    try:
+        lang = spec_build.resolve_lang(new, lang, out)
+    except SpecBuildError as exc:
+        raise VerbError("%s cannot be built (line %d: %s) — nothing was written"
+                        % (spec_path, exc.line, exc.message))
 
     # The body is built for a page, because a gallery copies its captures
     # beside the page it goes into and refuses a body with none. The page is
@@ -1045,8 +1081,13 @@ def apply_edit(spec_path, transform, out=None, lang=None, needs_page=False):
     if rc != 0:
         rolled = ""
         if new != old:
-            _write(spec_path, old)
-            rolled = " and %s was rolled back to the bytes it had" % spec_path
+            try:
+                _write(spec_path, old)
+                rolled = " and %s was rolled back to the bytes it had" % spec_path
+            except VerbError as werr:
+                rolled = (" and %s was NOT rolled back (%s): it still holds the "
+                          "edit while the page does not — restore it yourself"
+                          % (spec_path, werr))
         raise BuildFailed(
             "rebuilding %s exited %d (the trial build of the same spec "
             "passed, so the difference is in the output folder — a baseline, "
@@ -1060,6 +1101,7 @@ def _rebuild_capturing_findings(spec_path, out, lang):
     writes the FAIL lines there), replayed to stderr, and the FAIL lines of
     the output-folder checks returned for the BuildFailed message."""
     import tempfile
+    raised = ""
     sys.stdout.flush()
     sys.stderr.flush()
     saved = (os.dup(1), os.dup(2))
@@ -1068,6 +1110,11 @@ def _rebuild_capturing_findings(spec_path, out, lang):
         os.dup2(tmp.fileno(), 2)
         try:
             rc = spec_build.main([spec_path, "-o", out, "--lang", lang])
+        except Exception as exc:                          # noqa: BLE001
+            # A raise is a failed rebuild, not a crash: the caller rolls back.
+            rc = 1
+            raised = "; the build raised %s: %s" % (type(exc).__name__, exc)
+            sys.stderr.write("spec-build: %s\n" % raised[2:])
         finally:
             sys.stdout.flush()
             sys.stderr.flush()
@@ -1081,7 +1128,7 @@ def _rebuild_capturing_findings(spec_path, out, lang):
     fails = [l.strip() for l in err.splitlines()
              if "FAIL [consult-decided-trace]" in l
              or "FAIL [consult-spec-items]" in l]
-    return rc, ("; failing check: " + " | ".join(fails)) if fails else ""
+    return rc, (("; failing check: " + " | ".join(fails)) if fails else "") + raised
 
 
 class BuildFailed(Exception):

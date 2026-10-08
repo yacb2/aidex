@@ -782,6 +782,10 @@ Closed vocabularies the builder refuses outside of (M1):
 
 - `free=` and `proposal=` take `yes` or `true`; anything else (`YES`, `1`, `maybe`) is refused.
 - `decided=` is `yes`/`true`/`1` (the flag) or the verdict as text. `no`, `false` and `0` are refused as a verdict (they read as "not decided"): leave `decided` off. Exception: the text is, to the letter, one of the item's option labels (`decide --verdict No` on an option `No`), or the item has no options.
+- The flag is read case-insensitively and without markdown marks (`YES`, `**True**`, `1`), by the builder and by `spec_verbs.py`: `new-round` files such an item in the ledger as the bare title, not `Title (YES)`.
+- `spec_verbs.py decide` on a `select=many` item records the labels in the options' own order, whatever order the verdict named them in; the same set in another order is already recorded (byte-identical, no new round stamp).
+- A `verdict` block holding a header and a separator but no cell row is refused (`one row per cell`), not built as an empty box.
+- `spec_build.py --new-round` needs `-o <out.html>`, like `--check`; without it the flag is refused instead of ignored.
 - Item ids that differ only by case (`Q1`, `q1`) are refused; other blocks only collide on the exact id.
 - An option's hint is separated by ` — `; a spaced ` - ` or ` -- ` is refused.
 - A `pill`/`chip` tone is one of `md_body.SPAN_TONES`; a malformed or unknown tone is refused.

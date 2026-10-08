@@ -1242,6 +1242,10 @@ def emit_verdict(node, ctx):
             node.line, "`verdict` takes a pipe table of cells: a header row, "
                        "then one row per cell")
     body = rows[2:] if md_body.SEP_ROW.match(rows[1]) else rows[1:]
+    if not body:
+        raise SpecBuildError(
+            node.line, "`verdict` has a header and no cell: a header row, then "
+                       "one row per cell")
     win = a.get("win", "").strip()
     seen_win = False
     out = ['<div class="%s">' % _classes("verdict", node)]
@@ -2484,6 +2488,8 @@ def main(argv):
         return 2
     if args.check and not args.out:
         usage_exit(p.form, "--check needs -o <out.html>")
+    if args.new_round and not args.out:
+        usage_exit(p.form, "--new-round needs -o <out.html>")
 
     try:
         # A silent spec follows the profile the wrap and lang-follows-profile

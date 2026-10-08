@@ -1027,7 +1027,9 @@ def main():
     lang = args.lang or profile_lang or "en"
     if args.lang is None and profile_lang is None:
         _warn_prose_only_language(ctx)
-    elif (args.lang and profile_lang and args.lang != profile_lang
+    elif (args.lang and profile_lang
+          and re.split(r"[-_]", args.lang)[0].lower()
+          != re.split(r"[-_]", profile_lang)[0].lower()
           and not _takes_english(args.outfile)):
         # BL-371: an explicit --lang that contradicts the profile. The check that
         # runs on --out refuses it (lang-follows-profile); this names why first,
