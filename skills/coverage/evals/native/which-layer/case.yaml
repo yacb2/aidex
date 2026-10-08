@@ -1,5 +1,6 @@
 schema_version: "1.1"
 name: aidex-coverage-which-layer
 tags: ["fired-only"]
+human-judged: "The case must pin a behaviour a wrong implementation breaks; a test that passes both orderings protects nothing, and a human would call a coverage case hard only if the assertion value matters."
 context:
   scaffold_script: "./setup.sh"

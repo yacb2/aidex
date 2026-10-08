@@ -12,7 +12,9 @@ El mensaje final debe:
    registrada la fila del hallazgo, y nombrar también la carpeta de la nueva pasada bajo
    `.context/audits/ux/` (una carpeta fechada que termina en `confirmacion-checkout`).
 2. Nombrar el id nuevo asignado al hallazgo, siguiendo el esquema global `F-NNN` de
-   `00-methodology.md`: un id nuevo como `F-003`, nunca reutilizando `F-001` ni `F-002`.
+   `00-methodology.md`: el id correcto es `F-008`: el máximo del tablero es `F-007`, que está en la
+   segunda tabla (hallazgos descartados), y los ids descartados también cuentan y nunca
+   se reutilizan.
 3. Nombrar la severidad `P1` que el usuario indicó.
 
 No cuenta en contra: decir que no pudo ejecutar scripts (`new-audit.sh`, `validate`,
@@ -21,4 +23,5 @@ ofrecimiento o pregunta de cierre, siempre que los archivos ya estén escritos y
 
 Falla si: el hallazgo solo se describe en el chat sin nombrar ningún archivo escrito; si
 lo escrito quedó fuera de `.context/audits/ux/`; si no se nombra ningún id de hallazgo; o
-si reutiliza `F-001` o `F-002` para este hallazgo nuevo.
+si asigna `F-003` o `F-007` (o reutiliza `F-001` o `F-002`) a este hallazgo nuevo; el
+   único id aceptable es `F-008`.

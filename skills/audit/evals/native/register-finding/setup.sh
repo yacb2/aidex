@@ -79,7 +79,15 @@ Per-run `findings.md` files are filtered **views** — do not add findings there
 - **Open:** 2
 - **Doing:** 0
 - **Done:** 0
-- **Dropped:** 0
+- **Dropped:** 1
+
+---
+
+## Dropped findings
+
+| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |
+|---|---|---|---|---|---|---|---|---|
+| F-007 | gap | account | El enlace "Cerrar sesión" no tiene texto alternativo | dropped | P3 | 2026-08-22-perfil-usuario | — | descartado: duplicado de la cabecera global |
 MD
 
 cat > .context/audits/ux/00-changelog.md <<'MD'

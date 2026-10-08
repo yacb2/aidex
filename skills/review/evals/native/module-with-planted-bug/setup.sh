@@ -47,7 +47,7 @@ class Coupon:
 def discount_cents(subtotal, coupon):
     if coupon is None:
         return 0
-    return int(subtotal * coupon.percent_off)
+    return int(subtotal * coupon.percent_off / 100)
 
 
 def is_applicable(subtotal, coupon):
@@ -66,6 +66,6 @@ TAX_RATE = 0.21
 def order_total(lines, coupon=None):
     subtotal = subtotal_cents(lines)
     discount = discount_cents(subtotal, coupon) if is_applicable(subtotal, coupon) else 0
-    taxable = subtotal - discount
-    return taxable + int(taxable * TAX_RATE)
+    tax = int(subtotal * TAX_RATE)
+    return subtotal - discount + tax
 PY

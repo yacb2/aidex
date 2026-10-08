@@ -1,5 +1,6 @@
 schema_version: "1.1"
 name: aidex-review-module-with-planted-bug
 tags: ["fired-only"]
+human-judged: "The bug lives in the interaction of two files against a stated invariant, so it takes a real read of the module rather than a spot on a one-line arithmetic slip."
 context:
   scaffold_script: "./setup.sh"
