@@ -44,6 +44,16 @@ const base = { root: '/r', work: '/w', date: 'd' }
 const unit = (out, slug) => out.units.find(u => u.slug === slug)
 const rows = {}
 
+// BL-739: a Workflow run caps at 1,000 agent() calls; 355 units x 3 stages lost 63 compares.
+rows['a launch above the agent() cap throws before any agent runs'] = async () => {
+  const many = n => Array.from({ length: n }, (_, i) => 'u' + i)
+  await assert.rejects(run({ ...base, units: many(334) }, {}), /333/)
+  await assert.rejects(run({ ...base, units: many(501), verify: false }, {}), /500/)
+  const ok = { extract: { facts: [], not_covered: [] } }
+  const beh = n => Object.fromEntries(many(n).map(s => [s, ok]))
+  assert.strictEqual((await run({ ...base, units: many(333) }, beh(333))).out.units.length, 333)
+  assert.strictEqual((await run({ ...base, units: many(500), verify: false }, beh(500))).out.units.length, 500)
+}
 rows['no units throws'] = async () => {
   await assert.rejects(run({ ...base, units: [] }, {}), /units/)
   await assert.rejects(run({ ...base }, {}), /units/)
