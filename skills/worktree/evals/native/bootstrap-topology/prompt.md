@@ -4,6 +4,9 @@ timeout_seconds: 1200
 allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
 ---
 
-Prepara este proyecto para poder trabajar con worktrees aislados, cada uno con
+Quiero preparar este proyecto para trabajar con worktrees aislados, cada uno con
 su propia base de datos y sus propios puertos. Todavía no tiene nada configurado
-para eso; adelante con la investigación, no hace falta que me preguntes antes.
+para eso. Por ahora solo necesito el informe de topología: investiga el proyecto
+y dime qué hay y qué impediría aislar un segundo entorno. No implementes nada
+todavía ni crees ni modifiques archivos; no hace falta que me preguntes antes de
+investigar.
