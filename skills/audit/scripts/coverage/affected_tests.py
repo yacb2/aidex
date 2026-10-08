@@ -69,9 +69,31 @@ def parse_status_line(line):
     return rest.strip().strip('"')
 
 
+def _common_dir(path):
+    res = subprocess.run(
+        ["git", "-C", path, "rev-parse", "--path-format=absolute", "--git-common-dir"],
+        capture_output=True, text=True,
+    )
+    return os.path.realpath(res.stdout.strip()) if res.returncode == 0 else None
+
+
+def checkout_dir(root, repo):
+    """Where to read a repo's changes from: the linked worktree the caller stands
+    in when it belongs to this repo, else the mapped checkout. The map names the
+    main checkout, so without this a run from a worktree diffed the wrong tree —
+    "no changed files", or a peer's edits in the main checkout selected instead
+    (LOOP-009, 2026-10-07)."""
+    mapped = lib.repo_dir(root, repo)
+    here = _common_dir(os.getcwd())
+    if here is None or here != _common_dir(mapped):
+        return mapped
+    return subprocess.run(["git", "rev-parse", "--show-toplevel"],
+                          capture_output=True, text=True).stdout.strip() or mapped
+
+
 def status_changes(root, repo):
     """Working tree + staged changes for one repo, as workspace-relative paths."""
-    repo_dir = lib.repo_dir(root, repo)
+    repo_dir = checkout_dir(root, repo)
     out = lib.git(repo_dir, "status", "--porcelain")
     prefix = repo_prefix_for(repo)
     files = []
@@ -85,7 +107,7 @@ def status_changes(root, repo):
 def diff_changes(root, repo, since):
     """Changes since `since` for one repo. Returns None (with a stderr warning)
     if `since` doesn't resolve in this repo's history."""
-    repo_dir = lib.repo_dir(root, repo)
+    repo_dir = checkout_dir(root, repo)
     # Kept as a direct subprocess.run rather than lib.git on purpose: lib.git
     # sys.exit()s on any non-zero return, and a ref missing from ONE repo must be
     # a warning + skip (repos have independent histories), not a hard stop.

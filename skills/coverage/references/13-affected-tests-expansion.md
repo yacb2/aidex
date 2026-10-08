@@ -23,7 +23,11 @@ does not turn a two-minute loop into a twenty-minute one.
 `/aidex:audit affected-tests [--since <ref>] [--command]`
 (`skills/audit/scripts/affected-tests.sh`, logic in `coverage/affected_tests.py`):
 
-- collects changed files per repo (working tree + staged; or `--since <ref>`);
+- collects changed files per repo (working tree + staged; or `--since <ref>`); run
+  from a linked worktree of a mapped repo it reads that worktree, not the main
+  checkout the map names. Only the repo the caller stands in moves: a sibling repo
+  without its own worktree is still read from its main checkout, so a peer's edits
+  there are selected too (wider, never missing);
 - maps each file to a module in `module-map.json`
   (`.context/audits/test-coverage/`), two tiers: a changed file with a **colocated**
   test narrows to that test, all-or-nothing per module; otherwise module-level impact;

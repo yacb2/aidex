@@ -577,5 +577,26 @@ out_z3="$(python3 "$AFFECTED" "$WS" --command 2>/dev/null)"
   || fail "(z) a change in both repos emits both commands: $out_z3"
 rm -rf "$WS"
 
+# ---------------------------------------------------------------------------
+# (aa) run from a LINKED WORKTREE of a mapped repo, the diff is the worktree's.
+#      LOOP-009 (2026-10-07): units ran `--command` from worktrees of aidex and
+#      got the main checkout's status instead — "no changed files", or another
+#      session's edits selected in place of their own.
+# ---------------------------------------------------------------------------
+WS="$(bash "$FIXTURE")"
+git -C "$WS/backend" worktree add -q -b unit "$WS/_wt/billing"
+echo x >> "$WS/_wt/billing/apps/billing/views.py"
+echo y >> "$WS/backend/apps/people/views.py"   # a peer's edit in the main checkout
+out_aa="$(cd "$WS/_wt/billing" && python3 "$AFFECTED" "$WS" --command 2>&1)"
+rc=$?
+[[ $rc -eq 0 ]] || fail "(aa) a worktree change must select (exit 0, got $rc): $out_aa"
+echo "$out_aa" | grep >/dev/null '^cd backend && pytest apps/billing/tests/$' \
+  || fail "(aa) the worktree's billing change must select billing: $out_aa"
+echo "$out_aa" | grep >/dev/null 'people' \
+  && fail "(aa) the main checkout's people edit must not leak in: $out_aa"
+echo "$out_aa" | grep >/dev/null 'INCOMPLETE' \
+  && fail "(aa) a sibling repo must still read its own mapped checkout: $out_aa"
+rm -rf "$WS"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
-echo "OK — affected-tests: module+hints, unmapped, clean tree, partial --since, test-file attribution, --command merge/INCOMPLETE/exit-3, multi-glob, no-tests module, e2e-only/no-hint advisories, --since all-missing, git error text, whitespace path, --help/unknown flag, repo-aware module tier"
+echo "OK — affected-tests: module+hints, unmapped, clean tree, partial --since, test-file attribution, --command merge/INCOMPLETE/exit-3, multi-glob, no-tests module, e2e-only/no-hint advisories, --since all-missing, git error text, whitespace path, --help/unknown flag, repo-aware module tier, worktree diff"
