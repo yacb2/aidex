@@ -1185,22 +1185,23 @@ try:
         ("an unclosed block", "::: note\nx\n", tmp),
         # Rows that crashed the CLI with a raw traceback (LOOP-008 D1 and its
         # review): a value past a float's range made the axis OverflowError, a
-        # nonzero value below 1e-300 a ZeroDivisionError or ValueError, and a
+        # nonzero value near 1e-300 a ZeroDivisionError or ValueError (both are
+        # refused at the 1e-15 floor now, the least a label can print), and a
         # markdown list nested ~500 deep exhausted md_body's recursion. Each also
         # names what to change, not only the line. Fence depth is the parser's
         # refusal (test_parser.py); its accept side is pinned below.
         ("a chart value with 400 digits",
          '::: chart {type="bar" title="c"}\na,1\nb,%s\n:::\n' % ("9" * 400),
-         tmp, "between 1e-300 and 1e+300"),
+         tmp, "between 1e-15 and 1e+300"),
         ("a positive and a negative value whose span overflows a float",
          '::: chart {type="bar" title="c"}\na,-%s\nb,%s\n:::\n'
-         % ("9" * 308, "9" * 308), tmp, "between 1e-300 and 1e+300"),
+         % ("9" * 308, "9" * 308), tmp, "between 1e-15 and 1e+300"),
         ("a nonzero chart value below 1e-300",
          '::: chart {type="bar" title="c"}\na,0\nb,0.%s5\n:::\n' % ("0" * 322),
-         tmp, "between 1e-300 and 1e+300"),
+         tmp, "between 1e-15 and 1e+300"),
         ("the smallest float above zero as a chart value",
          '::: chart {type="bar" title="c"}\na,0\nb,0.%s5\n:::\n' % ("0" * 323),
-         tmp, "between 1e-300 and 1e+300"),
+         tmp, "between 1e-15 and 1e+300"),
         ("a markdown list nested 600 deep",
          "::: masthead\n# T\n\n"
          + "".join("  " * k + "- x\n" for k in range(600)) + ":::\n",

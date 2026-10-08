@@ -328,7 +328,7 @@ drew one where they drew two.
 
 One `<figure>`: an inline `<svg>` plus a `<figcaption>` carrying `title`. Fills are
 `var(--sN)`, rules and labels `currentColor`; no literal colour. A value is 0 or between
-1e-300 and 1e+300 either side of 0 (`chart_svg.MIN_ABS`, `MAX_ABS`); one outside is refused
+1e-15 and 1e+300 either side of 0 (`chart_svg.MIN_ABS`, `MAX_ABS`); one outside is refused
 on its row's line.
 
 ### `prose`

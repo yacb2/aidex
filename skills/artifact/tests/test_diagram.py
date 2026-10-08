@@ -1794,6 +1794,32 @@ try:
     for ch in "\u2191\u2193\u2194\u21d2\u2713\u2260\u221e":
         check("the width table covers %r" % ch, ch in dw.GLYPH_WIDTHS)
 
+    # BL-722 B-c15: the table is committed. A shell `>` truncates it before
+    # Python runs, so no check inside the tool can save it: the documented
+    # invocation takes the output path and writes it only after the fonts loaded.
+    derive = os.path.join(SCRIPTS, "derive_glyph_widths.py")
+    doc = open(derive, encoding="utf-8").read().split('"""')[1]
+    check("derive_glyph_widths documents no shell redirect into the table",
+          "> diagram_widths.py" not in doc and ">diagram_widths.py" not in doc,
+          doc[:300])
+    tmp_w = tempfile.mkdtemp()
+    try:
+        copy = os.path.join(tmp_w, "diagram_widths.py")
+        shutil.copy(os.path.join(SCRIPTS, "diagram_widths.py"), copy)
+        before = open(copy, "rb").read()
+        for what, extra in (("no font path", []),
+                            ("a font path that is not a font",
+                             [os.path.join(tmp_w, "nothing.ttf")])):
+            r = subprocess.run([sys.executable, derive, copy] + extra,
+                               capture_output=True, text=True)
+            check("derive_glyph_widths with %s exits non-zero and leaves the "
+                  "table byte-identical" % what,
+                  r.returncode != 0 and open(copy, "rb").read() == before
+                  and not os.path.exists(copy + ".tmp"),
+                  "exit %d, %s" % (r.returncode, r.stderr[-120:]))
+    finally:
+        shutil.rmtree(tmp_w, ignore_errors=True)
+
     print("-- density cap --")
     check("the cap is 8 boxes", getattr(dl, "MAX_BOXES", None) == 8,
           str(getattr(dl, "MAX_BOXES", None)))
