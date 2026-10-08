@@ -844,6 +844,8 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 /* "Decidido, corrígeme si no": a proposal drawn in place, not a settled record (BL-692). */
 .consult-proposal:where(:not(svg *)) { font-family: var(--sans); font-size: 0.78rem; font-weight: 600;
                 letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); margin: 0.2rem 0 0.5rem; }
+/* Where "none of these" goes once every proposed option is unticked (BL-732). */
+.consult-proposal-none:where(:not(svg *)) { font-family: var(--sans); font-size: 0.82rem; color: var(--muted); margin: 0.3rem 0 0.5rem; }
 /* The moved node keeps its own markup; only the box around it changes, so the
    item reads as a record rather than as a question still on the page. */
 .decided-unit > .consult-item:where(:not(svg *)),

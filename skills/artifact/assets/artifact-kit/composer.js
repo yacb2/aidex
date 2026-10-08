@@ -89,6 +89,7 @@
       themeTitle: 'Switch this page between light and dark',
       decided: 'Decided',
       proposal: 'Decided, correct me if not',
+      proposalNone: 'Nothing ticked is no correction: to say none of these, write it in the notes',
       proposalsLeft: 'Decided points left to confirm or correct',
       proposalsNothingToCopy: 'Nothing to copy: if you agree with everything, say so in the general note',
       fixes: function (n) { return n + (n === 1 ? ' correction ready to copy' : ' corrections ready to copy'); },
@@ -216,6 +217,7 @@
       themeTitle: 'Cambia esta p\u00e1gina entre claro y oscuro',
       decided: 'Decidido',
       proposal: 'Decidido, corr\u00edgeme si no',
+      proposalNone: 'Sin nada marcado no hay correcci\u00f3n: para decir que no va ninguna, escr\u00edbelo en las notas',
       proposalsLeft: 'Quedan puntos decididos por confirmar o corregir',
       proposalsNothingToCopy: 'Nada que copiar: si est\u00e1s de acuerdo con todo, escr\u00edbelo en la nota general',
       fixes: function (n) { return n + (n === 1 ? ' correcci\u00f3n lista para copiar' : ' correcciones listas para copiar'); },
@@ -871,6 +873,17 @@
         if (h3) h3.parentNode.insertBefore(tag, h3.nextSibling);
         else el.insertBefore(tag, el.firstChild);
       }
+      /* BL-732 (owner, option B): unticking every proposed option is no correction
+       * (proposalBody pastes nothing for it), so "none of these" goes in the notes,
+       * and this hint, shown by collect() only while the selection is empty, says so. */
+      var opts = el.querySelector('.opts');
+      if (isProposal(el) && propBase[el.dataset.id] && opts && !el.querySelector('.consult-proposal-none')) {
+        var none = document.createElement('p');
+        none.className = 'consult-proposal-none';
+        none.textContent = L.proposalNone;
+        none.hidden = true;
+        opts.parentNode.insertBefore(none, opts.nextSibling);
+      }
     });
   }
 
@@ -1028,6 +1041,8 @@
           fix = withDefect(el, corr);
           proposals++;
           if (corr) fixed++;
+          var none = el.querySelector('.consult-proposal-none');
+          if (none) none.hidden = selSig(el) !== '';
           el.classList.toggle('has-defect', !!defectText(el));
         }
         var shown = isProposal(el) ? !!corr : true;
@@ -1203,7 +1218,7 @@
      * the item, so leaving it in would change every fingerprint the moment the
      * kit gained these controls, and every answer stored by a reader mid-thread
      * would read as "the question changed" and be dropped on the upgrade. */
-    clone.querySelectorAll('.kit-tag, .consult-proposal, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-defect, .kit-feedback, .kit-more, .kit-provisional, .kit-marks-tile, .kit-marks-list, .consult-kicker').forEach(function (c) { c.remove(); });
+    clone.querySelectorAll('.kit-tag, .consult-proposal, .consult-proposal-none, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-defect, .kit-feedback, .kit-more, .kit-provisional, .kit-marks-tile, .kit-marks-list, .consult-kicker').forEach(function (c) { c.remove(); });
     /* The generator's own <details> keeps its radios in the question (a row
      * built before it existed hashed them flat), but its summary word is chrome:
      * left in, every stored gallery answer would read as a changed question. */

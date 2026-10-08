@@ -5078,5 +5078,53 @@ tsv2="$(grep -oE '<title>[^<]*</title>' "$SV/dom2.html" | sed -n 1p)"
 [[ "$tsv2" == *"|VALS=42/7/hola|HAS=111|"* ]] \
   || fail "C-c08: a value typed into a typeless or number <input> must survive a reload like a type=\"text\" one (want VALS=42/7/hola|HAS=111): $tsv2"
 
+# ---- BL-732 (owner: option B): unticking every proposed option of a proposal is NOT a correction.
+# Nothing is pasted or counted for it, and the page says where "none of these" goes: a hint,
+# shown only while the selection is empty, pointing at the notes box.
+NP="$TMP/np732"; mkdir -p "$NP"
+many732() {  # many732 <id> <title>: a select=many proposal with both boxes proposed
+  printf '<section class="consult-item" data-id="%s" data-title="%s" data-decided="A, B" data-proposal>\n<h3><span class="consult-id">%s</span>%s?</h3>\n<div class="opts"><label><input type="checkbox" name="%s" data-label="A" checked><span>A</span></label><label><input type="checkbox" name="%s" data-label="B" checked><span>B</span></label></div>\n<p class="fieldlabel">Notas</p><textarea placeholder="Escribe aqui"></textarea>\n</section>\n' "$1" "$2" "$1" "$2" "$1" "$1"
+}
+{
+  printf '%s\n' '<meta name="consult-visual" content="none: a layout probe, nothing to draw">' \
+    '<div class="page"><main class="main"><header><p class="eyebrow">PROBE</p><h1>Empty proposal</h1></header>' \
+    '<section id="sec-ask"><div class="sec-head"><h2>Questions</h2></div>'
+  printf '<section class="consult-group" data-id="G1" data-title="Propuestas"><p>Contexto</p>\n'
+  many732 M1 "Conjunto propuesto"
+  many732 M2 "Otro conjunto"
+  printf '</section>\n'
+  printf '%s\n' '<div class="endbar"><button type="button" id="consult-copy-end">Copy</button><span class="consult-status" id="consult-status-end"></span></div>' \
+    '<section class="consult-item consult-notes" data-id="notes" data-title="Notas generales"><h3>Notas generales</h3><textarea></textarea></section>' \
+    '</section></main><aside class="rail"><p class="railhead">Contenido</p><nav class="raillist" id="raillist"></nav>' \
+    '<div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div></aside></div>'
+  cat <<'PROBE'
+<script>window.addEventListener("load", function () {
+  var m1 = document.querySelector('[data-id="M1"]'), m2 = document.querySelector('[data-id="M2"]');
+  var vis = function (el) { var h = el.querySelector(".consult-proposal-none");
+    return h && h.checkVisibility() ? h.textContent.trim() : "hidden"; };
+  var before = vis(m1);
+  m1.querySelectorAll('.opts input[type="checkbox"]').forEach(function (i) {
+    i.checked = false; i.dispatchEvent(new Event("change", { bubbles: true })); });
+  var cap = "";
+  Object.defineProperty(navigator, "clipboard", { configurable: true,
+    value: { writeText: function (s) { cap = s; return Promise.resolve(); } } });
+  m2.querySelector("textarea").value = "zzzother"; m2.querySelector("textarea").dispatchEvent(new Event("input", { bubbles: true }));
+  document.getElementById("consult-copy").click();
+  document.title = "NP|BEFORE=" + before + "|EMPTY=" + vis(m1) + "|UNTOUCHED=" + vis(m2)
+    + "|HAS=" + (m1.classList.contains("has-answer") ? 1 : 0)
+    + "|REPLY=" + cap.replace(/[|<>\n]/g, " ") + "|";
+});</script>
+PROBE
+} > "$NP/body.html"
+bash "$WRAP" --title "np" --lang es --out "$TMP/reports/np732.html" < "$NP/body.html" > "$NP/wrap.log" 2>&1 \
+  || fail "BL-732: the empty-proposal probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$NP/wrap.log" | sed -n 1,4p)"
+rm -rf "$TMP/profile"
+chrome_dump "$NP/dom.html" "file://$TMP/reports/np732.html" 45 || true
+tnp="$(grep -oE '<title>[^<]*</title>' "$NP/dom.html" | sed -n 1p)"
+[[ "$tnp" == *"|BEFORE=hidden|"* && "$tnp" == *"|UNTOUCHED=hidden|"* && "$tnp" == *"|EMPTY="*"notas"*"|UNTOUCHED="* ]] \
+  || fail "BL-732: a proposal with every proposed option unticked must show the hint that 'none of these' goes in the notes, and a proposal with its selection must not (want BEFORE=hidden, EMPTY=<hint naming notas>, UNTOUCHED=hidden): $tnp"
+[[ "$tnp" == *"|HAS=0|"* && "$tnp" != *"### M1"* && "$tnp" == *"### M2"*"zzzother"* ]] \
+  || fail "BL-732: an emptied proposal selection is no correction: not answered and nothing of M1 in the reply (want HAS=0, no ### M1): $tnp"
+
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other, the not-now choice, the multi-select item built from a spec, the ask row and the provisional state, the explicit theme, v4 answer sets, the all-decided page, the half-answered block, the gallery zoom dialog with its keyboard walk, the block filters that never reach the paste, the light/dark compare with its slider kept out of the paste, and the localised chrome included"
