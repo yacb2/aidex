@@ -1166,6 +1166,18 @@ err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --lang es \
   && ok "BL-371: --lang agreeing with the profile stays silent" \
   || bad "BL-371: the note fired on an agreeing --lang: $err"
 
+# BL-721 B-c24: a regional profile is the same language as its primary subtag, on
+# BOTH sides: `--lang es` and `--lang es-MX` under `language: es-MX` are agreement.
+REGP="$TMP/regionalproj"; mkdir -p "$REGP/.context/reports" "$REGP/.context/profiles"
+printf -- '- language: es-MX\n' > "$REGP/.context/profiles/artifact.md"
+for L in es es-MX; do
+  err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --lang "$L" \
+          --out "$REGP/.context/reports/$L.html" 2>&1 >/dev/null)"
+  [[ "$err" != *"contradicts"* ]] \
+    && ok "BL-721: --lang $L under a profile declaring es-MX raises no false NOTE" \
+    || bad "BL-721: false contradiction NOTE for --lang $L under es-MX: $err"
+done
+
 # A close-out report under worklists/_archive/ follows the profile too (BL-382,
 # BL-482): only human-verification.* takes --lang en (test-contract-defects.sh).
 mkdir -p "$CONTRAP/.context/worklists/_archive"

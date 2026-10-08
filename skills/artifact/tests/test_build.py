@@ -1487,6 +1487,9 @@ try:
     rejects("win= naming no cell of the verdict",
             '::: verdict {win="Nadie"}\n| n | ruta |\n|---|---|\n| 3 | DOT |\n:::',
             1, "names no cell")
+    # BL-721 B-c11: a header and a separator with no cell row built an empty box.
+    rejects("a verdict table with a header and a separator but no cell is refused",
+            "::: verdict\n| figura | etiqueta |\n|---|---|\n:::", 1, "one row per cell")
     rejects("a body on a block that takes none",
             '::: notes {title="N"}\ntexto\n:::', 1, "takes no body")
     # An aside is a framed box: with no body it rendered as an empty bordered
@@ -2131,6 +2134,34 @@ try:
     check("the note names what was removed",
           "p.html.failed" in errbuf.getvalue()
           and "p.html.failed.body" in errbuf.getvalue())
+    # BL-721 B-c13: --new-round is documented "Needs -o"; it was silently dropped
+    # without one, like a flag that ran its guard when it never did.
+    nspec = os.path.join(tmp, "nr.spec.md")
+    with open(nspec, "w", encoding="utf-8") as fh:
+        fh.write('::: masthead {eyebrow="P" visual="none: probe"}\n# NR\n\nX\n:::\n\n'
+                 '::: notes {title="Notas"}\n:::\n')
+    r = subprocess.run([sys.executable, BUILD, nspec, "--new-round"],
+                       capture_output=True, text=True)
+    check("--new-round without -o is refused, as --check is, and prints no page",
+          r.returncode != 0 and "--new-round needs -o" in r.stderr and not r.stdout,
+          "rc=%d %s" % (r.returncode, r.stderr))
+
+    # BL-721 B-c24: a regional profile (es-MX) is the same language as --lang es;
+    # the wrap compared the cut-down "es" with the raw "es-MX" and cried contradiction.
+    rproj = os.path.join(tmp, "regional")
+    os.makedirs(os.path.join(rproj, ".context", "profiles"))
+    os.makedirs(os.path.join(rproj, ".context", "reports"))
+    with open(os.path.join(rproj, ".context", "profiles", "artifact.md"), "w") as fh:
+        fh.write("- language: es-MX\n")
+    rspec = os.path.join(rproj, "p.spec.md")
+    with open(rspec, "w", encoding="utf-8") as fh:
+        fh.write('::: masthead {eyebrow="P" visual="none: probe"}\n# Regional\n\nX\n:::\n\n'
+                 '::: notes {title="Notas"}\n:::\n')
+    r = subprocess.run([sys.executable, BUILD, rspec, "-o",
+                        os.path.join(rproj, ".context", "reports", "p.html")],
+                       capture_output=True, text=True)
+    check("a profile language es-MX builds without a false 'contradicts' NOTE",
+          r.returncode == 0 and "contradicts" not in r.stderr, r.stdout + r.stderr)
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 
