@@ -143,9 +143,10 @@ def clean(raw):
     if not m:
         raise GraphError("Graphviz produced no <svg> element")
     svg = m.group(0)
+    # ` style=` is not tested here: label TEXT may say it. A real style=
+    # attribute is refused by `_vet`, which reads the parsed attributes.
     for bad, why in (("<a ", "a link (URL= or href=)"),
                      ("<image", "an image (image=)"),
-                     (" style=", "a style= attribute"),
                      ("<?", "a processing instruction (`<?`), which HTML reads "
                             "as a comment ending at the first `>`")):
         if bad in svg:

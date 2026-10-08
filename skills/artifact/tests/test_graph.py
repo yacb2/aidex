@@ -192,6 +192,21 @@ else:
     rejects("a font other than the kit's --mono is refused",
             fence('digraph { a [fontname="Helvetica"] }'), 3, "font")
 
+    # BL-722 B-c22: label TEXT that reads like markup is not markup. The raw
+    # substring test for ` style=` refused `style=bold` typed in a label.
+    try:
+        label_html = build(fence('digraph { a [label="use style=bold"] }'))
+        check("a label that says style=bold is not refused",
+              "use style=bold" in label_html, label_html)
+    except (SpecSyntaxError, SpecBuildError) as exc:
+        check("a label that says style=bold is not refused", False,
+              exc.message)
+    # ...while a style= ATTRIBUTE smuggled through fontname stays refused (by
+    # the parsed whitelist, now the only check).
+    rejects("a fontname that smuggles a style= attribute is refused",
+            fence(r'digraph{a->b[fontname="x\" style=\"fill:red" '
+                  r'label="e"]}'), 3, "style")
+
     # BL-451, found by a headless-Chrome probe: the whitelist ran on
     # ElementTree's parse but the page carried Graphviz's own bytes. XML reads
     # `<?x ><script>…?>` as ONE processing instruction (dropped by the parse);

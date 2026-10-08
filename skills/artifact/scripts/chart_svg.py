@@ -92,9 +92,11 @@ NUM = re.compile(r"^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$")
 # well before it the axis arithmetic does (a span of -x..x, a stacked total of 8
 # series, the tick rounding up): an OverflowError. Below ~1e-308 the value is
 # subnormal and the tick step divides by zero or takes log10(0): a
-# ZeroDivisionError or ValueError. 1e-300..1e300 leaves that arithmetic orders of
-# magnitude of headroom and refuses nothing a chart can mean.
-MIN_ABS, MAX_ABS = 1e-300, 1e300
+# ZeroDivisionError or ValueError. The floor is what a label can print: `_places`
+# writes at most 15 decimals, so 1e-15 is the smallest value that does not print
+# as `0` (BL-722); below it the row is refused, never drawn as `0`. Longer
+# labels (44 decimals was tried) run out of the viewBox and invert a narrow axis.
+MIN_ABS, MAX_ABS = 1e-15, 1e300
 # A markdown separator row cell: `---`, `:--`, `--:`, `:-:`.
 SEP_CELL = re.compile(r"^:?-+:?$")
 
@@ -388,7 +390,8 @@ def _clean(v, unit):
 
 def _places(x):
     """The fewest decimals that write `x` exactly (0.25 needs 2, 3e-12 needs
-    12). Relative tolerance: a fixed one wrote every tiny tick as `0`."""
+    12). Relative tolerance: a fixed one wrote every tiny tick as `0`. At
+    most 15, the decimals of MIN_ABS: the parser refuses what 15 cannot print."""
     for d in range(0, 16):
         if abs(round(x, d) - x) <= 1e-9 * abs(x):
             return d
@@ -775,6 +778,9 @@ STACK_PITCH = STACK_LABEL_H + STACK_BAR_H + STACK_VALUE_H + STACK_GAP
 # wide rendering only.
 MIN_STACK_PLOT = 200
 MIN_STACK_PLOT_NARROW = 120
+# The narrow bar chart's least plot width (x1 - x0): wider labels than this
+# leave an axis too short to tell a negative bar from a positive one.
+MIN_HBARS_PLOT = 60
 
 
 def _stacked_totals(labels, series, unit, lang="en"):
@@ -826,11 +832,16 @@ def _stacked(labels, series, unit, g=WIDE, lang="en"):
         ry += (len(heads[r]) - 1) * STACK_LABEL_H
         by = ry + STACK_LABEL_H
         cells = [col[r] for _n, col in series]
-        # A cell is labelled only if its two-decimal text is not "0": a
-        # positive 0.004 prints as 0, which says the segment is not there.
-        # `several` counts the same way, so a row of one real segment and a
-        # few sub-precision ones still leaves its value to the total.
-        several = sum(1 for v in cells if _num(v) != "0") > 1
+        # A cell is labelled when its text fits it. `several` counts the real
+        # segments: a cell whose two-decimal text is not "0", or one that fits
+        # its own text. A 0.004 beside a 5 is neither (it prints as 0 at two
+        # decimals and is too narrow for "0,004"), so the 5 is left to the
+        # total; a 100 beside a 1 still counts the 1 though it is too narrow.
+        texts = [_fmt(v, dec, lang, False) for v in cells]
+        fits = [v != 0 and t != "0" and _text_width(t, g.value) <= v * scale
+                for v, t in zip(cells, texts)]
+        several = sum(1 for v, t, f in zip(cells, texts, fits)
+                      if f or (v != 0 and t != "0" and _num(v) != "0")) > 1
         bx = x0
         for si, v in enumerate(cells):
             w = v * scale
@@ -840,9 +851,8 @@ def _stacked(labels, series, unit, g=WIDE, lang="en"):
                        'fill="var(%s)"/>'
                        % (_num(bx), _num(by), _num(w), STACK_BAR_H,
                           SERIES_TOKENS[si]))
-            text = _fmt(v, dec, lang, False)
-            if (several and _num(v) != "0"
-                    and _text_width(text, g.value) <= w):
+            text = texts[si]
+            if several and fits[si]:
                 out.append(_text_el(bx + w / 2.0, by + STACK_BAR_H + 12,
                                     g.value, text, "middle",
                                     ' class="val" fill-opacity="0.7"'))
@@ -944,6 +954,8 @@ def _hbars(labels, series, unit, lang, show_labels, ytitle, xtitle, g):
     half_last = _text_width(tick_text[-1][1], g.font) / 2.0
     x0 = PAD_EDGE + max([half_first] + [w + 4 for w in neg])
     x1 = g.w - PAD_EDGE - max([half_last] + [w + 4 for w in pos])
+    if x1 - x0 < MIN_HBARS_PLOT:
+        return None                     # no narrow rendering; the wide one stays
 
     def xpix(v):
         return x0 + (float(v) - d_lo) / (d_hi - d_lo) * (x1 - x0)
