@@ -13,6 +13,8 @@ referenced phase file. Markdown stays canon.
 import glob
 import os
 import re
+import sys
+import urllib.parse
 
 import _parse as P
 import _shell as S
@@ -41,9 +43,16 @@ def _phase_counts(row, base_dir):
     links, or None when the row links no existing file."""
     m = _LINK.search(row[1] if len(row) > 1 else "")
     if m:
-        pf = os.path.join(base_dir, m.group(1))
+        # Markdown link syntax is not a path: `<angle brackets>`, a "title", a
+        # #fragment and %-encoding all sit between the parens.
+        target = m.group(1).strip()
+        target = target[1:target.find(">")] if target.startswith("<") and ">" in target \
+            else target.split()[0] if target.split() else ""
+        pf = os.path.join(base_dir, urllib.parse.unquote(target.split("#")[0]))
         if os.path.isfile(pf):
             return P.checkbox_counts(P.read_text(pf))
+        print(f"NOTE: phase link does not resolve to a file: {m.group(1)} (in {base_dir})",
+              file=sys.stderr)
     return None
 
 

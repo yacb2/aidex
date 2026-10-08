@@ -32,7 +32,7 @@ def _items(backlog_dir):
     items, skipped = [], []
     # glob.escape: the workspace path is data, not a pattern (foo-[bl-9] roots)
     for path in sorted(glob.glob(os.path.join(glob.escape(backlog_dir), "*.md"))):
-        if os.path.basename(path) == "00-index.md":
+        if os.path.basename(path) in ("00-index.md", "README.md"):
             continue
         fm = P.front_matter(path)
         if not fm:
@@ -77,7 +77,8 @@ def render(root):
         {"n": doing, "l": "doing", "warned": doing > 0},
         {"n": archived, "l": "archived"},
         {"n": len(items), "l": "live files parsed"},
-    ])
+        # only when non-zero: a board that omits an item must say so on the page
+    ] + ([{"n": len(skipped), "l": "unparseable (skipped)", "warned": True}] if skipped else []))
 
     # Priority bars over live (non-archived) items.
     prio_counts = {}
