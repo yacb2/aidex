@@ -264,7 +264,7 @@ def parse(text, tiles=None, labels=None, lenient=False, states=None):
     """`lenient`: an alternatives row needs no --rows document (its chosen
     label is read as the first bullet); save_reply uses it, which only wants
     to know what is owed, not which alternative was chosen."""
-    items, cur = [], None
+    items, groups, cur = [], [], None
     text = blank_defects(text)       # the composer's page-defect sub-block is no row text
     for n, line in enumerate(text.splitlines(), 1):
         if line.startswith("### "):
@@ -273,7 +273,10 @@ def parse(text, tiles=None, labels=None, lenient=False, states=None):
                    "line": n}
             items.append(cur)
         elif line.startswith("## "):
-            cur = None
+            # A block's own notes (BL-701) sit under its heading, before its items.
+            ident, _, title = line[3:].partition(" · ")
+            cur = {"id": ident.strip(), "title": title.strip(), "body": []}
+            groups.append(cur)
         elif cur is not None:
             cur["body"].append((n, line))
     rows, other = [], []
@@ -285,7 +288,10 @@ def parse(text, tiles=None, labels=None, lenient=False, states=None):
         else:
             other.append({"id": it["id"], "title": it["title"],
                           "body": "\n".join(l for _, l in trim(it["body"]))})
-    return {"rows": rows, "other": other}
+    groups = [{"id": g["id"], "title": g["title"],
+               "notes": "\n".join(l for _, l in trim(g["body"]))} for g in groups]
+    return {"rows": rows, "other": other,
+            "groups": [g for g in groups if g["notes"]]}
 
 
 def main(argv):

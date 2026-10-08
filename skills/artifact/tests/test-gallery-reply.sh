@@ -82,7 +82,7 @@ rc=$?
 [[ "$rc" == 0 ]] && ok "the real paste parses" \
   || fail "the real paste was refused (exit $rc): $(cat "$TMP/real.err")"
 
-expect_json "$TMP/real.json" 'd == {"rows": [{"id": "audit-with-data-light-desktop", "gallery": "audit", "cell": "with-data", "variant": "light-desktop", "kind": "review", "verdict": "Needs changes", "notes": "la fila se ve bien", "asks": [], "provisional": False, "marks": [{"tile": "after", "x": 12.5, "y": 34.0, "w": 40.0, "h": 10.5, "note": "the breadcrumb wraps under the title"}, {"tile": "after", "x": 0.0, "y": 0.0, "w": 25.0, "h": 25.0, "note": "the logo is cut"}]}], "other": []}' \
+expect_json "$TMP/real.json" 'd == {"rows": [{"id": "audit-with-data-light-desktop", "gallery": "audit", "cell": "with-data", "variant": "light-desktop", "kind": "review", "verdict": "Needs changes", "notes": "la fila se ve bien", "asks": [], "provisional": False, "marks": [{"tile": "after", "x": 12.5, "y": 34.0, "w": 40.0, "h": 10.5, "note": "the breadcrumb wraps under the title"}, {"tile": "after", "x": 0.0, "y": 0.0, "w": 25.0, "h": 25.0, "note": "the logo is cut"}]}], "other": [], "groups": []}' \
   "the real paste is exactly one row with its verdict, notes and two marks"
 
 bash "$PARSE" < "$FIX" > "$TMP/stdin.json" 2>/dev/null
@@ -262,6 +262,14 @@ parsed '- Necesita cambios\n\nel borde se corta\n\n#### Page problem\n\nla captu
 parsed '- Aprobada\n\n[mark light-desktop 10.0,10.0 20.0x20.0] logo cortado\n\n#### Fallo de la página\n\nel footer muestra el comentario\n<!-- TODO footer -->\ncomo texto visible\n' \
   'len(r["marks"]) == 1 and "TODO footer" not in r["notes"] and "Fallo" not in r["notes"]' \
   "a comment line the reader quotes inside a report stays in the report"
+
+echo "== a block's own notes under its ## heading (BL-733, owner: a groups key) =="
+printf '## G1 · Galería\n\nel bloque entero va muy cargado\n\n### audit-with-data-light-desktop · audit · with-data · light-desktop\n\n- Aprobada\n\n## G2 · Sin notas\n\n### Q9 · Otra cosa\n\n- Sí\n' > "$TMP/grp.txt"
+bash "$PARSE" "$TMP/grp.txt" > "$TMP/grp.json" 2> "$TMP/grp.err" || fail "group notes: refused: $(cat "$TMP/grp.err")"
+expect_json "$TMP/grp.json" 'd["groups"] == [{"id": "G1", "title": "Galería", "notes": "el bloque entero va muy cargado"}]' \
+  "a block note reaches groups; a heading with no note adds no group"
+expect_json "$TMP/grp.json" 'd["rows"][0]["notes"] == "" and d["other"][0]["body"] == "- Sí"' \
+  "the block note is in no row and no other item"
 
 echo
 if [[ "$failures" == 0 ]]; then
