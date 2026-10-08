@@ -634,7 +634,8 @@ duty is enforced against a FIXED snapshot, never the moving contract baseline
 (BL-504).** The marks live in the reader's browser and in the paste, never on
 disk, so the session that receives a paste — or the reader's own chat text,
 saved the same way, no bypass — runs `scripts/save-reply.sh <page.html>
-[<reply-file>|-]` before briefing the rewrite. It writes the paste verbatim to
+[<reply-file>|-]` before briefing the rewrite. It writes the paste verbatim (a
+leading UTF-8 BOM dropped) to
 `.aidex-artifact-prev/<stem>.reply.md` AND snapshots the page exactly as the
 reader answered it to `.aidex-artifact-prev/<stem>.answered.html`, then prints
 one DUTY line per marked item (the Gate column above) — paste that list into

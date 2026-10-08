@@ -1491,6 +1491,9 @@ try:
     rejects("a gallery whose rows= file does not exist",
             '::: gallery {#E title="G" rows="no-such.json" root="/abs"}\n:::',
             1, "no such rows file")
+    rejects("a gallery whose rows= is a directory (a refusal, not a traceback)",
+            '::: gallery {#E title="G" rows="%s" root="/abs"}\n:::' % HERE,
+            1, "cannot read the rows file")
 
     rejects("the refusal carries the line of the offending FENCE, deep in a page",
             "prosa\n\n::: callout\nx\n:::\n\n::: note\ny\n:::\n\n"

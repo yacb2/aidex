@@ -5,7 +5,8 @@ built (BL-475)"). Logic lives here; save-reply.sh is the entry, the same
 split every other dash/*.py script has.
 
 The reader's marks live in browser storage and in the paste, never on disk.
-This writes the paste verbatim to `.aidex-artifact-prev/<stem>.reply.md`, AND
+This writes the paste verbatim (less a leading UTF-8 BOM) to
+`.aidex-artifact-prev/<stem>.reply.md`, AND
 snapshots the page as it stood when the reader answered it to
 `.aidex-artifact-prev/<stem>.answered.html` — the FIXED reference every marker
 check in check_artifact.py (`check_marker_duties`) judges the next round
@@ -48,7 +49,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _usage import read_stdin  # noqa: E402
+from _usage import read_stdin, usage_exit  # noqa: E402
 import check_artifact as ca  # noqa: E402
 import gallery_reply  # noqa: E402
 from gallery_items import VERDICTS  # noqa: E402
@@ -276,20 +277,18 @@ SAVE_FORM = "save-reply.sh <page.html> [<reply-file>|-]  (or pipe the reply on s
 
 def main(argv):
     if not argv:
-        print("ERROR: usage: save-reply.sh <page.html> [<reply-file>|-]",
-              file=sys.stderr)
-        return 2
+        usage_exit(SAVE_FORM, "no page given")
     page_path = argv[0]
     if not os.path.isfile(page_path):
-        print(f"ERROR: {page_path} is not a file", file=sys.stderr)
-        return 2
+        usage_exit(SAVE_FORM, f"{page_path} is not a file")
     reply_arg = argv[1] if len(argv) > 1 else "-"
     where = "on stdin" if reply_arg == "-" else reply_arg
     try:
         if reply_arg == "-":
-            reply_text = read_stdin(SAVE_FORM)
+            # utf-8-sig: a BOM alone (Windows clipboards) is an empty reply
+            reply_text = read_stdin(SAVE_FORM, binary=True).decode("utf-8-sig")
         else:
-            with open(reply_arg, encoding="utf-8") as fh:
+            with open(reply_arg, encoding="utf-8-sig") as fh:
                 reply_text = fh.read()
     except OSError as exc:
         print(f"ERROR: cannot read the reply {where}: {exc}", file=sys.stderr)

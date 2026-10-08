@@ -298,6 +298,8 @@ def load(path):
             doc = json.load(fh)
     except FileNotFoundError:
         die("no such rows file: %s" % path)
+    except OSError as exc:     # a directory, no permission: refused, never a traceback
+        die("cannot read the rows file %s (%s)" % (path, exc.strerror or exc))
     except ValueError as exc:
         die("%s is not valid JSON (%s)" % (path, exc))
     if not isinstance(doc, dict):
@@ -1456,12 +1458,16 @@ def main(argv):
     args = ap.parse_args(argv)
 
     if not GROUP_ID.match(args.group_id):
-        die("--group-id %r is not an html id — it becomes id=, data-id= and the "
-            "rail's anchor, so it starts with a letter and holds letters, "
-            "digits, '-' and '_' only" % args.group_id)
+        ap.error("--group-id %r is not an html id — it becomes id=, data-id= and the "
+                 "rail's anchor, so it starts with a letter and holds letters, "
+                 "digits, '-' and '_' only" % args.group_id)
     if not os.path.isabs(args.root):
-        die("--root must be an absolute path (got '%s') — a file:// URL "
-            "built from a relative one resolves nowhere" % args.root)
+        ap.error("--root must be an absolute path (got '%s') — a file:// URL "
+                 "built from a relative one resolves nowhere" % args.root)
+    # not isfile: a <(...) or /dev/stdin pipe is a valid rows document. load()
+    # keeps die() for everything else: spec_build reads its message.
+    if not os.path.exists(args.rows) or os.path.isdir(args.rows):
+        ap.error("no such rows file: %s" % args.rows)
     doc = load(args.rows)
     sys.stdout.write(render(doc, args.root, args.group_id, args.group_title,
                             args.lang, page=args.page))

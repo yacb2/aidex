@@ -353,6 +353,37 @@ n="$(printf '%s\n' "$out3" | grep -c '^Q1 \[')"
   && ok "C6. 3+ stacked asks print ONE duty line, not one per marker" \
   || fail "C6: got $n duty line(s): $out3"
 
+# C7. a paste that is only a UTF-8 BOM (Windows clipboards) is an empty reply:
+#     refused, and the reply already saved is left byte-for-byte as it was.
+printf '\xef\xbb\xbf \n' > "$TMP/bom-only.md"
+cp "$TMP/pagec2/.aidex-artifact-prev/page.reply.md" "$TMP/reply-before-bom.md"
+for form in file stdin; do
+  if [[ $form == file ]]; then
+    err="$(bash "$SAVE_REPLY" "$PAGEC2" "$TMP/bom-only.md" 2>&1 >/dev/null)"; rc=$?
+  else
+    err="$(bash "$SAVE_REPLY" "$PAGEC2" < "$TMP/bom-only.md" 2>&1 >/dev/null)"; rc=$?
+  fi
+  [[ $rc -eq 2 && "$err" == *"empty"* ]] \
+    && cmp -s "$TMP/reply-before-bom.md" "$TMP/pagec2/.aidex-artifact-prev/page.reply.md" \
+    && ok "C7. a BOM-only reply ($form) is refused as empty and the saved reply is kept" \
+    || fail "C7 ($form): rc=$rc $err"
+done
+
+# C7b. a leading BOM on a real reply is dropped: the saved reply starts at `Q1:`.
+printf '\xef\xbb\xbfQ1: ok\n' > "$TMP/bom-led.md"
+for form in file stdin; do
+  d="$TMP/bomled-$form"; mkdir -p "$d"; page "$d/page.html" '' 'A BOM-led question'
+  if [[ $form == file ]]; then
+    bash "$SAVE_REPLY" "$d/page.html" "$TMP/bom-led.md" >/dev/null 2>&1; rc=$?
+  else
+    bash "$SAVE_REPLY" "$d/page.html" < "$TMP/bom-led.md" >/dev/null 2>&1; rc=$?
+  fi
+  head3="$(head -c 3 "$d/.aidex-artifact-prev/page.reply.md" 2>/dev/null)"
+  [[ $rc -eq 0 && "$head3" == "Q1:" ]] \
+    && ok "C7b. a BOM-led reply ($form) is saved without the BOM" \
+    || fail "C7b ($form): rc=$rc first bytes: $(head -c 3 "$d/.aidex-artifact-prev/page.reply.md" 2>/dev/null | od -An -c)"
+done
+
 # ============================================================================
 # Part D — review finding 1 (BLOCKING): a second save-reply must not wipe an
 # outstanding duty. Reproduces: save a paste marking Q1 [show-me] (no figure),

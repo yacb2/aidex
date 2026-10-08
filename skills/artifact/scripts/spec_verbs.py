@@ -1216,6 +1216,8 @@ def main(argv):
         p.error("a verb is required")
     if extra:  # name the form of the verb the caller used, not the generic one
         subs.choices[args.verb].error("unrecognized arguments: " + " ".join(extra))
+    if not os.path.isfile(args.spec):   # a path naming no file is misuse, not a refusal
+        subs.choices[args.verb].error("no such spec: %s" % args.spec)
 
     try:
         if args.verb == "add-item":

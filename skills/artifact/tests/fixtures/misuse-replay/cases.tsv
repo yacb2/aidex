@@ -21,3 +21,8 @@ nc-stdin-save-reply	save-reply.sh	{FIX}/page.html		usage:save-reply.sh <page.htm
 nc-stdin-gallery-reply	gallery-reply.sh			usage:gallery-reply.sh ;; pipe the reply on stdin ;; no content on stdin
 nc-stdin-gallery-reply-blank	gallery-reply.sh		blank.txt	usage:gallery-reply.sh ;; no content on stdin
 nc-stdin-wrap-blank	wrap-report.sh	--title T --lang es --out {TMP}/p.html	blank.txt	usage:wrap-report.sh --title ;; no content on stdin
+nc-noargs-save-reply	save-reply.sh			usage:save-reply.sh <page.html>
+nc-nopage-save-reply	save-reply.sh	{TMP}/nope.html		usage:save-reply.sh <page.html> ;; is not a file
+nc-norows-gallery-items	gallery-items.sh	{TMP}/nope.json --root /abs --page {TMP}/p.html --group-id g --group-title T		usage:gallery-items.sh <rows.json> ;; no such rows file
+nc-groupid-gallery-items	gallery-items.sh	{FIX}/rows.json --root /abs --page {TMP}/p.html --group-id 1g --group-title T		usage:gallery-items.sh <rows.json> ;; --group-id
+nc-dirrows-gallery-items	gallery-items.sh	{TMP} --root /abs --page {TMP}/p.html --group-id g --group-title T		usage:gallery-items.sh <rows.json> ;; no such rows file

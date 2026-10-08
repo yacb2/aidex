@@ -5,8 +5,9 @@
 #
 # Run this FIRST on receiving a paste (or a chat reply — save that text the
 # same way, there is no bypass), before briefing the rewrite. It writes the
-# paste verbatim to .aidex-artifact-prev/<stem>.reply.md and snapshots the
-# page as the reader saw it to .aidex-artifact-prev/<stem>.answered.html, then
+# paste verbatim (less a leading UTF-8 BOM) to
+# .aidex-artifact-prev/<stem>.reply.md and snapshots the page as the reader saw
+# it to .aidex-artifact-prev/<stem>.answered.html, then
 # prints the DUTIES the next round owes — paste that list into the brief.
 #
 # Usage:

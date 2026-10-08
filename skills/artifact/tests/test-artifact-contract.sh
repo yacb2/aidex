@@ -705,8 +705,13 @@ err="$(sed "s/data-title=\"$C2_TITLE\"/data-title=\"A different claim\"/" "$TMP/
        | bash "$WRAP" --title "C" --out "$PROJ/.context/reports/c.html" 2>&1 >/dev/null)"; rc=$?
 [[ $rc -ne 0 ]] && ok "regenerating with a shifted id fails the write" \
                 || bad "--out accepted a regeneration that renumbered a claim"
-[[ "$err" == *"typed"* ]] && ok "overwriting a consultation page warns about typed answers" \
-                          || bad "no warning that a regeneration discards answers: $err"
+# A failing wrap is rolled back off --out, so no typed answer is at stake: the
+# typed-answers NOTE is printed only once the check has passed.
+[[ "$err" != *"held a consultation page"* ]] && ok "a failing regeneration does not warn about typed answers" \
+  || bad "the typed-answers NOTE was printed for a wrap that failed: $err"
+err="$(bash "$WRAP" --title "C" --out "$PROJ/.context/reports/c.html" < "$TMP/consult-body-decided.html" 2>&1 >/dev/null)"; rc=$?
+[[ $rc -eq 0 && "$err" == *"held a consultation page"* ]] && ok "overwriting a consultation page warns about typed answers" \
+  || bad "no warning that a regeneration discards answers (rc $rc): $err"
 
 # --- The blank-count requirement must measure the COMPOSER --------------------
 # It was `grep -qi 'blank'` over the whole file, which measures nothing about the

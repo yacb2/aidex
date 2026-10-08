@@ -358,7 +358,8 @@ case("57d", "add-item with a parenthetical option",
 case("58", "--new-round with no saved reply", steps=(B, ("build", "--new-round")), names=r"no saved reply")
 case("58b", "--new-round again after a verb rebuild",
      steps=(B, REPLY, decide(), ("build", "--new-round")), names=r"no saved reply")
-case("59", "save-reply on a missing page", steps=(("save", "Q1: No\n"),), names=r"is not a file")
+case("59", "save-reply on a missing page", steps=(("save", "Q1: No\n"),),
+     names=r"(?m)^usage: save-reply\.sh .*is not a file")
 case("59b", "save-reply with an empty reply", steps=(B, ("save", "  \n")), names=r"reply is empty")
 case("60", "save-reply with a reply path that does not exist", steps=(B, ("savefile", "nope.reply.txt")),
      names=r"cannot read the reply")

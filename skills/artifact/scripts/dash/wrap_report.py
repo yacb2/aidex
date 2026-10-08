@@ -1166,6 +1166,7 @@ def main():
     # build started at and no render, so there is no build-start baseline to
     # compare with; the ids therefore name what the last wrap changed.
     rephrased = []
+    held_consultation = False   # its NOTE prints on a PASS only, like `rephrased`
     if os.path.isfile(args.outfile):
         prev_text = open(args.outfile, encoding="utf-8", errors="replace").read()
         rephrased = changed_questions(prev_text, doc)
@@ -1179,14 +1180,7 @@ def main():
             # the storage-less case — another browser/machine, a private window,
             # an engine refusing storage on file:// — and a pre-v4 page whose
             # composer never saved anything.
-            print("NOTE: this path held a consultation page. Since kit v4 typed answers "
-                  "are restored from this machine's browser storage on reload; they are "
-                  "still lost on another browser/machine or if the page predates v4. "
-                  "Since kit v6 an answer whose question you rephrased is deliberately "
-                  "NOT restored — that item reads blank and the page's banner says so. "
-                  "Since kit v7 an answer already SENT with the copy button does not "
-                  "cross into a new round either; one typed and never sent still does.",
-                  file=sys.stderr)
+            held_consultation = True
 
     with open(args.outfile, "w", encoding="utf-8") as fh:
         fh.write(doc)
@@ -1323,6 +1317,16 @@ def main():
     except OSError as e:
         print(f"NOTE: could not keep the page content at {body_file} ({e}); the next "
               f"revision will have to extract it from the wrapped file.", file=sys.stderr)
+
+    if held_consultation:
+        print("NOTE: this path held a consultation page. Since kit v4 typed answers "
+              "are restored from this machine's browser storage on reload; they are "
+              "still lost on another browser/machine or if the page predates v4. "
+              "Since kit v6 an answer whose question you rephrased is deliberately "
+              "NOT restored — that item reads blank and the page's banner says so. "
+              "Since kit v7 an answer already SENT with the copy button does not "
+              "cross into a new round either; one typed and never sent still does.",
+              file=sys.stderr)
 
     # One line for the whole set: the writer is being told what to say in the
     # reply, and a note per item is a list he has to re-assemble himself.

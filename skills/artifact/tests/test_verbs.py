@@ -997,8 +997,17 @@ try:
     print("== the CLI's own edges ==")
     r = run("decide", os.path.join(tmp, "missing.spec.md"), "--id", "Q1",
             "--verdict", V)
-    check("a spec that is not there is a refusal, not a traceback",
-          r.returncode == 1 and "cannot read the spec" in r.stderr, r.stderr)
+    # A path argument naming nothing is misuse (script contract): exit 2, one
+    # `usage:` line with the verb's form. Content refusals below stay at 1.
+    check("a spec that is not there is a usage error naming the form, not a traceback",
+          r.returncode == 2 and len(r.stderr.splitlines()) == 1
+          and r.stderr.startswith("usage: spec_verbs.py decide <spec.md>")
+          and "no such spec" in r.stderr, r.stderr)
+    r = run("decide", tmp, "--id", "Q1", "--verdict", V)
+    check("a spec path that is a directory is the same usage error",
+          r.returncode == 2 and len(r.stderr.splitlines()) == 1
+          and r.stderr.startswith("usage: spec_verbs.py decide <spec.md>")
+          and "no such spec" in r.stderr, r.stderr)
     latin = fresh("latin1", "", build=False)
     with open(latin, "wb") as fh:
         fh.write(b"::: masthead\n# T\n\nS \xff\xfe\n:::\n")

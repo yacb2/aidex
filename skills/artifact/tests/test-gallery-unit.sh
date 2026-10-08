@@ -355,7 +355,8 @@ refuse "a variant named twice" \
 bash "$GEN" "$TMP/rows.json" --root ../elsewhere --page "$PAGE" --group-id E --group-title T \
   > "$TMP/rel.out" 2> "$TMP/rel.err"
 rc=$?
-[[ "$rc" == 2 ]] && grep -q 'must be an absolute path' "$TMP/rel.err" \
+[[ "$rc" == 2 && "$(grep -c . "$TMP/rel.err")" == 1 ]] \
+  && grep -q '^usage: gallery-items.sh .*must be an absolute path' "$TMP/rel.err" \
   && ok "a relative --root is refused" \
   || fail "a relative --root was accepted (exit $rc): $(cat "$TMP/rel.err")"
 refuse "a capture path with no file under --root" \
