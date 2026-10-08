@@ -581,6 +581,27 @@ paths: src/{item}'
   check   "a non-repo root says so instead of blaming the paths: template" \
           "$outs3" "not inside a git work tree"
   nocheck "and does not accuse a correct paths: template" "$outs3" "wrong \`paths:\` template"
+
+  # A workspace root that IS a repo, with the code in an independent repo
+  # underneath it (BL-737). Running `git log` from the root never sees the
+  # nested repo's commits, so every item read "no commits" and nothing was STALE.
+  PS4="$TMP/stale-nested"
+  mkproject "$PS4" 'axis: mods
+label: m
+command: printf "alpha\n"
+paths: backend/{item}'
+  mkmodule "$PS4/.context/references/topic/01-a.md" "mods:alpha"
+  mkdir -p "$PS4/backend/alpha"; echo x > "$PS4/backend/alpha/f.py"
+  ( cd "$PS4" && printf 'backend/\n' > .gitignore && git init -q . && git add -A >/dev/null 2>&1 &&
+    GIT_AUTHOR_DATE="2026-07-01T00:00:00" GIT_COMMITTER_DATE="2026-07-01T00:00:00" \
+      git -c user.email=t@t -c user.name=t commit -qm docs >/dev/null 2>&1 &&
+    cd backend && git init -q . && git add -A >/dev/null 2>&1 &&
+    GIT_AUTHOR_DATE="2026-07-29T00:00:00" GIT_COMMITTER_DATE="2026-07-29T00:00:00" \
+      git -c user.email=t@t -c user.name=t commit -qm src >/dev/null 2>&1 )
+  approve "$PS4"
+  outs4="$(python3 "$CENSUS" --root "$PS4" --advisory --stale 2>&1)"
+  check   "--stale reads commits from the nested repo that owns the path" "$outs4" "STALE  mods/alpha"
+  nocheck "and does not report the nested path as commit-less"           "$outs4" "no commits under"
 else
   ok "--stale tests skipped (no git)"
 fi
