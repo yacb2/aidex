@@ -22,6 +22,8 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+from spec_parser import quote_value  # noqa: E402  the one writer of attr syntax
 
 
 def fail(msg):
@@ -34,12 +36,17 @@ def read_manifest(set_dir):
     if not os.path.isfile(path):
         fail("no manifest at %s" % path)
     rows = []
-    with open(path, encoding="utf-8") as fh:
+    with open(path, encoding="utf-8-sig") as fh:
         lines = [ln.rstrip("\n") for ln in fh if ln.strip()]
-    for ln in lines[1:]:
+    # The header is skipped only when it is one; a headerless manifest keeps row one.
+    if lines and lines[0].split("\t")[0] == "id":
+        lines = lines[1:]
+    for ln in lines:
         cols = ln.split("\t")
-        if len(cols) < 3 or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", cols[0]):
-            fail("bad manifest row (want id<TAB>kind<TAB>source): %r" % ln)
+        # spec_parser.NAME: an id starts with a letter.
+        if len(cols) < 3 or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]*", cols[0]):
+            fail("bad manifest row (want id<TAB>kind<TAB>source; the id starts "
+                 "with a letter): %r" % ln)
         rows.append(cols[:3])
     if not rows:
         fail("the manifest lists no entries")
@@ -61,7 +68,10 @@ def section(set_dir, out_dir, ident, kind):
     if not os.path.isfile(baseline):
         fail("missing %s" % baseline)
     shutil.copy(baseline, os.path.join(out_dir, "figures", ident + ".svg"))
-    out = ['::: section {#s-%s heading="%s (%s)"}' % (ident, ident, kind), "",
+    # The heading is read twice: quote_value covers the attr layer, the doubled
+    # backslash covers md_body's double-backslash escape, so the page shows the kind as typed.
+    out = ['::: section {#s-%s heading=%s}'
+           % (ident, quote_value("%s (%s)" % (ident, kind.replace("\\", "\\\\")))), "",
            '::: figure {#%s-base src="figures/%s.svg" title="A mano (línea base)"}'
            % (ident, ident), ":::", ""]
     engine = os.path.join(entry, "engine.diagram")
@@ -70,6 +80,11 @@ def section(set_dir, out_dir, ident, kind):
         m = re.fullmatch(r"shape=([a-z-]+)\s*", head)
         if not m:
             fail("%s: first line must be shape=<shape>" % engine)
+        # A colon-only line closes the diagram block; a code-fence line can
+        # swallow its closer. Neither belongs in an engine body.
+        if re.search(r"^(:::+[ \t]*|[ \t]*(```|~~~).*)$", body, re.M):
+            fail("%s: a body line of only colons or a code fence would break the "
+                 "diagram block" % engine)
         out += ['::: diagram {#%s-eng shape=%s title="Motor, hoy"}'
                 % (ident, m.group(1)), body.strip("\n"), ":::"]
     else:
