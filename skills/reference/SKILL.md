@@ -1,8 +1,8 @@
 ---
 name: reference
-description: 'Use when the user wants to document how an existing, settled part of the system works as an evergreen `.context/references/` module — architecture, configuration, an operational runbook, a how-it-works guide. Fires on "create a reference for X", "document how X works", "write up the X architecture", "document the X configuration", "write a runbook for X", "what is documented and what is missing", "are the docs out of date", "which references no longer match the code", "update the documentation" (no topic named). Not for: planning multi-step work (/aidex:plan); recording a decision/ADR (/aidex:decision); capturing a stakeholder request (/aidex:request); investigating something not yet settled (/aidex:research); deferring/parking an idea (/aidex:backlog); ecosystem audits (/aidex:aidex); project-state audits (/aidex:audit).'
+description: 'Use when the user wants to document how an existing, settled part of the system works as an evergreen `.context/references/` module — architecture, configuration, an operational runbook, a how-it-works guide. Fires on "create a reference for X", "document how X works", "write up the X architecture", "document the X configuration", "write a runbook for X", "what is documented and what is missing". Not for: planning multi-step work (/aidex:plan); recording a decision/ADR (/aidex:decision); capturing a stakeholder request (/aidex:request); investigating something not yet settled (/aidex:research); deferring/parking an idea (/aidex:backlog); ecosystem audits (/aidex:aidex); project-state audits (/aidex:audit).'
 disable-model-invocation: false
-allowed-tools: Bash Read Write Edit Glob Grep Agent Workflow
+allowed-tools: Bash Read Write Edit Glob Grep Agent
 model-policy: per-stage
 ---
 
@@ -28,7 +28,6 @@ forked here. **The discipline lives in this skill's `references/`.**
 | `census --stale` | Also flag items whose SOURCE moved after their owning module did |
 | `profile` | Create or update `.context/references/00-profile.md` |
 | `refute <path>` | Run the adversarial close-gate on an existing module |
-| `drift` | Report which existing references no longer match the code; never edits |
 
 ---
 
@@ -172,26 +171,6 @@ ${CLAUDE_PLUGIN_ROOT}/skills/reference/scripts/docs-census.sh --advisory
 If the project carries a ratchet baseline (`.context/.validate-baseline.json`),
 a non-zero exit means you introduced a NEW violation — fix it before closing.
 The census should show your item moved out of `gap`.
-
-## Drift — which references no longer match the code
-
-`drift` never edits a reference. It reports; the author flow above fixes.
-
-1. `python3 ${CLAUDE_PLUGIN_ROOT}/skills/reference/scripts/drift/prepare.py <root> <work>` picks the code units some
-   reference covers and writes `<work>/manifest.json`, `units/<slug>.txt` (files) and `units/<slug>.refs.txt`
-   (covering references). `<work>` is outside any tracked path, e.g. `_tmp/reference-drift/<project>`.
-2. Read the unit slugs from `manifest.json` (`units[].slug`) and launch the Workflow with `scriptPath` =
-   `${CLAUDE_PLUGIN_ROOT}/skills/reference/assets/workflows/drift.workflow.js` and args
-   `{root, work, date, units: [slugs], verify}` (`verify` defaults to true). The script is versioned: never
-   regenerate it, and never resume a run after editing it.
-3. Save the returned JSON and run `python3 ${CLAUDE_PLUGIN_ROOT}/skills/reference/scripts/drift/report.py <result.json> <work>`
-   (add `--transcripts <dir>` for cost: the run's directory
-   `~/.claude/projects/<project-dir>/<session-id>/subagents/workflows/<runId>/`, which holds `journal.jsonl` and
-   `agent-*.jsonl`; seen on disk, not in the Workflow docs). The report groups findings by reference, lists failed units and the covered
-   units that were never read. `--file` registers one backlog item per finding and writes nothing else.
-
-"Update the documentation" with no topic runs `drift` first and hands its findings to the author flow, which keeps
-its step-5 refuter gate. "Create the documentation" for a topic stays the author flow.
 
 ## Boundaries
 
