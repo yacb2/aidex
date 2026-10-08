@@ -84,7 +84,12 @@ def anchors_for(body, ctx, repos):
                 if near.startswith(ctx + os.sep):
                     continue
                 full = near
-        (paths if os.path.exists(full) else missing).append(p)
+        # Not at the root: a split workspace cites paths relative to the nested code
+        # repo (skills/... of aidex/), so try each child repo before calling it ABSENT
+        # (BL-738).
+        found = os.path.exists(full) or any(
+            os.path.exists(os.path.join(r, p)) for r in repos)
+        (paths if found else missing).append(p)
     commits = [c for c in dict.fromkeys(SHA.findall(prose)) if commit_exists(repos, c)]
     skills = [s for s in dict.fromkeys(SKILL_RE.findall(prose)) if "-" in s]
     return paths[:8], missing[:4], commits[:6], skills[:6]

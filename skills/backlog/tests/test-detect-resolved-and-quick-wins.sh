@@ -172,6 +172,30 @@ assert byid["BL-011"]["commits"] == [sys.argv[2]], byid["BL-011"]["commits"]
 PY
 pass "with .context/ in a non-git parent, cited commits are verified in child repos"
 
+# BL-738: a path cited relative to a child repo (the split workspace: items cite
+# skills/... of the nested public repo) is that repo's file, not ABSENT.
+mkdir -p "$WS2/code/skills/demo"; : > "$WS2/code/skills/demo/q.py"
+cat > "$CTX2/backlog/2026-01-12-bl-012-c.md" <<'EOF'
+---
+title: "item BL-012"
+id: BL-012
+status: open
+priority: P2
+---
+
+# item BL-012
+
+The defect is in skills/demo/q.py.
+EOF
+python3 "$DR" "$CTX2" --json "$WS/dr4.json" >/dev/null 2>&1
+python3 - "$WS/dr4.json" <<'PY' || fail "BL-738: a path that exists only under a child repo was reported ABSENT"
+import json, sys
+byid = {r["id"]: r for r in json.load(open(sys.argv[1]))["items"]}
+assert byid["BL-012"]["paths"] == ["skills/demo/q.py"], byid["BL-012"]
+assert byid["BL-012"]["paths_not_found"] == [], byid["BL-012"]
+PY
+pass "a path relative to a child repo resolves there"
+
 # --- the SKILL.md must distinguish these from the existing `triage` ----------------
 grep -qi 'health, not' "$SKILL" \
   || fail "SKILL.md does not state how these differ from triage (health, not prioritization)"
