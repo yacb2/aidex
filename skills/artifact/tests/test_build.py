@@ -1307,6 +1307,34 @@ try:
         holds("a nested list renders nested: %s" % label,
               "::: note\n%s\n:::" % prose, nested)
 
+    # The blank-line lookahead continues a list only onto a sibling at the list's
+    # own indent; a LESS-indented marker is another list (nesting must survive).
+    holds("a less-indented marker after a blank line keeps the nesting below it",
+          "::: note\n  - a\n\n- b\n  - c\n:::", "<li>b<ul><li>c</li></ul></li>")
+    # BL-720 (md_body low findings): loose and offset ordered lists, spaced star,
+    # separator-row spellings and CRLF input.
+    holds("a loose ordered list is ONE <ol>", "::: note\n1. one\n\n2. two\n\n3. three\n:::",
+          "<ol><li>one</li><li>two</li><li>three</li></ol>")
+    holds("an ordered list starting at 3 keeps its number", "::: note\n3. a\n4. b\n:::",
+          '<ol start="3"><li>a</li><li>b</li></ol>')
+    holds("a paragraph between items still splits the list",
+          "::: note\n1. one\n\npara\n\n2. two\n:::", '<ol start="2"><li>two</li></ol>')
+    holds("a spaced star is arithmetic, not emphasis",
+          "::: note\n5 * 3 and 2 * 4 is math\n:::", "5 * 3 and 2 * 4 is math")
+    holds("a tight *pair* is still emphasis", "::: note\na *x* b\n:::", "<em>x</em>")
+    for label, tbl in (("a trailing space after the separator", "| a | b |\n|---|---:| \n| 1 | 2 |"),
+                       ("no closing pipe on the separator", "| a | b |\n|---|---:\n| 1 | 2 |"),
+                       ("an indented table", "  | a | b |\n  |---|---:|\n  | 1 | 2 |")):
+        holds("separator row recognised: %s" % label, "::: note\n%s\n:::" % tbl,
+              '<th class="num">b</th>', '<td class="num">2</td>')
+    crlf = ("---\r\ntitle: x\r\n---\r\n# T\r\n\r\n## A\r\n\r\n```bash\r\nx\r\n```\r\n\r\n"
+            "## B\r\n\r\nhi\r\n")
+    page = md_body.render(crlf)
+    check("CRLF: the fence closes, so section B is its own section", 'id="sec-b"' in page, page)
+    check("CRLF: front matter is stripped, not the standfirst", "title: x" not in page, page)
+    frag = md_body.fragment("```bash\r\nx\r\n```\r\n\r\ntext")
+    check("CRLF: fragment closes the fence", frag.count("<pre>") == 1 and "<p>text</p>" in frag, frag)
+
     # Phase 6 registered `diagram`, so the line that used to read "not
     # registered yet" now asserts the opposite: the dispatch KNOWS it, and what
     # it refuses is the missing `shape`, at the fence's line. Everything about

@@ -90,8 +90,10 @@ def railhead(lang):
 # needs a pair, so an escaped opener leaves its partner with nothing to close.
 CODE = re.compile(r"(?<!\\)`([^`]+)`")
 BOLD = re.compile(r"\*\*(.+?)\*\*")
-ITAL = re.compile(r"(?<![\w*])[_*]([^_*\n]+)[_*](?![\w*])")
-SEP_ROW = re.compile(r"^\|[\s:|-]+\|$")
+# The delimiters hug the text (CommonMark): a spaced `5 * 3 and 2 * 4` is arithmetic.
+ITAL = re.compile(r"(?<![\w*])[_*]([^\s_*](?:[^_*\n]*[^\s_*])?)[_*](?![\w*])")
+# Applied to a STRIPPED row; the closing pipe is optional (GFM).
+SEP_ROW = re.compile(r"^\|[\s:|-]*-[\s:|-]*$")
 # The PLAIN form of a label or verdict. What `data-label` carries is TEXT: the
 # composer copies that attribute into the reply, so a backtick or a `**` written
 # for the page's own rendering would travel into the paste as punctuation the
@@ -443,7 +445,7 @@ def _blocks(lines, depth=0):
         elif ln.lstrip().startswith("|"):
             rows = []
             while i < len(lines) and lines[i].lstrip().startswith("|"):
-                rows.append(lines[i])
+                rows.append(lines[i].strip())
                 i += 1
             out.append(_table(rows))
         elif MARKER.match(ln):
@@ -460,8 +462,22 @@ def _blocks(lines, depth=0):
             tag = "ol" if ORDERED.match(ln) else "ul"
             base = len(ln) - len(ln.lstrip())
             items = []  # [text, the item's sub-list lines]
+            start = int(re.match(r"\s*(\d+)", ln).group(1)) if tag == "ol" else 1
             while i < len(lines):
                 cur = lines[i]
+                if not cur.strip():
+                    # A blank line ends the list unless the next line is a sibling
+                    # item of the same kind (a loose list): else `1. a\n\n2. b`
+                    # became two <ol>s, both numbered 1.
+                    j = i
+                    while j < len(lines) and not lines[j].strip():
+                        j += 1
+                    if (items and j < len(lines) and MARKER.match(lines[j])
+                            and bool(ORDERED.match(lines[j])) == (tag == "ol")
+                            and len(lines[j]) - len(lines[j].lstrip()) == base):
+                        i = j
+                        continue
+                    break
                 deeper = len(cur) - len(cur.lstrip()) > base
                 if MARKER.match(cur) and not deeper:
                     items.append([MARKER.sub("", cur, count=1).strip(), []])
@@ -482,7 +498,8 @@ def _blocks(lines, depth=0):
                 else:
                     break
                 i += 1
-            out.append(f"<{tag}>"
+            attr = f' start="{start}"' if start != 1 else ""
+            out.append(f"<{tag}{attr}>"
                        + "".join(f"<li>{_inline(x)}{''.join(_blocks(sub, depth + 1))}</li>"
                                  for x, sub in items)
                        + f"</{tag}>")
@@ -531,7 +548,7 @@ def render(md_text, title="", lang="en"):
     hand the whole time. A `# ` in the markdown still wins over it. `lang` is the
     page's language, which the rail heading is written in.
     """
-    lines = FM.sub("", md_text).split("\n")
+    lines = FM.sub("", md_text.replace("\r\n", "\n")).split("\n")
 
     md_title, pre, sections, cur = "", [], [], None
     # Tracking the open fence is not an optimisation: a command that echoes markdown
@@ -622,4 +639,4 @@ def blocks(md_text):
     and a joined string cannot be split back — a fenced code block contains
     newlines of its own.
     """
-    return _blocks(md_text.split("\n"))
+    return _blocks(md_text.replace("\r\n", "\n").split("\n"))
