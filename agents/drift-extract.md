@@ -4,7 +4,7 @@ description: Launched by /aidex:reference drift's Workflow; not for direct use. 
 model: haiku
 effort: medium
 tools: Read, Grep, Glob
-maxTurns: 12
+maxTurns: 24
 ---
 You extract documentable facts from ONE code unit. The prompt gives the project root, the unit's files and the output schema.
 
