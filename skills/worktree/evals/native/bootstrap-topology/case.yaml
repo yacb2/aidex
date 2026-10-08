@@ -1,4 +1,6 @@
 schema_version: "1.1"
 name: aidex-worktree-bootstrap-topology
+tags: ["fired-only"]
+human-judged: "Isolation fails on hard-coded names and URLs outside the compose ports, which is what a human finds when two worktrees really collide."
 context:
   scaffold_script: "./setup.sh"
