@@ -253,7 +253,7 @@ rule reads as a heading missing from the index.
 ```
 
 The `#id` is REQUIRED, for the rail and for nothing else: it is not a `data-id`, no
-reply names it and the composer never reads it. `heading` is required, `eyebrow` is
+reply names it and the composer reads only one: a section whose `#id` is `sec-ledger` is where it places the Decided section (after it; with none, after the header), so name the ledger section anything else and the Decided section lands before it. `heading` is required, `eyebrow` is
 optional, and a `section` may only appear at the document's top level — a section
 inside a section has no rail entry and no meaning. What it may contain is what the
 `PARENTS` table already allows anywhere: prose, `ledger`, `note`, `callout`,
