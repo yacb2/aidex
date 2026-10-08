@@ -70,10 +70,12 @@ class Render(unittest.TestCase):
     def test_reference_spellings_are_normalised_before_membership(self):
         m = dict(project="p", skipped=[], units=[dict(slug="u1", references=[".context/references/a.md"])])
         spellings = ["/p/.context/references/a.md", "./.context/references/a.md",
-                     ".context/references/a.md (Overview)", ".context/references/a.md"]
-        acc, rej = report.split_findings([finding(s) for s in spellings] + [finding(".context/references/zzz.md")], m, "/p")
-        self.assertEqual([f["reference"] for f in acc], [".context/references/a.md"] * 4)
-        self.assertEqual([f["reference"] for f in rej], [".context/references/zzz.md"])
+                     ".context/references/a.md (Overview)", ".context/references/a.md",
+                     "a.md"]  # the comparer dropped the .context/references/ prefix
+        acc, rej = report.split_findings([finding(s) for s in spellings]
+                                         + [finding(".context/references/zzz.md"), finding("HIDDEN")], m, "/p")
+        self.assertEqual([f["reference"] for f in acc], [".context/references/a.md"] * 5)
+        self.assertEqual([f["reference"] for f in rej], [".context/references/zzz.md", "HIDDEN"])
 
     def test_evidence_must_be_a_code_file_line(self):
         for ev, ok in [("x.py:12", True), ("x.py:12-20", True), ("x.py:L12", True), ("src/a/x.ts:3", True),

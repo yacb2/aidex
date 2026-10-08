@@ -112,7 +112,11 @@ def normal_reference(ref, root):
     ref = ref.strip()
     if root and ref.startswith(root.rstrip("/") + "/"):
         ref = ref[len(root.rstrip("/")) + 1:]
-    m = REF_RE.search(ref[2:] if ref.startswith("./") else ref)
+    ref = ref[2:] if ref.startswith("./") else ref
+    m = REF_RE.search(ref)
+    if not m:
+        # The comparer sometimes drops the prefix and writes `backend/04-permissions.md`.
+        m = REF_RE.search(".context/references/" + ref)
     return m.group(0) if m else ref
 
 
