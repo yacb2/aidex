@@ -369,7 +369,7 @@ with open(sys.argv[1], "w") as f:
 PYH
 out_p="$(python3 "$RETRO/subagent_spend.py" --transcripts-root "$TXP" 2>&1)"
 rm -rf "$TXP"
-printf '%s\n' "$out_p" | grep '^TOTAL' | grep -q ' 0\.012040$' \
+printf '%s\n' "$out_p" | grep '^TOTAL' | grep >/dev/null ' 0\.012040$' \
   || fail "(p) haiku-5-5 must be priced per request (high tier above 100k, exactly 100k low), TOTAL 0.012040: $out_p"
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
