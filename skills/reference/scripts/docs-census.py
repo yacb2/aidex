@@ -382,9 +382,16 @@ def load_ownership(refs: Path) -> tuple[dict[str, dict[str, list[str]]], int, in
 # ---------- staleness ----------
 
 def git_last_commit(root: Path, target: str) -> str | None:
+    # Run from the target's nearest existing directory, so git discovers the repo
+    # that owns it: in a workspace whose code lives in independent repos under the
+    # root, a `git log` run from the root never sees their commits (BL-737).
+    path = root / target
+    cwd = path if path.is_dir() else path.parent
+    while not cwd.is_dir() and cwd != root:
+        cwd = cwd.parent
     try:
-        r = subprocess.run(["git", "log", "-1", "--format=%cI", "--", target],
-                           cwd=root, capture_output=True, text=True, timeout=30)
+        r = subprocess.run(["git", "log", "-1", "--format=%cI", "--", str(path)],
+                           cwd=cwd, capture_output=True, text=True, timeout=30)
     except (OSError, subprocess.TimeoutExpired):
         return None
     out = r.stdout.strip()
