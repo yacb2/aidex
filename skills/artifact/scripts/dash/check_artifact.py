@@ -3677,45 +3677,87 @@ def defect_reports_of(reply_text):
 _ASK_MARKERS = frozenset()
 
 
-def _reply_has_answer(reply_text, ident, ids=()):
-    """True when the LAST block of the saved reply that starts with `ident`
-    decides it: not only marker lines, not `[provisional]`. reply.md is
-    appended to across saves, so one id can own several blocks; the newest one
-    is what the reader last said. A block ends at a `##`/`###` heading, a
-    `<!--` line, or a chat line starting with one of the page's known item
-    `ids` (exact id, never a prefix) — an option line like `V2: ...` that is
-    not an item id is content."""
+_HEADING = re.compile(r"^[ \t]*#{2,3}[ \t]")
+_ITEM_BOX = re.compile(r"^[ \t]*###[ \t](?![ \t]*notes[ \t]*·)")
+
+
+def reply_blocks(reply_text, ident, ids=(), boxes=True):
+    """`[(lines, chat_form)]`, in file order, of every block of the saved reply
+    for `ident` (a chat-form block's head remainder first): the one owner of
+    reply block boundaries, read by _reply_has_answer, _picked_only and
+    spec_verbs._reply_block. A block ends at a `##`/`###` heading, a `<!--`
+    line, or a chat line starting with one of the page's known item `ids`
+    (exact id, never a prefix) — an option line like `V2: ...` that is not an
+    item id is content. BL-730: in a composer paste (a save with a
+    `## G ·` or `### notes ·` heading), inside a real item's `### ` box (not
+    `### notes ·`) a chat-form or `<!--` line is the box's content while the
+    box is still empty (the composer never pastes an empty box) or when the
+    box's own `#### Fallo` sub-block follows it (the composer puts that last);
+    anywhere else it is what the reader typed below the paste. `boxes=False`
+    is the reading without that rule (spec_verbs' proposal expiry errs open
+    on either)."""
     alts = "|".join(re.escape(i) for i in sorted(set(ids) | {ident},
                                                  key=len, reverse=True))
-    head_any = re.compile(r"^(?:[ \t]*#{2,3}[ \t]|<!--|[ \t]*(?:" + alts
-                          + r")(?![\w-])[ \t]*[:·])")
+    chat_any = re.compile(r"^[ \t]*(?:" + alts + r")(?![\w-])[ \t]*[:·]")
     head = re.compile(r"^[ \t]*(#{2,3}[ \t]+)?" + re.escape(ident)
-                      + r"(?![\w-])[ \t]*[:·](.*)$", re.M)
+                      + r"(?![\w-])[ \t]*[:·](.*)$")
     lines = reply_text.split("\n")
-    decided = False
+    # defect_after[k]: a `#### Fallo` sub-block follows line k in its box
+    defect_after, after = [False] * len(lines), False
+    for k in range(len(lines) - 1, -1, -1):
+        defect_after[k] = after
+        if _HEADING.match(lines[k]) or _SAVE_SEP.match(lines[k]):
+            after = False
+        elif DEFECT_HEAD.match(lines[k]):
+            after = True
+    # composer[k]: line k's save is a composer paste (_GROUP_HEAD, as
+    # _live_reply reads it); a chat-form reply (BL-569) has no box rule
+    composer, start = [False] * len(lines), 0
+    for k in range(len(lines) + 1):
+        if k == len(lines) or _SAVE_SEP.match(lines[k]):
+            flag = any(_GROUP_HEAD.match(l) for l in lines[start:k])
+            composer[start:k] = [flag] * (k - start)
+            start = k
+    out, cur, box, filled = [], None, False, False
     for k, line in enumerate(lines):
+        held = False
+        if _HEADING.match(line) or _SAVE_SEP.match(line):
+            cur, filled = None, False
+            box = boxes and composer[k] and bool(_ITEM_BOX.match(line))
+        elif line.startswith("<!--") or chat_any.match(line):
+            held = box and (not filled or defect_after[k])
+            if not held:
+                cur, box = None, False
+        filled = filled or (box and bool(line.strip()) and not _ITEM_BOX.match(line))
         m = head.match(line)
-        if not m:
-            continue
-        # a `### Q1 · title` head carries the item title, not an answer
-        block = [] if m.group(1) else [m.group(2)]
-        for nxt in lines[k + 1:]:
-            if head_any.match(nxt):
-                break
-            block.append(nxt)
-        block = split_defect("\n".join(block))[0].split("\n")
-        # composer.js isProvisional: an ask marker other than [page-defect]
-        # beside an answer makes it provisional, so it decides nothing
-        # only the KNOWN marker names count: `[readme](url)`, `- [x] done`
-        # and `[debug]` are content, not asks
-        if any(t in _ASK_MARKERS for t in _MARK_TOKEN.findall("\n".join(block))):
-            decided = False
-            continue
-        body = [b.strip() for b in block if b.strip()]
-        body = [b for b in body if not ASK_LINE.fullmatch(b)]
-        body = [b for b in (_MARK_TOKEN.sub("", b).strip() for b in body) if b]
-        decided = bool(body)
-    return decided
+        if m and not held:
+            # a `### Q1 · title` head carries the item title, not an answer
+            cur = [] if m.group(1) else [m.group(2)]
+            out.append((cur, not m.group(1)))
+        elif cur is not None:
+            cur.append(line)
+    return out
+
+
+def _reply_has_answer(reply_text, ident, ids=()):
+    """True when the LAST block of the saved reply for `ident` (reply_blocks)
+    decides it: not only marker lines, not `[provisional]`. reply.md is
+    appended to across saves, so one id can own several blocks; the newest one
+    is what the reader last said."""
+    blocks = reply_blocks(reply_text, ident, ids)
+    if not blocks:
+        return False
+    block = split_defect("\n".join(blocks[-1][0]))[0].split("\n")
+    # composer.js isProvisional: an ask marker other than [page-defect]
+    # beside an answer makes it provisional, so it decides nothing
+    # only the KNOWN marker names count: `[readme](url)`, `- [x] done`
+    # and `[debug]` are content, not asks
+    if any(t in _ASK_MARKERS for t in _MARK_TOKEN.findall("\n".join(block))):
+        return False
+    body = [b.strip() for b in block if b.strip()]
+    body = [b for b in body if not ASK_LINE.fullmatch(b)]
+    body = [b for b in (_MARK_TOKEN.sub("", b).strip() for b in body) if b]
+    return bool(body)
 
 # Generic — every marker in the 02-local-first-artifacts.md asks table pastes
 # this shape (composer.js `readItem`/`markLabel`): `- [token]` on its own line.
@@ -4155,34 +4197,20 @@ def _round_of(text):
 
 
 def _picked_only(reply_text, ident, ids):
-    """The option lines of the LAST reply block for `ident` when the reader
-    only PICKED: every non-blank line is a `- option` bullet, none an ask
-    marker, none the `Other` label. Notes, free text, a chat-form answer or
-    a question back make it not a bare pick -> None."""
-    alts = "|".join(re.escape(i) for i in sorted(set(ids) | {ident},
-                                                 key=len, reverse=True))
-    head_any = re.compile(r"^(?:[ \t]*#{2,3}[ \t]|<!--|[ \t]*(?:" + alts
-                          + r")(?![\w-])[ \t]*[:·])")
-    head = re.compile(r"^[ \t]*#{2,3}[ \t]+" + re.escape(ident)
-                      + r"(?![\w-])[ \t]*[:·]", re.M)
-    lines = reply_text.split("\n")
-    picked = None
-    for k, line in enumerate(lines):
-        if not head.match(line):
-            continue
-        block = []
-        for nxt in lines[k + 1:]:
-            if head_any.match(nxt):
-                break
-            block.append(nxt)
-        block = split_defect("\n".join(block))[0].split("\n")
-        body = [b.strip() for b in block if b.strip()]
-        picked = None
-        if (body and all(b.startswith("- ") for b in body)
-                and not any(t in _ASK_MARKERS for t in _MARK_TOKEN.findall("\n".join(body)))
-                and not any(_OTHER_PICK.match(b) for b in body)):
-            picked = [b[2:].strip() for b in body]
-    return picked
+    """The option lines of the LAST `##`/`###`-headed reply block for `ident`
+    (reply_blocks) when the reader only PICKED: every non-blank line is a
+    `- option` bullet, none an ask marker, none the `Other` label. Notes, free
+    text, a chat-form answer or a question back make it not a bare pick -> None."""
+    headed = [b for b, chat in reply_blocks(reply_text, ident, ids) if not chat]
+    if not headed:
+        return None
+    block = split_defect("\n".join(headed[-1]))[0].split("\n")
+    body = [b.strip() for b in block if b.strip()]
+    if (body and all(b.startswith("- ") for b in body)
+            and not any(t in _ASK_MARKERS for t in _MARK_TOKEN.findall("\n".join(body)))
+            and not any(_OTHER_PICK.match(b) for b in body)):
+        return [b[2:].strip() for b in body]
+    return None
 
 
 def check_round_pick_open(path, strict=False):

@@ -342,6 +342,70 @@ for what, rep_ in (("a chat-form note", "Q2: vale pero cambia el texto\n"),
     kept = new_round(two, answered_html=SNAP, reply=rep_)
     check("a proposal answered with %s stays proposal=yes with no ledger row" % what,
           kept.count("proposal=yes") == 2 and "- Q2" not in kept, kept)
+# BL-730: a `Q1:`-shaped line or a comment in a real item's `### ` box is that box's content while the
+# box is still empty (the composer never pastes an empty box) or when the box's own `#### Fallo`
+# sub-block follows it (the composer puts that last). Both readers keep it there; the proposal stays open.
+G1 = "## G1 · Formato del spec\n\n"
+NOTES = "\n### notes · Notas de la página\n\nnada más\n"
+FALLO = "\n#### Fallo de la página\n\nse corta\n"
+IDS = {"Q1", "Q2"}
+for what, rep_ in (("the BL-730 input: Q2's note starts `Q1:`, Q2 the last block",
+                    G1 + H2 + "Q1: igual que arriba, me vale\n"),
+                   ("Q2's note starts `Q1:`, the general-notes block after it",
+                    G1 + H2 + "Q1: igual que arriba, me vale\n" + NOTES),
+                   ("Q2's note starts with an HTML comment", G1 + H2 + "<!-- x -->\nvale\n" + NOTES),
+                   ("Q2's `Q1:` note is followed by Q2's own page-defect sub-block",
+                    G1 + H2 + "Q1: igual\n" + FALLO)):
+    kept = new_round(two, answered_html=SNAP, reply=rep_)
+    check("%s: the proposal stays proposal=yes with no ledger row" % what,
+          kept.count("proposal=yes") == 2 and "- Q2" not in kept, kept)
+    check("...and the decided-trace reader reads an answer for Q2 (%s)" % what,
+          check_artifact._reply_has_answer(rep_, "Q2", IDS) is True)
+    if "Q1:" in rep_:
+        check("...and none for Q1 (%s)" % what, not check_artifact._reply_has_answer(rep_, "Q1", IDS))
+found = spec_verbs._reply_block(G1 + H2 + "Q1: igual que arriba, me vale\n", "Q2", IDS)
+check("spec_verbs reads that line as Q2's note, not as a chat answer",
+      found[1] is False and [l.strip() for l in found[0] if l.strip()] == ["Q1: igual que arriba, me vale"], repr(found))
+check("the round-pick reader takes no bare pick from Q2 when a `Q1:` note precedes its page-defect sub-block",
+      check_artifact._picked_only(G1 + H2 + "- No, un atributo nuevo\nQ1: nota\n" + FALLO, "Q2", IDS) is None)
+# ...but after content in a box, with no sub-block after it, in the general-notes box, or with no box at
+# all, it is a chat answer: the reader typing below the paste, or a chat-form reply (BL-569).
+H1 = "### Q1 · Fences o YAML\n\n- Fences de Pandoc\n\n"
+CHAT2 = "Q2: vale pero cambia el texto\n"
+for what, rep_, pick in (("typed after the last item block", G1 + H1 + CHAT2, True),
+                         ("typed in the general-notes box", G1 + H1 + "### notes · Notas\n\n" + CHAT2, True),
+                         ("typed after the last block of an earlier save (a later separator changes nothing)",
+                          G1 + H1 + CHAT2 + "\n<!-- reply saved 2026-10-08T10:00:00 page:abc duty -->\n\nQ1: vale\n", True),
+                         ("followed by a chat-form `### Q1 ·` heading",
+                          G1 + H1 + CHAT2 + "\n### Q1 · y aqui otra cosa\n", False),
+                         ("followed by the reader's own `##` heading", G1 + H1 + CHAT2 + "\n## Comentarios generales\n\ntodo bien\n", True),
+                         ("in a chat-form reply after an answered `### Q1 ·` box",
+                          "### Q1 · Fences o YAML\n\nFences de Pandoc\n\n" + CHAT2 + "\n### Q1 · otra\n", False),
+                         ("under a chat-form `### Q1 ·` head with an empty body (one reading puts it in Q1's box)",
+                          "### Q1 · Fences de Pandoc\n\n" + CHAT2, False)):
+    kept = new_round(two, answered_html=SNAP, reply=rep_)
+    check("a chat answer for the proposal %s keeps it proposal=yes with no ledger row" % what,
+          kept.count("proposal=yes") == 2 and "- Q2" not in kept, kept)
+    if pick:
+        check("...and Q1's pick above it is still a bare pick (%s)" % what,
+              check_artifact._picked_only(rep_, "Q1", IDS) == ["Fences de Pandoc"],
+              repr(check_artifact._picked_only(rep_, "Q1", IDS)))
+# The box rule is the composer's: a chat-form reply (BL-569, no `## G ·` and no `### notes ·` box in the
+# save) keeps every id line a chat answer, so the new-round guard (225f968e) still names the bare pick.
+OPEN = PAGE.replace(" decided=yes", "")
+check("a chat-form reply's `Q2:` line under an empty `### Q1 ·` head is still a bare pick for Q2",
+      spec_verbs._bare_picks(OPEN, "### Q1 · Fences de Pandoc\n\nQ2: No, un atributo nuevo\n")
+      == [("Q2", "No, un atributo nuevo")],
+      repr(spec_verbs._bare_picks(OPEN, "### Q1 · Fences de Pandoc\n\nQ2: No, un atributo nuevo\n")))
+check("...and so is a chat-form reply's `Q1:` line right under its own `### Q1 ·` head",
+      spec_verbs._bare_picks(OPEN, "### Q1 · Fences o YAML\nQ1: Fences de Pandoc\n")
+      == [("Q1", "Fences de Pandoc")],
+      repr(spec_verbs._bare_picks(OPEN, "### Q1 · Fences o YAML\nQ1: Fences de Pandoc\n")))
+check("a `Q1:` line after content in Q2's box, no sub-block after it, is a chat answer for Q1",
+      check_artifact._reply_has_answer(G1 + H2 + "- No, un atributo nuevo\n\nQ1: igual\n" + NOTES, "Q1", IDS))
+found = spec_verbs._reply_block("Q1: vale\nQ2: no\n", "Q1", ["Q1", "Q2"])
+check("a top-level chat-form block still ends at the next id's chat line",
+      found[1] is True and [l.strip() for l in found[0] if l.strip()] == ["vale"], repr(found))
 # Same round, the reader went back to the proposal: the later FULL paste has no Q2 block and supersedes
 # the earlier one, as check_artifact reads it (BL-598). Neither the guard nor the expiry may read paste 1.
 REVERT = ("## G1 \u00b7 Formato del spec\n\n" + H2 + "- No, un atributo nuevo\n"

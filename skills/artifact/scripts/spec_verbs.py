@@ -416,31 +416,10 @@ def _reply_answer(reply, item_id, ids, labels=(), many=False):
 
 def _reply_block(reply, item_id, ids):
     """`(lines, chat_form)` of the LAST block of the saved reply for `item_id`
-    (its head line's remainder first in the chat form), or None."""
-    if not reply:
-        return None
-    alts = "|".join(re.escape(i) for i in sorted(set(ids) | {item_id},
-                                                 key=len, reverse=True))
-    head_any = re.compile(r"^(?:[ \t]*#{2,3}[ \t]|<!--|[ \t]*(?:" + alts
-                          + r")(?![\w-])[ \t]*[:·])")
-    head = re.compile(r"^[ \t]*(#{2,3}[ \t]+)?" + re.escape(item_id)
-                      + r"(?![\w-])[ \t]*[:·](.*)$")
-    lines = reply.split("\n")
-    block, chat_form = None, False
-    for k, line in enumerate(lines):
-        m = head.match(line)
-        if not m:
-            continue
-        cur = [] if m.group(1) else [m.group(2)]
-        chat_form = not m.group(1)
-        for nxt in lines[k + 1:]:
-            if head_any.match(nxt):
-                break
-            cur.append(nxt)
-        block = cur
-    if block is None:
-        return None
-    return block, chat_form
+    (its head line's remainder first in the chat form), or None. Block
+    boundaries are check_artifact.reply_blocks', so both readers agree."""
+    blocks = check_artifact.reply_blocks(reply or "", item_id, ids)
+    return blocks[-1] if blocks else None
 
 
 def _reply_allows_free_text(reply, item_id, ids, labels=(), many=False):
@@ -737,10 +716,12 @@ def _expire_proposals(text, answered_html, reply=None):
         if n.block_type == "item" and n.id in seen and "proposal" in n.attrs:
             if n.id in marked:
                 continue                 # asked about, not accepted
-            found = _reply_block(live, n.id, ids)
-            if found is not None and any(
-                    l.strip() and l.strip() != "- [page-defect]" for l in
-                    check_artifact.split_defect("\n".join(found[0]))[0].split("\n")):
+            # BL-730: a line that one reading puts in another box and the other
+            # reads as a chat answer for this id: expiry errs open on either
+            last = [b[-1][0] for b in (check_artifact.reply_blocks(live, n.id, ids, boxes)
+                                       for boxes in (True, False)) if b]
+            if any(l.strip() and l.strip() != "- [page-defect]" for block in last for l in
+                   check_artifact.split_defect("\n".join(block))[0].split("\n")):
                 continue                 # anything but defect text: the reader answered it
             hit |= _drop_attr(lines, n, "proposal")
     return "\n".join(lines) if hit else text
