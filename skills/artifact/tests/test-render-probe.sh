@@ -722,5 +722,22 @@ PY
 )"
 [[ "$chk" == ok ]] && ok "a closed fold's id is on the tile showing its summary row and none below; visible ids on theirs" || bad "collapsed ids: $chk"
 
+echo "== --shots refuses what it would silently get wrong (BL-724) =="
+# B-c08: output files are named by basename, so two pages sharing one would overwrite each
+# other's tiles and manifest. B-c12: shots are taken only in the geometry pass, which
+# --contract skips, so the pair wrote nothing and still printed a success line.
+mkdir -p "$TMP/dupa" "$TMP/dupb"
+cp "$TMP/clean.html" "$TMP/dupa/page.html"; cp "$TMP/clean.html" "$TMP/dupb/page.html"
+out="$(bash "$PROBE" --shots "$TMP/dup-shots" "$TMP/dupa/page.html" "$TMP/dupb/page.html" 2>&1)"; rc=$?
+[[ $rc -eq 2 ]] && grep -q 'share the name' <<<"$out" && [[ ! -e "$TMP/dup-shots" ]] \
+  && ok "--shots with two pages of one basename is a usage error (exit 2), nothing written" || bad "same-basename --shots: exit $rc: $out"
+cp "$TMP/clean.html" "$TMP/dupb/Page.html"
+out="$(bash "$PROBE" --shots "$TMP/dup-shots" "$TMP/dupa/page.html" "$TMP/dupb/Page.html" 2>&1)"; rc=$?
+[[ $rc -eq 2 ]] && grep -q 'share the name' <<<"$out" \
+  && ok "--shots with page and Page is a usage error too (case-insensitive volumes collide)" || bad "case-only basename --shots: exit $rc: $out"
+out="$(bash "$PROBE" --shots "$TMP/c-shots" --contract figure-text-contrast "$TMP/clean.html" 2>&1)"; rc=$?
+[[ $rc -eq 2 ]] && ! grep -q '^SHOTS ' <<<"$out" \
+  && ok "--shots with --contract is a usage error (exit 2), no SHOTS line" || bad "--shots + --contract: exit $rc: $out"
+
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [[ $FAIL -eq 0 ]]

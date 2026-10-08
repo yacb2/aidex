@@ -61,6 +61,17 @@ for (let i = 0; i < args.length; i++) {
 }
 if (!files.length) usage('no page given');
 if (inv && (shots || only)) usage('--invariants is its own mode and takes no --shots or --contract');
+if (shots && only) usage('--shots and --contract cannot be combined: screenshots are taken only in the geometry pass, which --contract skips');
+if (shots) {
+  const seenBase = new Map();
+  for (const f of files) {
+    const b = path.basename(f, path.extname(f));
+    // Case-folded: a default macOS volume is case-insensitive, so Page and page collide on disk.
+    const k = b.toLowerCase();
+    if (seenBase.has(k)) usage(`--shots names its files by page name, and ${seenBase.get(k)} and ${f} share the name ${b}: they would overwrite each other's tiles and manifest`);
+    seenBase.set(k, f);
+  }
+}
 for (const f of files) if (!fs.existsSync(f)) usage(`no such file: ${f}`);
 if (process.env.AIDEX_PROBE_ARGS_ONLY) process.exit(0);
 
