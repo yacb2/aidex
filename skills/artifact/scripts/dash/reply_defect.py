@@ -11,11 +11,17 @@ import re
 DEFECT_HEAD = re.compile(r"^#### (?:Fallo de la p\u00e1gina|Page problem)[ \t]*$", re.M)
 
 
+# `### id · title`, or `### id ·` for an empty title (the composer trims the space)
+ITEM_HEAD = re.compile(r"^### (\S+) \u00b7(?:[ \t]|$)", re.M)
+
+
 def is_block_head(line):
-    """A `## ` or `### ` line is a heading only when it carries the composer's
-    separator (`## G1 · title`, `### id · title`; ` ·` without the trailing
-    space is the empty-title form). Any other such line is a note."""
-    return line.startswith(("## ", "### ")) and " \u00b7" in line
+    """The ONE block-head rule every reply reader shares (check_artifact's
+    REPLY_ITEM / REPLY_BLOCK / _HEADING and the gallery readers): `## G1 · title`
+    (any `## ` line carrying the composer's ` ·` separator) or `### <id> · title`
+    with a single-token id. Any other `## ` / `### ` line, a reader's own
+    `### two words · x` included, is a note."""
+    return bool(ITEM_HEAD.match(line)) or (line.startswith("## ") and " \u00b7" in line)
 
 
 def split_defect(block):
