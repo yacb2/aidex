@@ -834,6 +834,6 @@ attribute and lists the alternatives.
 ## Related
 
 - `04-block-vocabulary.md` — the closed set of block types, their attrs and corpus counts.
-- `01-dash-conventions.md` — the GENERATED header contract of rendered board pages.
+- `01-dash-conventions.md` — the GENERATED header contract of rendered board pages and spec-built pages.
 - `02-local-first-artifacts.md` — the Route S how-to; the page contract `check-artifact` enforces on the
   HTML the build emits is in `consultation.md` and `route-b.md`.

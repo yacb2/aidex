@@ -923,7 +923,7 @@ def held_round(outfile):
     return 0
 
 
-WRAP_FORM = "wrap-report.sh --title <title> [--lang <l>] [--favicon <e>] [--in <file>] [--out <page.html>] [--building] [--new-round]  |  wrap-report.sh --done --out <page.html>"
+WRAP_FORM = "wrap-report.sh --title <title> [--lang <l>] [--favicon <e>] [--in <file>] [--out <page.html>] [--building] [--new-round] [--spec <spec.md>]  |  wrap-report.sh --done --out <page.html>"
 
 
 def end_build(argv):
@@ -976,6 +976,9 @@ def main():
     p.add_argument("--new-round", action="store_true",
                    help="assert this wrap opens a new reader round: refused, naming "
                         "save-reply.sh, when the current round has no saved reply")
+    p.add_argument("--spec", default=None, metavar="<spec.md>",
+                   help="the page is built from this spec (spec_build.py passes "
+                        "it): line 1 names it and says the page is not hand-edited")
     p.add_argument("--done", action="store_true",
                    help="with --out and nothing else: the build is finished, remove the "
                         "lock. Wraps nothing")
@@ -1095,7 +1098,12 @@ def main():
     body = "\n".join(p for p in (body, kit_script()) if p)
     doc = document(args.title, body, lang=lang,
                    favicon=args.favicon or profile_favicon(ctx) or "",
-                   head_extra=head_extra)
+                   head_extra=head_extra,
+                   # Line 1, before the doctype like the boards' GENERATED line:
+                   # what a Read of the page shows first (scn-edit-spec-page).
+                   prelude=(f"<!-- GENERATED from {esc(args.spec)} by /aidex:artifact "
+                            "spec_build.py — DO NOT EDIT: edit the spec and rebuild -->"
+                            if args.spec else ""))
 
     if not args.outfile:
         sys.stdout.write(doc)

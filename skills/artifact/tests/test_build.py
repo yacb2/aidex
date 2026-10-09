@@ -1820,6 +1820,22 @@ try:
               ('data-id="%s"' % ident) in page)
 
     print()
+    print("== the built page names its spec on line 1 (scn-edit-spec-page) ==")
+    # A spec-built page looked like hand-written HTML, so an agent asked to
+    # change a recommendation Read the page and edited it in place. Line 1 is
+    # what a Read shows first; the body starts ~1000 lines of kit CSS later.
+    marker = ("<!-- GENERATED from page.spec.md by /aidex:artifact spec_build.py"
+              " — DO NOT EDIT: edit the spec and rebuild -->")
+    check("line 1 of the built page names its spec and says not to edit it",
+          page.split("\n", 1)[0] == marker, page.split("\n", 1)[0])
+    r = subprocess.run([sys.executable, BUILD, spec_path, "-o", out],
+                       capture_output=True, text=True)
+    page = open(out, encoding="utf-8").read()
+    check("a rebuild keeps exactly one marker, still on line 1",
+          r.returncode == 0 and page.count("<!-- GENERATED") == 1
+          and page.startswith(marker + "\n"), r.stdout + r.stderr)
+
+    print()
     print("== a gallery page outlives its captures (BL-474) ==")
     # The captures a rows document points at live in the project's
     # `test-results/`, which Playwright wipes at the start of every run. A page

@@ -2529,7 +2529,9 @@ def main(argv):
                             ".aidex-artifact-prev")
     prev_existed = os.path.isdir(prev_dir)
     rc = subprocess.run(["bash", WRAP, "--title", title, "--lang", lang,
-                         "--out", args.out]
+                         "--out", args.out, "--spec",
+                         os.path.relpath(os.path.abspath(args.spec),
+                                         os.path.dirname(os.path.abspath(args.out)))]
                         + (["--new-round"] if args.new_round else []),
                         input=body.encode("utf-8")).returncode
     if rc != 0:

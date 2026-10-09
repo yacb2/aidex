@@ -30,6 +30,13 @@ the next run — the file is overwritten wholesale, not merged. Do not diff two
 renders for equality: the timestamp changes every run, so idempotency is
 *structural* (a single GENERATED line, no duplicated sections), not byte-identical.
 
+A page built from a `.spec.md` by `spec_build.py` carries the same first line,
+naming its spec (path relative to the page) instead of a timestamp:
+
+```
+<!-- GENERATED from <spec.md> by /aidex:artifact spec_build.py — DO NOT EDIT: edit the spec and rebuild -->
+```
+
 ## Markdown/JSON stays canon; HTML is a render
 
 - The renderers **read** the existing markdown (front-matter, pipe tables, `- [x]`/`- [ ]`
@@ -57,7 +64,7 @@ backlog/finding items never get their own HTML.
 
 ## Ad-hoc sibling reports (not boards)
 
-The sibling-path rule (not the GENERATED header, which only the board renderers emit) applies to ad-hoc reports —
+The sibling-path rule (not the GENERATED header, which only the board renderers and `spec_build.py` emit) applies to ad-hoc reports —
 one-off HTML written for a specific `.context/` artifact rather than one of
 the skill's own board renderers (see `02-local-first-artifacts.md` in this folder for the
 full contract). `<slug>-report.html`
