@@ -44,8 +44,10 @@ and a failed write keeps the previous good render).
 
 Ad-hoc reports — anything that is not one of the boards above — are the other
 half of this skill, not an out-of-scope request: they follow the same
-sibling-path and publish-gated conventions (see
-`references/02-local-first-artifacts.md`).
+sibling-path and publish-gated conventions: read
+`references/02-local-first-artifacts.md` before writing any page markup. Read
+`references/route-b.md` before hand-writing HTML or updating a page in place, and
+`references/consultation.md` before building a consultation.
 **When a request is an ad-hoc analysis rather than a board, never decline and
 never hand-roll an unstyled page: load the `artifact-design` skill, then write a
 page SPEC and build it (§ Spec-first below). For a page that already exists as
@@ -56,7 +58,7 @@ then open it locally.**
 A consultation about screenshots (a UI proposal, a state gallery) carries them as
 gallery rows: `scripts/gallery-items.sh` turns the project's rows JSON into items
 before the wrap, `scripts/gallery-reply.sh` parses the pasted reply back (`--rows <rows.json>` when a row is an alternatives or a states row)
-(`references/02-local-first-artifacts.md` § Gallery rows).
+(read `references/gallery-rows.md` before building or editing a gallery row).
 
 **On receiving a consultation reply — a paste, or the reader's own chat text,
 saved the same way — run `scripts/save-reply.sh <page.html> [<reply-file>|-]`
@@ -72,15 +74,15 @@ a verb's included, so when a verb (`decide`, `new-round`) is the first rebuild, 
 fulfilled by a `diagram` block (`tree`, `compare`) in the page brief, or, where the install has those agents (they are the owner's, not shipped in this plugin's `agents/`), by launching
 `figure-sonnet` (wireframes only) or `verify-browser-opus` BEFORE the page brief, never by writing more prose. `check-artifact --prev` then FAILS a wrap
 that does not carry out a printed duty — no bypass
-(`references/02-local-first-artifacts.md` § "The reply is saved before the
-next round is built (BL-475)").
+(read `references/unreadable-question.md`, § "The reply is saved before the
+next round is built (BL-475)", before answering a marked reply).
 
 A consultation brief carries, per item, a situation lead written by the main session
 (a named role, screen, action, what happens today; for a question about work, what the
 thing is, why it exists and where it stands, with no term the page does not explain),
 options stated as what that person sees or can do, ids only on a trailing `Fuente:` line, and a "decidido, corrígeme si
 no" block for reversible decisions that carry a recommendation. `artifact-sonnet` (the owner's agent, not shipped; without it the main session does this) lays
-that out; the contract is `references/02-local-first-artifacts.md` § 8 (BL-503).
+that out; read `references/consultation.md` § 8 (BL-503) before building it.
 
 Per-project design tokens live in `.context/profiles/artifact.md` (template:
 `assets/templates/artifact.md.template`), including a `language:` field
@@ -135,14 +137,14 @@ The HTML-body route is not removed and no existing page is converted as a side
 effect of touching it. `check-artifact` is the net either way — a page that fails
 it never lands, whichever route wrote it. Its fifteen page-contract classes
 (`scripts/dash/contract_defects.py`), each with its authoring fix, are tabled in
-`references/02-local-first-artifacts.md` § 5 Read what the contract check said.
+`references/route-b.md` § 5 Read what the contract check said.
 
 Figures are blocks too, chosen by one ladder — the highest rung that carries the
 meaning: (1) `chart` / `diagram`, closed stdlib blocks; (2) `graph`, DOT through
 Graphviz; (3) `figure`, a file — figure-sonnet's SVG or a screenshot. A consult figure
 that shows a structure or compares options is a `diagram` (`tree`, `compare`); hand SVG
 is for wireframes only. The table with one example per rung is
-`references/02-local-first-artifacts.md` § The figure ladder. No spec inlines SVG.
+`references/figures.md` § The figure ladder (read it before adding a figure). No spec inlines SVG.
 
 The how-to, with worked examples, is `references/02-local-first-artifacts.md`
 § Route S; the syntax is `references/03-spec-grammar.md` and the closed set of
@@ -212,5 +214,5 @@ when the user asks for one (a board sub-action, an artifact/report request, or
 ## Related
 
 - **references/01-dash-conventions.md** — the GENERATED contract, sibling-path
-  rule, token-cost rationale, and the v2 lane (auto/suggest config, charts).
+  rule, token-cost rationale, and the v2 lane (auto/suggest config).
 - **audit** — owns `coverage-matrix.json`, the one JSON dash consumes.

@@ -47,8 +47,8 @@ Steps 1-4 of the final phase stay in `SKILL.md`; these are steps 5-9.
      `${CLAUDE_PLUGIN_ROOT}/skills/artifact/scripts/wrap-report.sh --title "<plan> — human
      verification" --lang en --in .context/proofs/<slug>/human-verification.md --out
      .context/proofs/<slug>/human-verification.html`, then `open` that file — once, last,
-     after the rest of close-out, per `skills/artifact/references/02-local-first-artifacts.md` gate 2. Never
-     publish it (gate 3). The `.md` stays the canon and the linked `proof_links` target.
+     after the rest of close-out, per `skills/artifact/references/02-local-first-artifacts.md` (open it once, last; enforced by `hooks/artifact-open-once.sh`). Never
+     publish it (§ Publishing in that file). The `.md` stays the canon and the linked `proof_links` target.
    - **A plan with nothing human-visible skips it by RECORDING one line**
      (`human-verification: skipped — <reason>`), never by the step being absent. "Pure
      backend/tooling, nothing a person operates" is a fine reason and a bad silence:

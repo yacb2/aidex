@@ -304,7 +304,7 @@ nothing points at the other four — so they are indexed here:
 
 | Fact | Recorded in |
 |---|---|
-| Headless `claude -p` does not ship `artifact-design` (field-verified 2026-07-23) | `skills/artifact/references/02-local-first-artifacts.md` |
+| Headless `claude -p` does not ship `artifact-design` (field-verified 2026-07-23) | `skills/artifact/references/route-b.md` |
 | `AskUserQuestion` is interactive-only; the fallback is above | this document, § above |
 | A spawned eval child inherits CWD, pays MCP cold-start, and loads every ambient skill | `skill-trigger-eval-methodology.md` |
 | Per-agent `model` / `effort` are assigned explicitly, not inherited by accident | `plan-exec` + `workflow` SKILL.md |

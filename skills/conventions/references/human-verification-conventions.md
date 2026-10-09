@@ -81,7 +81,7 @@ A sweep's page is built from its report through `/aidex:artifact` Route S, each 
 owner row a consult item (`sweep-execution-policy.md` stage 6, BL-482). The
 `human-verification.md` shape is **wrapped into a page at close-out and opened once** — `wrap-report.sh
 --title "<the page title>" --lang en --in <the .md> --out <the .html>`, then `open`,
-last, per `skills/artifact/references/02-local-first-artifacts.md` gate 2 (never published, gate 3).
+last, per `skills/artifact/references/route-b.md` step "7. Open it locally" (never published: `02-local-first-artifacts.md` § Publishing).
 
 Both flags are load-bearing and the command fails without them, in different ways.
 `--title` is `required=True`, so omitting it aborts on an argparse usage error before

@@ -30,13 +30,13 @@ G04='### `gallery`'
 
 # family @ ERE term @ owner file @ owner heading key
 FAMILIES=(
-  '1 rows JSON emitter@--rows-json@02-local-first-artifacts.md@G02'
-  '2 look line@`look`@02-local-first-artifacts.md@G02'
+  '1 rows JSON emitter@--rows-json@gallery-rows.md@G02'
+  '2 look line@`look`@gallery-rows.md@G02'
   '3 noBefore@noBefore@04-block-vocabulary.md@G04'
   '4 unrequested rows@unrequested@04-block-vocabulary.md@G04'
-  '5 reply parsing@gallery-reply\.sh@02-local-first-artifacts.md@G02'
+  '5 reply parsing@gallery-reply\.sh@gallery-rows.md@G02'
   '6 alternatives mode@alternatives mode@04-block-vocabulary.md@G04'
-  '7 --rows flag@--rows($|[^-a-z])@02-local-first-artifacts.md@G02'
+  '7 --rows flag@--rows($|[^-a-z])@gallery-rows.md@G02'
   '8 states row@kind: "states"@04-block-vocabulary.md@G04'
 )
 

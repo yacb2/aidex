@@ -368,7 +368,7 @@ PY
 #
 # It used to satisfy that one too, with `content="none: replace this with the
 # reason, or with svg/img"` — a "reason" that is the instruction to write a
-# reason. references/02 §8 tells authors to copy this template rather than
+# reason. references/consultation.md § 8 tells authors to copy this template rather than
 # re-derive it, so every derived consultation shipped the visual gate already
 # satisfied by a page with no visual and no reason: exactly the state §8 says must
 # fail ("the reason is one grep away from review, which silence never is" — and the
@@ -747,7 +747,7 @@ err="$(bash "$WRAP" --title "C" --out "$PROJ/.context/reports/c.html" < "$TMP/co
 # thing it names. Two failures, and the false NEGATIVE is the load-bearing one:
 # the check was a tautology on the suite's own documented happy path, because the
 # only surviving match on a page with the accounting torn out is a CSS comment
-# inside the style block that references/02 §8 tells authors to copy verbatim.
+# inside the style block that references/consultation.md § 8 tells authors to copy verbatim.
 echo "== blank count is about the composer =="
 
 # fn.html — the shipped page with its blank accounting removed entirely, and

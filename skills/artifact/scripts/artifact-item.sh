@@ -17,7 +17,7 @@
 #
 # `put` refuses an id that is missing or duplicated, and refuses a replacement whose
 # outer element does not carry the same id: ids are assigned once and never
-# renumbered (references/02-local-first-artifacts.md § 8.1). Everything outside the
+# renumbered (references/consultation.md § 8.1). Everything outside the
 # unit stays byte for byte as it was.
 
 set -euo pipefail

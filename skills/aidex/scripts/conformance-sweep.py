@@ -55,10 +55,10 @@ TOPICS = {
 # aidex among them — `theme-factory` is the artifact flow's design-guidance fallback
 # for surfaces without `artifact-design` (headless `claude -p` has none), so disabling
 # it leaves an artifact request with no design path at all, which is the field
-# regression skills/artifact/references/02-local-first-artifacts.md exists to prevent.
+# regression skills/artifact/references/route-b.md exists to prevent.
 REQUIRED_LOADABLE = {
-    "theme-factory": "skills/artifact/references/02-local-first-artifacts.md (design-guidance fallback)",
-    "dataviz": "skills/artifact/references/02-local-first-artifacts.md (charts fallback)",
+    "theme-factory": "skills/artifact/references/route-b.md (design-guidance fallback)",
+    "dataviz": "skills/artifact/references/route-b.md (charts fallback)",
 }
 BLOCKS_MODEL_LOAD = {"off", "user-invocable-only"}
 

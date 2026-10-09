@@ -8,7 +8,7 @@ model-policy: per-stage
 
 # UI contract
 
-> **Experimental (1.3.0).** Proven on owner-shaped harnesses; say so before relying on it.
+> **Status: experimental.** Proven on owner-shaped harnesses; say so before relying on it.
 
 The contract for what "matches" means is a **state gallery rendered by the project's real
 components** against fixture data — one entry per state-matrix cell — reviewed by the owner
@@ -258,7 +258,7 @@ The word on its own is not a claim. A model looking at its own screenshots has a
 "verified in light and dark" and been disproved in three sessions. What each part is:
 
 1. **The review surface's path.** The owner reviews the gallery as gallery rows in a
-   consultation page: the project emits its rows JSON (`--rows-json` with item 5's variants and cells), every shown row carries a `look` line, and the reply parses back with `gallery-reply.sh` ([Gallery rows](../artifact/references/02-local-first-artifacts.md#gallery-rows-screenshots-the-reader-rules-on-one-row-per-screen-state) owns the row shapes and the reply rules; read it before building that page). That page's path is written down, with the
+   consultation page: the project emits its rows JSON (`--rows-json` with item 5's variants and cells), every shown row carries a `look` line, and the reply parses back with `gallery-reply.sh` ([Gallery rows](../artifact/references/gallery-rows.md#gallery-rows-screenshots-the-reader-rules-on-one-row-per-screen-state) owns the row shapes and the reply rules; read it before building that page). That page's path is written down, with the
    owner's verdict per row. A generated board or composed image is the developer's lens,
    never the owner's review; the owner is the final reviewer, never the model.
 2. **The gate's closing line, from a run with NO snapshot update**, including the

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tests for hooks/artifact-open-once.sh.
 
-The hook exists because gate 2 of skills/artifact/references/02-local-first-artifacts.md ("open the file
+The hook exists because the open-once rule of the artifact skill (skills/artifact/references/route-b.md step 7; "open the file
 ONCE, when it is final") was prose nothing observed, and the observed behaviour was
 five to seven tabs of the same page.
 

@@ -324,8 +324,8 @@ def add_item(spec_text, group_id, item_id, title, body="", options=()):
     before_notes = next((c for c in group.children
                          if c.block_type == "notes"), None)
     if before_notes is not None:
-        # The general-notes item is ALWAYS LAST (02-local-first-artifacts.md
-        # §7.3: "the page-level notes item is additional, always last"). When it
+        # The general-notes item is ALWAYS LAST (consultation.md
+        # § 8.3: "the page-level notes item is additional, always last"). When it
         # lives inside the target group, the end of the group is behind it, so
         # the new item goes in front of it instead. `check_artifact.py` does not
         # check that ordering, which is exactly why it cannot be left to it.
@@ -813,7 +813,7 @@ def _sync_ledger(spec_text):
     docstring: the round counter is the wrap's, not this verb's).
 
     The ledger is created after the masthead when the spec has none — that is
-    where `references/02-local-first-artifacts.md` puts it ("before the first
+    where `references/consultation.md` puts it ("before the first
     block: the header, a figure section, and the ledger").
     """
     tree = _parse(spec_text, "the spec")
@@ -833,7 +833,7 @@ def _sync_ledger(spec_text):
     if ledger is not None and ledger not in tree:
         # A ledger nested inside a group is not the page's ledger: appending
         # settled rows there would drop them into the middle of the question
-        # set, which is the one place `02-local-first-artifacts.md` says the
+        # set, which is the one place `consultation.md` says the
         # record must not be ("before the first block").
         raise VerbError("the only `ledger` in the spec is nested inside "
                         "another block (line %d) — the page's ledger sits at "

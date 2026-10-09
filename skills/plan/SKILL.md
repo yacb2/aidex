@@ -108,8 +108,8 @@ promotion threshold excludes from batch execution (a `hitl-align` phase, see bel
    recommended answers all stand, a single "confirm this concept?" round is enough.
    Closing the round is synthesis of what was already said: reflect it back, do not open a
    new interview (Pocock `to-spec`). A resolved answer gets its own decision or reference
-   artifact only if it passes the three gates in `artifact/references/02-local-first-artifacts.md`
-   § 8.4; otherwise it stays in this paragraph.
+   artifact only if it passes the three gates in `artifact/references/consultation.md`
+   § 8.4 (the block shape); otherwise it stays in this paragraph.
 3. **A decided `ui-contract.md` is ratification.** When the request names a
    `ui-contract.md` (or the consultation that wrote one, `/ui-contract` Step 0), read it
    first: its level, reference screen, components, state matrix and variants are already

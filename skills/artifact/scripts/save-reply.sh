@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # save-reply.sh — save a consultation reply BEFORE the next round is built
-# (02-local-first-artifacts.md § BL-475). Thin wrapper; logic lives in
+# (unreadable-question.md § BL-475). Thin wrapper; logic lives in
 # dash/save_reply.py.
 #
 # Run this FIRST on receiving a paste (or a chat reply — save that text the

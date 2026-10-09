@@ -266,7 +266,7 @@ bash "$ITEM" list "$TMP/reports/nosidecar.html" >"$TMP/e4.txt" 2>&1; rc=$?
 if [[ $rc -ne 1 ]]; then
   fail "list of an existing page with no sidecar exits $rc, expected 1"
 elif grep -q "no body sidecar" "$TMP/e4.txt" && grep -q "wrap-report.sh --in" "$TMP/e4.txt" \
-     && grep -q "02-local-first-artifacts.md" "$TMP/e4.txt"; then
+     && grep -q "route-b.md" "$TMP/e4.txt"; then
   ok "a page with no sidecar: exit 1, names the fallback and the canon"
 else fail "the missing-sidecar message does not point anywhere: $(cat "$TMP/e4.txt")"; fi
 # A page path that names nothing is a wrong argument: exit 2, one usage line.

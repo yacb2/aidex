@@ -242,7 +242,7 @@ def sidecar_of(page):
             "  Looked for %s and %s.\n"
             "  A page that predates the sidecar has none: carve its content out once\n"
             "  and wrap it with `wrap-report.sh --in <content> --out %s`, which writes\n"
-            "  the sidecar. See references/02-local-first-artifacts.md § Update in\n"
+            "  the sidecar. See references/route-b.md § Update in\n"
             "  place, 'Revise the CONTENT, never the wrapped file'."
             % (page, htm, md, page))
     return have[0], have[0].endswith(".body.md")
