@@ -675,7 +675,7 @@ def check_row(row, variants, n, alts=None, require_look=False):
             die("row '%s' is an alternatives row but the document declares no "
                 "'alternatives' (the labels are declared once, at the top)"
                 % cell)
-        for k in ("before", "after"):
+        for k in ("before", "after", "also"):
             if k in row:
                 die("row '%s': an alternatives row takes no '%s' — its "
                     "captures are the 'captures' object" % (cell, k))

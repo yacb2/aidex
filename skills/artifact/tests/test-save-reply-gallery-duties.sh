@@ -98,6 +98,46 @@ save "$TMP/alt2" "$ALT2"
   && ok "two note bullets on an unpicked alternatives row (no --rows): no crash, other rows still listed" \
   || fail "alt2: $out"
 
+# U3-1: with no --rows an alternatives row whose first bullet is the kit's
+# "Other" label and whose second is the reader's reason keeps its other-verdict
+# duty (the reason bullet stays in the notes); it must not demote to plain notes.
+for lbl in "Other — see my notes" "Otra — lo explico en las notas"; do
+  save "$TMP/alt3-${lbl%% *}" "### x-alt-light-desktop-alternatives · x · alt · light-desktop
+
+- $lbl
+- the reason I could not pick
+"
+  [[ "$out" != *"nothing owed"* && "$out" == *"x-alt-light-desktop-alternatives ["*"other"* ]] \
+    && ok "alternatives row '$lbl' + reason bullet (no --rows) keeps the other-verdict duty" \
+    || fail "alt3 ($lbl): $out"
+done
+
+# N1: the same demotion hit a REVIEW row: an owing first bullet followed by the
+# reader's reason bullet must stay the verdict (lenient parse, no --rows).
+for lbl in "Needs changes" "Other — see my notes" "Necesita cambios" "Cannot judge"; do
+  save "$TMP/n1-${lbl%% *}-${lbl##* }" "### y-a-light-desktop · y · a · light-desktop
+
+- $lbl
+- say which
+"
+  case "$lbl" in "Needs changes"|"Necesita cambios") tag="y-a-light-desktop [needs-changes";; *) tag="y-a-light-desktop [other-verdict";; esac
+  [[ "$out" != *"nothing owed"* && "$out" == *"$tag"* ]] \
+    && ok "review row '$lbl' + reason bullet keeps its duty (${tag#* })" || fail "n1 ($lbl): $out"
+done
+
+# N2: rejecting every alternative owes a rewrite, with or without a reason bullet.
+i=0
+for body in "- None of them" "- None of them
+- what is missing" "- Ninguna"; do
+  i=$((i + 1)); save "$TMP/n2-$i" "### x-alt-light-desktop-alternatives · x · alt · light-desktop
+
+$body
+"
+  [[ "$out" != *"nothing owed"* && "$out" == *"x-alt-light-desktop-alternatives [other-verdict"* \
+     && "$out" == *"rejected every alternative"* ]] \
+    && ok "alternatives row '${body%%$'\n'*}' owes, in its own wording" || fail "n2 ($body): $out"
+done
+
 BAD='### x-full-light-desktop · x · full · light-desktop
 
 - Necesita cambios
