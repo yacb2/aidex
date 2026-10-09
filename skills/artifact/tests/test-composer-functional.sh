@@ -5287,5 +5287,25 @@ document.title = 'RADIO|A=' + off + '|RIGHT=' + right + '|REL=' + (a.checked ? 1
 [[ "$t" == *"|REL=0|"* ]] \
   || fail "C-c14: a normal press (mousedown and mouseup on the label, then the click) must still release the choice, BL-268 (want REL=0): $t"
 
+# C-c13: restore() wrapped the whole item loop in one try, so one malformed stored entry (Q2's `a` is a
+# string) aborted the rest and returned n:0 though Q1 was already filled. Layer: browser (the composer reads
+# localStorage on a live DOM). The seed runs inline, BEFORE the composer.
+t="$(p717 c13 "<script>localStorage.setItem('aidex-kit-answers:' + location.pathname, JSON.stringify({ Q1: { a: ['uno'] }, Q2: { a: 'oops' }, Q3: { a: ['tres'] } }));</script>
+$(grp717 G1 "$(item717 Q1)$(item717 Q2)$(item717 Q3)")" \
+"var v = function (id) { return document.querySelector('[data-id=\"' + id + '\"] textarea').value; };
+var note = document.getElementById('consult-restored');
+document.title = 'C13|Q1=' + v('Q1') + '|Q2=' + v('Q2') + '|Q3=' + v('Q3') + '|NOTE=' + (note ? note.textContent.slice(0, 2).trim() : 'none') + '|';")"
+[[ "$t" == *"|Q1=uno|Q2=|Q3=tres|NOTE=2|"* ]] \
+  || fail "C-c13: one malformed stored entry must not stop the other items restoring, and the banner must count the real 2 (want Q1=uno, Q3=tres, NOTE=2): $t"
+
+# C-c13 (group notes): a malformed group-note entry (its `a[0]` is a number) threw inside restore()'s outer try
+# and dropped the whole result to n:0 though Q1 was already filled. Same layer and seeding as the cell above.
+t="$(p717 c13g "<script>localStorage.setItem('aidex-kit-answers:' + location.pathname, JSON.stringify({ Q1: { a: ['uno'] }, 'group:G1': { a: [5] }, 'group:G2': { a: ['nota'] } }));</script>
+$(grp717 G1 "$(item717 Q1)")$(grp717 G2 "$(item717 Q2)")" \
+"var note = document.getElementById('consult-restored');
+document.title = 'C13G|Q1=' + document.querySelector('[data-id=\"Q1\"] textarea').value + '|G2=' + document.querySelector('#G2 .group-notes textarea').value + '|NOTE=' + (note ? note.textContent.slice(0, 2).trim() : 'none') + '|';")"
+[[ "$t" == *"|Q1=uno|G2=nota|NOTE=2|"* ]] \
+  || fail "C-c13: a malformed group-note entry must not drop the items and notes that restore fine (want Q1=uno, G2=nota, NOTE=2): $t"
+
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other, the not-now choice, the multi-select item built from a spec, the ask row and the provisional state, the explicit theme, v4 answer sets, the all-decided page, the half-answered block, the gallery zoom dialog with its keyboard walk, the block filters that never reach the paste, the light/dark compare with its slider kept out of the paste, and the localised chrome included"
