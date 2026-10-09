@@ -11,7 +11,7 @@
 //   units   array of unit slugs to run, taken from manifest.json (keep it a list of slugs, not objects)
 //   verify  optional boolean, default true; false skips the verify stage and compare gets every extracted fact
 //
-// PER UNIT: extract (aidex:drift-extract) -> verify (aidex:drift-verify) -> compare (aidex:drift-compare).
+// PER UNIT: extract (aidex:drift-extract) -> verify (aidex:drift-verify, batches of 25, first 50 facts) -> compare (aidex:drift-compare).
 // Every agent call goes through safe(): a stage that throws or returns no structured output is logged
 // and the unit stops there, status "failed"; the run completes with the other units.
 // Compare receives only `confirmed` facts (when verify is false: the extracted `traced` facts, flagged to the comparer as not verified). One compare per unit.
@@ -267,6 +267,7 @@ async function safe(prompt, opts) {
   catch (e) { log(`FAILED ${opts.label}: ${String(e && e.message || e).slice(0, 200)}`); return null }
 }
 
+const VERIFY_BATCH = 25
 const factLine = (f, i) => `${i}. [${f.file}:${f.line_start}-${f.line_end} · ${f.symbol}] ${f.claim}`
 
 const extractPrompt = slug => `Project root: ${A.root}
@@ -295,7 +296,8 @@ const done = (slug, status, failed_stage, extra) => ({ slug, status, failed_stag
 phase('Units')
 if (!Array.isArray(A.units) || !A.units.length) throw new Error('args.units must be a non-empty list of unit slugs from manifest.json')
 // A Workflow run caps at 1,000 agent() calls; past it the last units silently lose a stage (BL-739).
-const maxUnits = useVerify ? 333 : 500
+// A unit costs extract + 2 verify batches + compare = 4 calls, or 2 with verify off.
+const maxUnits = useVerify ? 250 : 500
 if (A.units.length > maxUnits) throw new Error(`args.units has ${A.units.length} units; one launch holds at most ${maxUnits} (verify ${useVerify}): split the manifest into launches of ${maxUnits}`)
 const slugs = A.units
 log(`drift ${A.date || ''}: ${slugs.length} units, verify ${useVerify}`)
@@ -315,18 +317,26 @@ const results = await pipeline(slugs,
   async (st, slug) => {
     if (st.status === 'failed') return st
     if (!useVerify || !st.facts.length) return { ...st, confirmed: st.facts }
-    const v = await safe(verifyPrompt(st.facts), { label: `verify:${slug}`, phase: 'Units',
-      agentType: 'aidex:drift-verify', schema: VERDICTS })
     const fail = () => done(slug, 'failed', 'verify', { facts_extracted: st.facts_extracted, not_covered: st.not_covered })
-    if (!v) return fail()
-    // The verdict indices must be exactly 0..N-1: anything else means the verifier answered a different list.
-    const idx = new Set(v.verdicts.map(x => x.i))
-    if (v.verdicts.length !== st.facts.length || idx.size !== st.facts.length || !st.facts.every((f, i) => idx.has(i))) {
-      log(`verify:${slug}: verdict indices are not exactly 0..${st.facts.length - 1}`)
-      return fail()
+    // Batches of VERIFY_BATCH, each numbered from 0 (BL-741: one call for 51 facts ran out of turns).
+    const facts = st.facts.slice(0, VERIFY_BATCH * 2)
+    if (facts.length < st.facts.length) log(`verify:${slug}: ${st.facts.length - facts.length} facts past ${facts.length} not verified`)
+    const confirmed = []
+    for (let b = 0; b * VERIFY_BATCH < facts.length; b++) {
+      const batch = facts.slice(b * VERIFY_BATCH, (b + 1) * VERIFY_BATCH)
+      const v = await safe(verifyPrompt(batch), { label: `verify:${slug}#${b}`, phase: 'Units',
+        agentType: 'aidex:drift-verify', schema: VERDICTS })
+      if (!v) return fail()
+      // The verdict indices must be exactly 0..N-1: anything else means the verifier answered a different list.
+      const idx = new Set(v.verdicts.map(x => x.i))
+      if (v.verdicts.length !== batch.length || idx.size !== batch.length || !batch.every((f, i) => idx.has(i))) {
+        log(`verify:${slug}#${b}: verdict indices are not exactly 0..${batch.length - 1}`)
+        return fail()
+      }
+      const byI = new Map(v.verdicts.map(x => [x.i, x.verdict]))
+      confirmed.push(...batch.filter((f, i) => byI.get(i) === 'confirmed'))
     }
-    const byI = new Map(v.verdicts.map(x => [x.i, x.verdict]))
-    return { ...st, confirmed: st.facts.filter((f, i) => byI.get(i) === 'confirmed') }
+    return { ...st, confirmed }
   },
   async (st, slug) => {
     if (st.status === 'failed') return st

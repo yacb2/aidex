@@ -28,9 +28,9 @@ async function run(args, beh) {
   const prompts = []
   const agent = async (prompt, o) => {
     prompts.push({ type: o.agentType, label: o.label, prompt, schema: o.schema })
-    const slug = o.label.split(':')[1]
+    const slug = o.label.split(':')[1].split('#')[0]
     const stage = o.agentType.replace('aidex:drift-', '')
-    const b = beh[slug][stage]
+    const b = typeof beh[slug][stage] === 'function' ? beh[slug][stage](prompt) : beh[slug][stage]
     if (b === 'throw') throw new Error('boom')
     return b
   }
@@ -45,13 +45,14 @@ const unit = (out, slug) => out.units.find(u => u.slug === slug)
 const rows = {}
 
 // BL-739: a Workflow run caps at 1,000 agent() calls; 355 units x 3 stages lost 63 compares.
+// BL-741: verify runs in up to 2 batches, so a unit costs at most 4 calls with verify on.
 rows['a launch above the agent() cap throws before any agent runs'] = async () => {
   const many = n => Array.from({ length: n }, (_, i) => 'u' + i)
-  await assert.rejects(run({ ...base, units: many(334) }, {}), /333/)
+  await assert.rejects(run({ ...base, units: many(251) }, {}), /250/)
   await assert.rejects(run({ ...base, units: many(501), verify: false }, {}), /500/)
   const ok = { extract: { facts: [], not_covered: [] } }
   const beh = n => Object.fromEntries(many(n).map(s => [s, ok]))
-  assert.strictEqual((await run({ ...base, units: many(333) }, beh(333))).out.units.length, 333)
+  assert.strictEqual((await run({ ...base, units: many(250) }, beh(250))).out.units.length, 250)
   assert.strictEqual((await run({ ...base, units: many(500), verify: false }, beh(500))).out.units.length, 500)
 }
 rows['no units throws'] = async () => {
@@ -145,6 +146,42 @@ rows['compare prompt tells the comparer to copy the reference path as written in
     extract: { facts: [fact(1)], not_covered: [] },
     verify: { verdicts: [{ i: 0, verdict: 'confirmed', evidence: 'e' }] }, compare: { items: [] } } })
   assert.ok(/exactly as written in/.test(prompts.find(x => x.type === 'aidex:drift-compare').prompt))
+}
+
+// BL-741: one verify call for 51 facts ran out of turns; facts go to verify in batches of 25.
+const batchVerify = (refute = () => false) => prompt => {
+  const n = prompt.split('\n').filter(l => /^\d+\. \[/.test(l)).length
+  return { verdicts: Array.from({ length: n }, (_, i) => ({ i, verdict: refute(prompt, i) ? 'refuted' : 'confirmed', evidence: 'e' })) }
+}
+rows['51 facts: verify runs in batches of at most 25, each numbered from 0, capped at 50 facts'] = async () => {
+  const facts = Array.from({ length: 51 }, (_, i) => fact(i + 1))
+  const { out, prompts } = await run({ ...base, units: ['u'] }, { u: {
+    extract: { facts, not_covered: [] }, verify: batchVerify(), compare: { items: [] } } })
+  const vs = prompts.filter(p => p.type === 'aidex:drift-verify')
+  assert.strictEqual(vs.length, 2)
+  for (const v of vs) {
+    const lines = v.prompt.split('\n').filter(l => /^\d+\. \[/.test(l))
+    assert.ok(lines.length <= 25)
+    assert.ok(lines[0].startsWith('0. '))
+  }
+  assert.deepStrictEqual([unit(out, 'u').status, unit(out, 'u').facts_extracted, unit(out, 'u').facts_confirmed], ['ok', 51, 50])
+}
+rows['batched verdicts map back to the right facts'] = async () => {
+  const facts = Array.from({ length: 30 }, (_, i) => fact(i + 1))
+  // refute local index 2 of the second batch: global index 27, claim c28
+  const { prompts } = await run({ ...base, units: ['u'] }, { u: {
+    extract: { facts, not_covered: [] }, verify: batchVerify((p, i) => p.includes('c26') && i === 2), compare: { items: [] } } })
+  const p = prompts.find(x => x.type === 'aidex:drift-compare').prompt
+  assert.ok(!p.includes('] c28'))
+  assert.ok(p.includes('] c27') && p.includes('] c29') && p.includes('] c3'))
+}
+rows['one failed verify batch fails the unit at verify'] = async () => {
+  const facts = Array.from({ length: 30 }, (_, i) => fact(i + 1))
+  const ok = batchVerify()
+  const { out, prompts } = await run({ ...base, units: ['u'] }, { u: {
+    extract: { facts, not_covered: [] }, verify: p => p.includes('] c26') ? null : ok(p), compare: { items: [] } } })
+  assert.deepStrictEqual([unit(out, 'u').status, unit(out, 'u').failed_stage], ['failed', 'verify'])
+  assert.ok(!prompts.some(p => p.type === 'aidex:drift-compare'))
 }
 
 let bad = 0
