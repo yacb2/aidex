@@ -182,7 +182,9 @@ The census should show your item moved out of `gap`.
    (covering references). `<work>` is outside any tracked path, e.g. `_tmp/reference-drift/<project>`.
 2. Read the unit slugs from `manifest.json` (`units[].slug`) and launch the Workflow with `scriptPath` =
    `${CLAUDE_PLUGIN_ROOT}/skills/reference/assets/workflows/drift.workflow.js` and args
-   `{root, work, date, units: [slugs], verify}` (`verify` defaults to true). The script is versioned: never
+   `{root, work, date, units: [slugs], verify}` (`verify` defaults to true). One launch holds at most 333 units
+   (500 with `verify: false`), because a Workflow run caps at 1,000 `agent()` calls and the script refuses
+   more: split a larger manifest into launches of that size. The script is versioned: never
    regenerate it, and never resume a run after editing it.
 3. Save the returned JSON and run `python3 ${CLAUDE_PLUGIN_ROOT}/skills/reference/scripts/drift/report.py <result.json> <work>`
    (add `--transcripts <dir>` for cost: the run's directory

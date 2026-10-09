@@ -95,11 +95,16 @@ REF_RE = re.compile(r"\.context/references/\S+?\.md")
 # One token of the evidence: a code path with an extension, then :N, :N-M or :LN. Tokens are cut on whitespace and
 # brackets, so "12:30 meeting" (no extension) and "see .context/references/a.md:3" (a reference path) do not pass.
 EVIDENCE_TOKEN_RE = re.compile(r"\.{0,2}/?[\w./-]+\.\w+:L?\d+(-L?\d+)?")
+# An absence claim cannot cite a line; its evidence is the search that came back empty: the word Glob or grep
+# plus the code path searched (BL-743). "Glob returned no files" names no path, so it still fails.
+SEARCH_RE = re.compile(r"\b(glob|grep)\b", re.I)
 
 
 def has_code_evidence(ev):
-    return any(EVIDENCE_TOKEN_RE.fullmatch(tok) and ".context/" not in tok
-               for tok in re.split(r"[\s,;()\[\]]+", ev))
+    toks = [t.rstrip(".:") for t in re.split(r"[\s,;()\[\]]+", ev)]
+    code = [t for t in toks if ".context/" not in t]
+    return (any(EVIDENCE_TOKEN_RE.fullmatch(t) for t in code)
+            or (SEARCH_RE.search(ev) is not None and any("/" in t for t in code)))
 
 
 def normal_reference(ref, root):
@@ -107,7 +112,11 @@ def normal_reference(ref, root):
     ref = ref.strip()
     if root and ref.startswith(root.rstrip("/") + "/"):
         ref = ref[len(root.rstrip("/")) + 1:]
-    m = REF_RE.search(ref[2:] if ref.startswith("./") else ref)
+    ref = ref[2:] if ref.startswith("./") else ref
+    m = REF_RE.search(ref)
+    if not m:
+        # The comparer sometimes drops the prefix and writes `backend/04-permissions.md`.
+        m = REF_RE.search(".context/references/" + ref)
     return m.group(0) if m else ref
 
 

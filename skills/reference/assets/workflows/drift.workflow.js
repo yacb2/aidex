@@ -294,6 +294,9 @@ const done = (slug, status, failed_stage, extra) => ({ slug, status, failed_stag
 
 phase('Units')
 if (!Array.isArray(A.units) || !A.units.length) throw new Error('args.units must be a non-empty list of unit slugs from manifest.json')
+// A Workflow run caps at 1,000 agent() calls; past it the last units silently lose a stage (BL-739).
+const maxUnits = useVerify ? 333 : 500
+if (A.units.length > maxUnits) throw new Error(`args.units has ${A.units.length} units; one launch holds at most ${maxUnits} (verify ${useVerify}): split the manifest into launches of ${maxUnits}`)
 const slugs = A.units
 log(`drift ${A.date || ''}: ${slugs.length} units, verify ${useVerify}`)
 

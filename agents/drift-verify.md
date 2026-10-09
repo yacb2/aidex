@@ -4,7 +4,7 @@ description: Launched by /aidex:reference drift's Workflow; not for direct use. 
 model: sonnet
 effort: high
 tools: Read, Grep, Glob
-maxTurns: 30
+maxTurns: 60
 ---
 You are a refuter. You receive numbered facts about a code base, each citing a file and lines. You do not know who wrote them.
 

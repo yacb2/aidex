@@ -70,14 +70,23 @@ class Render(unittest.TestCase):
     def test_reference_spellings_are_normalised_before_membership(self):
         m = dict(project="p", skipped=[], units=[dict(slug="u1", references=[".context/references/a.md"])])
         spellings = ["/p/.context/references/a.md", "./.context/references/a.md",
-                     ".context/references/a.md (Overview)", ".context/references/a.md"]
-        acc, rej = report.split_findings([finding(s) for s in spellings] + [finding(".context/references/zzz.md")], m, "/p")
-        self.assertEqual([f["reference"] for f in acc], [".context/references/a.md"] * 4)
-        self.assertEqual([f["reference"] for f in rej], [".context/references/zzz.md"])
+                     ".context/references/a.md (Overview)", ".context/references/a.md",
+                     "a.md"]  # the comparer dropped the .context/references/ prefix
+        acc, rej = report.split_findings([finding(s) for s in spellings]
+                                         + [finding(".context/references/zzz.md"), finding("HIDDEN")], m, "/p")
+        self.assertEqual([f["reference"] for f in acc], [".context/references/a.md"] * 5)
+        self.assertEqual([f["reference"] for f in rej], [".context/references/zzz.md", "HIDDEN"])
 
     def test_evidence_must_be_a_code_file_line(self):
         for ev, ok in [("x.py:12", True), ("x.py:12-20", True), ("x.py:L12", True), ("src/a/x.ts:3", True),
-                       ("12:30 meeting", False), ("see .context/references/a.md:3", False), ("x.py", False)]:
+                       ("12:30 meeting", False), ("see .context/references/a.md:3", False), ("x.py", False),
+                       # BL-743: sentence punctuation after a cite, and an absence claim with its empty search
+                       ("src/a/x.ts:210-222. Then more.", True),
+                       ("Glob backend/apps/x/commands/*.py returns only __init__.py", True),
+                       ("grep 'run_job' in backend/apps/x returned no matches", True),
+                       ("Glob returned no files", False),
+                       ("the file backend/apps/x/a.py is gone", False),
+                       ("grep of .context/references/a.md found nothing", False)]:
             with self.subTest(ev):
                 acc, _ = report.split_findings([finding(ev=ev)], MANIFEST, "/p")
                 self.assertEqual(len(acc), 1 if ok else 0)
