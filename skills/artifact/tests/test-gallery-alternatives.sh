@@ -250,6 +250,20 @@ bash "$REPLY" --rows "$TMP/alt.json" "$TMP/r5.txt" 2>/dev/null | python3 -c "
 import json, sys
 sys.exit(0 if json.load(sys.stdin)['rows'][0]['verdict'] == 'Ninguna' else 1)" \
   && ok "the none-of-them choice is an answer" || fail "none-of-them not read as an answer"
+# D-c23: --tiles is the before/after matrix; an alternatives row takes its tiles
+# from its own rows document, so one --tiles can serve a mixed reply.
+cat > "$TMP/alt2.json" <<'JSON'
+{"gallery": "nav", "variants": ["light-desktop"],
+ "alternatives": [{"id": "top", "label": "Arriba"}, {"id": "side", "label": "Lateral"}],
+ "rows": [{"cell": "menu", "variant": "light-desktop", "kind": "alternatives",
+   "look": "El menu", "captures": {"top": "shots/list-a.png", "side": "shots/list-drawer.png"}}]}
+JSON
+printf '### skel-list-light-desktop-alternatives · skel · list · light-desktop\n\n- Con cajón\n\n[mark drawer 1.0,1.0 5.0x5.0] ok\n\n### nav-menu-light-desktop-alternatives · nav · menu · light-desktop\n\n- Arriba\n\n[mark top 1.0,1.0 5.0x5.0] ok\n' > "$TMP/r11.txt"
+bash "$REPLY" --rows "$TMP/alt.json" --rows "$TMP/alt2.json" --tiles "before after" "$TMP/r11.txt" > /dev/null 2> "$TMP/r11.err"; rc=$?
+[[ $rc == 0 ]] && ok "alternatives marks use each gallery's own tiles, not --tiles" || fail "mixed galleries: rc $rc $(cat "$TMP/r11.err")"
+printf '### nav-menu-light-desktop-alternatives · nav · menu · light-desktop\n\n- Arriba\n\n[mark drawer 1.0,1.0 5.0x5.0] ok\n' > "$TMP/r12.txt"
+bash "$REPLY" --rows "$TMP/alt.json" --rows "$TMP/alt2.json" "$TMP/r12.txt" > /dev/null 2> "$TMP/r12.err"; rc=$?
+[[ $rc == 2 && "$(cat "$TMP/r12.err")" == *"not one of the page's tiles"* ]] && ok "a tile of another gallery's alternative is refused" || fail "foreign tile: rc $rc $(cat "$TMP/r12.err")"
 bash "$REPLY" "$TMP/r1.txt" > /dev/null 2> "$TMP/r6.err"; rc=$?
 [[ $rc == 2 && "$(cat "$TMP/r6.err")" == *"--rows"* ]] \
   && ok "an alternatives row with no --rows is refused, naming the flag (labels unknown)" \

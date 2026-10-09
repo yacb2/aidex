@@ -190,6 +190,34 @@ nota
 [[ "$out" == *"Q1 [show-me]"* && "$out" == *"x-full-light-desktop ["* ]] \
   && ok "mixed paste: show-me and gallery duties both print" || fail "mixed: $out"
 
+# BL-719 D-c05: a '## ' line inside an ORDINARY item's notes is a note, so it
+# neither ends that item's block nor loses the gallery row's duties.
+if python3 - "$SKILL/scripts/dash" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1])
+import save_reply
+text = """### x-full-light-desktop · x · full · light-desktop
+
+- Necesita cambios
+
+nota
+
+[mark after 1.0,1.0 5.0x5.0] aqui
+
+### q1 · Pregunta
+
+- Si
+
+## titulo en nota
+mas
+"""
+d = save_reply.gallery_duties_for(text, ordinary={"q1"})
+assert d and all("unreadable" not in str(x) for x in d), d
+assert {x[1] for x in d} == {"needs-changes", "region-marks"}, d
+PY
+then ok "a '## ' note line in an ordinary item keeps the gallery row's duties"
+else fail "an ordinary item's '## ' note line lost or broke the gallery duties"; fi
+
 echo
 [[ $failures -eq 0 ]] && { echo "test-save-reply-gallery-duties: PASS"; exit 0; }
 echo "test-save-reply-gallery-duties: $failures FAIL"; exit 1

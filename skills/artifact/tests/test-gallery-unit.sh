@@ -1487,6 +1487,10 @@ bash "$GEN" "$TMP/b719/na.json" --root "$ROOT" --page "$PAGE" --group-id E --gro
 # D-c10: a label with a line break pastes as two lines
 refuse "BL-719 D-c10 an alternative label with a line break" \
   "{$V,\"alternatives\":[{\"id\":\"a\",\"label\":\"Compact\\nlayout\"},{\"id\":\"b\",\"label\":\"B\"}],\"rows\":[{$ROWH,\"kind\":\"alternatives\",$CAPS}]}" "line break"
+refuse "BL-719 D-c11 an alternative label ending in [provisional]" \
+  "{$V,\"alternatives\":[{\"id\":\"a\",\"label\":\"Draft [provisional]\"},{\"id\":\"b\",\"label\":\"B\"}],\"rows\":[{$ROWH,\"kind\":\"alternatives\",$CAPS}]}" "provisional"
+refuse "BL-719 D-c11 a state label ending in [provisional]" \
+  "{$V,\"rows\":[{$ROWH,\"kind\":\"states\",\"states\":[{\"id\":\"a\",\"label\":\"A [provisional]\",\"capture\":\"$AF\"},{\"id\":\"b\",\"label\":\"B\",\"capture\":\"$AN\"}]}]}" "provisional"
 refuse "BL-719 D-c10 a state label with a line break" \
   "{$V,\"rows\":[{$ROWH,\"kind\":\"states\",\"states\":[{\"id\":\"a\",\"label\":\"A\\nB\",\"capture\":\"$AF\"},{\"id\":\"b\",\"label\":\"B\",\"capture\":\"$AN\"}]}]}" "line break"
 # D-c13: before/after/highlight_before are ignored by an alternatives row, so they are refused

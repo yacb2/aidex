@@ -346,6 +346,10 @@ def load(path):
                 die("alternative label %r has a line break — it pastes as "
                     "two lines and the reply parser reads the second as "
                     "notes" % a["label"])
+            if a["label"].endswith(" [provisional]"):
+                die("alternative label %r ends in ' [provisional]' — the "
+                    "reply reader strips that suffix as the composer's mark"
+                    % a["label"])
             low = a["label"].casefold()
             if low in reserved:
                 die("alternative label %r is reserved (the none-of-them and "
@@ -719,6 +723,10 @@ def check_row(row, variants, n, alts=None, require_look=False):
                     "notes" % (cell, label))
             if st["id"] in ids:
                 die("row '%s' names the state id '%s' twice" % (cell, st["id"]))
+            if label.endswith(" [provisional]"):
+                die("row '%s': state label %r ends in ' [provisional]' — the "
+                    "reply reader strips that suffix as the composer's mark"
+                    % (cell, label))
             if label.casefold() in labels:
                 die("row '%s': the label %r is used by two states (labels are "
                     "compared case-insensitively)" % (cell, label))

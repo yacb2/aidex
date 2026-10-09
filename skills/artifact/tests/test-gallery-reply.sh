@@ -271,6 +271,43 @@ expect_json "$TMP/grp.json" 'd["groups"] == [{"id": "G1", "title": "Galería", "
 expect_json "$TMP/grp.json" 'd["rows"][0]["notes"] == "" and d["other"][0]["body"] == "- Sí"' \
   "the block note is in no row and no other item"
 
+echo "== BL-719 D-c05 / D-c15 =="
+parsed '- Necesita cambios\n\nel borde\n## no es un titulo\nmas nota\n[mark light-desktop 10.0,10.0 20.0x20.0] aqui\n' \
+  'r["verdict"] == "Necesita cambios" and r["notes"] == "el borde\n## no es un titulo\nmas nota" and len(r["marks"]) == 1' \
+  "a notes line starting with '## ' (no ' · ') is a note: later notes and the mark are kept"
+parsed '- Aprobada\n\n[mark light-desktop 10.0,10.0 20.0x20.0] logo\n\n#### Fallo de la página\n\n## paso 2\nsale en blanco\n' \
+  'len(r["marks"]) == 1 and r["verdict"] == "Aprobada"' \
+  "a '## ' line inside a defect sub-block does not end the block (no 'comes after the marks')"
+expect_json "$TMP/p.json" 'd["groups"] == []' "the '## paso 2' defect line makes no group"
+parsed '- Aprobada\n\n[mark light-desktop 10.0,10.0 20.0x20.0] logo\n\n#### Fallo de la página\n\nno carga\n## end\nsigue\n' \
+  'len(r["marks"]) == 1 and r["notes"] == ""' \
+  "a defect-report line that is exactly '## end' does not end the report early"
+python3 - "$TMP/bad_alt.json" <<'PY'
+import json, sys
+json.dump({"gallery": "skel", "variants": ["light-desktop"],
+  "alternatives": [{"id": "a", "label": "A"}, {"id": "b", "label": "B"}],
+  "rows": [{"cell": "list", "variant": "light-desktop", "kind": "alternatives",
+            "look": "x", "captures": {"a": "shots/a.png"}}]}, open(sys.argv[1], "w"))
+PY
+printf '### skel-list-light-desktop-alternatives · skel · list · light-desktop\n\n- A\n' > "$TMP/ba.txt"
+bash "$PARSE" --rows "$TMP/bad_alt.json" "$TMP/ba.txt" > "$TMP/ba.out" 2> "$TMP/ba.err"; rc=$?
+[[ $rc == 2 && ! -s "$TMP/ba.out" && "$(wc -l < "$TMP/ba.err")" -eq 1 && "$(head -c 14 "$TMP/ba.err")" == "gallery-reply:" ]] \
+  && ok "an invalid --rows document (alternative without its capture) exits 2 with one gallery-reply line" \
+  || fail "invalid --rows: rc $rc $(cat "$TMP/ba.err")"
+parsed '- Necesita cambios\n\nel borde\n\n#### Fallo de la página\n\n## paso 2\nsale en blanco\n' \
+  'r["notes"] == "el borde"' "a '## ' line in a defect report is not part of the row's notes"
+parsed '- Necesita cambios\n\nnota\n### no es un item\nmas nota\n' \
+  'r["notes"] == "nota\n### no es un item\nmas nota"' "a '### ' line without the separator stays a note"
+printf '## G1 ·\n\nnota del bloque\n\n### audit-with-data-light-desktop · audit · with-data · light-desktop\n\n- Aprobada\n' > "$TMP/g1.txt"
+bash "$PARSE" "$TMP/g1.txt" > "$TMP/g1.json" 2>&1
+expect_json "$TMP/g1.json" 'd["groups"] == [{"id": "G1", "title": "", "notes": "nota del bloque"}] and len(d["rows"]) == 1' \
+  "a trimmed '## G1 ·' heading (empty title) is still a heading"
+mkdir "$TMP/adir"
+bash "$PARSE" "$TMP/adir" > "$TMP/d.out" 2> "$TMP/d.err"; rc=$?
+[[ $rc == 2 && ! -s "$TMP/d.out" && "$(wc -l < "$TMP/d.err")" -le 1 ]] \
+  && ok "a directory as the reply file exits 2 with one line, no traceback" \
+  || fail "directory reply: rc $rc $(cat "$TMP/d.err")"
+
 echo
 if [[ "$failures" == 0 ]]; then
   echo "test-gallery-reply: all passed"

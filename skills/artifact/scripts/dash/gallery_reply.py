@@ -69,13 +69,15 @@ Usage:
 """
 
 import argparse
+import contextlib
+import io
 import json
 import re
 import sys
 
 from _usage import read_stdin
-from reply_defect import blank_defects
-from gallery_items import (KINDS, MARKER_LABEL, NONE_OF_THEM, OTHER, VERDICTS,
+from reply_defect import blank_defects, is_block_head
+from gallery_items import (KINDS, alternatives_states, MARKER_LABEL, NONE_OF_THEM, OTHER, VERDICTS,
                            na_row_id, row_id)
 
 NUM = r"(\d{1,3}\.\d)"
@@ -194,7 +196,7 @@ def parse_answer(ident, para, extra=(), alt=False, many=False):
 
 
 def parse_row(ident, key, body, tiles=None, labels=None, lenient=False,
-              states=None):
+              states=None, alt_tiles=None):
     gallery, cell, variant, kind = key
     body = trim(body)
     first = 0
@@ -226,6 +228,8 @@ def parse_row(ident, key, body, tiles=None, labels=None, lenient=False,
         tiles = [st["id"] for st in declared]    # a mark is on a state's figure
     elif kind == "states":
         tiles = None                             # unknown ids under lenient
+    elif kind == "alternatives" and gallery in (alt_tiles or {}):
+        tiles = alt_tiles[gallery]               # the alternatives' own figures
     answer = parse_answer(ident, body[:first], extra,
                           kind == "alternatives",
                           kind == "states") if first else None
@@ -260,21 +264,22 @@ def parse_row(ident, key, body, tiles=None, labels=None, lenient=False,
     return row
 
 
-def parse(text, tiles=None, labels=None, lenient=False, states=None):
+def parse(text, tiles=None, labels=None, lenient=False, states=None,
+          alt_tiles=None):
     """`lenient`: an alternatives row needs no --rows document (its chosen
     label is read as the first bullet); save_reply uses it, which only wants
     to know what is owed, not which alternative was chosen."""
     items, groups, cur = [], [], None
     text = blank_defects(text)       # the composer's page-defect sub-block is no row text
     for n, line in enumerate(text.splitlines(), 1):
-        if line.startswith("### "):
-            ident, _, title = line[4:].partition(" · ")
+        if is_block_head(line) and line.startswith("### "):
+            ident, _, title = line[4:].partition(" ·")
             cur = {"id": ident.strip(), "title": title.strip(), "body": [],
                    "line": n}
             items.append(cur)
-        elif line.startswith("## "):
+        elif is_block_head(line):
             # A block's own notes (BL-701) sit under its heading, before its items.
-            ident, _, title = line[3:].partition(" · ")
+            ident, _, title = line[3:].partition(" ·")
             cur = {"id": ident.strip(), "title": title.strip(), "body": []}
             groups.append(cur)
         elif cur is not None:
@@ -284,7 +289,7 @@ def parse(text, tiles=None, labels=None, lenient=False, states=None):
         key = gallery_key(it["id"], it["title"], it["line"])
         if key:
             rows.append(parse_row(it["id"], key, it["body"], tiles, labels,
-                                  lenient, states))
+                                  lenient, states, alt_tiles))
         else:
             other.append({"id": it["id"], "title": it["title"],
                           "body": "\n".join(l for _, l in trim(it["body"]))})
@@ -321,9 +326,11 @@ def main(argv):
                 text = fh.read()
     except FileNotFoundError:
         die("no such reply file: %s" % args.reply)
+    except OSError as e:
+        die("cannot read %s: %s" % (args.reply, e.strerror))
     except UnicodeDecodeError:
         die("%s is not UTF-8 text" % args.reply)
-    labels, states = {}, {}
+    labels, states, alt_tiles = {}, {}, {}
     for path in args.rows:
         try:
             with open(path, encoding="utf-8") as fh:
@@ -333,6 +340,16 @@ def main(argv):
             labels.setdefault(doc["gallery"], set()).update(
                 {a["label"].strip() for a in doc.get("alternatives", [])}
                 | {pair[0] for pair in NONE_OF_THEM.values()})
+            alts = doc.get("alternatives")
+            if alts:
+                try:
+                    with contextlib.redirect_stderr(io.StringIO()):
+                        per = alternatives_states(doc, list(doc["variants"]), alts, False)
+                except SystemExit:
+                    die("--rows %s is not a valid rows document" % path)
+                alt_tiles[doc["gallery"]] = (
+                    [a["id"] + "-" + st for a in alts for st in per]
+                    if per else [a["id"] for a in alts])
             for r in doc["rows"]:
                 if r.get("kind") == "states" and "states" in r:
                     states[row_id(doc["gallery"], r["cell"], r["variant"],
@@ -341,7 +358,7 @@ def main(argv):
                         for st in r["states"]]
         except (OSError, ValueError, KeyError, TypeError, AttributeError):
             die("--rows %s is not a readable rows document" % path)
-    sys.stdout.write(json.dumps(parse(text, args.tiles.split() if args.tiles is not None else None, labels, states=states), ensure_ascii=False, indent=2)
+    sys.stdout.write(json.dumps(parse(text, args.tiles.split() if args.tiles is not None else None, labels, states=states, alt_tiles=alt_tiles), ensure_ascii=False, indent=2)
                      + "\n")
     return 0
 
