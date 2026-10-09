@@ -1471,5 +1471,79 @@ if [[ $rc_s == 0 && $rc_a == 0 ]] && grep -qF "alt=\"$PCT · B\"" "$TMP/pr/spec/
   ok "a '%' in a states or alternatives row title builds and reaches the alt text literally"
 else fail "percent in title: states rc $rc_s, alternatives rc $rc_a, $(tail -1 "$TMP/pr/pctstates.sb") / $(tail -1 "$TMP/pr/pctalts.sb")"; fi
 
+# -- BL-719 gallery_items.py low-severity findings ------------------------------
+echo "== BL-719: gallery_items edges =="
+mkdir -p "$TMP/b719"
+AF=actual/light-desktop/audit-empty.png; AN=actual/light-desktop/audit-new-state.png
+CAPS="\"captures\":{\"a\":\"$AF\",\"b\":\"$AN\"}"
+STS="\"states\":[{\"id\":\"a\",\"label\":\"A\",\"capture\":\"$AF\"},{\"id\":\"b\",\"label\":\"B\",\"capture\":\"$AN\"}]"
+ROWH="\"cell\":\"card\",\"variant\":\"light-desktop\",\"look\":\"x\""
+# D-c06: a notApplicable row's unvalidated variant is never hashed
+printf '{%s,"rows":[{"cell":"card","notApplicable":"no such state","variant":["x"]}]}' "$V" > "$TMP/b719/na.json"
+bash "$GEN" "$TMP/b719/na.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/b719/na.out" 2> "$TMP/b719/na.err"; rc=$?
+[[ $rc == 0 ]] && ! grep -q Traceback "$TMP/b719/na.err" \
+  && ok "BL-719 D-c06 a notApplicable row with a list variant builds, no traceback" \
+  || fail "BL-719 D-c06: exit $rc $(tail -2 "$TMP/b719/na.err")"
+# D-c10: a label with a line break pastes as two lines
+refuse "BL-719 D-c10 an alternative label with a line break" \
+  "{$V,\"alternatives\":[{\"id\":\"a\",\"label\":\"Compact\\nlayout\"},{\"id\":\"b\",\"label\":\"B\"}],\"rows\":[{$ROWH,\"kind\":\"alternatives\",$CAPS}]}" "line break"
+refuse "BL-719 D-c11 an alternative label ending in [provisional]" \
+  "{$V,\"alternatives\":[{\"id\":\"a\",\"label\":\"Draft [provisional]\"},{\"id\":\"b\",\"label\":\"B\"}],\"rows\":[{$ROWH,\"kind\":\"alternatives\",$CAPS}]}" "provisional"
+refuse "BL-719 D-c11 a state label ending in [provisional]" \
+  "{$V,\"rows\":[{$ROWH,\"kind\":\"states\",\"states\":[{\"id\":\"a\",\"label\":\"A [provisional]\",\"capture\":\"$AF\"},{\"id\":\"b\",\"label\":\"B\",\"capture\":\"$AN\"}]}]}" "provisional"
+refuse "BL-719 D-c10 a state label with a line break" \
+  "{$V,\"rows\":[{$ROWH,\"kind\":\"states\",\"states\":[{\"id\":\"a\",\"label\":\"A\\nB\",\"capture\":\"$AF\"},{\"id\":\"b\",\"label\":\"B\",\"capture\":\"$AN\"}]}]}" "line break"
+# D-c13: before/after/highlight_before are ignored by an alternatives row, so they are refused
+for k in '"before":"shots/light-desktop/audit-empty.png"' '"after":"'$AF'"'; do
+  refuse "BL-719 D-c13 alternatives row with ${k%%:*}" \
+    "{$V,\"alternatives\":[{\"id\":\"a\",\"label\":\"A\"},{\"id\":\"b\",\"label\":\"B\"}],\"rows\":[{$ROWH,\"kind\":\"alternatives\",$CAPS,$k}]}" "alternatives row takes no"
+done
+# D-c18: an answer on a states row would sit beside its still-visible checkboxes
+refuse "BL-719 D-c18 answer on a states row" \
+  "{$V,\"rows\":[{$ROWH,\"kind\":\"states\",$STS,\"decided\":\"ok\",\"answer\":\"done\"}]}" "alternatives or states row"
+# D-c12: float regions: the crop covers the drawn box, so a changed column at x=30 is seen
+mkdir -p "$ROOT/shots/fl"
+python3 "$SKILL/tests/png_fixture.py" "$ROOT/shots/fl/a.png" 100 20
+python3 "$SKILL/tests/png_fixture.py" "$ROOT/shots/fl/b.png" 100 20 128 30,0,2,10,200
+HL='"highlight":{"x":10.9,"y":0,"w":20.9,"h":10}'
+printf '{%s,"rows":[{"cell":"uno","variant":"light-desktop","kind":"review","look":"x",%s,"after":"shots/fl/a.png"},{"cell":"dos","variant":"light-desktop","kind":"review","look":"x",%s,"after":"shots/fl/b.png"}]}' "$V" "$HL" "$HL" > "$TMP/b719/fl.json"
+bash "$GEN" "$TMP/b719/fl.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/b719/fl.out" 2> "$TMP/b719/fl.err"; rc=$?
+[[ $rc == 0 ]] && ok "BL-719 D-c12 rows whose float regions differ inside the box past the truncated width are not redundant" \
+  || fail "BL-719 D-c12: exit $rc $(cat "$TMP/b719/fl.err")"
+# D-c12 (review): sub-pixel differences are the SAME place; identical float boxes are redundant
+flr() {  # flr <label> <highlight json a> <highlight json b>
+  printf '{%s,"rows":[{"cell":"uno","variant":"light-desktop","kind":"review","look":"x",%s,"after":"shots/fl/a.png"},{"cell":"dos","variant":"light-desktop","kind":"review","look":"x",%s,"after":"shots/fl/a2.png"}]}' "$V" "$2" "$3" > "$TMP/b719/flr.json"
+  bash "$GEN" "$TMP/b719/flr.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/b719/flr.out" 2> "$TMP/b719/flr.err"; rc=$?
+  [[ $rc == 2 ]] && grep -q "pixel-identical" "$TMP/b719/flr.err" && ok "$1" || fail "$1: exit $rc $(cat "$TMP/b719/flr.err")"
+}
+python3 "$SKILL/tests/png_fixture.py" "$ROOT/shots/fl/a2.png" 100 20
+printf '{"r":{"x":10.5,"y":0,"w":20,"h":10}}' > "$ROOT/shots/fl/a.regions.json"
+printf '{"r":{"x":10,"y":0,"w":20,"h":10}}' > "$ROOT/shots/fl/a2.regions.json"
+flr "BL-719 D-c12 a half-pixel x shift on two boxes of one @name is still redundant" '"highlight":"@r"' '"highlight":"@r"'
+rm -f "$ROOT/shots/fl/a.regions.json" "$ROOT/shots/fl/a2.regions.json"
+flr "BL-719 D-c12 two identical float boxes on identical captures are redundant" "$HL" "$HL"
+# D-c06 (heading half): a notApplicable row's variant does not make the cell multi-variant
+printf '{"gallery":"audit","variants":["light-desktop","dark-desktop"],"rows":[{%s,"kind":"review","after":"%s","decided":"ok"},{"cell":"card","notApplicable":"x","variant":"dark-desktop"}]}' "$ROWH" "$AF" > "$TMP/b719/hd.json"
+bash "$GEN" "$TMP/b719/hd.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/b719/hd.out" 2> "$TMP/b719/hd.err"; rc=$?
+hd=$(grep -o 'data-heading="[^"]*"' "$TMP/b719/hd.out" | sed -n 1p)
+[[ $rc == 0 && "$hd" != *esktop* && "$hd" != *scuro* && "$hd" != *laro* ]] \
+  && ok "BL-719 D-c06 a decided row's heading carries no variant words because of a notApplicable row's variant ($hd)" \
+  || fail "BL-719 D-c06 heading: exit $rc $hd $(cat "$TMP/b719/hd.err")"
+# D-c14: a copy truncated by an interrupted build is replaced on the next build
+rm -rf "$TMP/b719/p-assets"
+printf '{%s,"rows":[{%s,"kind":"review","after":"%s"}]}' "$V" "$ROWH" "$AF" > "$TMP/b719/cp.json"
+g719() { bash "$GEN" "$TMP/b719/cp.json" --root "$ROOT" --page "$TMP/b719/p.html" --group-id E --group-title T > /dev/null 2>&1; }
+g719; cpf=$(ls "$TMP/b719/p-assets/gallery/"*.png | sed -n 1p)
+head -c 40 "$cpf" > "$cpf.part" && mv "$cpf.part" "$cpf"
+g719
+cmp -s "$cpf" "$ROOT/$AF" && ok "BL-719 D-c14 a truncated asset copy is rewritten by the next build" \
+  || fail "BL-719 D-c14: the truncated copy stayed ($(wc -c < "$cpf") bytes)"
+# D-c17: a block whose every row is decided carries no instruction to mark answers
+printf '{%s,"rows":[{%s,"kind":"review","after":"%s","decided":"ok"}]}' "$V" "$ROWH" "$AF" > "$TMP/b719/dec.json"
+bash "$GEN" "$TMP/b719/dec.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/b719/dec.out" 2> "$TMP/b719/dec.err"; rc=$?
+[[ $rc == 0 ]] && ! grep -q 'Marca tu respuesta' "$TMP/b719/dec.out" \
+  && ok "BL-719 D-c17 an all-decided block has no 'Marca tu respuesta' intro" \
+  || fail "BL-719 D-c17: exit $rc $(grep -o 'Marca tu respuesta[^<]*' "$TMP/b719/dec.out")"
+
 if (( failures )); then echo "$failures failure(s)"; exit 1; fi
 echo "ok: the gallery unit — generator, refusals, wrapped page and every RED control"

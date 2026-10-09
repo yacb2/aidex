@@ -253,7 +253,7 @@ rule reads as a heading missing from the index.
 ```
 
 The `#id` is REQUIRED, for the rail and for nothing else: it is not a `data-id`, no
-reply names it and the composer never reads it. `heading` is required, `eyebrow` is
+reply names it and the composer reads only one: a section whose `#id` is `sec-ledger` is where it places the Decided section (after it; with none, after the header), so name the ledger section anything else and the Decided section lands before it. `heading` is required, `eyebrow` is
 optional, and a `section` may only appear at the document's top level — a section
 inside a section has no rail entry and no meaning. What it may contain is what the
 `PARENTS` table already allows anywhere: prose, `ledger`, `note`, `callout`,
@@ -705,7 +705,7 @@ These things of the grammar are worth stating here:
   (and `--check`), with a message naming the cell. Not-applicable and dropped rows are exempt.
 - **`answer`** (BL-629) on a `decided` row is the reply to the owner's note on it: the row folds,
   keeps its id, has no radios, and the fold's summary shows the text. Refused on a row without
-  `decided`, blank, or on a dropped, not-applicable or alternatives row.
+  `decided`, blank, or on a dropped, not-applicable, alternatives or states row.
 - **`dropped="<reason>"`** on an `item` (and `"dropped"` on a row) takes it out of the question
   set: its id stays, it folds like a decided item and reads `Descartada: <reason>` /
   `Dropped: <reason>`. An empty reason, or `dropped` together with `decided`, is refused.
@@ -782,6 +782,10 @@ Closed vocabularies the builder refuses outside of (M1):
 
 - `free=` and `proposal=` take `yes` or `true`; anything else (`YES`, `1`, `maybe`) is refused.
 - `decided=` is `yes`/`true`/`1` (the flag) or the verdict as text. `no`, `false` and `0` are refused as a verdict (they read as "not decided"): leave `decided` off. Exception: the text is, to the letter, one of the item's option labels (`decide --verdict No` on an option `No`), or the item has no options.
+- The flag is read case-insensitively and without markdown marks (`YES`, `**True**`, `1`), by the builder and by `spec_verbs.py`: `new-round` files such an item in the ledger as the bare title, not `Title (YES)`.
+- `spec_verbs.py decide` on a `select=many` item records the labels in the options' own order, whatever order the verdict named them in; the same set in another order is already recorded (byte-identical, no new round stamp).
+- A `verdict` block holding a header and a separator but no cell row is refused (`one row per cell`), not built as an empty box.
+- `spec_build.py --new-round` needs `-o <out.html>`, like `--check`; without it the flag is refused instead of ignored.
 - Item ids that differ only by case (`Q1`, `q1`) are refused; other blocks only collide on the exact id.
 - An option's hint is separated by ` — `; a spaced ` - ` or ` -- ` is refused.
 - A `pill`/`chip` tone is one of `md_body.SPAN_TONES`; a malformed or unknown tone is refused.

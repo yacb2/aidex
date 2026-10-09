@@ -69,7 +69,7 @@ round, including a delegated `--building` build's, omit it): it fails, naming
 duty FIRST, then run the verbs: any rebuild after `save-reply.sh` opens the round,
 a verb's included, so when a verb (`decide`, `new-round`) is the first rebuild, no
 `--new-round` follows it (it would refuse: the round is already open). A `[show-me]` duty is
-fulfilled by a `diagram` block (`tree`, `compare`) in the page brief, or by launching
+fulfilled by a `diagram` block (`tree`, `compare`) in the page brief, or, where the install has those agents (they are the owner's, not shipped in this plugin's `agents/`), by launching
 `figure-sonnet` (wireframes only) or `verify-browser-opus` BEFORE the page brief, never by writing more prose. `check-artifact --prev` then FAILS a wrap
 that does not carry out a printed duty — no bypass
 (`references/02-local-first-artifacts.md` § "The reply is saved before the
@@ -79,7 +79,7 @@ A consultation brief carries, per item, a situation lead written by the main ses
 (a named role, screen, action, what happens today; for a question about work, what the
 thing is, why it exists and where it stands, with no term the page does not explain),
 options stated as what that person sees or can do, ids only on a trailing `Fuente:` line, and a "decidido, corrígeme si
-no" block for reversible decisions that carry a recommendation. `artifact-sonnet` lays
+no" block for reversible decisions that carry a recommendation. `artifact-sonnet` (the owner's agent, not shipped; without it the main session does this) lays
 that out; the contract is `references/02-local-first-artifacts.md` § 8 (BL-503).
 
 Per-project design tokens live in `.context/profiles/artifact.md` (template:

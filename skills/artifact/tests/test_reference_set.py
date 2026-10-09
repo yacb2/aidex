@@ -93,6 +93,60 @@ try:
     check("the error names the entry", "gamma" in r.stderr, r.stderr)
     check("no page is built from a partial set",
           not os.path.exists(os.path.join(bad_out, "reference-set.html")))
+    print("== B-c10: a headerless manifest keeps its first row ==")
+    hl = os.path.join(tmp, "hl")
+    shutil.copytree(FIXTURE, hl)
+    with open(os.path.join(hl, "set.tsv"), "w", encoding="utf-8") as fh:
+        fh.write("alfa\tpipeline\tx\nbeta\twireframe\tx\n")
+    r = run(hl, os.path.join(tmp, "hl-out"))
+    hh = open(os.path.join(tmp, "hl-out", "reference-set.html"),
+              encoding="utf-8").read() if r.returncode == 0 else ""
+    check("both rows of a headerless manifest are sections",
+          'id="s-alfa"' in hh and 'id="s-beta"' in hh, r.stdout + r.stderr)
+
+    print("== B-c21: an id the page cannot hold is refused at the manifest ==")
+    for bad_id in ("1x", "_x", "-x"):
+        dig = os.path.join(tmp, "dig" + bad_id)
+        shutil.copytree(FIXTURE, dig)
+        with open(os.path.join(dig, "set.tsv"), "a", encoding="utf-8") as fh:
+            fh.write("%s\ttree\tx\n" % bad_id)
+        r = run(dig, os.path.join(tmp, "dig-out" + bad_id))
+        check("id %r is refused by the manifest reader, naming the row" % bad_id,
+              r.returncode != 0 and "reference-set: bad manifest row" in r.stderr
+              and bad_id in r.stderr, r.stderr)
+
+    print("== B-c05: kind is escaped, an engine body that breaks the block is refused ==")
+    for kind, shown in (('say "hi"', "say &quot;hi&quot;"), ("a\\\\b", "a\\\\b")):
+        quo = os.path.join(tmp, "quo%d" % len(kind))
+        shutil.copytree(FIXTURE, quo)
+        shutil.copytree(os.path.join(quo, "beta"), os.path.join(quo, "beta2"))
+        with open(os.path.join(quo, "set.tsv"), "a", encoding="utf-8") as fh:
+            fh.write("beta2\t%s\tx\n" % kind)
+        qo = os.path.join(tmp, "quo-out%d" % len(kind))
+        r = run(quo, qo)
+        qp = os.path.join(qo, "reference-set.html")
+        qh = open(qp, encoding="utf-8").read() if os.path.isfile(qp) else ""
+        check("kind %r builds and the heading shows it" % kind,
+              r.returncode == 0 and "beta2 (%s)" % shown in qh, r.stderr[-300:])
+
+    for i, line in enumerate((":::", "::::", ":::   ", "```", "~~~ text", "  ```py")):
+        fen = os.path.join(tmp, "fen%d" % i)
+        shutil.copytree(FIXTURE, fen)
+        with open(os.path.join(fen, "alfa", "engine.diagram"), "a",
+                  encoding="utf-8") as fh:
+            fh.write("\n%s\n" % line)
+        r = run(fen, os.path.join(tmp, "fen-out%d" % i))
+        check("engine body line %r is refused, naming engine.diagram" % line,
+              r.returncode != 0 and "reference-set:" in r.stderr
+              and "engine.diagram" in r.stderr, r.stderr)
+
+    print("== B-c10: a manifest saved with a UTF-8 BOM still has its header ==")
+    bom = os.path.join(tmp, "bom")
+    shutil.copytree(FIXTURE, bom)
+    with open(os.path.join(bom, "set.tsv"), "w", encoding="utf-8-sig") as fh:
+        fh.write("id\tkind\tsource\nalfa\tpipeline\tx\nbeta\twireframe\tx\n")
+    r = run(bom, os.path.join(tmp, "bom-out"))
+    check("a BOM manifest builds", r.returncode == 0, r.stderr[-300:])
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

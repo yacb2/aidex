@@ -326,13 +326,20 @@ settled_pick = new_round(decide(two, "Q2", "No, un atributo nuevo", PICK), answe
 check("...and once the writer decides it, the item is no longer a proposal and new-round files it",
       "- Q2 \u2014 Marcador de columna (No, un atributo nuevo)" in settled_pick
       and settled_pick.count("proposal=yes") == 1, settled_pick)
-# One reader for "asked about": the duty check reads the union of every saved paste, so a show-me in an
+# One reader for "asked about": the duty check reads the union of the saved pastes a later full paste does not supersede, so a show-me in an
 # earlier paste keeps the proposal open even when the last paste holds only a note (and they agree).
+# A later FULL composer paste of the same round supersedes it (A-c03, BL-598): there the show-me is withdrawn.
 TWO_SAVES = ("## G1 \u00b7 Formato del spec\n\n" + H2 + "- [show-me]\n\n<!-- reply saved 2026-10-07 page:abc same-round -->\n\n"
-             "## G1 \u00b7 Formato del spec\n\n" + H2 + "vale\n")
+             + H2 + "vale\n")
 check("a show-me in an earlier saved paste keeps the proposal open and the duty is owed (both agree)",
       new_round(two, answered_html=SNAP, reply=TWO_SAVES).count("proposal=yes") == 2
       and any(i == "Q2" for i, _ in check_artifact.marker_duties_of(TWO_SAVES)))
+FULL_SECOND = (TWO_SAVES.split("<!--")[0] + "<!-- reply saved 2026-10-07 page:abc same-round -->\n\n"
+               "## G1 \u00b7 Formato del spec\n\n### Q1 \u00b7 Otro\n\nvale\n")
+check("a later full paste in the same round withdraws the earlier show-me: no duty and the proposal folds, both agree (A-c03)",
+      not any(i == "Q2" for i, _ in check_artifact.marker_duties_of(FULL_SECOND))
+      and new_round(two, answered_html=SNAP, reply=FULL_SECOND).count("proposal=yes") == 1,
+      new_round(two, answered_html=SNAP, reply=FULL_SECOND))
 check("a page-defect sub-block alone (the composer's shape) is no reason to keep a proposal open",
       new_round(two, answered_html=SNAP,
                 reply="## G1 \u00b7 Formato del spec\n\n" + H2 + "#### Fallo de la p\u00e1gina\n\nel texto se corta\n").count("proposal=yes") == 1)
@@ -414,6 +421,12 @@ REVERT = ("## G1 \u00b7 Formato del spec\n\n" + H2 + "- No, un atributo nuevo\n"
 check("a same-round full paste without the proposal supersedes the earlier pick: no guard, and it expires",
       spec_verbs._bare_picks(two, REVERT, {"Q2"}) == []
       and new_round(two, answered_html=SNAP, reply=REVERT).count("proposal=yes") == 1)
+# B-s22: a bare `- [word]` line is an ask only when the word is a KNOWN marker, as check_artifact reads it
+# (`[debug]` is content, not an ask); _reply_answer used to count any lowercase word.
+for word, want in (("debug", False), ("question", True), ("provisional", True), ("page-defect", False)):
+    got = spec_verbs._reply_answer("Q1: vale\n- [%s]\n" % word, "Q1", ["Q1", "Q2"], ["vale"])
+    check("B-s22: a bare `- [%s]` line %s a marked answer" % (word, "makes" if want else "does not make"),
+          got is not None and got[3] is want, repr(got))
 # decide after new-round must move the ledger row's verdict as well.
 settled = new_round(decide(PAGE, "Q1", "Fences de Pandoc"))
 redecided = decide(settled, "Q1", "YAML anidado")
@@ -1633,6 +1646,179 @@ Contexto dos.
           is not None, r.stdout + r.stderr)
     check("...leaving the page and the spec as they were",
           read(he_page) == edited and read(he) == he_spec)
+
+    # --- BL-721: ten low-severity findings of the K5 review ------------------
+    print()
+    print("== BL-721: refusals and rollbacks that did not hold ==")
+    # B-c01: a masthead lang= the builder refuses is a refusal, not a traceback.
+    frp = fresh("lang-fr", PAGE.replace("::: masthead {", "::: masthead {lang=fr ", 1),
+                build=False)
+    fr_before = read(frp, "rb")
+    r = run("decide", frp, "--id", "Q1", "--verdict", V)
+    check("B-c01: a masthead lang=fr exits 1 with a one-line refusal, no traceback",
+          r.returncode == 1 and "Traceback" not in r.stderr
+          and "is not one of" in r.stderr and read(frp, "rb") == fr_before,
+          r.stdout + r.stderr)
+
+    # B-c03: `1` and `YES` are the flag for the builder; the ledger row must not
+    # carry them as verdict text (the 'yes'/'true' pair was the only one it knew).
+    for flag in ("1", "YES", "True"):
+        flagged = PAGE.replace('{#Q1   title="Fences o YAML"    }',
+                               '{#Q1 title="Fences o YAML" decided="%s"}' % flag)
+        check("B-c03: new-round files decided=%s as the bare title, not 'Title (%s)'"
+              % (flag, flag),
+              "\n- Q1 \u2014 Fences o YAML\n" in new_round(flagged) + "\n"
+              and "(%s)" % flag not in new_round(flagged), new_round(flagged))
+
+    # B-c04: a plain fence line in a CRLF spec keeps its terminator.
+    plain_mast = PAGE.replace('::: masthead {eyebrow="Fixture \u00b7 spec verbs" byline='
+                              '"Fuente: `tests/test_verbs.py`" visual="none: la decisi\u00f3n es de '
+                              'formato y no tiene forma que dibujar"}', "::: masthead", 1)
+    crlf_dropped = new_round(plain_mast.replace("\n", "\r\n"), dropped=["Q9"])
+    check("B-c04: new-round --dropped on a bare masthead of a CRLF spec leaves no "
+          "CR mid-line and no LF-only line",
+          plain_mast != PAGE and 'dropped-ids="Q9"' in crlf_dropped
+          and "\r {" not in crlf_dropped and not lf_only(crlf_dropped), repr(crlf_dropped[:120]))
+
+    # B-c19: select=many is a set; the same set in another order is the same verdict.
+    MANYC = PAGE.replace('{#Q1   title="Fences o YAML"    }',
+                         '{#Q1 title="F" select=many decided="Alfa, Beta"}').replace(
+        "- Fences de Pandoc \u2014 prosa con marcas m\u00ednimas {recommended}\n"
+        "- YAML anidado \u2014 estructura expl\u00edcita",
+        "- Alfa {chosen}\n- Beta {chosen}\n- Gamma")
+    def decided_or_refusal(text, verdict):
+        try:
+            return decide(text, "Q1", verdict)
+        except VerbError as exc:
+            return str(exc)
+    check("B-c19: deciding 'Beta, Alfa' over {chosen} Alfa+Beta is the recorded set: "
+          "byte-identical, not refused", decided_or_refusal(MANYC, "Beta, Alfa") == MANYC)
+    MANYU = MANYC.replace(" {chosen}", "")
+    check("B-c19: ...and without {chosen} it does not rewrite the value either",
+          decided_or_refusal(MANYU, "Beta, Alfa") == MANYU)
+
+    # B-c14: a rebuild that fails after a green trial rolls the spec back, and says so
+    # when it could not.
+    def broken_rebuild(label, patch_main, patch_write=None):
+        rp = fresh(label)
+        before = read(rp, "rb")
+        real_main, real_write = spec_verbs.spec_build.main, spec_verbs._write
+        # only the REAL rebuild breaks; the green trial build before it must pass
+        spec_verbs.spec_build.main = (
+            lambda argv: real_main(argv) if os.environ.get("AIDEX_TRIAL_BUILD")
+            else patch_main(argv))
+        if patch_write:
+            spec_verbs._write = patch_write(real_write, before.decode("utf-8"))
+        try:
+            spec_verbs.decide_many_file(rp, [("Q1", V)])
+            return rp, before, None
+        except Exception as exc:                         # noqa: BLE001
+            return rp, before, exc
+        finally:
+            spec_verbs.spec_build.main = real_main
+            spec_verbs._write = real_write
+
+    def main_raises(argv):
+        raise OSError("gallery copy failed")
+    rp, before, exc = broken_rebuild("rb-raise", main_raises)
+    check("B-c14: spec_build.main raising is a BuildFailed and the spec is rolled back",
+          isinstance(exc, spec_verbs.BuildFailed) and read(rp, "rb") == before
+          and "gallery copy failed" in str(exc), repr(exc))
+
+    def write_fails_rollback(real_write, old_text):
+        def w(path, text):
+            if text == old_text:                 # only the rollback writes the old bytes
+                raise VerbError("cannot write %s: disk full" % path)
+            return real_write(path, text)
+        return w
+    rp, before, exc = broken_rebuild("rb-nowrite", lambda argv: 1, write_fails_rollback)
+    check("B-c14: a failed rollback write says the spec was NOT rolled back",
+          isinstance(exc, spec_verbs.BuildFailed) and "NOT rolled back" in str(exc)
+          and read(rp, "rb") != before, repr(exc))
+
+    # B-c26: two verbs at once on one spec lose an update unless they queue.
+    import threading
+    import time
+    lk = fresh("lock")
+    box = {}
+    a_read = threading.Event()
+
+    def slow_transform(text):
+        a_read.set()                 # verb A has read the spec ...
+        time.sleep(1.5)              # ... and takes its time, as a trial build does
+        return decide(text, "Q1", V)
+
+    def run_verb(name, transform):
+        try:
+            spec_verbs.apply_edit(lk, transform, needs_page=(name == "a"))
+        except Exception as exc:                         # noqa: BLE001
+            box[name] = exc
+    verb_a = threading.Thread(target=run_verb, args=("a", slow_transform))
+    verb_b = threading.Thread(target=run_verb, args=("b", lambda text: add_item(
+        text, "G1", "Q3", "Otra sesion", body="?", options=["Uno", "Dos"])))
+    verb_a.start()
+    a_read.wait(60)
+    verb_b.start()                   # the second session starts while A is mid-cycle
+    verb_a.join(300)
+    verb_b.join(300)
+    locked = read(lk)
+    check("B-c26: two verbs at once on one spec queue: both the verdict and the new "
+          "item survive",
+          not box and "#Q3" in locked and 'decided="Fences de Pandoc"' in locked,
+          "%r\n%s" % (box, locked))
+
+    # B-c26, the hole in a file lock: verb A WRITES (the path is now a new inode),
+    # then its rebuild fails and rolls back. A verb C that starts once A has written
+    # must still queue, or A's rollback erases C's edit.
+    lk2 = fresh("lock-rb")
+    box2 = {}
+    done_c = threading.Event()
+    real_main = spec_verbs.spec_build.main
+    ino0 = os.stat(lk2).st_ino
+
+    def failing_slow_rebuild(argv):
+        if os.environ.get("AIDEX_TRIAL_BUILD"):
+            return real_main(argv)
+        if box2.get("a_rebuilt"):       # only A's rebuild fails; C's is real
+            return real_main(argv)
+        box2["a_rebuilt"] = True
+        time.sleep(2.5)                 # A's real rebuild: slow, then fails
+        return 1
+
+    def verb_a2():
+        try:
+            spec_verbs.decide_many_file(lk2, [("Q1", V)])
+        except spec_verbs.BuildFailed:
+            pass                        # expected: the rollback runs
+        except Exception as exc:        # noqa: BLE001
+            box2["a"] = exc
+
+    def verb_c2():
+        try:
+            spec_verbs.apply_edit(lk2, lambda text: add_item(
+                text, "G1", "Q3", "Otra sesion", body="?", options=["Uno", "Dos"]))
+        except Exception as exc:        # noqa: BLE001
+            box2["c"] = exc
+        done_c.set()
+    spec_verbs.spec_build.main = failing_slow_rebuild
+    try:
+        ta = threading.Thread(target=verb_a2)
+        ta.start()
+        t_end = time.time() + 120
+        while os.stat(lk2).st_ino == ino0 and time.time() < t_end:
+            time.sleep(0.02)            # A has written: the spec is a new inode
+        tc = threading.Thread(target=verb_c2)
+        tc.start()
+        c_early = done_c.wait(1.0) and ta.is_alive()
+        ta.join(300)
+        tc.join(300)
+    finally:
+        spec_verbs.spec_build.main = real_main
+    check("B-c26: a verb started after A has written still waits for A's rollback "
+          "and keeps its own edit",
+          not (set(box2) - {"a_rebuilt"}) and not c_early and "#Q3" in read(lk2) and 'decided=' not in
+          read(lk2).split("#Q1", 1)[1].split("\n", 1)[0],
+          "%r c_early=%s" % (box2, c_early))
 
 finally:
     shutil.rmtree(tmp, ignore_errors=True)

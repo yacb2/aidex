@@ -69,5 +69,13 @@ bad = {k: m.parse_tokens(k) for k, v in cases.items() if m.parse_tokens(k) != v}
 sys.exit(1 if bad else 0)
 EOF
 
+# ---------- (6) an escaped pipe is not a cell boundary (BL-734 u4) ----------
+python3 - "$SCRIPT" <<'EOF2' || fail "(6) md_tables split on an escaped pipe"
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("cs", sys.argv[1]); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+t = m.md_tables("## Skills\n| Skill | Source | Tokens |\n|---|---|---|\n| a\\|b | user | 12 |\n")
+sys.exit(0 if t == {"Skills": [{"Skill": "a|b", "Source": "user", "Tokens": "12"}]} else 1)
+EOF2
+
 if (( failures )); then echo "$failures failure(s)"; exit 1; fi
 echo "OK: context-snapshot — 5 invariants, 2 fixtures, $(grep -c '^| ' "$FX/context.md") /context rows"

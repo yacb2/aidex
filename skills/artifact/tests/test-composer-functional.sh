@@ -1384,6 +1384,12 @@ t="$(run 'phase=verify')"
 [[ "$t" == *"NOTE="*"1 se dejaron en blanco porque su pregunta cambió"* ]] \
   || fail "BL-190: the banner does not report how many were NOT restored, and why: $t"
 
+# C-c22: the banner reports the drop ONCE. The stale entry used to stay in the store, so every later
+# reload of the same page repeated "se dejaron en blanco" until the reader typed.
+t2="$(run 'phase=verify')"
+[[ "$t2" == *"CE=typed-into-contenteditable-789"* && "$t2" != *"se dejaron en blanco"* ]] \
+  || fail "C-c22: the 'left blank because the question changed' banner came back on a second reload of the same page (the stale entry must leave the store; Q2 must still restore): $t2"
+
 # Restore the page to v1 so the phases below run against the body they expect.
 write_body "$Q1_V1"
 wrap_page
@@ -2847,13 +2853,32 @@ window.addEventListener('load', function () {
       r5.checked = true; r5.dispatchEvent(new Event('change', { bubbles: true }));
       var withMarks = paste();
       document.body.setAttribute('data-paste', enc(withMarks));
+      /* C-c07: a mark whose tile name carries a quote must not make the row's "open this mark" button
+         throw (the tile went unescaped into a CSS attribute selector). The list is redrawn from the box by
+         saving one more mark; nothing opens for the odd tile, which is not on the page. */
+      var badTile = 'quiet', onBad = function () { badTile = 'threw'; };
+      var keepVal = chan.value;
+      chan.value = keepVal + '\n[mark a"b 1.0,1.0 5.0x5.0] odd';
+      fig('audit-with-data', 'light-desktop').click();
+      drag(300, 150, 380, 190);
+      note('zz', 'save');
+      dlg.querySelector('.kit-zoom-close').click();
+      var goOk = [].filter.call(document.querySelectorAll('[data-id="audit-with-data"] .kit-marks-tile-name'), function (n) { return n.textContent === 'light-desktop'; })[0];
+      if (goOk) goOk.closest('button').click();
+      var okOpen = (dlg.open && dlg.querySelector('.kit-mark.hot')) ? 'opened' : 'closed';
+      var goBad = [].filter.call(document.querySelectorAll('[data-id="audit-with-data"] .kit-marks-tile-name'), function (n) { return n.textContent === 'a"b'; })[0];
+      if (!goBad) badTile = 'nobutton';
+      else { window.addEventListener('error', onBad); goBad.closest('button').click(); window.removeEventListener('error', onBad); }
+      dlg.querySelector('.kit-zoom-close').click();
+      chan.value = keepVal;   /* the store carries on to the recall phase */
+      chan.dispatchEvent(new Event('input', { bubbles: true }));
       document.title = 'GMARKS|CHAN=' + chanState
         + '|PLAIN=' + plain.replace(/[|<>\n]/g, ' ')
         + '|SUB=' + sub + '|NOTEOPEN=' + noteOpen + '|SAVED=' + saved1
         + '|ONE=' + one.replace(/[|<>\n]/g, ' ')
         + '|THREE=' + three + '|EDIT=' + editOpen + '|DEL=' + afterDel + '|CANCEL=' + afterCancel
         + '|DLG=' + inDlg2 + '|FOCUSIN=' + focusIn + '|WALKED=' + walked
-        + '|LYCMP=' + lyDisp + '|CMPDRAW=' + cmpDraw + '|TILE=' + tileN
+        + '|LYCMP=' + lyDisp + '|CMPDRAW=' + cmpDraw + '|TILE=' + tileN + '|BADTILE=' + badTile + '|OKTILE=' + okOpen
         + '|PASTE=' + withMarks.replace(/[|<>\n]/g, ' ');
     }
   } else if (q.indexOf('phase=gun') !== -1) {
@@ -3092,6 +3117,10 @@ mrun() {  # mrun <page> <query>
 rm -rf "$TMP/profile"
 tg="$(mrun "$GPAGE_M" 'phase=gmarks')"
 [[ "$tg" == *GMARKS* ]] || fail "the marks phase did not run: $tg"
+[[ "$tg" == *"|OKTILE=opened|"* ]] \
+  || fail "C-c07: the open button of a mark on a real tile must still open the zoom dialog with that mark highlighted (want OKTILE=opened): $tg"
+[[ "$tg" == *"|BADTILE=quiet|"* ]] \
+  || fail "C-c07: opening a mark whose tile name carries a quote threw in the click handler (the tile must not be put into a CSS selector): $tg"
 [[ "$tg" == *"CHAN=hidden"* ]] \
   || fail "the composer did not give the tiled row one hidden kit-marks textarea: $tg"
 [[ "$tg" == *"PLAIN=## E · The matrix  ### audit-with-data · audit · with-data  - Approved  la fila se ve bien|"* ]] \
@@ -3699,7 +3728,7 @@ pnn="${tm#*PASTENN=}"; pnn="${pnn%%|ENDNN*}"
 # wrapped: the source checks refuse these shapes, and this cell is about the
 # composer's answer to them. Two pages, with and without a rail, because the
 # two item-id paths are separate code. With a rail, the settled block W5 is
-# moved into the Decided section and gets no id: the fold is its way in (BL-373). Each page loads twice on one profile:
+# moved into the Decided section: no rail entry (BL-373), but it gets its id so a deep link lands (C-c05). Each page loads twice on one profile:
 # ?fill types into W2 so the second load restores it and draws the banner.
 kit="$SKILL/assets/artifact-kit"
 ids_page() {  # ids_page <out> <rail-markup>
@@ -3775,7 +3804,7 @@ ti="$(ids_run "$TMP/reports/ids.html")"
   || fail "group-item-id-collision: the composer gave two elements one id (a block's id, an authored anchor, a nested block's data-id or a kit id taken again): $ti"
 [[ "$ti" == *"|LAND=W1:ok,W4:ok,W2:ok,W3:ok,notes:ok|"* ]] \
   || fail "group-item-id-collision: an item's rail link does not land on the item: $ti"
-[[ "$ti" == *"|IDS=W5=,W1=W1-2,W4=W4-2,W2=W2,W3=W3-2,notes=notes|"* ]] \
+[[ "$ti" == *"|IDS=W5=W5,W1=W1-2,W4=W4-2,W2=W2,W3=W3-2,notes=notes|"* ]] \
   || fail "group-item-id-collision: an item did not get its data-id, or the first free suffix when that was taken: $ti"
 [[ "$ti" == *"$kept"* ]] \
   || fail "group-item-id-collision: an authored holder lost its id, or the kit chrome was not drawn: $ti"
@@ -5125,6 +5154,158 @@ tnp="$(grep -oE '<title>[^<]*</title>' "$NP/dom.html" | sed -n 1p)"
   || fail "BL-732: a proposal with every proposed option unticked must show the hint that 'none of these' goes in the notes, and a proposal with its selection must not (want BEFORE=hidden, EMPTY=<hint naming notas>, UNTOUCHED=hidden): $tnp"
 [[ "$tnp" == *"|HAS=0|"* && "$tnp" != *"### M1"* && "$tnp" == *"### M2"*"zzzother"* ]] \
   || fail "BL-732: an emptied proposal selection is no correction: not answered and nothing of M1 in the reply (want HAS=0, no ### M1): $tnp"
+
+# ---- BL-717 (C-c04, C-c05, C-c06, C-c09, C-c11, C-c14): composer edge cases, one probe page each ----
+# Layer: browser, because ids, the status line, the clipboard fallback and the radio release are the
+# composer's own decisions on a live DOM. A shared page shell; $1 = body of #sec-ask, $2 = probe script,
+# $3 = extra html after the general-notes box (none today).
+p717() {  # p717 <name> <ask-html> <script-body>  -> prints the page title after load
+  local n="$1" d="$TMP/p717-$1"; mkdir -p "$d"
+  {
+    printf '%s\n' '<meta name="consult-visual" content="none: a layout probe, nothing to draw">' \
+      '<div class="page"><main class="main"><header><p class="eyebrow">PROBE</p><h1>Edge</h1></header>' \
+      '<section id="sec-ask"><div class="sec-head"><h2>Questions</h2></div>'
+    printf '%s\n' "$2"
+    printf '%s\n' '<div class="endbar"><button type="button" id="consult-copy-end">Copy</button><span class="consult-status" id="consult-status-end"></span></div>' \
+      '<section class="consult-item consult-notes" data-id="notes" data-title="Notas generales"><h3>Notas generales</h3><textarea></textarea></section>' \
+      '</section></main><aside class="rail"><p class="railhead">Contenido</p><nav class="raillist" id="raillist"></nav>' \
+      '<div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div></aside></div>'
+    printf '<script>window.addEventListener("load", function () {\n%s\n});</script>\n' "$3"
+  } > "$d/body.html"
+  bash "$WRAP" --title "$n" --lang es --out "$TMP/reports/p717-$n.html" < "$d/body.html" > "$d/wrap.log" 2>&1 \
+    || fail "BL-717: the $n probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$d/wrap.log" | sed -n 1,4p)"
+  rm -rf "$TMP/profile"
+  chrome_dump "$d/dom.html" "file://$TMP/reports/p717-$n.html" 45 || true
+  grep -oE '<title>[^<]*</title>' "$d/dom.html" | sed -n 1p
+}
+item717() {  # item717 <id> [extra attrs]: an open item with a free-text box
+  printf '<section class="consult-item" data-id="%s" data-title="Item %s" data-free %s><h3><span class="consult-id">%s</span>Pregunta?</h3>\n<p class="fieldlabel">Notas</p><textarea></textarea></section>\n' "$1" "$1" "${2:-}" "$1"
+}
+grp717() {  # grp717 <id> <items-html> [noid]: a block with its notes box (every item must sit in one); "noid" drops the id attribute and the h2 (the rail rule refuses an h2 outside an id'd section)
+  local idattr="id=\"$1\"" head="<div class=\"sec-head\"><h2>Block $1</h2></div>"
+  [[ -n "${3:-}" ]] && { idattr=""; head=""; }
+  printf '<section class="consult-group" %s data-id="%s" data-title="Block %s">%s<p>Contexto.</p>\n%s\n<div class="group-notes"><p class="fieldlabel">Notas</p><textarea></textarea></div></section>\n' \
+    "$idattr" "$1" "$1" "$head" "$2"
+}
+CLIPSTUB='var cap = "NONE"; Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: function (s) { cap = s; return Promise.resolve(); } } });
+var type = function (el, v) { el.value = v; el.dispatchEvent(new Event("input", { bubbles: true })); };'
+
+# C-c04: a block nested in a block. The outer note used to resolve to the INNER block's box: the outer
+# text was never read and the inner one was pasted twice. spec_build refuses this; the HTML route allows it.
+t="$(p717 nest "<section class=\"consult-group\" id=\"G1\" data-id=\"G1\" data-title=\"Outer\"><div class=\"sec-head\"><h2>Outer</h2></div>
+<section class=\"consult-group\" id=\"G2\" data-id=\"G2\" data-title=\"Inner\"><div class=\"sec-head\"><h2>Inner</h2></div>
+$(item717 Q1)
+<div class=\"group-notes\"><p class=\"fieldlabel\">Notas</p><textarea></textarea></div></section>
+<div class=\"group-notes\"><p class=\"fieldlabel\">Notas</p><textarea></textarea></div></section>" \
+"$CLIPSTUB
+type(document.querySelector('#G2 .consult-item textarea'), 'answerq1');
+var boxes = document.querySelectorAll('.group-notes textarea');
+type(boxes[0], 'innernote'); type(boxes[1], 'outernote');
+document.getElementById('consult-copy').click();
+var n = function (w) { return cap.split(w).length - 1; };
+document.title = 'NEST|INNER=' + n('innernote') + '|OUTER=' + n('outernote') + '|';")"
+[[ "$t" == *"|INNER=1|OUTER=1|"* ]] \
+  || fail "C-c04: with a block nested in a block, each block's note must be pasted once under its own heading (want INNER=1, OUTER=1): $t"
+
+# C-c05: items folded into the decided section never claimed an HTML id when the page has a rail, so
+# page.html#Q1 landed nowhere; without a rail they did. C-c09 (same walk): a block directly under main with a
+# data-id and no id attribute was skipped, so neither it nor its open items got an id or a rail entry.
+t="$(p717 ids "$(grp717 G1 "$(item717 Q1 'data-decided="Option B"')")
+$(grp717 G4 "$(item717 Q2)")
+</section>
+$(grp717 G2 "$(item717 Q3)" noid)
+<section id=\"sec-rest\">" \
+"var id = function (d) { return document.querySelector('[data-id=\"' + d + '\"]').id || '-'; };
+var rail = function (h) { return document.querySelector('#raillist a[href=\"#' + h + '\"]') ? 1 : 0; };
+document.title = 'IDS|Q1=' + id('Q1') + '|Q2=' + id('Q2') + '|G2=' + id('G2') + '|Q3=' + id('Q3')
+  + '|G2T=' + ((document.querySelector('#raillist a[href=\"#G2\"] .rt') || {}).textContent || '-') + '|RAILG2=' + rail('G2') + '|RAILQ3=' + rail('Q3') + '|';")"
+[[ "$t" == *"|Q1=Q1|Q2=Q2|"* ]] \
+  || fail "C-c05: items folded into the decided section must still get their HTML id when the page has a rail (want Q1=Q1): $t"
+[[ "$t" == *"|G2=G2|Q3=Q3|G2T=Block G2|RAILG2=1|RAILQ3=1|"* ]] \
+  || fail "C-c09: a top-level block with data-id and no id attribute must get an id, a rail entry and ids for its items (want G2=G2, Q3=Q3, RAILG2=1, RAILQ3=1, G2T=Block G2): $t"
+
+# C-c06: a paste that carries only the general notes was announced as "0 copiada(s)".
+t="$(p717 notes "$(grp717 G1 "$(item717 Q1)
+$(item717 Q2)")" \
+"$CLIPSTUB
+type(document.querySelector('.consult-notes textarea'), 'solo notas');
+document.getElementById('consult-copy').click();
+var p = Promise.resolve(); for (var i = 0; i < 12; i++) p = p.then(function () {});
+p.then(function () {
+  document.title = 'NOTES|CAP=' + cap.replace(/[|<>\n]/g, ' ') + '|STAT=' + document.getElementById('consult-status').textContent.replace(/[|<>]/g, ' ') + '|';
+});")"
+[[ "$t" == *"CAP="*"solo notas"* && "$t" != *"|STAT=0 copiada"* && "$t" == *"|STAT=notas copiadas"* ]] \
+  || fail "C-c06: a paste carrying only the general notes must not be announced as '0 copiada(s)' (want STAT=notas copiadas ...): $t"
+
+# C-c11: each failed clipboard write appended another fixed textarea, hiding the copy bar and status.
+t="$(p717 fallback "$(grp717 G1 "$(item717 Q1)")" \
+"Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: function () { return Promise.reject(new Error('denied')); } } });
+var type = function (el, v) { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); };
+type(document.querySelector('#raillist') && document.querySelector('.consult-item textarea'), 'respuesta');
+document.getElementById('consult-copy').click();
+document.getElementById('consult-copy').click();
+var p = Promise.resolve(); for (var i = 0; i < 12; i++) p = p.then(function () {});
+var boxes = function () { return [].filter.call(document.body.querySelectorAll('textarea'), function (x) { return getComputedStyle(x).position === 'fixed'; }).length; };
+var two;
+p.then(function () {
+  two = boxes();
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: function () { return Promise.resolve(); } } });
+  document.getElementById('consult-copy').click();
+  var q = Promise.resolve(); for (var i = 0; i < 12; i++) q = q.then(function () {});
+  return q;
+}).then(function () {
+  document.title = 'FB|BOXES=' + two + '|AFTEROK=' + boxes() + '|';
+});")"
+[[ "$t" == *"|BOXES=1|AFTEROK=0|"* ]] \
+  || fail "C-c11: two failed clipboard writes must leave ONE fallback box, not one per press, and a later copy that works must remove it (want BOXES=1, AFTEROK=0): $t"
+
+# C-c14: a press on the checked radio that never becomes a click (released elsewhere) left the release
+# armed, so a later click on that radio (the keyboard) unchecked it at once.
+t="$(p717 radio "$(grp717 G1 '<section class="consult-item" data-id="Q1" data-title="Item Q1"><h3><span class="consult-id">Q1</span>Pregunta?</h3>
+<div class="opts one"><label><input type="radio" name="Q1" data-label="A" checked><span>A</span></label><label><input type="radio" name="Q1" data-label="B"><span>B</span></label></div>
+<p class="fieldlabel">Notas</p><textarea></textarea></section>')" \
+"var a = document.querySelector('input[data-label=\"A\"]');
+a.closest('label').dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+document.body.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+a.click();
+var off = a.checked ? 1 : 0;
+a.checked = true;
+var lab = a.closest('label');
+lab.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 2 }));
+lab.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 2 }));
+a.click();
+var right = a.checked ? 1 : 0;
+a.checked = true;
+lab.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+lab.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+a.click();
+document.title = 'RADIO|A=' + off + '|RIGHT=' + right + '|REL=' + (a.checked ? 1 : 0) + '|';")"
+[[ "$t" == *"|A=1|"* ]] \
+  || fail "C-c14: a press released off the radio (no click) must not leave the next click on it releasing the choice (want A=1): $t"
+[[ "$t" == *"|RIGHT=1|"* ]] \
+  || fail "C-c14: a right-click on the checked radio's label (a menu, no click) must not arm the release (want RIGHT=1): $t"
+[[ "$t" == *"|REL=0|"* ]] \
+  || fail "C-c14: a normal press (mousedown and mouseup on the label, then the click) must still release the choice, BL-268 (want REL=0): $t"
+
+# C-c13: restore() wrapped the whole item loop in one try, so one malformed stored entry (Q2's `a` is a
+# string) aborted the rest and returned n:0 though Q1 was already filled. Layer: browser (the composer reads
+# localStorage on a live DOM). The seed runs inline, BEFORE the composer.
+t="$(p717 c13 "<script>localStorage.setItem('aidex-kit-answers:' + location.pathname, JSON.stringify({ Q1: { a: ['uno'] }, Q2: { a: 'oops' }, Q3: { a: ['tres'] } }));</script>
+$(grp717 G1 "$(item717 Q1)$(item717 Q2)$(item717 Q3)")" \
+"var v = function (id) { return document.querySelector('[data-id=\"' + id + '\"] textarea').value; };
+var note = document.getElementById('consult-restored');
+document.title = 'C13|Q1=' + v('Q1') + '|Q2=' + v('Q2') + '|Q3=' + v('Q3') + '|NOTE=' + (note ? note.textContent.slice(0, 2).trim() : 'none') + '|';")"
+[[ "$t" == *"|Q1=uno|Q2=|Q3=tres|NOTE=2|"* ]] \
+  || fail "C-c13: one malformed stored entry must not stop the other items restoring, and the banner must count the real 2 (want Q1=uno, Q3=tres, NOTE=2): $t"
+
+# C-c13 (group notes): a malformed group-note entry (its `a[0]` is a number) threw inside restore()'s outer try
+# and dropped the whole result to n:0 though Q1 was already filled. Same layer and seeding as the cell above.
+t="$(p717 c13g "<script>localStorage.setItem('aidex-kit-answers:' + location.pathname, JSON.stringify({ Q1: { a: ['uno'] }, 'group:G1': { a: [5] }, 'group:G2': { a: ['nota'] } }));</script>
+$(grp717 G1 "$(item717 Q1)")$(grp717 G2 "$(item717 Q2)")" \
+"var note = document.getElementById('consult-restored');
+document.title = 'C13G|Q1=' + document.querySelector('[data-id=\"Q1\"] textarea').value + '|G2=' + document.querySelector('#G2 .group-notes textarea').value + '|NOTE=' + (note ? note.textContent.slice(0, 2).trim() : 'none') + '|';")"
+[[ "$t" == *"|Q1=uno|G2=nota|NOTE=2|"* ]] \
+  || fail "C-c13: a malformed group-note entry must not drop the items and notes that restore fine (want Q1=uno, G2=nota, NOTE=2): $t"
 
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other, the not-now choice, the multi-select item built from a spec, the ask row and the provisional state, the explicit theme, v4 answer sets, the all-decided page, the half-answered block, the gallery zoom dialog with its keyboard walk, the block filters that never reach the paste, the light/dark compare with its slider kept out of the paste, and the localised chrome included"

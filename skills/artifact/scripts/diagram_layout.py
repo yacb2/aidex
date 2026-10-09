@@ -1981,6 +1981,8 @@ def one_row(shape, boxes, arrows, titles, direction=None):
 
 
 def build(shape, rows):
-    """`parse_body` then `layout`. The one entry point `diagram_svg` calls."""
+    """`parse_body` then `layout`, unguarded: a bare ValueError, not a spec
+    refusal. `spec_build` calls `parse_body` and `drawings` itself behind its own
+    guards; this is the layout tests' shortcut (test_diagram.py `lay`)."""
     boxes, arrows, titles = parse_body(rows, shape)
     return layout(shape, boxes, arrows, titles)

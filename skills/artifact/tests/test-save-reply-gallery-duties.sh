@@ -98,6 +98,46 @@ save "$TMP/alt2" "$ALT2"
   && ok "two note bullets on an unpicked alternatives row (no --rows): no crash, other rows still listed" \
   || fail "alt2: $out"
 
+# U3-1: with no --rows an alternatives row whose first bullet is the kit's
+# "Other" label and whose second is the reader's reason keeps its other-verdict
+# duty (the reason bullet stays in the notes); it must not demote to plain notes.
+for lbl in "Other — see my notes" "Otra — lo explico en las notas"; do
+  save "$TMP/alt3-${lbl%% *}" "### x-alt-light-desktop-alternatives · x · alt · light-desktop
+
+- $lbl
+- the reason I could not pick
+"
+  [[ "$out" != *"nothing owed"* && "$out" == *"x-alt-light-desktop-alternatives ["*"other"* ]] \
+    && ok "alternatives row '$lbl' + reason bullet (no --rows) keeps the other-verdict duty" \
+    || fail "alt3 ($lbl): $out"
+done
+
+# N1: the same demotion hit a REVIEW row: an owing first bullet followed by the
+# reader's reason bullet must stay the verdict (lenient parse, no --rows).
+for lbl in "Needs changes" "Other — see my notes" "Necesita cambios" "Cannot judge"; do
+  save "$TMP/n1-${lbl%% *}-${lbl##* }" "### y-a-light-desktop · y · a · light-desktop
+
+- $lbl
+- say which
+"
+  case "$lbl" in "Needs changes"|"Necesita cambios") tag="y-a-light-desktop [needs-changes";; *) tag="y-a-light-desktop [other-verdict";; esac
+  [[ "$out" != *"nothing owed"* && "$out" == *"$tag"* ]] \
+    && ok "review row '$lbl' + reason bullet keeps its duty (${tag#* })" || fail "n1 ($lbl): $out"
+done
+
+# N2: rejecting every alternative owes a rewrite, with or without a reason bullet.
+i=0
+for body in "- None of them" "- None of them
+- what is missing" "- Ninguna"; do
+  i=$((i + 1)); save "$TMP/n2-$i" "### x-alt-light-desktop-alternatives · x · alt · light-desktop
+
+$body
+"
+  [[ "$out" != *"nothing owed"* && "$out" == *"x-alt-light-desktop-alternatives [other-verdict"* \
+     && "$out" == *"rejected every alternative"* ]] \
+    && ok "alternatives row '${body%%$'\n'*}' owes, in its own wording" || fail "n2 ($body): $out"
+done
+
 BAD='### x-full-light-desktop · x · full · light-desktop
 
 - Necesita cambios
@@ -189,6 +229,71 @@ nota
 '
 [[ "$out" == *"Q1 [show-me]"* && "$out" == *"x-full-light-desktop ["* ]] \
   && ok "mixed paste: show-me and gallery duties both print" || fail "mixed: $out"
+
+# BL-719 D-c05: a '## ' line inside an ORDINARY item's notes is a note, so it
+# neither ends that item's block nor loses the gallery row's duties.
+if python3 - "$SKILL/scripts/dash" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1])
+import save_reply
+text = """### x-full-light-desktop · x · full · light-desktop
+
+- Necesita cambios
+
+nota
+
+[mark after 1.0,1.0 5.0x5.0] aqui
+
+### q1 · Pregunta
+
+- Si
+
+## titulo en nota
+mas
+"""
+d = save_reply.gallery_duties_for(text, ordinary={"q1"})
+assert d and all("unreadable" not in str(x) for x in d), d
+assert {x[1] for x in d} == {"needs-changes", "region-marks"}, d
+PY
+then ok "a '## ' note line in an ordinary item keeps the gallery row's duties"
+else fail "an ordinary item's '## ' note line lost or broke the gallery duties"; fi
+
+# BL-718 left-alone: the ordinary-item duty readers end a block on the shared
+# heading rule (reply_defect.is_block_head), like the gallery readers: a '## '
+# line with no ' ·' separator is the reader's note, so a mark under it is
+# still the item's, while a real '## G2 · ...' heading ends the block.
+if PYTHONPATH="$SKILL/scripts/dash" python3 - <<'PY'
+import check_artifact as ca
+note = "### q1 \u00b7 Pregunta\n\n- Si\n\n## titulo en nota\n\n- [show-me]\n"
+assert ca.marker_duties_of(note) == [("q1", ["show-me"])], ca.marker_duties_of(note)
+head = "### q1 \u00b7 Pregunta\n\n- Si\n\n## G2 \u00b7 Otro\n\n- [show-me]\n"
+assert ca.marker_duties_of(head) == [], ca.marker_duties_of(head)
+assert ca.defect_reports_of("### q1 \u00b7 P\n\n## nota\n\n#### Page problem\n\nroto\n") == {"q1": "roto"}
+# the composer's empty-title head (`### q2 ·`, trailing space trimmed) opens its own block
+empty = "### q1 \u00b7 Uno\n\n- Si\n\n### q2 \u00b7\n\n- [show-me]\n"
+assert ca.marker_duties_of(empty) == [("q2", ["show-me"])], ca.marker_duties_of(empty)
+# a reader's own `### two words · x` line is no item head and no block end: a mark under
+# it stays the enclosing item's (an extra duty is safer than a dropped one)
+own = "### q1 \u00b7 Uno\n\n### Tema largo \u00b7 detalle\n\n- [show-me]\n"
+assert ca.marker_duties_of(own) == [("q1", ["show-me"])], ca.marker_duties_of(own)
+# reply_blocks (the answer reader) agrees: the mark under a plain '## ' line is q1's,
+# so q1 is provisional, not answered
+plain = "### q1 \u00b7 Uno\n\n- Si\n\n## mi nota\n\n- [show-me]\n"
+assert ca._reply_has_answer(plain, "q1") is False
+real = "### q1 \u00b7 Uno\n\n- Si\n\n## G2 \u00b7 Otro\n\n- [show-me]\n"
+assert ca._reply_has_answer(real, "q1") is True
+# a hashed chat-form head (`## Q2:` / `### Q2:`) still ends the previous item's block
+ids = ("Q1", "Q2")
+for h in ("##", "###"):
+    blank = "### Q1:\n\n%s Q2:\n- A\n" % h
+    assert ca._reply_has_answer(blank, "Q1", ids) is False, h
+    assert ca._reply_has_answer("### Q1:\n- A\n\n%s Q2:\n- [show-me]\n" % h, "Q1", ids) is True, h
+# the answer reader keeps the text under a reader's own `### two words · x` line in q1
+assert ca._reply_has_answer("### q1 \u00b7 Uno\n\n### Tema largo \u00b7 detalle\n\n- [show-me]\n", "q1") is False
+assert ca._reply_has_answer("### q1 \u00b7 Uno\n\n### Tema largo \u00b7 detalle\n\n- Si\n", "q1") is True
+PY
+then ok "an ordinary item's block ends at a '## ... · ' heading, not at a plain '## ' note line"
+else fail "the ordinary-item duty readers still end a block at every '## ' line"; fi
 
 echo
 [[ $failures -eq 0 ]] && { echo "test-save-reply-gallery-duties: PASS"; exit 0; }

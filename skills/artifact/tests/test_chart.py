@@ -430,7 +430,8 @@ try:
     html = holds("cells below the two-decimal precision build",
                  '::: chart {type=stacked}\n| R | A | B |\n|---|---|---|\n'
                  '| r1 | 0.004 | 0.004 |\n:::', ">0,008<")
-    check("...and no segment is labelled 0", '>0<' not in svg_of(html),
+    check("...and no segment is labelled 0, each is labelled 0,004",
+          '>0<' not in svg_of(html) and svg_of(html).count('>0,004<') == 2,
           svg_of(html))
     html = holds("a tiny cell beside a real one",
                  '::: chart {type=stacked}\n| R | A | B |\n|---|---|---|\n'
@@ -1038,6 +1039,85 @@ for tag, geo in (("wide", chart_svg.WIDE), ("narrow", chart_svg.NARROW)):
             over.append((round(left), round(left + w)))
     check("a 3000-capital chart label stays inside the %s svg" % tag,
           not over and "C" in out, str(over[:3]))
+
+# BL-722 B-c06: a nonzero value never prints `0`. Labels are short (15 decimals
+# at most), so the floor of what a chart accepts is the smallest value 15
+# decimals still print: below it the row is refused, never drawn as `0`.
+rejects("a value just under the 1e-15 floor is refused at its row",
+        "::: chart {type=bar}\na,0.0000000000000001\n:::", 2,
+        "between 1e-15 and 1e+300")
+html = holds("a value at the 1e-15 floor builds and prints its digit",
+             "::: chart {type=bar}\na,0.000000000000001\nb,0.000000000000003\n:::",
+             ">0,000000000000001<", ">0,000000000000003<")
+
+# ...and the smallest accepted value, in either sign or both, keeps every text
+# (anchor AND extent) inside the viewBox, no rect with a negative width, and a
+# narrow bar axis that is not inverted: the negative bar ends left of the
+# positive one, or the narrow rendering is None.
+def extent_over(out, width):
+    over = []
+    for m in re.finditer(r'<text x="([-\d.]+)"([^>]*)>([^<]*)</text>', out):
+        x, attrs, body = float(m.group(1)), m.group(2), m.group(3)
+        size = float(re.search(r'font-size="([\d.]+)"', attrs).group(1))
+        w = chart_svg._text_width(body, size)
+        if 'text-anchor="middle"' in attrs:
+            left, right = x - w / 2, x + w / 2
+        elif 'text-anchor="end"' in attrs:
+            left, right = x - w, x
+        else:
+            left, right = x, x + w
+        if left < -0.01 or right > width + 0.01:
+            over.append((body[:12], round(left), round(right)))
+    return over
+
+
+floor = "0." + "0" * (int(round(-math.log10(chart_svg.MIN_ABS))) - 1) + "1"
+big = "9" * 20
+for name, vals in (("positive", (floor, floor)), ("negative", ("-" + floor,) * 2),
+                   ("mixed-sign", ("-" + floor + "987654", floor + "123456")),
+                   ("mixed-sign extreme", ("-" + big, "1" * 20))):
+    for kind in ("bar", "line"):
+        rows = [(1, "a,%s" % vals[0]), (2, "b,%s" % vals[1])]
+        labels, series = chart_svg.parse_data(rows, kind)
+        for tag, geo in (("wide", chart_svg.WIDE),
+                         ("narrow", chart_svg.NARROW)):
+            out = chart_svg.svg(kind, labels, series, g=geo)
+            if out is None:
+                check("a %s %s chart has no %s rendering" % (name, kind, tag),
+                      geo is chart_svg.NARROW)
+                continue
+            bad = extent_over(out, geo.w)
+            check("a %s %s chart stays inside the %s svg" % (name, kind, tag),
+                  not bad and 'width="-' not in out, str(bad[:3]))
+            if kind == "bar" and geo is chart_svg.NARROW and name.startswith("mixed"):
+                r = [(float(x), float(w)) for x, w in re.findall(
+                    r'<rect x="([-\d.]+)" y="[-\d.]+" width="([\d.]+)" '
+                    r'height="12"', out)]
+                check("...and its negative bar ends left of the positive one",
+                      len(r) == 2 and r[0][0] + r[0][1] <= r[1][0] + 0.01,
+                      str(r))
+
+# BL-722 B-c07: a stacked segment is labelled when it is a real segment and its
+# own text fits it: 0.003 and 0.004 are wide enough for a label, as is a
+# 0.004 beside a 0.006 or a 0.01.
+def stacked_texts(cells):
+    out = chart_svg.svg("stacked", ["a"], [(n, [v]) for n, v in cells],
+                        lang="es")
+    return re.findall(r">([^<>]*)</text>", out)
+
+
+texts = stacked_texts([("x", 0.003), ("y", 0.004)])
+check("a row of sub-0.005 segments labels each segment",
+      "0,003" in texts and "0,004" in texts, str(texts))
+texts = stacked_texts([("x", 0.004), ("y", 0.006)])
+check("...a 0.004 beside a 0.006 labels both",
+      "0,004" in texts and "0,006" in texts, str(texts))
+texts = stacked_texts([("x", 100), ("y", 1)])
+check("...a 100 beside a 1 too narrow for its label still labels the 100",
+      "100" in texts, str(texts))
+texts = stacked_texts([("x", 0.004), ("y", 0.01), ("z", 0.01)])
+check("...a 0.004 beside two 0.01 labels all three",
+      "0,004" in texts and texts.count("0,01") >= 2, str(texts))
 
 print()
 if failures:

@@ -205,7 +205,11 @@ def _answered_path(outfile):
 def _current_round(outfile):
     base = _baseline_path(outfile)
     ref = base if os.path.isfile(base) else os.path.abspath(outfile)
-    return (_round_of(ref) or 1) if os.path.isfile(ref) else 0
+    # Mirrors next_round: a baseline with no consult surface is no reader round
+    # (the first surface wrap over it is round 1), whatever wrap count it carries.
+    if not os.path.isfile(ref) or not _has_surface(ref):
+        return 0
+    return _round_of(ref) or 1
 
 
 def round_answered(outfile):
@@ -1027,7 +1031,9 @@ def main():
     lang = args.lang or profile_lang or "en"
     if args.lang is None and profile_lang is None:
         _warn_prose_only_language(ctx)
-    elif (args.lang and profile_lang and args.lang != profile_lang
+    elif (args.lang and profile_lang
+          and re.split(r"[-_]", args.lang)[0].lower()
+          != re.split(r"[-_]", profile_lang)[0].lower()
           and not _takes_english(args.outfile)):
         # BL-371: an explicit --lang that contradicts the profile. The check that
         # runs on --out refuses it (lang-follows-profile); this names why first,
@@ -1040,7 +1046,11 @@ def main():
 
     # After the language is known: the rendered rail is headed in it.
     if raw_is_md:
-        content = md_body.render(content, args.title, lang)
+        try:
+            content = md_body.render(content, args.title, lang)
+        except md_body.ListTooDeep as exc:
+            print("ERROR: %s: %s" % (args.infile, exc), file=sys.stderr)
+            return 2
     if re.search(r"<!doctype\s+html", content, re.I):
         print("ERROR: content already has a doctype — pass page content only, "
               "not a full document", file=sys.stderr)

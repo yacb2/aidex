@@ -224,6 +224,16 @@ def strip_item_markup(text):
         text)
 
 
+def blank_item_comments(text):
+    """The text with every comment the browser sees as a comment blanked to
+    spaces, newlines kept: the item scanners read it, and an offset into it is
+    an offset into the page (so line numbers still match). A commented-out item
+    is not an item (BL-734 F3)."""
+    return MARKUP_COMMENT.sub(
+        lambda m: m.group(0) if (m.group(1) or m.group(3))
+        else re.sub(r"[^\n]", " ", m.group(0)), text)
+
+
 # --- lang: the body must speak the language <html lang> declares (BL-279) -------
 # Stopword sets and thresholds mirror validate.py's body-language heuristic; a
 # page whose dominant language disagrees with its lang attribute is the shape
@@ -342,8 +352,14 @@ def unwrapped_tables(text):
 
 # --- § 8 items ----------------------------------------------------------------
 
-ITEM_OPEN = re.compile(r'<([a-zA-Z][\w:-]*)\b[^>]*\bdata-id\s*=\s*'
-                       r'(?:"([^"]*)"|\x27([^\x27]*)\x27|([^\s>]+))[^>]*>',
+# A quoted attribute value may hold a raw '>' (BL-718 A-c09), so the scan around
+# data-id steps over whole quoted values instead of stopping at the first '>'.
+# A quote opens a value only right after `=`: an apostrophe in an unquoted value
+# (`data-title=Don't`) is a plain character, not the start of a string.
+_TAG_BYTES = (r'(?:[^>="\x27]|=\s*"[^"]*"|=\s*\x27[^\x27]*\x27'
+              r'|=(?!\s*["\x27])|["\x27])*')
+ITEM_OPEN = re.compile(r'<([a-zA-Z][\w:-]*)\b' + _TAG_BYTES + r'?\bdata-id\s*=\s*'
+                       r'(?:"([^"]*)"|\x27([^\x27]*)\x27|([^\s>]+))' + _TAG_BYTES + '>',
                        re.I | re.S)
 ITEM_TITLE = re.compile(r'\bdata-title\s*=\s*'
                         r'(?:"([^"]*)"|\x27([^\x27]*)\x27|([^\s>]+))',
@@ -591,6 +607,8 @@ def _subtree_closed(text, tag, start):
 
     This is the one balance walk; `_subtree` wraps it.
     """
+    if tag.lower() in VOID_TAGS:   # no close tag will ever come (BL-718 A-c07)
+        return ""
     op = re.compile(r'<' + re.escape(tag) + r'\b', re.I)
     cl = re.compile(r'</' + re.escape(tag) + r'\s*>', re.I)
     depth, pos = 1, start
@@ -1136,9 +1154,35 @@ def _svg_attrs(s):
             for m in SVG_ATTR.finditer(s)}
 
 
+_SVG_LEN = re.compile(r'\s*(-?\d*\.?\d+)\s*([a-z%]*)\s*(?:!important)?\s*$', re.I)
+
+
 def _svg_num(v, default):
-    m = re.match(r'\s*(-?\d*\.?\d+)', v or '')
-    return float(m.group(1)) if m else default
+    """A coordinate in user units. A unit other than px (`50%`, `2em`) has no
+    reading here: None, so the caller skips the node instead of using 50 px."""
+    m = re.match(r'\s*(-?\d*\.?\d+)\s*([a-z%]*)', v or '', re.I)
+    if not m:
+        return default
+    return float(m.group(1)) if m.group(2).lower() in ('', 'px') else None
+
+
+def _svg_font_size(v, base):
+    """A font-size attribute in px. em and % scale `base`, the PARENT's size; pt
+    is 4/3 px, rem 16 px. Any other unit gives None (the label is skipped, never
+    guessed); no number at all (a keyword) returns `base` untouched."""
+    m = _SVG_LEN.match(v or '')
+    if not m:
+        return base
+    n, unit = float(m.group(1)), m.group(2).lower()
+    if unit in ('', 'px'):
+        return n
+    if unit == 'pt':
+        return n * 4 / 3
+    if unit == 'rem':
+        return n * 16
+    if unit in ('em', '%') and base is not None:
+        return n * base / (100 if unit == '%' else 1)
+    return None
 
 
 def _svg_translate(transform):
@@ -1316,22 +1360,23 @@ def svg_geometry(svg, fonts=None, rules=None, root=None):
         raw_fill = _svg_style_prop(d.get('style'), 'fill') or d.get('fill')
         if raw_fill:
             nfl = svg_literal_colour(raw_fill) or SVG_UNREADABLE
-        nfs = _svg_num(d.get('font-size'), nfs)
+        nfs = _svg_font_size(d.get('font-size'), fs) if 'font-size' in d else nfs
         nan = d.get('text-anchor', anchor)
         dx, dy = _svg_translate(d.get('transform'))
         nsk = skip or tag in SVG_TEMPLATES or bool(SVG_UNPLACEABLE.search(d.get('transform', '')))
         nb = nb or d.get('font-weight', '') in ('bold', 'bolder', '600', '700', '800', '900')
         nmo = nmo or 'mono' in d.get('font-family', '').lower()
         if tag == 'text' and not selfclosed:
+            px, py = _svg_num(d.get('x'), 0.0), _svg_num(d.get('y'), 0.0)
             cur = (m.end(), nfs, nan,
-                   _svg_num(d.get('x'), 0.0) + tx + dx,
-                   _svg_num(d.get('y'), 0.0) + ty + dy, nsk, nb, nmo, nfl,
-                   chain)
+                   (px or 0.0) + tx + dx, (py or 0.0) + ty + dy,
+                   nsk or px is None or py is None, nb, nmo, nfl, chain)
             tsp, glyph_fills, bare, last = [], set(), [], m.end()
         elif tag == 'rect' and not nsk:
-            rx, ry = _svg_num(d.get('x'), 0.0) + tx + dx, _svg_num(d.get('y'), 0.0) + ty + dy
-            rects.append((rx, ry, rx + _svg_num(d.get('width'), 0.0),
-                          ry + _svg_num(d.get('height'), 0.0), nfl))
+            gx, gy, gw, gh = (_svg_num(d.get(k), 0.0) for k in ('x', 'y', 'width', 'height'))
+            if None not in (gx, gy, gw, gh):
+                rx, ry = gx + tx + dx, gy + ty + dy
+                rects.append((rx, ry, rx + gw, ry + gh, nfl))
         elif tag in SVG_CONTAINERS and not selfclosed:
             stack.append((fs, anchor, tx, ty, skip, bold, mono, fill))
             anc.append(chain[-1])
@@ -2412,8 +2457,9 @@ def warn_file(path):
                           f"by a waiver"))
 
     # Items only: a block's context also carries a data-id and is no item lead.
+    live = blank_item_comments(text)
     item_ids = {next(g for g in m.groups()[1:] if g is not None)
-                for m in ITEM_OPEN.finditer(text)
+                for m in ITEM_OPEN.finditer(live)
                 if re.search(r'\bconsult-item\b', m.group(0))}
     for ident, body in bodies:
         if ident not in item_ids:
@@ -2434,14 +2480,14 @@ def warn_file(path):
     # Gallery rows (heading = state name) and decided items (heading = statement
     # on purpose) are not asked, so only the rest owes a question mark.
     asked = {next(g for g in m.groups()[1:] if g is not None)
-             for m in ITEM_OPEN.finditer(text)
+             for m in ITEM_OPEN.finditer(live)
              if re.search(r'\bconsult-item\b', m.group(0))
              and not ITEM_DECIDED.search(m.group(0))
              and not GALLERY_CLASS.search(m.group(0))}
     lang = HTML_LANG.search(text)
     es_page = bool(lang) and lang.group(1).lower() == "es"
     gallery_ids = {next(g for g in m.groups()[1:] if g is not None)
-                   for m in ITEM_OPEN.finditer(text)
+                   for m in ITEM_OPEN.finditer(live)
                    if GALLERY_CLASS.search(m.group(0))}
     for ident, body in bodies:
         if ident not in item_ids:
@@ -2509,7 +2555,7 @@ def warn_file(path):
 
 # --- Requirement 1, across regenerations (--prev) -----------------------------
 
-ID_TAG = re.compile(r'<[^>]*\bdata-id\s*=[^>]*>', re.I | re.S)
+ID_TAG = re.compile(r'<' + _TAG_BYTES + r'?\bdata-id\s*=' + _TAG_BYTES + '>', re.I | re.S)
 ID_ATTR = re.compile(r'\bdata-(id|title)\s*=\s*'
                      r'(?:"([^"]*)"|\x27([^\x27]*)\x27|([^\s>]+))', re.I | re.S)
 
@@ -2546,7 +2592,7 @@ def id_title_map(path):
     than one spelling of an id/title pair — a single-quoted page, or a title
     that merely quotes something, must not drop out of the map."""
     out = {}
-    text = open(path, encoding="utf-8", errors="replace").read()
+    text = strip_item_markup(open(path, encoding="utf-8", errors="replace").read())
     for tag in ID_TAG.finditer(text):
         attrs = {}
         for m in ID_ATTR.finditer(tag.group(0)):
@@ -3228,6 +3274,7 @@ def check_shape(path, text):
         fails.append(("consult-shape", os.path.basename(path), msg))
 
     spec_index, spec_name = _spec_index(path)
+    text = blank_item_comments(text)
 
     # A consultation page opens with ONE masthead (a hand edit that removed it
     # or pasted a second one leaves the page without, or with two, openings).
@@ -3635,8 +3682,13 @@ def check_consultation(path, text, flat):
 # reply comes in — never touched by a wrap. So there is no mtime test here: once
 # a reply is saved, EVERY later wrap of the page is judged against that same
 # answered snapshot, until a newer reply replaces it.
-REPLY_ITEM = re.compile(r"^### (\S+) · ", re.M)
-REPLY_BLOCK = re.compile(r"^## ", re.M)
+# `### id · title`, or `### id ·` for an empty title (the composer trims the space)
+REPLY_ITEM = re.compile(r"^### (\S+) ·(?:[ \t]|$)", re.M)
+# A `## ` line ends an item's block only with the composer's ` ·` separator
+# (reply_defect.is_block_head's rule); a plain `## note` is the reader's text.
+# `### ` heads are REPLY_ITEM's job: a reader's own `### two words · x` line
+# ends nothing, so a mark under it stays the enclosing item's.
+REPLY_BLOCK = re.compile(r"^(?=## )(?=[^\n]* \u00b7)", re.M)
 # BL-569: a reply pasted in chat format (`Q1: ...`, `### Q1 · ...`) is a reply
 # too (SKILL.md: chat replies are saved the same way as composer replies).
 _MARK_TOKEN = re.compile(r"\[([a-z][a-z-]*)\]")
@@ -3647,8 +3699,8 @@ from reply_defect import DEFECT_HEAD, split_defect, blank_defects   # noqa: E402
 
 
 def _block_end(reply_text, start, end):
-    """Where an item block that starts at `start` ends: at the next `## `
-    heading or the `<!-- reply saved ... -->` separator of an appended save,
+    """Where an item block that starts at `start` ends: at the next
+    `## <id> · ` block heading (REPLY_BLOCK) or the `<!-- reply saved ... -->` separator of an appended save,
     whichever comes first, else at `end` (the next `### ` item)."""
     for stop in (REPLY_BLOCK.search(reply_text, start, end),
                  _SAVE_SEP.search(reply_text, start, end)):
@@ -3677,7 +3729,10 @@ def defect_reports_of(reply_text):
 _ASK_MARKERS = frozenset()
 
 
-_HEADING = re.compile(r"^[ \t]*#{2,3}[ \t]")
+# the heading rule of REPLY_BLOCK + REPLY_ITEM (` ·` separator; `### ` needs a
+# one-word id), leading blanks tolerated: a plain `## note` line or a reader's own
+# `### two words · x` is the reader's text, not a heading
+_HEADING = re.compile(r"^[ \t]*(?:##[ \t](?=[^\n]* \u00b7)|###[ \t]\S+ \u00b7(?:[ \t]|$))")
 _ITEM_BOX = re.compile(r"^[ \t]*###[ \t](?![ \t]*notes[ \t]*·)")
 
 
@@ -3698,7 +3753,7 @@ def reply_blocks(reply_text, ident, ids=(), boxes=True):
     on either)."""
     alts = "|".join(re.escape(i) for i in sorted(set(ids) | {ident},
                                                  key=len, reverse=True))
-    chat_any = re.compile(r"^[ \t]*(?:" + alts + r")(?![\w-])[ \t]*[:·]")
+    chat_any = re.compile(r"^[ \t]*(?:#{2,3}[ \t]+)?(?:" + alts + r")(?![\w-])[ \t]*[:·]")
     head = re.compile(r"^[ \t]*(#{2,3}[ \t]+)?" + re.escape(ident)
                       + r"(?![\w-])[ \t]*[:·](.*)$")
     lines = reply_text.split("\n")
@@ -3816,14 +3871,19 @@ def marker_duties_of(reply_text):
     a duty is still outstanding (BL-504 finding 1), so an id's marks must be
     read from the ENTIRE accumulated text, never from the block nearest the
     end — a later block that happens to mark fewer things must not silently
-    drop what an earlier block asked for."""
+    drop what an earlier block asked for. The one exception is BL-598
+    supersession (A-c03): a later FULL composer paste of the same round
+    replaces the earlier ones, so a mark the reader withdrew there is not
+    owed. Every caller (the duty check, save_reply, spec_verbs) shares this
+    reader."""
+    reply_text = _live_reply(reply_text)
     order = []
     marks_by_id = {}
     heads = list(REPLY_ITEM.finditer(reply_text))
     for k, h in enumerate(heads):
         end = heads[k + 1].start() if k + 1 < len(heads) else len(reply_text)
-        # A `## ` heading ends the item's block too: the next block's own note
-        # (BL-701) sits under it, and is not this item's answer.
+        # A `## G · title` block heading ends the item's block too: the next
+        # block's own note (BL-701) sits under it, and is not this item's answer.
         end = _block_end(reply_text, h.end(), end)
         ident = h.group(1)
         rest, defect = split_defect(reply_text[h.end():end])
@@ -4753,7 +4813,8 @@ def main(argv):
 
     if not files:
         print("ERROR: usage: check-artifact.sh <file.html> [...] "
-              "[--prev <old.html>]", file=sys.stderr)
+              "[--prev <old.html>] [--new-round] | --census [dir]",
+              file=sys.stderr)
         return 2
     # --prev compares ONE page against its own previous version; with several
     # files there is no way to say which prior belongs to which, and guessing

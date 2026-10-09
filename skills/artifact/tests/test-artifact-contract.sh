@@ -693,6 +693,35 @@ out="$(bash "$CHECK" "$TMP/regen-dropped-closed.html" --prev "$TMP/consult-ok.ht
   && ok "a closed page (consult-surfaces: none) may drop ids" \
   || bad "the closed-page exit did not clear the dropped-id failure: $out"
 
+# BL-718 A-c06: an item "removed" by commenting it out is still removed. The id map
+# scanned raw text, saw the commented copy and reported nothing dropped.
+python3 - "$TMP/consult-ok.html" "$TMP/regen-commented.html" <<'PY'
+import re, sys
+t = open(sys.argv[1], encoding="utf-8").read()
+t2 = re.sub(r'(<section class="consult-item" data-id="c2".*?</section>)', r'<!-- \1 -->', t, flags=re.S)
+assert t2 != t, 'fixture drift: no c2 section to comment out'
+open(sys.argv[2], "w").write(t2)
+PY
+out="$(bash "$CHECK" "$TMP/regen-commented.html" --prev "$TMP/consult-ok.html" 2>&1)"
+grep -q "FAIL \[consult-ids\].*id dropped between rounds — c2" <<<"$out" \
+  && ok "BL-718 A-c06: an id removed by commenting it out fails --prev" \
+  || bad "BL-718 A-c06: a commented-out item passed --prev as still present: $out"
+
+# BL-718 A-c09: --prev reads a tag with a raw '>' in an earlier attribute the way
+# the single-file check does, so an unchanged id/title is not reported as dropped.
+sed 's#data-id="c2"#title="a b" data-id="c2"#' "$TMP/consult-ok.html" > "$TMP/prev-gt-old.html"
+sed 's#data-id="c2"#title="a > b" data-id="c2"#' "$TMP/consult-ok.html" > "$TMP/prev-gt-new.html"
+out="$(bash "$CHECK" "$TMP/prev-gt-new.html" --prev "$TMP/prev-gt-old.html" 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" != *"[consult-ids]"* ]] \
+  && ok "BL-718 A-c09: a raw '>' in an attribute does not make --prev see a dropped id" \
+  || bad "BL-718 A-c09: --prev lost an id behind a '>' in an attribute (rc=$rc): $out"
+
+# BL-718 A-c31: the usage line lists every flag main() accepts.
+out="$(bash "$CHECK" 2>&1)"
+[[ "$out" == *"--prev"* && "$out" == *"--new-round"* && "$out" == *"--census"* ]] \
+  && ok "BL-718 A-c31: the usage error names --prev, --new-round and --census" \
+  || bad "BL-718 A-c31: the usage error omits a flag main() accepts: $out"
+
 bash "$CHECK" "$TMP/consult-ok.html" "$TMP/regen-same.html" --prev "$TMP/consult-ok.html" >/dev/null 2>&1
 [[ $? -eq 2 ]] && ok "--prev with several files is a usage error, not a guess" \
                || bad "--prev accepted an ambiguous comparison"
@@ -1165,6 +1194,18 @@ err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --lang es \
 [[ "$err" != *"NOTE:"* ]] \
   && ok "BL-371: --lang agreeing with the profile stays silent" \
   || bad "BL-371: the note fired on an agreeing --lang: $err"
+
+# BL-721 B-c24: a regional profile is the same language as its primary subtag, on
+# BOTH sides: `--lang es` and `--lang es-MX` under `language: es-MX` are agreement.
+REGP="$TMP/regionalproj"; mkdir -p "$REGP/.context/reports" "$REGP/.context/profiles"
+printf -- '- language: es-MX\n' > "$REGP/.context/profiles/artifact.md"
+for L in es es-MX; do
+  err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --lang "$L" \
+          --out "$REGP/.context/reports/$L.html" 2>&1 >/dev/null)"
+  [[ "$err" != *"contradicts"* ]] \
+    && ok "BL-721: --lang $L under a profile declaring es-MX raises no false NOTE" \
+    || bad "BL-721: false contradiction NOTE for --lang $L under es-MX: $err"
+done
 
 # A close-out report under worklists/_archive/ follows the profile too (BL-382,
 # BL-482): only human-verification.* takes --lang en (test-contract-defects.sh).

@@ -1185,22 +1185,23 @@ try:
         ("an unclosed block", "::: note\nx\n", tmp),
         # Rows that crashed the CLI with a raw traceback (LOOP-008 D1 and its
         # review): a value past a float's range made the axis OverflowError, a
-        # nonzero value below 1e-300 a ZeroDivisionError or ValueError, and a
+        # nonzero value near 1e-300 a ZeroDivisionError or ValueError (both are
+        # refused at the 1e-15 floor now, the least a label can print), and a
         # markdown list nested ~500 deep exhausted md_body's recursion. Each also
         # names what to change, not only the line. Fence depth is the parser's
         # refusal (test_parser.py); its accept side is pinned below.
         ("a chart value with 400 digits",
          '::: chart {type="bar" title="c"}\na,1\nb,%s\n:::\n' % ("9" * 400),
-         tmp, "between 1e-300 and 1e+300"),
+         tmp, "between 1e-15 and 1e+300"),
         ("a positive and a negative value whose span overflows a float",
          '::: chart {type="bar" title="c"}\na,-%s\nb,%s\n:::\n'
-         % ("9" * 308, "9" * 308), tmp, "between 1e-300 and 1e+300"),
+         % ("9" * 308, "9" * 308), tmp, "between 1e-15 and 1e+300"),
         ("a nonzero chart value below 1e-300",
          '::: chart {type="bar" title="c"}\na,0\nb,0.%s5\n:::\n' % ("0" * 322),
-         tmp, "between 1e-300 and 1e+300"),
+         tmp, "between 1e-15 and 1e+300"),
         ("the smallest float above zero as a chart value",
          '::: chart {type="bar" title="c"}\na,0\nb,0.%s5\n:::\n' % ("0" * 323),
-         tmp, "between 1e-300 and 1e+300"),
+         tmp, "between 1e-15 and 1e+300"),
         ("a markdown list nested 600 deep",
          "::: masthead\n# T\n\n"
          + "".join("  " * k + "- x\n" for k in range(600)) + ":::\n",
@@ -1305,6 +1306,34 @@ try:
              "<ol><li>Cascading saves not 25. Bulk-mark</li><li>two</li></ol>")):
         holds("a nested list renders nested: %s" % label,
               "::: note\n%s\n:::" % prose, nested)
+
+    # The blank-line lookahead continues a list only onto a sibling at the list's
+    # own indent; a LESS-indented marker is another list (nesting must survive).
+    holds("a less-indented marker after a blank line keeps the nesting below it",
+          "::: note\n  - a\n\n- b\n  - c\n:::", "<li>b<ul><li>c</li></ul></li>")
+    # BL-720 (md_body low findings): loose and offset ordered lists, spaced star,
+    # separator-row spellings and CRLF input.
+    holds("a loose ordered list is ONE <ol>", "::: note\n1. one\n\n2. two\n\n3. three\n:::",
+          "<ol><li>one</li><li>two</li><li>three</li></ol>")
+    holds("an ordered list starting at 3 keeps its number", "::: note\n3. a\n4. b\n:::",
+          '<ol start="3"><li>a</li><li>b</li></ol>')
+    holds("a paragraph between items still splits the list",
+          "::: note\n1. one\n\npara\n\n2. two\n:::", '<ol start="2"><li>two</li></ol>')
+    holds("a spaced star is arithmetic, not emphasis",
+          "::: note\n5 * 3 and 2 * 4 is math\n:::", "5 * 3 and 2 * 4 is math")
+    holds("a tight *pair* is still emphasis", "::: note\na *x* b\n:::", "<em>x</em>")
+    for label, tbl in (("a trailing space after the separator", "| a | b |\n|---|---:| \n| 1 | 2 |"),
+                       ("no closing pipe on the separator", "| a | b |\n|---|---:\n| 1 | 2 |"),
+                       ("an indented table", "  | a | b |\n  |---|---:|\n  | 1 | 2 |")):
+        holds("separator row recognised: %s" % label, "::: note\n%s\n:::" % tbl,
+              '<th class="num">b</th>', '<td class="num">2</td>')
+    crlf = ("---\r\ntitle: x\r\n---\r\n# T\r\n\r\n## A\r\n\r\n```bash\r\nx\r\n```\r\n\r\n"
+            "## B\r\n\r\nhi\r\n")
+    page = md_body.render(crlf)
+    check("CRLF: the fence closes, so section B is its own section", 'id="sec-b"' in page, page)
+    check("CRLF: front matter is stripped, not the standfirst", "title: x" not in page, page)
+    frag = md_body.fragment("```bash\r\nx\r\n```\r\n\r\ntext")
+    check("CRLF: fragment closes the fence", frag.count("<pre>") == 1 and "<p>text</p>" in frag, frag)
 
     # Phase 6 registered `diagram`, so the line that used to read "not
     # registered yet" now asserts the opposite: the dispatch KNOWS it, and what
@@ -1458,6 +1487,9 @@ try:
     rejects("win= naming no cell of the verdict",
             '::: verdict {win="Nadie"}\n| n | ruta |\n|---|---|\n| 3 | DOT |\n:::',
             1, "names no cell")
+    # BL-721 B-c11: a header and a separator with no cell row built an empty box.
+    rejects("a verdict table with a header and a separator but no cell is refused",
+            "::: verdict\n| figura | etiqueta |\n|---|---|\n:::", 1, "one row per cell")
     rejects("a body on a block that takes none",
             '::: notes {title="N"}\ntexto\n:::', 1, "takes no body")
     # An aside is a framed box: with no body it rendered as an empty bordered
@@ -2102,6 +2134,34 @@ try:
     check("the note names what was removed",
           "p.html.failed" in errbuf.getvalue()
           and "p.html.failed.body" in errbuf.getvalue())
+    # BL-721 B-c13: --new-round is documented "Needs -o"; it was silently dropped
+    # without one, like a flag that ran its guard when it never did.
+    nspec = os.path.join(tmp, "nr.spec.md")
+    with open(nspec, "w", encoding="utf-8") as fh:
+        fh.write('::: masthead {eyebrow="P" visual="none: probe"}\n# NR\n\nX\n:::\n\n'
+                 '::: notes {title="Notas"}\n:::\n')
+    r = subprocess.run([sys.executable, BUILD, nspec, "--new-round"],
+                       capture_output=True, text=True)
+    check("--new-round without -o is refused, as --check is, and prints no page",
+          r.returncode != 0 and "--new-round needs -o" in r.stderr and not r.stdout,
+          "rc=%d %s" % (r.returncode, r.stderr))
+
+    # BL-721 B-c24: a regional profile (es-MX) is the same language as --lang es;
+    # the wrap compared the cut-down "es" with the raw "es-MX" and cried contradiction.
+    rproj = os.path.join(tmp, "regional")
+    os.makedirs(os.path.join(rproj, ".context", "profiles"))
+    os.makedirs(os.path.join(rproj, ".context", "reports"))
+    with open(os.path.join(rproj, ".context", "profiles", "artifact.md"), "w") as fh:
+        fh.write("- language: es-MX\n")
+    rspec = os.path.join(rproj, "p.spec.md")
+    with open(rspec, "w", encoding="utf-8") as fh:
+        fh.write('::: masthead {eyebrow="P" visual="none: probe"}\n# Regional\n\nX\n:::\n\n'
+                 '::: notes {title="Notas"}\n:::\n')
+    r = subprocess.run([sys.executable, BUILD, rspec, "-o",
+                        os.path.join(rproj, ".context", "reports", "p.html")],
+                       capture_output=True, text=True)
+    check("a profile language es-MX builds without a false 'contradicts' NOTE",
+          r.returncode == 0 and "contradicts" not in r.stderr, r.stdout + r.stderr)
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

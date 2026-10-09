@@ -44,6 +44,13 @@ refuses a full-page changed row without one (BL-688; format in
 - **One declared cell per matrix state.** A state this screen genuinely does not have is
   declared not-applicable **with a reason in words** — never omitted, never blank.
 - **A spec** calling the harness's gallery entry point with the route and the cells.
+- **On a first build** (the screen has no gallery spec; `skills/ui-contract/references/02-sketch-round-kit.md`
+  names these outputs, `skills/ui-contract/SKILL.md` § First build): the spec, the fixtures, the
+  **one capture** (the single `--update-snapshots` run, reported as the deliberate first baseline write),
+  the **rows JSON**, the screen's **`gallery-kit.md`** (the kit a re-capture round reads instead of
+  this agent), and the project's **`.context/profiles/ui-contract.md`** (template
+  `assets/templates/project-ui-contract.md` in the ui-contract skill). Without them the next
+  consultation page and every re-capture round have nothing to read.
 - Any review affordance on the page marked with the harness's page-owned exclude
   attribute, so it cannot move a baseline.
 
@@ -82,7 +89,7 @@ So, per cell, before you call it done:
 
 ## What you return
 
-1. Files created or modified, one line each, absolute paths.
+1. Files created or modified, one line each, absolute paths — on a first build including the rows JSON, `gallery-kit.md` and `.context/profiles/ui-contract.md`.
 2. The cell table: state → how it is driven → **the visible difference that makes it
    distinct** → not-applicable + reason where that applies.
 3. Commands you ran and their closing lines, verbatim. If you wrote baselines, say so

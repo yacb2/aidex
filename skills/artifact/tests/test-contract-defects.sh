@@ -354,6 +354,12 @@ page c10-srcset-abs es '<main><img src="a.png" srcset="/abs/b.png 2x" alt="x"></
 fails $C c10-srcset-abs "an absolute path in srcset fails"
 page c10-srcset-ok es '<main><img src="a.png" srcset="a.png 1x, shots/b.png 2x" alt="x"></main>'
 passes $C c10-srcset-ok "relative srcset candidates pass"
+# A-c11: a data: candidate keeps its comma and is never read as a path (a JPEG
+# payload starts "/9j/"); a real bad candidate after it still fails.
+page c10-srcset-data es '<main><img src="a.png" srcset="data:image/jpeg;base64,/9j/4AAQSkZJRg== 2x" alt="x"></main>'
+passes $C c10-srcset-data "a data: srcset candidate with a /9j/ payload passes"
+page c10-srcset-data-bad es '<main><img src="a.png" srcset="data:image/jpeg;base64,/9j/4AAQ 1x, /abs/b.png 2x" alt="x"></main>'
+fails $C c10-srcset-data-bad "an absolute candidate after a data: candidate still fails"
 
 echo "== unique-dom-ids =="
 C=unique-dom-ids
@@ -398,6 +404,8 @@ page c12-items es "<section class=\"consult-item\" data-id=\"Q1\">$RADIO</sectio
 passes $C c12-items "two items sharing a data-id are check-artifact's duplicate-ids finding, not this class's"
 page c12-other es "<div id=\"Q1\">Contexto</div><section class=\"consult-item\" data-id=\"Q1\">$RADIO</section>"
 fails $C c12-other "an item data-id equal to another element's id fails"
+page c12-itemid es "<section class=\"consult-item\" data-id=\"Q1\" id=\"Q2\">$RADIO</section><section class=\"consult-item\" data-id=\"Q2\">$RADIO</section>"
+fails $C c12-itemid "an item whose id equals another item's data-id fails (A-c14)"
 page c12-self es "<section class=\"consult-item\" id=\"Q1\" data-id=\"Q1\">$RADIO</section>"
 passes $C c12-self "an item's own id equal to its data-id is not a collision"
 

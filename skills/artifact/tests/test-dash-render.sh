@@ -550,5 +550,69 @@ grep -q '<span class="n">2</span><span class="l">P0/P1 severity</span>' "$PAU" \
 grep -q 'token in `a | b` url' "$PAU" \
   || fail "audit: escaped pipe should render as a plain | in the Summary cell"
 
+# --- BL-720: board low findings ----------------------------------------------
+# plans: a phase link with #fragment / <angle brackets> + "title" / %-encoding
+# resolves to its file; a link to a missing file is named on stderr
+L="$WS2/low"
+mkdir -p "$L/.context/plans/p" "$L/.context/plans/q" "$L/.context/backlog" "$L/.context/audits/m"
+cat > "$L/.context/plans/p/00-index.md" <<'EOF'
+---
+title: P
+status: open
+---
+# P
+
+## Phases Overview
+
+| # | Phase | Goal |
+|---|---|---|
+| 1 | [a](phase-1.md#tasks) | one |
+| 2 | [b](<phase-2.md> "t") | two |
+| 3 | [c](phase%2D3.md) | three |
+EOF
+for n in 1 2 3; do printf -- '- [x] a\n- [x] b\n' > "$L/.context/plans/p/phase-$n.md"; done
+run "$L" plans p >/dev/null 2>&1 || fail "plans: link-forms plan render exited non-zero"
+grep -q '<span class="n">3</span><span class="l">phases complete</span>' "$L/.context/plans/p/00-index.html" \
+  || fail "plans: #fragment, <angle> + title and %-encoded phase links must resolve (3 phases complete)"
+cat > "$L/.context/plans/q/00-index.md" <<'EOF'
+---
+title: Q
+status: open
+---
+
+## Phases Overview
+
+| # | Phase | Goal |
+|---|---|---|
+| 1 | [a](phase-9.md) | one |
+EOF
+run "$L" plans q >/dev/null 2>"$L/err-q.txt"
+grep -q 'phase-9.md' "$L/err-q.txt" || fail "plans: a phase link to a missing file must be named on stderr"
+
+# backlog: unparseable items are counted on the page; a folder README is not an item
+printf -- '---\nid: BL-1\ntitle: A\nstatus: open\npriority: P1\n---\n' > "$L/.context/backlog/a.md"
+printf '\n---\nid: BL-3\ntitle: C\nstatus: open\npriority: P1\n---\n' > "$L/.context/backlog/c.md"
+printf '# Backlog folder\n\nNo front matter here.\n' > "$L/.context/backlog/README.md"
+run "$L" backlog >/dev/null 2>&1 || fail "backlog: skipped-count render exited non-zero"
+grep -q '<span class="n">1</span><span class="l">unparseable (skipped)</span>' "$L/.context/backlog/00-index.html" \
+  || fail "backlog: the page must show exactly 1 unparseable item (c.md; README.md is not an item)"
+
+# audit: dropped and cancelled are plain pills, done stays green
+cat > "$L/.context/audits/m/00-inventory.md" <<'EOF'
+# Inv
+
+| ID | Type | Module | Summary | Status | Severity |
+|---|---|---|---|---|---|
+| F-1 | bug | x | s | done | P2 |
+| F-2 | bug | x | s | dropped | P2 |
+| F-3 | bug | x | s | cancelled | P2 |
+| F-4 | bug | x | s | open | P2 |
+EOF
+run "$L" audit m >/dev/null 2>&1 || fail "audit: status-pill render exited non-zero"
+LA="$L/.context/audits/m/00-inventory.html"
+grep -q '<span class="pill ok">done</span>' "$LA" || fail "audit: done pill should stay ok"
+grep -q '<span class="pill plain">dropped</span>' "$LA" || fail "audit: dropped pill should be plain, not green"
+grep -q '<span class="pill plain">cancelled</span>' "$LA" || fail "audit: cancelled pill should be plain, not green"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — four renderers (backlog/plans/audit/coverage), sibling paths, GENERATED header, key values, idempotency, hand-edit overwrite, unknown-target and missing-source exit 2, empty active set renders symmetrically (missing dirs still exit 2)"

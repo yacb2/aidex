@@ -10,8 +10,9 @@
 # process that strips scripts, styles and comments once and fails closed
 # in-process.
 #
-# Usage: check-artifact.sh <file.html> [...]
+# Usage: check-artifact.sh <file.html> [...] [--prev <old.html>] [--new-round]
 #        check-artifact.sh <new.html> --prev <previous.html>
+#        check-artifact.sh --census [dir]
 # Exit 0 = every file passes. Exit 1 = at least one violation (each printed).
 # Exit 2 = usage error.
 
