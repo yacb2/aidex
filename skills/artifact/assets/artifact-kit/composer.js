@@ -28,6 +28,7 @@
       nothingToCopy: 'Nothing answered yet — there is nothing to copy.',
       allDecidedNothingToCopy: 'Everything is decided; write a general note if you want to send something.',
       copied: function (n) { return n + ' copied'; },
+      copiedNotes: 'notes copied',
       blankList: function (ids) { return ' · ' + ids.length + ' blank: ' + ids.join(', '); },
       noneBlank: ' · none blank',
       paste: ' — paste them into the chat.',
@@ -156,6 +157,7 @@
       nothingToCopy: 'Todavía no has respondido nada — no hay nada que copiar.',
       allDecidedNothingToCopy: 'Todo está decidido; escribe una nota general si quieres enviar algo.',
       copied: function (n) { return n + ' copiada(s)'; },
+      copiedNotes: 'notas copiadas',
       blankList: function (ids) { return ' · ' + ids.length + ' en blanco: ' + ids.join(', '); },
       noneBlank: ' · ninguna en blanco',
       paste: ' — pégalas en el chat.',
@@ -666,7 +668,8 @@
   }
   if (list) {
     function groupEntry(sec) {
-      var h = sec.querySelector('h2, h3');
+      /* The block's OWN heading: an item's h3 inside a heading-less block is not its title. */
+      var h = [].filter.call(sec.querySelectorAll('h2, h3'), function (x) { return !x.closest('.consult-item') && x.closest('.consult-group') === sec; })[0];
       if (!sec.id && sec.dataset.id) claimId(sec, sec.dataset.id);
       if (!sec.closest('[hidden]')) list.appendChild(railLink('railitem sec grp', '#' + sec.id, '', h ? h.textContent : (sec.dataset.title || '')));
       sec.querySelectorAll('.consult-item').forEach(itemLink);
@@ -690,7 +693,7 @@
      * about what comes first (a loose item has no id until itemLink claims it,
      * which is why the walk is not limited to `section[id]`). */
     document.querySelectorAll('.main > section').forEach(function (sec) {
-      if (sec.id && sec.classList.contains('consult-group')) return groupEntry(sec);
+      if ((sec.id || sec.dataset.id) && sec.classList.contains('consult-group')) return groupEntry(sec);
       if (sec.classList.contains('consult-item')) {
         if (isLoose(sec)) looseLink(sec);
         return;
@@ -711,6 +714,8 @@
     });
     /* A loose item outside every listed section still gets its entry, last. */
     items.forEach(function (el, i) { if (!links[i] && isLoose(el)) looseLink(el); });
+    /* Gives an id to any item still without one (those folded into the decided / dropped sections get no rail entry, but their anchors still resolve). */
+    items.forEach(function (el) { if (!el.id) claimId(el, el.dataset.id); });
   } else {
     items.forEach(function (el) { claimId(el, el.dataset.id); });
   }
@@ -987,7 +992,10 @@
    * heading, before the `### ` item blocks: a `### ` heading would read as an
    * item answer, and text after the last item's block would be read as that
    * item's own notes. An empty box adds nothing, not even the heading. */
-  function groupNoteBox(g) { return g.querySelector('.group-notes textarea'); }
+  /* The block's OWN box: in a nested block the first match would be the inner block's. */
+  function groupNoteBox(g) {
+    return [].filter.call(g.querySelectorAll('.group-notes textarea'), function (t) { return t.closest('.consult-group') === g; })[0] || null;
+  }
   function groupNoteText(g) { var t = groupNoteBox(g); return t ? t.value.trim() : ''; }
   function groupHead(g) {
     var head = '## ' + (g.dataset.id || g.id || '') + ' · ' + (g.dataset.title || ''), note = groupNoteText(g);
@@ -1789,6 +1797,7 @@
   function releasableRadios() {
     var was = null;
     document.addEventListener('mousedown', function (ev) {
+      if (ev.button !== 0) return;   /* a right-click opens a menu and never becomes the click */
       var lab = ev.target.closest ? ev.target.closest('.consult-item label') : null;
       var r = lab ? lab.querySelector('input[type="radio"]') : null;
       if (!r && ev.target.type === 'radio') r = ev.target;
@@ -1796,6 +1805,10 @@
        * reader confirming it, not releasing it (BL-700). */
       var it = (lab || r) ? (lab || r).closest('.consult-item') : null;
       was = (r && r.checked && !(it && isProposal(it))) ? r : null;
+    });
+    /* A press released away from the radio never becomes a click: drop the armed release. */
+    document.addEventListener('mouseup', function (ev) {
+      if (was && !(was.closest('label') || was).contains(ev.target)) was = null;
     });
     document.addEventListener('click', function (ev) {
       var r = ev.target;
@@ -1998,10 +2011,13 @@
       if (groupNoteText(g)) copied[groupKey(g)] = fnv(groupNoteText(g));
     });
     save();
-    var msg = L.copied(r.answered + r.fixed) + (r.blank.length ? L.blankList(r.blank) : L.noneBlank);
+    var msg = (r.answered + r.fixed ? L.copied(r.answered + r.fixed) : L.copiedNotes) + (r.blank.length ? L.blankList(r.blank) : L.noneBlank);
 
     function fallback() {
+      var old = document.querySelector('textarea.kit-copy-fallback');
+      if (old) old.remove();   /* one box, not one per failed press */
       var ta = document.createElement('textarea');
+      ta.className = 'kit-copy-fallback';
       ta.value = r.markdown;
       ta.setAttribute('aria-label', L.copy);   /* BL-706: the one textarea the composer renders that the reader sees */
       ta.style.cssText = 'position:fixed;left:0;bottom:0;width:100%;height:9rem';
@@ -2012,7 +2028,11 @@
 
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(r.markdown)
-        .then(function () { say(msg + L.paste); })
+        .then(function () {
+          var stale = document.querySelector('textarea.kit-copy-fallback');
+          if (stale) stale.remove();   /* a copy that worked ends the fallback */
+          say(msg + L.paste);
+        })
         .catch(fallback);
     } else {
       fallback();
@@ -2798,7 +2818,7 @@
 
     /* The zoom on the mark's tile, that mark outlined. */
     function openMark(row, k) {
-      var fig = row.querySelector('figure[data-tile="' + k.tile + '"]');
+      var fig = tileFigure(row, k.tile);
       if (!fig) return;
       open(fig);
       var b = mlayer.querySelector('.kit-mark[data-n="' + k.n + '"]');
@@ -3135,6 +3155,8 @@
     releasableRadios();
     exclusiveNotNow();
     var recovered = restore();
+    /* Drop the entries restore() skipped: left in the store, the same banner returns on every reload. */
+    if (recovered.stale || recovered.spent) save();
     syncDefects();
     openFilledMore();
     redrawMarks();
