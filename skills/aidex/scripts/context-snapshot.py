@@ -62,7 +62,9 @@ def md_tables(text):
             heading, header, rows = s.lstrip("#").strip(), None, []
             continue
         if s.startswith("|"):
-            cells = [c.strip() for c in s.strip("|").split("|")]
+            # a literal pipe in a cell is written `\|`: split on unescaped pipes only
+            cells = [c.strip().replace("\\|", "|")
+                     for c in re.split(r"(?<!\\)\|", re.sub(r"^\||(?<!\\)\|$", "", s))]
             if header is None:
                 header = cells
             elif all(re.fullmatch(r":?-+:?", c) for c in cells):

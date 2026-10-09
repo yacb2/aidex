@@ -282,6 +282,17 @@ grep -Eq '^round 5: .*2026-02-05-real-shape\.html \(v18, [0-9]+/[0-9]+ questions
   && ok "the group tag and the mandatory notes item do not hold a page at not-all-decided" \
   || bad "real-shape line wrong: $out"
 
+# (e2) BL-734 U1-1: a raw ">" inside a quoted data-decided verdict ("A -> keep") must not
+# cut the item tag short, or the item and its stamp are never read.
+decided_page "$BC/2026-02-07-arrow.html" 6 \
+  '<section class="consult-item" data-decided="A -> keep" data-id="q1" data-title="one" data-decided-round="2">a</section>' \
+  '<section class="consult-item" data-decided="B -> drop" data-id="q2" data-title="two" data-decided-round="1">b</section>' \
+  '<section class="consult-item" data-id="q3" data-title="three" data-decided="C -> keep" data-decided-round="2">c</section>'
+out="$(python3 "$FACETS/read_artifacts.py" --projects-root "$B" 2>&1)"
+grep -Eq '^round 6: .*2026-02-07-arrow\.html \(v18, 3/3 questions decided, decided-round 2\)$' <<<"$out" \
+  && ok "an item whose data-decided verdict holds a raw '>' is still read, stamp included" \
+  || bad "arrow-verdict line wrong: $(grep '07-arrow' <<<"$out")"
+
 # (f) F1 again, from the kit's OWN skeleton through the real wrapper: the shape the
 # fixtures above imitate, with the composer and the kit CSS really injected. A
 # decided item carries its verdict (decided-item-without-verdict, LOOP-006).

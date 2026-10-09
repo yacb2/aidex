@@ -39,7 +39,13 @@ META = re.compile(r'<meta\s+name=["\']?(artifact-kit|consult-round)["\']?\s+cont
 # An item is an OPEN TAG carrying `data-id`, and only such a tag can be decided:
 # the kit CSS (`.consult-item[data-decided]`) and the composer script
 # (`hasAttribute('data-decided')`) mention the token on every page (BL-386).
-ITEM = re.compile(r'<[a-zA-Z][\w:-]*\b[^>]*\bdata-id\s*=[^>]*>', re.I | re.S)
+# A quoted attribute value may hold a raw ">" (`data-decided="A -> keep"`), so the
+# scan steps over whole quoted values; a quote opens a value only right after `=`.
+# The same construction as check_artifact.py's _TAG_BYTES (BL-734 U1-1).
+_TAG_BYTES = (r'(?:[^>="\']|=\s*"[^"]*"|=\s*\'[^\']*\''
+              r'|=(?!\s*["\'])|["\'])*')
+ITEM = re.compile(r'<[a-zA-Z][\w:-]*\b' + _TAG_BYTES + r'?\bdata-id\s*=' + _TAG_BYTES + '>',
+                  re.I | re.S)
 # `\b` after "decided" is satisfied by the hyphen of `data-decided-round`, so the
 # bare pattern reads the STAMP as the mark. An item carries both; the two are read
 # apart here so a page that somehow carries only the stamp is not called decided.
