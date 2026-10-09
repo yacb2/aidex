@@ -224,6 +224,16 @@ def strip_item_markup(text):
         text)
 
 
+def blank_item_comments(text):
+    """The text with every comment the browser sees as a comment blanked to
+    spaces, newlines kept: the item scanners read it, and an offset into it is
+    an offset into the page (so line numbers still match). A commented-out item
+    is not an item (BL-734 F3)."""
+    return MARKUP_COMMENT.sub(
+        lambda m: m.group(0) if (m.group(1) or m.group(3))
+        else re.sub(r"[^\n]", " ", m.group(0)), text)
+
+
 # --- lang: the body must speak the language <html lang> declares (BL-279) -------
 # Stopword sets and thresholds mirror validate.py's body-language heuristic; a
 # page whose dominant language disagrees with its lang attribute is the shape
@@ -2447,8 +2457,9 @@ def warn_file(path):
                           f"by a waiver"))
 
     # Items only: a block's context also carries a data-id and is no item lead.
+    live = blank_item_comments(text)
     item_ids = {next(g for g in m.groups()[1:] if g is not None)
-                for m in ITEM_OPEN.finditer(text)
+                for m in ITEM_OPEN.finditer(live)
                 if re.search(r'\bconsult-item\b', m.group(0))}
     for ident, body in bodies:
         if ident not in item_ids:
@@ -2469,14 +2480,14 @@ def warn_file(path):
     # Gallery rows (heading = state name) and decided items (heading = statement
     # on purpose) are not asked, so only the rest owes a question mark.
     asked = {next(g for g in m.groups()[1:] if g is not None)
-             for m in ITEM_OPEN.finditer(text)
+             for m in ITEM_OPEN.finditer(live)
              if re.search(r'\bconsult-item\b', m.group(0))
              and not ITEM_DECIDED.search(m.group(0))
              and not GALLERY_CLASS.search(m.group(0))}
     lang = HTML_LANG.search(text)
     es_page = bool(lang) and lang.group(1).lower() == "es"
     gallery_ids = {next(g for g in m.groups()[1:] if g is not None)
-                   for m in ITEM_OPEN.finditer(text)
+                   for m in ITEM_OPEN.finditer(live)
                    if GALLERY_CLASS.search(m.group(0))}
     for ident, body in bodies:
         if ident not in item_ids:
@@ -3263,6 +3274,7 @@ def check_shape(path, text):
         fails.append(("consult-shape", os.path.basename(path), msg))
 
     spec_index, spec_name = _spec_index(path)
+    text = blank_item_comments(text)
 
     # A consultation page opens with ONE masthead (a hand edit that removed it
     # or pasted a second one leaves the page without, or with two, openings).
@@ -3670,8 +3682,13 @@ def check_consultation(path, text, flat):
 # reply comes in — never touched by a wrap. So there is no mtime test here: once
 # a reply is saved, EVERY later wrap of the page is judged against that same
 # answered snapshot, until a newer reply replaces it.
-REPLY_ITEM = re.compile(r"^### (\S+) · ", re.M)
-REPLY_BLOCK = re.compile(r"^## ", re.M)
+# `### id · title`, or `### id ·` for an empty title (the composer trims the space)
+REPLY_ITEM = re.compile(r"^### (\S+) ·(?:[ \t]|$)", re.M)
+# A `## ` line ends an item's block only with the composer's ` ·` separator
+# (reply_defect.is_block_head's rule); a plain `## note` is the reader's text.
+# `### ` heads are REPLY_ITEM's job: a reader's own `### two words · x` line
+# ends nothing, so a mark under it stays the enclosing item's.
+REPLY_BLOCK = re.compile(r"^(?=## )(?=[^\n]* \u00b7)", re.M)
 # BL-569: a reply pasted in chat format (`Q1: ...`, `### Q1 · ...`) is a reply
 # too (SKILL.md: chat replies are saved the same way as composer replies).
 _MARK_TOKEN = re.compile(r"\[([a-z][a-z-]*)\]")
@@ -3682,8 +3699,8 @@ from reply_defect import DEFECT_HEAD, split_defect, blank_defects   # noqa: E402
 
 
 def _block_end(reply_text, start, end):
-    """Where an item block that starts at `start` ends: at the next `## `
-    heading or the `<!-- reply saved ... -->` separator of an appended save,
+    """Where an item block that starts at `start` ends: at the next
+    `## <id> · ` block heading (REPLY_BLOCK) or the `<!-- reply saved ... -->` separator of an appended save,
     whichever comes first, else at `end` (the next `### ` item)."""
     for stop in (REPLY_BLOCK.search(reply_text, start, end),
                  _SAVE_SEP.search(reply_text, start, end)):
@@ -3712,7 +3729,10 @@ def defect_reports_of(reply_text):
 _ASK_MARKERS = frozenset()
 
 
-_HEADING = re.compile(r"^[ \t]*#{2,3}[ \t]")
+# the heading rule of REPLY_BLOCK + REPLY_ITEM (` ·` separator; `### ` needs a
+# one-word id), leading blanks tolerated: a plain `## note` line or a reader's own
+# `### two words · x` is the reader's text, not a heading
+_HEADING = re.compile(r"^[ \t]*(?:##[ \t](?=[^\n]* \u00b7)|###[ \t]\S+ \u00b7(?:[ \t]|$))")
 _ITEM_BOX = re.compile(r"^[ \t]*###[ \t](?![ \t]*notes[ \t]*·)")
 
 
@@ -3733,7 +3753,7 @@ def reply_blocks(reply_text, ident, ids=(), boxes=True):
     on either)."""
     alts = "|".join(re.escape(i) for i in sorted(set(ids) | {ident},
                                                  key=len, reverse=True))
-    chat_any = re.compile(r"^[ \t]*(?:" + alts + r")(?![\w-])[ \t]*[:·]")
+    chat_any = re.compile(r"^[ \t]*(?:#{2,3}[ \t]+)?(?:" + alts + r")(?![\w-])[ \t]*[:·]")
     head = re.compile(r"^[ \t]*(#{2,3}[ \t]+)?" + re.escape(ident)
                       + r"(?![\w-])[ \t]*[:·](.*)$")
     lines = reply_text.split("\n")
@@ -3862,8 +3882,8 @@ def marker_duties_of(reply_text):
     heads = list(REPLY_ITEM.finditer(reply_text))
     for k, h in enumerate(heads):
         end = heads[k + 1].start() if k + 1 < len(heads) else len(reply_text)
-        # A `## ` heading ends the item's block too: the next block's own note
-        # (BL-701) sits under it, and is not this item's answer.
+        # A `## G · title` block heading ends the item's block too: the next
+        # block's own note (BL-701) sits under it, and is not this item's answer.
         end = _block_end(reply_text, h.end(), end)
         ident = h.group(1)
         rest, defect = split_defect(reply_text[h.end():end])

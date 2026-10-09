@@ -258,6 +258,43 @@ PY
 then ok "a '## ' note line in an ordinary item keeps the gallery row's duties"
 else fail "an ordinary item's '## ' note line lost or broke the gallery duties"; fi
 
+# BL-718 left-alone: the ordinary-item duty readers end a block on the shared
+# heading rule (reply_defect.is_block_head), like the gallery readers: a '## '
+# line with no ' ·' separator is the reader's note, so a mark under it is
+# still the item's, while a real '## G2 · ...' heading ends the block.
+if PYTHONPATH="$SKILL/scripts/dash" python3 - <<'PY'
+import check_artifact as ca
+note = "### q1 \u00b7 Pregunta\n\n- Si\n\n## titulo en nota\n\n- [show-me]\n"
+assert ca.marker_duties_of(note) == [("q1", ["show-me"])], ca.marker_duties_of(note)
+head = "### q1 \u00b7 Pregunta\n\n- Si\n\n## G2 \u00b7 Otro\n\n- [show-me]\n"
+assert ca.marker_duties_of(head) == [], ca.marker_duties_of(head)
+assert ca.defect_reports_of("### q1 \u00b7 P\n\n## nota\n\n#### Page problem\n\nroto\n") == {"q1": "roto"}
+# the composer's empty-title head (`### q2 ·`, trailing space trimmed) opens its own block
+empty = "### q1 \u00b7 Uno\n\n- Si\n\n### q2 \u00b7\n\n- [show-me]\n"
+assert ca.marker_duties_of(empty) == [("q2", ["show-me"])], ca.marker_duties_of(empty)
+# a reader's own `### two words · x` line is no item head and no block end: a mark under
+# it stays the enclosing item's (an extra duty is safer than a dropped one)
+own = "### q1 \u00b7 Uno\n\n### Tema largo \u00b7 detalle\n\n- [show-me]\n"
+assert ca.marker_duties_of(own) == [("q1", ["show-me"])], ca.marker_duties_of(own)
+# reply_blocks (the answer reader) agrees: the mark under a plain '## ' line is q1's,
+# so q1 is provisional, not answered
+plain = "### q1 \u00b7 Uno\n\n- Si\n\n## mi nota\n\n- [show-me]\n"
+assert ca._reply_has_answer(plain, "q1") is False
+real = "### q1 \u00b7 Uno\n\n- Si\n\n## G2 \u00b7 Otro\n\n- [show-me]\n"
+assert ca._reply_has_answer(real, "q1") is True
+# a hashed chat-form head (`## Q2:` / `### Q2:`) still ends the previous item's block
+ids = ("Q1", "Q2")
+for h in ("##", "###"):
+    blank = "### Q1:\n\n%s Q2:\n- A\n" % h
+    assert ca._reply_has_answer(blank, "Q1", ids) is False, h
+    assert ca._reply_has_answer("### Q1:\n- A\n\n%s Q2:\n- [show-me]\n" % h, "Q1", ids) is True, h
+# the answer reader keeps the text under a reader's own `### two words · x` line in q1
+assert ca._reply_has_answer("### q1 \u00b7 Uno\n\n### Tema largo \u00b7 detalle\n\n- [show-me]\n", "q1") is False
+assert ca._reply_has_answer("### q1 \u00b7 Uno\n\n### Tema largo \u00b7 detalle\n\n- Si\n", "q1") is True
+PY
+then ok "an ordinary item's block ends at a '## ... · ' heading, not at a plain '## ' note line"
+else fail "the ordinary-item duty readers still end a block at every '## ' line"; fi
+
 echo
 [[ $failures -eq 0 ]] && { echo "test-save-reply-gallery-duties: PASS"; exit 0; }
 echo "test-save-reply-gallery-duties: $failures FAIL"; exit 1

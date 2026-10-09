@@ -208,6 +208,17 @@ mkpage "$TMP/led-b4.html" "$visual$header$(lsec "$vrich")$(group G1 'Context' "$
 rc="$(run "$TMP/led-b4.html")"
 [[ "$rc" == 0 ]] || fail "inline markup inside .v was rejected: $(cat "$TMP/out")"
 
+# (F3, BL-734) a commented-out item outside a block, and one after the
+# general-notes item, are not items: the page is valid.
+mkpage "$TMP/cm-loose.html" "$visual$header$(group G1 'Context' "$(item Q1 'First')")<!-- $(item Q9 'Retired') -->$notes$bars"
+rc="$(run "$TMP/cm-loose.html")"
+[[ "$rc" == 0 ]] || fail "a commented-out item outside a block failed the shape: $(cat "$TMP/out")"
+mkpage "$TMP/cm-after.html" "$visual$header$(group G1 'Context' "$(item Q1 'First')")$notes<!-- $(item Q9 'Retired') -->$bars"
+rc="$(run "$TMP/cm-after.html")"
+[[ "$rc" == 0 ]] || fail "a commented-out item after the general-notes item failed the shape: $(cat "$TMP/out")"
+mkpage "$TMP/cm-live.html" "$visual$header$(group G1 'Context' "$(item Q1 'First')")$(item Q9 'Live loose')$notes$bars"
+rc="$(run "$TMP/cm-live.html")"; expect_fail "a live loose item still fails beside the commented ones" "Q9.*outside"
+
 # --- a read page (no items) is untouched by the shape rules -------------------
 mkpage "$TMP/read.html" "$header<section id=\"a\"><h2>One</h2><p>x</p></section><section id=\"b\"><h2>Two</h2><p>y</p></section>"
 rc="$(run "$TMP/read.html")"
@@ -264,4 +275,4 @@ rc="$(run "$TMP/good.html")"
 grep -q "G1\|G2" "$TMP/out" && fail "a group was reported on a passing page: $(cat "$TMP/out")"
 
 if (( failures )); then echo "$failures failure(s)"; exit 1; fi
-echo "ok: consultation shape (32 cases)"
+echo "ok: consultation shape (35 cases)"

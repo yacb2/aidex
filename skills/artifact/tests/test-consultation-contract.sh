@@ -901,6 +901,8 @@ $(idem F3 'The Q3 decides the scope of the project.')
 $(idem F4 'Per M095 the manager cannot delete the project.')
 $(idem F5 'Ana buys a Samsung Q80 and plugs it in.')
 $(idem F6 'The decisions B10 and B11 set the project limit.')
+$(idem F7 'Per M096 the manager cannot delete the project.')
+<!-- $(idem M096 'A retired item.') -->
 $gclose
 $notesitem
 $bars
@@ -915,6 +917,10 @@ for id in F3 F4 F6; do
   grep -q "WARN \[consult-lead-id\].*'$id'" "$TMP/out" \
     || fail "10b4d. BL-631: $id opens with a known id and must warn: $(cat "$TMP/out")"
 done
+# BL-734 F3: the id of a commented-out item is not an item of the page, so
+# citing it is still an internal id
+grep -q "WARN \[consult-lead-id\].*'F7'" "$TMP/out" \
+  || fail "10b4d. BL-734: a lead citing the id of a commented-out item must warn: $(cat "$TMP/out")"
 grep -q "WARN \[consult-lead-id\].*'F5'" "$TMP/out" \
   && fail "10b4d. BL-631: F5 (Samsung Q80) is a product name and must not warn: $(cat "$TMP/out")"
 
