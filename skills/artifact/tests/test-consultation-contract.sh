@@ -1986,5 +1986,110 @@ rc="$(run "$TMP/mh-none-built.html")"
 [[ "$rc" == "1" ]] && grep -q "FAIL \[consult-shape\].*no masthead" "$TMP/out" \
   || fail "13. a spec-built page with no masthead passed (rc=$rc): $(cat "$TMP/out")"
 
+# ---- 14. BL-718 (A-c07, A-c09): item open tag and body ----------------------
+# A-c07: a void element carrying data-id (<input data-id=...>) has no body. The
+# balance walk looked for a close tag that never comes and returned the REST OF
+# THE DOCUMENT, so the notes box of a later item satisfied the void one.
+mkpage "$TMP/void-item.html" "$visual
+$gopen
+<input type=\"checkbox\" data-id=\"V1\" data-title=\"Tick\">
+$gclose
+$notesitem
+$bars
+$composer"
+rc="$(run "$TMP/void-item.html")"
+[[ "$rc" == "1" ]] && grep -q "item 'V1' has no notes box" "$TMP/out" \
+  || fail "14a. BL-718 A-c07: a void data-id item borrowed a later item's notes box (rc=$rc): $(cat "$TMP/out")"
+
+# A-c09: a raw '>' inside an earlier attribute value ended the open tag early,
+# so the whole item vanished from the walk and its missing notes box went unseen.
+mkpage "$TMP/gt-attr.html" "$visual
+$gopen
+<section class=\"consult-item\" title=\"a > b\" data-id=\"G9\" data-title=\"Pick\">
+  <h3>Pick</h3>
+  <div class=\"opts\"><label><input type=\"radio\" name=\"G9\" data-label=\"A\"><span>A</span></label><label><input type=\"radio\" name=\"G9\" data-label=\"B\"><span>B</span></label></div>
+</section>
+$gclose
+$notesitem
+$bars
+$composer"
+rc="$(run "$TMP/gt-attr.html")"
+[[ "$rc" == "1" ]] && grep -q "item 'G9' has no notes box" "$TMP/out" \
+  || fail "14b. BL-718 A-c09: an item whose earlier attribute holds '>' was hidden (rc=$rc): $(cat "$TMP/out")"
+
+# ...and a '>' between data-id and data-decided must not make a decided item
+# read as open (the ledger names c1, so an item that reads open fails).
+mkpage "$TMP/gt-decided.html" "$visual
+$ledger_bad
+$gopen
+<section class=\"consult-item\" data-id=\"c1\" title=\"a > b\" data-decided=\"the first option won\" data-title=\"A question\"><h3>A question</h3><p class=fieldlabel>Free text</p><textarea></textarea></section>
+$notesitem
+$bars
+$gclose
+$composer"
+rc="$(run "$TMP/gt-decided.html")"
+[[ "$rc" == "0" ]] || fail "14c. BL-718 A-c09: the decided item with '>' in an attribute failed the contract (rc=$rc): $(cat "$TMP/out")"
+grep -qi 'decided but still asked' "$TMP/out" \
+  && fail "14c. BL-718 A-c09: a decided item with '>' before data-decided was judged as open: $(cat "$TMP/out")"
+
+# ---- 15. BL-718 (A-c15): svg font-size and length units ---------------------
+# em and % are of the PARENT's size (2em in a 10 px group is 20, not 2), pt is
+# 4/3 px, and a unit with no px reading (mm, %) skips the label or rect instead of
+# being read as that many px. A size set only in a style attribute stays unread:
+# reading it newly measured d2 labels the checker deliberately leaves alone.
+mkpage "$TMP/svg-units.html" "<div class=\"page\"><main class=\"main\">
+<figure><svg viewBox=\"0 0 960 400\" role=\"img\" aria-label=\"probe\">
+  <g font-size=\"10\">
+    <text font-size=\"2em\" x=\"800\" y=\"30\">emunitlabelxxxxxxxx</text>
+  </g><g font-size=\"200\">
+    <text font-size=\"15%\" x=\"800\" y=\"70\">pctsizelabelxx</text>
+  </g><g font-size=\"10\">
+    <text font-size=\"10mm\" x=\"800\" y=\"110\">mmunitlabelxxxxxxxxxxxxxxxxxxxxxxx</text>
+    <text style=\"font-size:40px\" x=\"800\" y=\"150\">stylelabelxxxxxxx</text>
+  </g>
+  <text font-size=\"18pt\" x=\"800\" y=\"190\">ptunitlabelxxxxxx</text>
+  <g font-size=\"12\">
+    <text x=\"50\" y=\"230\">anchorlabel here</text>
+    <text x=\"50%\" y=\"230\">pctxlabel here</text>
+    <rect x=\"0\" y=\"260\" width=\"100%\" height=\"60\" fill=\"none\" stroke=\"currentColor\"/>
+    <text x=\"10\" y=\"290\">boxlabelxxxxxxxxxxxxxxxxxxx</text>
+    <text x=\"100\" y=\"380\">small label</text>
+  </g>
+</svg></figure>
+</main></div>
+$composer"
+rc="$(run "$TMP/svg-units.html")"
+grep -q "WARN \[svg-text\].*'emunitlabelxxxxxxxx'.*viewBox" "$TMP/out" \
+  || fail "15a. BL-718 A-c15: 2em in a 10 px group was not read as 20 px: $(cat "$TMP/out")"
+grep -q "WARN \[svg-text\].*'pctsizelabelxx'.*viewBox" "$TMP/out" \
+  || fail "15b. BL-718 A-c15: font-size=15% in a 200 px group was not read as 30 px: $(cat "$TMP/out")"
+grep -q "WARN \[svg-text\].*'ptunitlabelxxxxxx'.*viewBox" "$TMP/out" \
+  || fail "15c. BL-718 A-c15: font-size=18pt was not read as 24 px: $(cat "$TMP/out")"
+grep -q "'mmunitlabel" "$TMP/out" \
+  && fail "15d. BL-718 A-c15: a 10mm label was read as 10 px instead of skipped: $(cat "$TMP/out")"
+grep -q "'stylelabel" "$TMP/out" \
+  && fail "15e. BL-718 A-c15: a style-only font-size was read (it must stay skipped as before): $(cat "$TMP/out")"
+grep -q "'pctxlabel" "$TMP/out" \
+  && fail "15f. BL-718 A-c15: x=50% was read as 50 px: $(cat "$TMP/out")"
+grep -q "'boxlabelxxx" "$TMP/out" \
+  && fail "15g. BL-718 A-c15: a width=100% rect was used as a 100 px box: $(cat "$TMP/out")"
+grep -q "'small label'" "$TMP/out" \
+  && fail "15h. BL-718 A-c15: a well-placed label was reported: $(cat "$TMP/out")"
+
+# ---- 16. BL-718 (A-c09): an apostrophe in an UNQUOTED value is not a string --
+# data-title=Don't must not open a "quoted value" that runs to the next ' in the
+# document and swallows the items after it.
+mkpage "$TMP/apos.html" "$visual
+$gopen
+<section class=\"consult-item\" data-id=\"A1\" data-title=Don't><h3>Pick</h3><div class=\"opts\"><label><input type=\"radio\" name=\"A1\" data-label=\"A\"><span>A</span></label><label><input type=\"radio\" name=\"A1\" data-label=\"B\"><span>B</span></label></div><textarea></textarea></section>
+<section class=\"consult-item\" data-id=\"A2\" data-title=\"Second\"><h3>Second</h3><div class=\"opts\"><label><input type=\"radio\" name=\"A2\" data-label=\"A\"><span>A</span></label><label><input type=\"radio\" name=\"A2\" data-label=\"B\"><span>B</span></label></div></section>
+$gclose
+$notesitem
+$bars
+$composer"
+rc="$(run "$TMP/apos.html")"
+[[ "$rc" == "1" ]] && grep -q "FAIL.*item 'A2' has no notes box" "$TMP/out" \
+  || fail "16. BL-718 A-c09: an apostrophe in an unquoted value swallowed the next item (rc=$rc): $(cat "$TMP/out")"
+
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — the consultation contract counts items, accepts any reply surface, leaves a read alone, and warns without failing"
