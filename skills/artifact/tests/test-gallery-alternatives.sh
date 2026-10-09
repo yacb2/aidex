@@ -120,6 +120,10 @@ refuse "a label shaped like a marker" "marker" 'd["alternatives"][1]["label"] = 
 refuse "a before/after row in a document that declares alternatives" "row 'old' is a review row" \
   'd["rows"].append({"cell": "old", "variant": "light-desktop", "kind": "review", "after": "shots/next.png"})'
 
+# D-s20: `also` belongs to an unrequested row; on an alternatives row it was ignored silently.
+refuse "an 'also' key on an alternatives row" "an alternatives row takes no 'also'" \
+  'd["rows"][0]["also"] = ["dark-desktop"]'
+
 echo "== the compact answer =="
 cat > "$TMP/rev.json" <<'JSON'
 {"gallery": "audit", "variants": ["light-desktop"],

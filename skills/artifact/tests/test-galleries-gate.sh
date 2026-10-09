@@ -234,7 +234,10 @@ dr = gg.declared_cells(spec_text.replace("::: masthead {", '::: masthead {droppe
 check([c["id"] for c in dr[0]] == [c["id"] for c in D[0][1:]], "a cell the masthead drops (dropped-ids) is not a declared cell", [c["id"] for c in dr[0]])
 nad = build(by_tag["gen:na-and-dropped"])
 na = decl(nad)
-check(len(na[0]) == 1 and len(na[1]) == 3, "a notApplicable or dropped row is not a shown cell but is a declared id", (len(na[0]), len(na[1])))
+check(len(na[0]) == 1 and len(na[1]) == 4, "a notApplicable or dropped row is not a shown cell but is a declared id", (len(na[0]), len(na[1])))
+check(any(i.endswith("-na-not-applicable") for i in na[1]) and not any("None" in i for i in na[1])
+      and "gal-na2-not-applicable" in na[1] and "gal-na2-light-desktop" not in na[1],
+      "a notApplicable row is declared under its na_row_id, not <gallery>-<cell>-None", sorted(na[1]))
 check(gg.declared_tiles({"before": "a", "after": "b"}) == 2 and gg.declared_tiles({"after": "b"}) == 1
       and gg.declared_tiles({"captures": {"x": "p", "y": {"s": "q", "t": "r"}}}) == 3
       and gg.declared_tiles({"states": [1, 2, 3]}) == 3, "declared_tiles counts before/after, alternatives (and their states) and states")

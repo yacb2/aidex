@@ -40,7 +40,12 @@ A row's body splits in three, in the order readItem pastes it:
            optionally ending in ` [provisional]`. Known labels are the verdicts
            (gallery_items.VERDICTS), the kit's two "Other" labels, and markers
            like `[question]` or `[not-now]`. Otherwise that paragraph is notes:
-           dictated bullets are not a verdict. From it come
+           dictated bullets are not a verdict. Exception, `lenient` only (labels
+           unknown, not a states row): when the first bullet is exactly an owing
+           label (Needs changes, Cannot judge, the kit's "Other"; on an
+           alternatives row also the none-of-them label) it is the verdict and
+           the remaining bullets go to the notes, so a reason typed as a bullet
+           cannot drop the row's duty. From it come
              verdict      the one verdict or "Other" label, suffix removed, ""
                           if none; two of them is refused
              asks         the marker labels, in paste order
@@ -89,6 +94,9 @@ MARK = re.compile(r"^\[mark (\S+) %s,%s %sx%s\](?: (.*))?$"
 # gallery_items, which is also what refuses an alternative named like it.
 ANSWERS = {label for pairs in VERDICTS.values() for label, _ in pairs} \
     | set(OTHER)
+# The answers that owe the next round something (everything but Approved).
+OWING_FIRST = ANSWERS - {pairs[0][0] for pairs in VERDICTS.values()}
+NONE_LABELS = {pair[0] for pair in NONE_OF_THEM.values()}
 PROVISIONAL = " [provisional]"
 GALLERY_REPLY_FORM = ('gallery-reply.sh [--rows <rows.json>]... [--tiles "<t1> <t2> ..."] '
                       "[<reply.md>|-]  (or pipe the reply on stdin)")
@@ -233,6 +241,21 @@ def parse_row(ident, key, body, tiles=None, labels=None, lenient=False,
     answer = parse_answer(ident, body[:first], extra,
                           kind == "alternatives",
                           kind == "states") if first else None
+    if not answer and first and lenient and kind != "states":
+        # Lenient (labels unknown): a first bullet that is exactly a known
+        # owing label is still the row's verdict even when a reason bullet
+        # follows; that bullet stays in the notes. Demoting the whole paragraph
+        # would silently drop the row's duty (U3-1, N1). Approved is not
+        # owing, so it keeps the notes reading.
+        label = body[0][1][2:] if body[0][1].startswith("- ") else ""
+        provisional = label.endswith(PROVISIONAL)
+        if provisional:
+            label = label[:-len(PROVISIONAL)]
+        if label in OWING_FIRST or (kind == "alternatives"
+                                    and label in NONE_LABELS):
+            answer = {"verdict": label, "asks": [], "provisional": provisional,
+                      "checked": []}
+            first = 1
     if answer:
         body = body[first:]
     else:

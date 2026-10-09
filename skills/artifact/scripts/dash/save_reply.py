@@ -82,12 +82,16 @@ def _fingerprint(path):
 APPROVED = {"Aprobada", "Approved"}
 NEEDS_CHANGES = {pairs[1][0] for pairs in VERDICTS.values()}
 # Every answer a reader can give that is not the approval: Needs changes,
-# Cannot judge and the kit's two "Other" labels.
-OWING_VERDICTS = set(gallery_reply.ANSWERS) - APPROVED
+# Cannot judge, the kit's two "Other" labels and "None of them" (the reader
+# rejected every alternative).
+OWING_VERDICTS = (set(gallery_reply.ANSWERS) - APPROVED) | gallery_reply.NONE_LABELS
 GALLERY_NEEDS_DUTY = ("the reader said this gallery row needs changes: read "
                       "its note and change what it names")
 GALLERY_OTHER_DUTY = ("the reader did not approve this gallery row (Other / "
                       "Cannot judge): read its note and answer what it says")
+GALLERY_NONE_DUTY = ("the reader rejected every alternative of this gallery row "
+                     "(None of them): read its note, then offer new alternatives "
+                     "or say what is missing")
 GALLERY_MARK_DUTY = ("the reader marked regions of this gallery row's capture: "
                      "fix what each mark's note names")
 
@@ -174,6 +178,8 @@ def gallery_duties_for(reply_text, ordinary=(), states=None):
             duties = []
             if row["verdict"] in NEEDS_CHANGES:
                 duties.append((row["id"], "needs-changes", GALLERY_NEEDS_DUTY))
+            elif row["verdict"] in gallery_reply.NONE_LABELS:
+                duties.append((row["id"], "other-verdict", GALLERY_NONE_DUTY))
             elif row["verdict"] in OWING_VERDICTS:
                 duties.append((row["id"], "other-verdict", GALLERY_OTHER_DUTY))
             elif row["kind"] == "states" and _states_owe(row):

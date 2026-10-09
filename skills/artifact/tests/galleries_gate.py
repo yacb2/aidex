@@ -235,7 +235,8 @@ def generated_cases():
           look="Tick each state you approve.")
     c = new("na-and-dropped")
     c.row("shown")
-    c.rows.append({"cell": "na", "variant": "light-desktop", "kind": "review", "notApplicable": "the screen has no such state"})
+    c.rows.append({"cell": "na", "notApplicable": "the screen has no such state"})
+    c.rows.append({"cell": "na2", "variant": "light-desktop", "kind": "review", "notApplicable": "a stray variant is ignored"})
     c.rows.append({"cell": "gone", "variant": "light-desktop", "kind": "review", "dropped": "removed from the round",
                    "look": "x", "after": c.cap()})
     c = new("highlight")
@@ -507,7 +508,10 @@ def declared_cells(spec_text, base_dir):
         for row in doc["rows"]:
             if not isinstance(row, dict):
                 continue
-            rid = gallery_items.row_id(doc["gallery"], row.get("cell"), row.get("variant"), row.get("kind", "review"))
+            if "notApplicable" in row:    # no variant, no kind: the writer's one spelling
+                rid = gallery_items.na_row_id(doc["gallery"], row.get("cell"))
+            else:
+                rid = gallery_items.row_id(doc["gallery"], row.get("cell"), row.get("variant"), row.get("kind", "review"))
             all_ids.add(rid)
             if "dropped" in row or "notApplicable" in row or rid in dropped:
                 continue
