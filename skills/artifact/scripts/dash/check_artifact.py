@@ -3851,7 +3851,12 @@ def marker_duties_of(reply_text):
     a duty is still outstanding (BL-504 finding 1), so an id's marks must be
     read from the ENTIRE accumulated text, never from the block nearest the
     end — a later block that happens to mark fewer things must not silently
-    drop what an earlier block asked for."""
+    drop what an earlier block asked for. The one exception is BL-598
+    supersession (A-c03): a later FULL composer paste of the same round
+    replaces the earlier ones, so a mark the reader withdrew there is not
+    owed. Every caller (the duty check, save_reply, spec_verbs) shares this
+    reader."""
+    reply_text = _live_reply(reply_text)
     order = []
     marks_by_id = {}
     heads = list(REPLY_ITEM.finditer(reply_text))

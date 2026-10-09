@@ -31,6 +31,7 @@ import re
 import shlex
 import sys
 from html.parser import HTMLParser
+from urllib.parse import unquote
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import md_body  # noqa: E402
@@ -286,7 +287,7 @@ def one_unit(units, uid, where):
 
 
 def wrap_hint(page, sidecar):
-    title, lang = os.path.basename(page), None
+    title, lang, favicon = os.path.basename(page), None, None
     if os.path.isfile(page):
         head = open(page, "rb").read(8192).decode("utf-8", "replace")
         m = re.search(r"<title[^>]*>(.*?)</title>", head, re.S | re.I)
@@ -295,9 +296,18 @@ def wrap_hint(page, sidecar):
         m = re.search(r"<html[^>]*\blang=[\"']([^\"']+)", head, re.I)
         if m:
             lang = m.group(1)
+        # the icon the page carries (_shell._favicon_link writes an inline SVG
+        # data URI around the emoji); re-wrapping without it would lose it (A-c34)
+        m = re.search(r'<link[^>]*\brel=["\']icon["\'][^>]*\bhref=["\']data:image/svg\+xml,([^"\']+)',
+                      head, re.I)
+        t = re.search(r"<text[^>]*>(.*?)</text>", unquote(m.group(1)), re.S) if m else None
+        if t:
+            favicon = _html.unescape(t.group(1)).strip() or None
     cmd = [WRAP, "--title", title]
     if lang:
         cmd += ["--lang", lang]
+    if favicon:
+        cmd += ["--favicon", favicon]
     cmd += ["--in", sidecar, "--out", page]
     return " ".join(shlex.quote(c) for c in cmd)
 

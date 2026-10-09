@@ -782,14 +782,37 @@ def check_decided_section_anchor(path, html_text):
 NOT_PORTABLE = re.compile(r"^(?:file:|/(?!/)|[A-Za-z]:[\\/]|\\\\)", re.I)
 
 
+def _srcset_urls(srcset):
+    """Candidate URLs of a srcset, as the HTML spec splits it: a URL is a run of
+    non-space characters (a `data:` URI keeps its comma), then descriptors up to
+    the next comma."""
+    urls, i, n = [], 0, len(srcset)
+    while i < n:
+        while i < n and (srcset[i].isspace() or srcset[i] == ","):
+            i += 1
+        j = i
+        while j < n and not srcset[j].isspace():
+            j += 1
+        if j == i:
+            break
+        url = srcset[i:j]
+        if url.endswith(","):
+            url, i = url.rstrip(","), j
+        else:
+            k = srcset.find(",", j)
+            i = n if k < 0 else k + 1
+        if url:
+            urls.append(url)
+    return urls
+
+
 def check_img_src_portable(path, html_text):
     out = []
     for n in parse(html_text).root.walk():
         if n.tag != "img":
             continue
         urls = [("src", (n.attrs.get("src") or "").strip())]
-        urls += [("srcset", c.split()[0]) for c in (n.attrs.get("srcset") or "").split(",")
-                 if c.strip()]
+        urls += [("srcset", u) for u in _srcset_urls(n.attrs.get("srcset") or "")]
         for attr, url in urls:
             if NOT_PORTABLE.match(url):
                 out.append(("img-src-portable", n.line,
@@ -878,7 +901,19 @@ def check_group_item_id_collision(path, html_text):
             items.setdefault(n.attrs["data-id"], n)
     for n in nodes:
         if "consult-item" in n.classes() and "consult-group" not in n.classes():
-            continue                                 # an item's own id: its own
+            # an item's id equal to ITS OWN data-id is its own; equal to another
+            # item's data-id it collides (A-c14)
+            other = items.get(n.attrs.get("id"))
+            if other is None or other is n or n.attrs.get("data-id") == n.attrs.get("id"):
+                continue
+            out.append((slug, n.line, "consult-item \"%s\" has id=\"%s\", the data-id "
+                        "of another consult-item: the one reached second yields and gets "
+                        "\"%s-2\", so a hand-written #%s link opens the wrong item. It bites "
+                        "when the item is reached after its owner, is folded into "
+                        "decided/dropped, or the page has no rail (composer.js claimId "
+                        "rewrites ids otherwise). Rename one of them"
+                        % (n.attrs.get("data-id") or "?", n.attrs["id"], n.attrs["id"], n.attrs["id"])))
+            continue
         if "consult-group" in n.classes():
             ident = n.attrs.get("id") or runtime.get(n)
             what = "consult-group"

@@ -326,13 +326,20 @@ settled_pick = new_round(decide(two, "Q2", "No, un atributo nuevo", PICK), answe
 check("...and once the writer decides it, the item is no longer a proposal and new-round files it",
       "- Q2 \u2014 Marcador de columna (No, un atributo nuevo)" in settled_pick
       and settled_pick.count("proposal=yes") == 1, settled_pick)
-# One reader for "asked about": the duty check reads the union of every saved paste, so a show-me in an
+# One reader for "asked about": the duty check reads the union of the saved pastes a later full paste does not supersede, so a show-me in an
 # earlier paste keeps the proposal open even when the last paste holds only a note (and they agree).
+# A later FULL composer paste of the same round supersedes it (A-c03, BL-598): there the show-me is withdrawn.
 TWO_SAVES = ("## G1 \u00b7 Formato del spec\n\n" + H2 + "- [show-me]\n\n<!-- reply saved 2026-10-07 page:abc same-round -->\n\n"
-             "## G1 \u00b7 Formato del spec\n\n" + H2 + "vale\n")
+             + H2 + "vale\n")
 check("a show-me in an earlier saved paste keeps the proposal open and the duty is owed (both agree)",
       new_round(two, answered_html=SNAP, reply=TWO_SAVES).count("proposal=yes") == 2
       and any(i == "Q2" for i, _ in check_artifact.marker_duties_of(TWO_SAVES)))
+FULL_SECOND = (TWO_SAVES.split("<!--")[0] + "<!-- reply saved 2026-10-07 page:abc same-round -->\n\n"
+               "## G1 \u00b7 Formato del spec\n\n### Q1 \u00b7 Otro\n\nvale\n")
+check("a later full paste in the same round withdraws the earlier show-me: no duty and the proposal folds, both agree (A-c03)",
+      not any(i == "Q2" for i, _ in check_artifact.marker_duties_of(FULL_SECOND))
+      and new_round(two, answered_html=SNAP, reply=FULL_SECOND).count("proposal=yes") == 1,
+      new_round(two, answered_html=SNAP, reply=FULL_SECOND))
 check("a page-defect sub-block alone (the composer's shape) is no reason to keep a proposal open",
       new_round(two, answered_html=SNAP,
                 reply="## G1 \u00b7 Formato del spec\n\n" + H2 + "#### Fallo de la p\u00e1gina\n\nel texto se corta\n").count("proposal=yes") == 1)

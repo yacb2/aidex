@@ -567,4 +567,25 @@ if eval "$next3" >/dev/null 2>"$TMP/st-wrap3.err"; then
     || ok "BL-731: a passing wrap retires the staging file"
 else fail "BL-731: the fixed staged content does not wrap: $(tail -3 "$TMP/st-wrap3.err")"; fi
 
+# A-c34: the printed re-wrap command keeps the favicon the page carries, so running it
+# does not lose the icon (no profile favicon in this tree).
+bash "$WRAP" --title "Icon page" --lang en --favicon "🧪" --in "$TMP/body.html" --out "$TMP/reports/fav.html" >/dev/null 2>&1 \
+  || fail "A-c34: the favicon page did not wrap"
+bash "$ITEM" get "$TMP/reports/fav.html" c1 | sed 's/asked better/asked even better/' > "$TMP/fav-c1.html"
+icon_before="$(grep -o '<link rel="icon"[^>]*>' "$TMP/reports/fav.html")"
+bash "$ITEM" put "$TMP/reports/fav.html" c1 "$TMP/fav-c1.html" >"$TMP/fav-put.out" 2>&1
+nextf="$(sed -n 's/^next: //p' "$TMP/fav-put.out")"
+if [[ -n "$icon_before" && "$nextf" == *"--favicon"* ]] && eval "$nextf" >/dev/null 2>&1 \
+   && [[ "$(grep -o '<link rel="icon"[^>]*>' "$TMP/reports/fav.html")" == "$icon_before" ]]; then
+  ok "A-c34: the printed wrap command re-creates the page's favicon link byte for byte"
+else fail "A-c34: the re-wrap command loses or changes the favicon: $nextf / $(head -3 "$TMP/fav-put.out")"; fi
+
+# A-c30: a markdown source nested past the list limit ends in one clean ERROR line, not a traceback.
+python3 -c "
+print('\n'.join('  ' * i + '- item %d' % i for i in range(60)))" > "$TMP/deep.md"
+bash "$WRAP" --title Deep --lang en --in "$TMP/deep.md" --out "$TMP/reports/deep.html" >"$TMP/deep.out" 2>&1; rc=$?
+if [[ $rc -ne 0 ]] && grep -q '^ERROR: ' "$TMP/deep.out" && ! grep -q 'Traceback' "$TMP/deep.out"; then
+  ok "A-c30: a too-deep markdown list is a clean ERROR, exit $rc"
+else fail "A-c30: exit $rc, output: $(head -c 300 "$TMP/deep.out")"; fi
+
 [[ $failures -eq 0 ]] && echo "PASS: artifact item" || { echo "FAILED: $failures"; exit 1; }
