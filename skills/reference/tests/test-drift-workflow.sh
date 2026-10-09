@@ -45,15 +45,16 @@ const unit = (out, slug) => out.units.find(u => u.slug === slug)
 const rows = {}
 
 // BL-739: a Workflow run caps at 1,000 agent() calls; 355 units x 3 stages lost 63 compares.
-// BL-741: verify runs in up to 2 batches, so a unit costs at most 4 calls with verify on.
+// BL-741: verify runs in up to 2 batches; BL-746: extract may run twice. A unit costs at most 5 calls
+// with verify on, 3 with it off.
 rows['a launch above the agent() cap throws before any agent runs'] = async () => {
   const many = n => Array.from({ length: n }, (_, i) => 'u' + i)
-  await assert.rejects(run({ ...base, units: many(251) }, {}), /250/)
-  await assert.rejects(run({ ...base, units: many(501), verify: false }, {}), /500/)
+  await assert.rejects(run({ ...base, units: many(201) }, {}), /200/)
+  await assert.rejects(run({ ...base, units: many(334), verify: false }, {}), /333/)
   const ok = { extract: { facts: [], not_covered: [] } }
   const beh = n => Object.fromEntries(many(n).map(s => [s, ok]))
-  assert.strictEqual((await run({ ...base, units: many(250) }, beh(250))).out.units.length, 250)
-  assert.strictEqual((await run({ ...base, units: many(500), verify: false }, beh(500))).out.units.length, 500)
+  assert.strictEqual((await run({ ...base, units: many(200) }, beh(200))).out.units.length, 200)
+  assert.strictEqual((await run({ ...base, units: many(333), verify: false }, beh(333))).out.units.length, 333)
 }
 rows['no units throws'] = async () => {
   await assert.rejects(run({ ...base, units: [] }, {}), /units/)
@@ -182,6 +183,24 @@ rows['one failed verify batch fails the unit at verify'] = async () => {
     extract: { facts, not_covered: [] }, verify: p => p.includes('] c26') ? null : ok(p), compare: { items: [] } } })
   assert.deepStrictEqual([unit(out, 'u').status, unit(out, 'u').failed_stage], ['failed', 'verify'])
   assert.ok(!prompts.some(p => p.type === 'aidex:drift-compare'))
+}
+
+// BL-746: Haiku slips in long StructuredOutput JSON (unquoted enum, stray quote, leaked tool syntax);
+// its in-agent retries re-emit the same draft, so a fresh agent() is the second draw.
+const flaky = (fails, value) => { let n = 0; return () => n++ < fails ? 'throw' : value }
+rows['an extract that fails once is retried by a fresh agent and the unit is ok'] = async () => {
+  const { out, prompts } = await run({ ...base, units: ['u'] }, { u: {
+    extract: flaky(1, { facts: [fact(1)], not_covered: [] }),
+    verify: { verdicts: [{ i: 0, verdict: 'confirmed', evidence: 'e' }] }, compare: { items: [] } } })
+  const ex = prompts.filter(p => p.type === 'aidex:drift-extract')
+  assert.deepStrictEqual(ex.map(p => p.label), ['extract:u', 'extract:u#retry'])
+  assert.deepStrictEqual([unit(out, 'u').status, unit(out, 'u').facts_extracted], ['ok', 1])
+}
+rows['an extract that fails twice fails the unit at extract after exactly two calls'] = async () => {
+  const { out, prompts } = await run({ ...base, units: ['u'] }, { u: { extract: flaky(2, { facts: [fact(1)], not_covered: [] }) } })
+  assert.strictEqual(prompts.filter(p => p.type === 'aidex:drift-extract').length, 2)
+  assert.strictEqual(prompts.length, 2)
+  assert.deepStrictEqual([unit(out, 'u').status, unit(out, 'u').failed_stage], ['failed', 'extract'])
 }
 
 let bad = 0
