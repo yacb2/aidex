@@ -98,5 +98,15 @@
     "query": "The dashboard page renders blank in Safari — figure out why.",
     "should_trigger": false,
     "expected_behavior": "Bug in an existing page — bugfix. The word 'dashboard' is the distractor."
+  },
+  {
+    "query": "Arma una página de consulta con las tres decisiones abiertas del plan de caché para que yo las responda una por una.",
+    "should_trigger": true,
+    "expected_behavior": "ES consultation-page request: the reader answers items and pastes the reply back (description names consultation pages)."
+  },
+  {
+    "query": "Hazme un artefacto sencillo, solo para probar que funciona.",
+    "should_trigger": true,
+    "expected_behavior": "ES content-free throwaway/test page: still this skill, built locally, never published (description names quick throwaway pages)."
   }
 ]
