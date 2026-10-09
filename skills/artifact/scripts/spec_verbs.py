@@ -712,8 +712,8 @@ def _expire_proposals(text, answered_html, reply=None):
     lines = _split(text)
     hit = False
     ids = _ids_of(tree, "item")
-    # Marks are read from the whole file, as the duty check reads them; the block's own
-    # content from the LIVE reply, where a later full paste supersedes an earlier one.
+    # Marks and block content are both read from the LIVE reply (marker_duties_of applies
+    # the supersession itself), as the duty check reads them.
     marked = {i for i, marks in check_artifact.marker_duties_of(reply or "")
               if set(marks) - {"page-defect"}}
     live = check_artifact._live_reply(reply or "")

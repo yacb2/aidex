@@ -486,6 +486,25 @@ build; rc=$?
   && ok "36. same page with a duty outstanding: a later full paste without Q1 still supersedes" \
   || fail "36. rc=$rc out=$(cat "$TMP/build.out")"
 
+# 36b. A-c03: the marker duty reads the LIVE reply too. Save 1 asks [show-me] on Q2,
+# save 2 (same page, full paste) withdraws it: save-reply.sh owes nothing, and the
+# build does not FAIL Q2 for a figure the reader withdrew.
+newpage dutywithdrawn
+spec "" ""; build
+printf '## G1 · x\n\n### Q2 · b\n\n- [show-me]\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "36b. save 1 failed"
+printf '## G1 · x\n\n### Q1 · a\n\nvale, sin cambios\n' | bash "$SAVE_REPLY" "$PAGE" >"$TMP/save36b.out" || fail "36b. save 2 failed"
+grep -q 'reply saved .* same-round -->' "$D/.aidex-artifact-prev/dutywithdrawn.reply.md" \
+  || fail "36b. fixture: save 2 was not labelled same-round"
+spec "" ""                 # Q2 stays OPEN with no figure: only the live reply keeps it from owing one
+build; rc=$?
+if grep -q 'DUTIES' "$TMP/save36b.out"; then
+  fail "36b. save-reply still owes the withdrawn show-me: $(cat "$TMP/save36b.out")"
+elif [[ "$rc" != "0" ]] || grep -q 'consult-marker-duties' "$TMP/build.out"; then
+  fail "36b. build FAILs the withdrawn show-me (rc=$rc): $(cat "$TMP/build.out")"
+else
+  ok "36b. a later full paste withdraws a marker ask: no duty printed, no marker FAIL"
+fi
+
 # 37. a legacy separator with no mode (reply.md written before BL-598) is a
 # round end: a later full paste does not supersede across it
 newpage legacysep

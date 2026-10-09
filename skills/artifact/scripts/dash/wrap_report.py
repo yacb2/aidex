@@ -1042,7 +1042,11 @@ def main():
 
     # After the language is known: the rendered rail is headed in it.
     if raw_is_md:
-        content = md_body.render(content, args.title, lang)
+        try:
+            content = md_body.render(content, args.title, lang)
+        except md_body.ListTooDeep as exc:
+            print("ERROR: %s: %s" % (args.infile, exc), file=sys.stderr)
+            return 2
     if re.search(r"<!doctype\s+html", content, re.I):
         print("ERROR: content already has a doctype — pass page content only, "
               "not a full document", file=sys.stderr)
