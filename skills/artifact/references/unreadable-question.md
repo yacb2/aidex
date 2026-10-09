@@ -116,7 +116,12 @@ fingerprint the last separator carries, or `answered.html` when there is none
 over the duty check: a save from the same page is labelled `same-round` even
 with a duty unmet, so a later full composer paste from it supersedes the
 earlier one — also when that page was rebuilt outside the gate and two saves
-came from it (BL-644). Only once the page has been rebuilt
+came from it (BL-644). The supersession is never silent: on a `same-round`
+save, save-reply prints a `WITHDRAWN` list of every ask (mark or gallery duty,
+per mark) an earlier paste of the round owed and the new one no longer does, so
+an ask lost with the browser's composer state reaches the writer instead of
+vanishing (owner decision 2026-10-09: supersession kept, union rejected).
+Only once the page has been rebuilt
 and satisfies every outstanding duty does a fresh reply **replace** `reply.md` and re-snapshot
 `answered.html`: that is a delivered round, not an unanswered one waved
 through by an unrelated follow-up.
