@@ -342,8 +342,14 @@ def unwrapped_tables(text):
 
 # --- § 8 items ----------------------------------------------------------------
 
-ITEM_OPEN = re.compile(r'<([a-zA-Z][\w:-]*)\b[^>]*\bdata-id\s*=\s*'
-                       r'(?:"([^"]*)"|\x27([^\x27]*)\x27|([^\s>]+))[^>]*>',
+# A quoted attribute value may hold a raw '>' (BL-718 A-c09), so the scan around
+# data-id steps over whole quoted values instead of stopping at the first '>'.
+# A quote opens a value only right after `=`: an apostrophe in an unquoted value
+# (`data-title=Don't`) is a plain character, not the start of a string.
+_TAG_BYTES = (r'(?:[^>="\x27]|=\s*"[^"]*"|=\s*\x27[^\x27]*\x27'
+              r'|=(?!\s*["\x27])|["\x27])*')
+ITEM_OPEN = re.compile(r'<([a-zA-Z][\w:-]*)\b' + _TAG_BYTES + r'?\bdata-id\s*=\s*'
+                       r'(?:"([^"]*)"|\x27([^\x27]*)\x27|([^\s>]+))' + _TAG_BYTES + '>',
                        re.I | re.S)
 ITEM_TITLE = re.compile(r'\bdata-title\s*=\s*'
                         r'(?:"([^"]*)"|\x27([^\x27]*)\x27|([^\s>]+))',
@@ -591,6 +597,8 @@ def _subtree_closed(text, tag, start):
 
     This is the one balance walk; `_subtree` wraps it.
     """
+    if tag.lower() in VOID_TAGS:   # no close tag will ever come (BL-718 A-c07)
+        return ""
     op = re.compile(r'<' + re.escape(tag) + r'\b', re.I)
     cl = re.compile(r'</' + re.escape(tag) + r'\s*>', re.I)
     depth, pos = 1, start
@@ -1136,9 +1144,35 @@ def _svg_attrs(s):
             for m in SVG_ATTR.finditer(s)}
 
 
+_SVG_LEN = re.compile(r'\s*(-?\d*\.?\d+)\s*([a-z%]*)\s*(?:!important)?\s*$', re.I)
+
+
 def _svg_num(v, default):
-    m = re.match(r'\s*(-?\d*\.?\d+)', v or '')
-    return float(m.group(1)) if m else default
+    """A coordinate in user units. A unit other than px (`50%`, `2em`) has no
+    reading here: None, so the caller skips the node instead of using 50 px."""
+    m = re.match(r'\s*(-?\d*\.?\d+)\s*([a-z%]*)', v or '', re.I)
+    if not m:
+        return default
+    return float(m.group(1)) if m.group(2).lower() in ('', 'px') else None
+
+
+def _svg_font_size(v, base):
+    """A font-size attribute in px. em and % scale `base`, the PARENT's size; pt
+    is 4/3 px, rem 16 px. Any other unit gives None (the label is skipped, never
+    guessed); no number at all (a keyword) returns `base` untouched."""
+    m = _SVG_LEN.match(v or '')
+    if not m:
+        return base
+    n, unit = float(m.group(1)), m.group(2).lower()
+    if unit in ('', 'px'):
+        return n
+    if unit == 'pt':
+        return n * 4 / 3
+    if unit == 'rem':
+        return n * 16
+    if unit in ('em', '%') and base is not None:
+        return n * base / (100 if unit == '%' else 1)
+    return None
 
 
 def _svg_translate(transform):
@@ -1316,22 +1350,23 @@ def svg_geometry(svg, fonts=None, rules=None, root=None):
         raw_fill = _svg_style_prop(d.get('style'), 'fill') or d.get('fill')
         if raw_fill:
             nfl = svg_literal_colour(raw_fill) or SVG_UNREADABLE
-        nfs = _svg_num(d.get('font-size'), nfs)
+        nfs = _svg_font_size(d.get('font-size'), fs) if 'font-size' in d else nfs
         nan = d.get('text-anchor', anchor)
         dx, dy = _svg_translate(d.get('transform'))
         nsk = skip or tag in SVG_TEMPLATES or bool(SVG_UNPLACEABLE.search(d.get('transform', '')))
         nb = nb or d.get('font-weight', '') in ('bold', 'bolder', '600', '700', '800', '900')
         nmo = nmo or 'mono' in d.get('font-family', '').lower()
         if tag == 'text' and not selfclosed:
+            px, py = _svg_num(d.get('x'), 0.0), _svg_num(d.get('y'), 0.0)
             cur = (m.end(), nfs, nan,
-                   _svg_num(d.get('x'), 0.0) + tx + dx,
-                   _svg_num(d.get('y'), 0.0) + ty + dy, nsk, nb, nmo, nfl,
-                   chain)
+                   (px or 0.0) + tx + dx, (py or 0.0) + ty + dy,
+                   nsk or px is None or py is None, nb, nmo, nfl, chain)
             tsp, glyph_fills, bare, last = [], set(), [], m.end()
         elif tag == 'rect' and not nsk:
-            rx, ry = _svg_num(d.get('x'), 0.0) + tx + dx, _svg_num(d.get('y'), 0.0) + ty + dy
-            rects.append((rx, ry, rx + _svg_num(d.get('width'), 0.0),
-                          ry + _svg_num(d.get('height'), 0.0), nfl))
+            gx, gy, gw, gh = (_svg_num(d.get(k), 0.0) for k in ('x', 'y', 'width', 'height'))
+            if None not in (gx, gy, gw, gh):
+                rx, ry = gx + tx + dx, gy + ty + dy
+                rects.append((rx, ry, rx + gw, ry + gh, nfl))
         elif tag in SVG_CONTAINERS and not selfclosed:
             stack.append((fs, anchor, tx, ty, skip, bold, mono, fill))
             anc.append(chain[-1])
@@ -2509,7 +2544,7 @@ def warn_file(path):
 
 # --- Requirement 1, across regenerations (--prev) -----------------------------
 
-ID_TAG = re.compile(r'<[^>]*\bdata-id\s*=[^>]*>', re.I | re.S)
+ID_TAG = re.compile(r'<' + _TAG_BYTES + r'?\bdata-id\s*=' + _TAG_BYTES + '>', re.I | re.S)
 ID_ATTR = re.compile(r'\bdata-(id|title)\s*=\s*'
                      r'(?:"([^"]*)"|\x27([^\x27]*)\x27|([^\s>]+))', re.I | re.S)
 
@@ -2546,7 +2581,7 @@ def id_title_map(path):
     than one spelling of an id/title pair — a single-quoted page, or a title
     that merely quotes something, must not drop out of the map."""
     out = {}
-    text = open(path, encoding="utf-8", errors="replace").read()
+    text = strip_item_markup(open(path, encoding="utf-8", errors="replace").read())
     for tag in ID_TAG.finditer(text):
         attrs = {}
         for m in ID_ATTR.finditer(tag.group(0)):
@@ -4753,7 +4788,8 @@ def main(argv):
 
     if not files:
         print("ERROR: usage: check-artifact.sh <file.html> [...] "
-              "[--prev <old.html>]", file=sys.stderr)
+              "[--prev <old.html>] [--new-round] | --census [dir]",
+              file=sys.stderr)
         return 2
     # --prev compares ONE page against its own previous version; with several
     # files there is no way to say which prior belongs to which, and guessing
