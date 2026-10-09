@@ -40,8 +40,7 @@ A row's body splits in three, in the order readItem pastes it:
            optionally ending in ` [provisional]`. Known labels are the verdicts
            (gallery_items.VERDICTS), the kit's two "Other" labels, and markers
            like `[question]` or `[not-now]`. Otherwise that paragraph is notes:
-           dictated bullets are not a verdict. Exception, `lenient` only (labels
-           unknown, not a states row): when the first bullet is exactly an owing
+           dictated bullets are not a verdict. Exception, not on a states row: when the first bullet is exactly an owing
            label (Needs changes, Cannot judge, the kit's "Other"; on an
            alternatives row also the none-of-them label) it is the verdict and
            the remaining bullets go to the notes, so a reason typed as a bullet
@@ -97,6 +96,9 @@ ANSWERS = {label for pairs in VERDICTS.values() for label, _ in pairs} \
 # The answers that owe the next round something (everything but Approved).
 OWING_FIRST = ANSWERS - {pairs[0][0] for pairs in VERDICTS.values()}
 NONE_LABELS = {pair[0] for pair in NONE_OF_THEM.values()}
+# Every answer that owes the next round something: OWING_FIRST plus "None of
+# them". save_reply imports it, so the two cannot drift.
+OWING_ANSWERS = OWING_FIRST | NONE_LABELS
 PROVISIONAL = " [provisional]"
 GALLERY_REPLY_FORM = ('gallery-reply.sh [--rows <rows.json>]... [--tiles "<t1> <t2> ..."] '
                       "[<reply.md>|-]  (or pipe the reply on stdin)")
@@ -163,7 +165,7 @@ def gallery_key(ident, title, n):
     return None
 
 
-def parse_answer(ident, para, extra=(), alt=False, many=False):
+def parse_answer(ident, para, extra=(), alt=False, many=False, warn=True):
     """The answer block, or None when `para` is not one (then it is notes).
     `extra`: the labels an alternatives row's radios carry, known from the
     rows document (`--rows`); bullets that are not one of them stay notes.
@@ -194,7 +196,7 @@ def parse_answer(ident, para, extra=(), alt=False, many=False):
                     % (n, ident, verdict, verdict_line, label))
             verdict, verdict_line = label, n
         else:
-            if (alt or many) and label not in ANSWERS:
+            if warn and (alt or many) and label not in ANSWERS:
                 sys.stderr.write('warning: row %s: "%s" is not a label of the '
                                  '--rows document; kept as a note (stale '
                                  '--rows?)\n' % (ident, label))
@@ -238,24 +240,36 @@ def parse_row(ident, key, body, tiles=None, labels=None, lenient=False,
         tiles = None                             # unknown ids under lenient
     elif kind == "alternatives" and gallery in (alt_tiles or {}):
         tiles = alt_tiles[gallery]               # the alternatives' own figures
+    # An owing first bullet (Needs changes, Cannot judge, the kit's "Other";
+    # on an alternatives row also the none-of-them label) is the verdict even
+    # when a reason bullet follows: that bullet stays a note, so a reason typed
+    # as a bullet cannot drop the row's duty (U3-1, N1; BL-754). Markers right
+    # after it stay asks. Not on states rows; on a strict alternatives row the
+    # page offers only Other and none-of-them, so only those count.
+    label = body[0][1][2:] if first and body[0][1].startswith("- ") else ""
+    if label.endswith(PROVISIONAL):
+        label = label[:-len(PROVISIONAL)]
+    if kind == "alternatives":
+        owing = label in (set(OTHER) | NONE_LABELS if extra is not None
+                          else OWING_ANSWERS)
+    else:
+        owing = kind != "states" and label in OWING_FIRST
     answer = parse_answer(ident, body[:first], extra,
                           kind == "alternatives",
-                          kind == "states") if first else None
-    if not answer and first and lenient and kind != "states":
-        # Lenient (labels unknown): a first bullet that is exactly a known
-        # owing label is still the row's verdict even when a reason bullet
-        # follows; that bullet stays in the notes. Demoting the whole paragraph
-        # would silently drop the row's duty (U3-1, N1). Approved is not
-        # owing, so it keeps the notes reading.
-        label = body[0][1][2:] if body[0][1].startswith("- ") else ""
-        provisional = label.endswith(PROVISIONAL)
-        if provisional:
-            label = label[:-len(PROVISIONAL)]
-        if label in OWING_FIRST or (kind == "alternatives"
-                                    and label in NONE_LABELS):
-            answer = {"verdict": label, "asks": [], "provisional": provisional,
-                      "checked": []}
-            first = 1
+                          kind == "states", warn=not owing) if first else None
+    if not answer and owing:
+        answer = {"verdict": label, "asks": [], "provisional": False,
+                  "checked": []}
+        first = 1
+        for _, line in body[1:]:
+            mark = line[2:] if line.startswith("- ") else ""
+            bare = mark[:-len(PROVISIONAL)] if mark.endswith(PROVISIONAL) else mark
+            if not MARKER_LABEL.match(bare):
+                break
+            answer["provisional"] |= bare != mark
+            answer["asks"].append(bare)
+            first += 1
+        answer["provisional"] |= body[0][1].endswith(PROVISIONAL)
     if answer:
         body = body[first:]
     else:
@@ -362,7 +376,7 @@ def main(argv):
             # one gallery come in two documents with the same slug.
             labels.setdefault(doc["gallery"], set()).update(
                 {a["label"].strip() for a in doc.get("alternatives", [])}
-                | {pair[0] for pair in NONE_OF_THEM.values()})
+                | NONE_LABELS)
             alts = doc.get("alternatives")
             if alts:
                 try:

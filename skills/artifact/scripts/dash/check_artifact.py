@@ -217,7 +217,13 @@ MARKUP_COMMENT = re.compile(
 def strip_item_markup(text):
     """What the item walkers read: script/style out, then the comments the
     browser sees as comments, so a stray "<!--" in a string, an attribute or
-    `<!-->` cannot swallow the live items up to the next "-->"."""
+    `<!-->` cannot swallow the live items up to the next "-->".
+
+    Twin of blank_item_comments, kept apart on purpose: this one DELETES (a
+    script/style body becomes one space, a comment one space) for the walkers
+    that never report an offset; the twin keeps every offset and leaves
+    script/style text in place. Both share MARKUP_COMMENT, so they agree on
+    which comments exist (test-tag-bytes-lockstep.sh holds that)."""
     return MARKUP_COMMENT.sub(
         lambda m: (" " if m.group(2) and m.group(2).lower() in ("script", "style")
                    else m.group(0)) if (m.group(1) or m.group(3)) else " ",
@@ -228,7 +234,8 @@ def blank_item_comments(text):
     """The text with every comment the browser sees as a comment blanked to
     spaces, newlines kept: the item scanners read it, and an offset into it is
     an offset into the page (so line numbers still match). A commented-out item
-    is not an item (BL-734 F3)."""
+    is not an item (BL-734 F3). Twin of strip_item_markup, which deletes
+    instead and also drops script/style bodies; see its docstring."""
     return MARKUP_COMMENT.sub(
         lambda m: m.group(0) if (m.group(1) or m.group(3))
         else re.sub(r"[^\n]", " ", m.group(0)), text)
@@ -356,6 +363,8 @@ def unwrapped_tables(text):
 # data-id steps over whole quoted values instead of stopping at the first '>'.
 # A quote opens a value only right after `=`: an apostrophe in an unquoted value
 # (`data-title=Don't`) is a plain character, not the start of a string.
+# Twin: usage-retro/facets/read_artifacts.py keeps its own copy (that tool stays
+# standalone); skills/artifact/tests/test-tag-bytes-lockstep.sh holds them equal.
 _TAG_BYTES = (r'(?:[^>="\x27]|=\s*"[^"]*"|=\s*\x27[^\x27]*\x27'
               r'|=(?!\s*["\x27])|["\x27])*')
 ITEM_OPEN = re.compile(r'<([a-zA-Z][\w:-]*)\b' + _TAG_BYTES + r'?\bdata-id\s*=\s*'
@@ -3683,7 +3692,7 @@ def check_consultation(path, text, flat):
 # a reply is saved, EVERY later wrap of the page is judged against that same
 # answered snapshot, until a newer reply replaces it.
 # `### id · title`, or `### id ·` for an empty title (the composer trims the space)
-REPLY_ITEM = re.compile(r"^### (\S+) ·(?:[ \t]|$)", re.M)
+from reply_defect import ITEM_HEAD as REPLY_ITEM   # noqa: E402
 # A `## ` line ends an item's block only with the composer's ` ·` separator
 # (reply_defect.is_block_head's rule); a plain `## note` is the reader's text.
 # `### ` heads are REPLY_ITEM's job: a reader's own `### two words · x` line
@@ -3755,7 +3764,7 @@ def reply_blocks(reply_text, ident, ids=(), boxes=True):
                                                  key=len, reverse=True))
     chat_any = re.compile(r"^[ \t]*(?:#{2,3}[ \t]+)?(?:" + alts + r")(?![\w-])[ \t]*[:·]")
     head = re.compile(r"^[ \t]*(#{2,3}[ \t]+)?" + re.escape(ident)
-                      + r"(?![\w-])[ \t]*[:·](.*)$")
+                      + r"(?![\w-])[ \t]*([:·])(.*)$")
     lines = reply_text.split("\n")
     # defect_after[k]: a `#### Fallo` sub-block follows line k in its box
     defect_after, after = [False] * len(lines), False
@@ -3786,9 +3795,11 @@ def reply_blocks(reply_text, ident, ids=(), boxes=True):
         filled = filled or (box and bool(line.strip()) and not _ITEM_BOX.match(line))
         m = head.match(line)
         if m and not held:
-            # a `### Q1 · title` head carries the item title, not an answer
-            cur = [] if m.group(1) else [m.group(2)]
-            out.append((cur, not m.group(1)))
+            # a `### Q1 · title` head carries the item title, not an answer;
+            # a `### Q1: text` head carries the answer after its colon and is
+            # chat-form, like bare `Q1:` (chat_any)
+            cur = [] if m.group(1) and m.group(2) == "·" else [m.group(3)]
+            out.append((cur, not m.group(1) or m.group(2) == ":"))
         elif cur is not None:
             cur.append(line)
     return out
@@ -3887,7 +3898,10 @@ def marker_duties_of(reply_text):
         end = _block_end(reply_text, h.end(), end)
         ident = h.group(1)
         rest, defect = split_defect(reply_text[h.end():end])
-        marks = ASK_LINE.findall(rest)
+        # Only known ask markers are marks (as _reply_has_answer reads them);
+        # `page-defect` is no ask marker but is still a mark here.
+        marks = [m for m in ASK_LINE.findall(rest)
+                 if m in _ASK_MARKERS or m == "page-defect"]
         if defect and "page-defect" not in marks:
             marks.append("page-defect")
         if not marks:

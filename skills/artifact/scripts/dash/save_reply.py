@@ -83,8 +83,8 @@ APPROVED = {"Aprobada", "Approved"}
 NEEDS_CHANGES = {pairs[1][0] for pairs in VERDICTS.values()}
 # Every answer a reader can give that is not the approval: Needs changes,
 # Cannot judge, the kit's two "Other" labels and "None of them" (the reader
-# rejected every alternative).
-OWING_VERDICTS = (set(gallery_reply.ANSWERS) - APPROVED) | gallery_reply.NONE_LABELS
+# rejected every alternative). One definition, in gallery_reply.
+OWING_VERDICTS = gallery_reply.OWING_ANSWERS
 GALLERY_NEEDS_DUTY = ("the reader said this gallery row needs changes: read "
                       "its note and change what it names")
 GALLERY_OTHER_DUTY = ("the reader did not approve this gallery row (Other / "
@@ -100,14 +100,28 @@ def _drop_items(chunk, ordinary):
     """The chunk with every `### <id>` block whose id is an ordinary item of
     the page blanked out (lines kept, so refusal line numbers still match).
     A `### <ordinary-id> · ...` line pasted inside a gallery row's notes blanks
-    what follows it too, marks included: the parser's existing limit, where
-    any such heading hands the rest to that item's block."""
-    out, keep = [], True
+    what follows it too, marks included. The parser dies only on text AFTER a
+    row's `[mark ` lines, so only there does a line that is not the row's own
+    end the row: a chat-form head of an ordinary item (`Q2: ...`,
+    `### Q2: ...`, check_artifact's chat_any rule) or a `### two words · x`
+    line; both blank what follows, up to the next block head. Before the marks
+    they stay the row's notes."""
+    chat = re.compile(r"^[ \t]*(?:#{2,3}[ \t]+)?(?:"
+                      + "|".join(re.escape(i) for i in sorted(ordinary, key=len, reverse=True))
+                      + r")(?![\w-])[ \t]*[:\u00b7]") if ordinary else None
+    out, keep, marked = [], True, False
     for line in chunk.splitlines(keepends=True):
-        if is_block_head(line) and line.startswith("### "):
-            keep = line[4:].partition(" ·")[0].strip() not in ordinary
-        elif is_block_head(line):
-            keep = True
+        if is_block_head(line):
+            marked = False
+            if line.startswith("### "):
+                keep = line[4:].partition(" ·")[0].strip() not in ordinary
+            else:
+                keep = True
+        elif keep and line.startswith("[mark "):
+            marked = True
+        elif keep and marked and ((chat and chat.match(line))
+                                  or (line.startswith("### ") and " \u00b7" in line)):
+            keep = False
         out.append(line if keep else "\n")
     return "".join(out)
 
@@ -159,20 +173,34 @@ def gallery_duties_for(reply_text, ordinary=(), states=None):
     read as text after a row's marks) and the LATEST paste wins per row id: a
     row a later paste turns Approved with no marks leaves the list. A paste
     gallery_reply refuses yields an `unreadable` row instead of nothing, so
-    "nothing owed" cannot print over rows nobody read. `ordinary`: ids the
+    "nothing owed" cannot print over rows nobody read. Saves a later full
+    paste of the same round supersedes are dropped first (BL-755, the rule of
+    check_artifact._live_reply), unless that paste was refused. `ordinary`: ids the
     page shows as ordinary items, never read as gallery rows (BL-654)."""
     by_id, unreadable = {}, []
-    for chunk in ca._SAVE_SEP.split(reply_text):
+
+    def read(chunk):
         err = io.StringIO()
         try:
             with contextlib.redirect_stderr(err):
-                rows = gallery_reply.parse(_drop_items(chunk, ordinary),
+                return gallery_reply.parse(_drop_items(chunk, ordinary),
                                            lenient=True,
                                            states=states)["rows"]
         except SystemExit:
             msg = err.getvalue().strip().replace("gallery-reply: ", "", 1)
             if msg not in unreadable:
                 unreadable.append(msg)
+            return None
+
+    # A refused paste is blanked before supersession, so it never withdraws the
+    # rows an earlier readable paste of its round still owes.
+    parts = re.split("(" + ca._SAVE_SEP.pattern + ")", reply_text, flags=re.M)
+    for k in range(0, len(parts), 2):
+        if read(parts[k]) is None:
+            parts[k] = ""
+    for chunk in ca._SAVE_SEP.split(ca._live_reply("".join(parts))):
+        rows = read(chunk)
+        if rows is None:
             continue
         for row in rows:
             duties = []
@@ -235,6 +263,7 @@ def save_reply(page_path, reply_text):
     a duty is still outstanding or the round has not been rebuilt — see the
     module docstring). Returns (duties, reply_path, answered_path, appended),
     where appended is False, "duty" or "same-round"."""
+    reply_text = reply_text.replace("\r\n", "\n").replace("\r", "\n")   # the gate reads universal newlines
     prev_dir, reply_path, answered_path = _paths(page_path)
     os.makedirs(prev_dir, exist_ok=True)
     had_previous = os.path.isfile(reply_path) and os.path.isfile(answered_path)

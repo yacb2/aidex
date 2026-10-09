@@ -41,7 +41,9 @@ META = re.compile(r'<meta\s+name=["\']?(artifact-kit|consult-round)["\']?\s+cont
 # (`hasAttribute('data-decided')`) mention the token on every page (BL-386).
 # A quoted attribute value may hold a raw ">" (`data-decided="A -> keep"`), so the
 # scan steps over whole quoted values; a quote opens a value only right after `=`.
-# The same construction as check_artifact.py's _TAG_BYTES (BL-734 U1-1).
+# The same construction as check_artifact.py's _TAG_BYTES (BL-734 U1-1), copied
+# so this tool stays standalone; skills/artifact/tests/test-tag-bytes-lockstep.sh
+# holds the two patterns equal.
 _TAG_BYTES = (r'(?:[^>="\']|=\s*"[^"]*"|=\s*\'[^\']*\''
               r'|=(?!\s*["\'])|["\'])*')
 ITEM = re.compile(r'<[a-zA-Z][\w:-]*\b' + _TAG_BYTES + r'?\bdata-id\s*=' + _TAG_BYTES + '>',
