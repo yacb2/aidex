@@ -3897,7 +3897,10 @@ def marker_duties_of(reply_text):
         end = _block_end(reply_text, h.end(), end)
         ident = h.group(1)
         rest, defect = split_defect(reply_text[h.end():end])
-        marks = ASK_LINE.findall(rest)
+        # Only known ask markers are marks (as _reply_has_answer reads them);
+        # `page-defect` is no ask marker but is still a mark here.
+        marks = [m for m in ASK_LINE.findall(rest)
+                 if m in _ASK_MARKERS or m == "page-defect"]
         if defect and "page-defect" not in marks:
             marks.append("page-defect")
         if not marks:

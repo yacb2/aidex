@@ -173,20 +173,34 @@ def gallery_duties_for(reply_text, ordinary=(), states=None):
     read as text after a row's marks) and the LATEST paste wins per row id: a
     row a later paste turns Approved with no marks leaves the list. A paste
     gallery_reply refuses yields an `unreadable` row instead of nothing, so
-    "nothing owed" cannot print over rows nobody read. `ordinary`: ids the
+    "nothing owed" cannot print over rows nobody read. Saves a later full
+    paste of the same round supersedes are dropped first (BL-755, the rule of
+    check_artifact._live_reply), unless that paste was refused. `ordinary`: ids the
     page shows as ordinary items, never read as gallery rows (BL-654)."""
     by_id, unreadable = {}, []
-    for chunk in ca._SAVE_SEP.split(reply_text):
+
+    def read(chunk):
         err = io.StringIO()
         try:
             with contextlib.redirect_stderr(err):
-                rows = gallery_reply.parse(_drop_items(chunk, ordinary),
+                return gallery_reply.parse(_drop_items(chunk, ordinary),
                                            lenient=True,
                                            states=states)["rows"]
         except SystemExit:
             msg = err.getvalue().strip().replace("gallery-reply: ", "", 1)
             if msg not in unreadable:
                 unreadable.append(msg)
+            return None
+
+    # A refused paste is blanked before supersession, so it never withdraws the
+    # rows an earlier readable paste of its round still owes.
+    parts = re.split("(" + ca._SAVE_SEP.pattern + ")", reply_text, flags=re.M)
+    for k in range(0, len(parts), 2):
+        if read(parts[k]) is None:
+            parts[k] = ""
+    for chunk in ca._SAVE_SEP.split(ca._live_reply("".join(parts))):
+        rows = read(chunk)
+        if rows is None:
             continue
         for row in rows:
             duties = []

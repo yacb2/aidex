@@ -389,6 +389,36 @@ save "$TMP/crlf" "$(printf '### q1 \xc2\xb7 Uno\r\n\r\n- Si\r\n\r\n### q2 \xc2\x
 [[ "$out" == *"q2 [show-me]"* && "$out" != *"q1 [show-me]"* ]] \
   && ok "BL-757: a CRLF paste with an empty-title head names q2" || fail "BL-757: crlf: $out"
 
+# BL-755: gallery_duties_for reads the same live reply as marker_duties_of: a
+# later FULL paste of the same round supersedes the earlier ones, so a verdict
+# the reader withdrew there is not owed; a paste that still holds the row keeps
+# it, and a `duty` separator (a rebuilt page) withdraws nothing.
+if PYTHONPATH="$SKILL/scripts/dash" python3 - <<'PY'
+import save_reply, check_artifact as ca
+ROW = ("## G1 \u00b7 Galeria\n\n### x-full-light-desktop \u00b7 x \u00b7 full \u00b7 light-desktop\n\n"
+       "- Necesita cambios\n\nel borde\n\n")
+WITHOUT = "## G1 \u00b7 Galeria\n\n### Q3 \u00b7 Tres\n\nvale\n"
+def sep(mode): return "<!-- reply saved 2026-10-09 page:abc %s -->\n" % mode
+tags = lambda t: [x[:2] for x in save_reply.gallery_duties_for(t)]
+assert tags(ROW + sep("same-round") + WITHOUT) == [], tags(ROW + sep("same-round") + WITHOUT)
+assert tags(ROW + sep("same-round") + ROW) == [("x-full-light-desktop", "needs-changes")]
+BAD = ROW + "[mark garbage]\n"
+assert ("x-full-light-desktop", "needs-changes") in tags(ROW + sep("same-round") + BAD)
+assert ("(gallery)", "unreadable") in tags(ROW + sep("same-round") + BAD)
+assert tags(BAD + sep("same-round") + WITHOUT) == [("(gallery)", "unreadable")], tags(BAD + sep("same-round") + WITHOUT)
+assert tags(ROW + sep("duty") + WITHOUT) == [("x-full-light-desktop", "needs-changes")]
+PY
+then ok "BL-755: gallery duties follow same-round supersession"
+else fail "BL-755: gallery_duties_for ignored same-round supersession"; fi
+
+if PYTHONPATH="$SKILL/scripts/dash" python3 - <<'PY'
+import check_artifact as ca
+assert ca.marker_duties_of("### q1 \u00b7 Uno\n\n- [debug]\n") == []
+assert ca.marker_duties_of("### q1 \u00b7 Uno\n\n- [debug]\n- [show-me]\n") == [("q1", ["show-me"])]
+PY
+then ok "BL-758: an unknown '- [word]' line is no mark duty"
+else fail "BL-758: marker_duties_of counted an unknown '- [word]' as a mark"; fi
+
 echo
 [[ $failures -eq 0 ]] && { echo "test-save-reply-gallery-duties: PASS"; exit 0; }
 echo "test-save-reply-gallery-duties: $failures FAIL"; exit 1
