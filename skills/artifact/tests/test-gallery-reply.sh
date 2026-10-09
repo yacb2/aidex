@@ -308,6 +308,57 @@ bash "$PARSE" "$TMP/adir" > "$TMP/d.out" 2> "$TMP/d.err"; rc=$?
   && ok "a directory as the reply file exits 2 with one line, no traceback" \
   || fail "directory reply: rc $rc $(cat "$TMP/d.err")"
 
+# BL-754: strict path (--rows), an owing first bullet keeps its verdict, the reason bullet is a note.
+cat > "$TMP/o_rows.json" <<'JSON'
+{"gallery": "skel", "variants": ["light-desktop"],
+ "alternatives": [{"id": "a", "label": "A"}, {"id": "b", "label": "B"}],
+ "rows": [{"cell": "list", "variant": "light-desktop", "kind": "alternatives",
+           "look": "x", "captures": {"a": "shots/a.png", "b": "shots/b.png"}}]}
+JSON
+for case in "Needs changes|review" "Other — see my notes|alt" "Necesita cambios|review" "Otra — lo explico en las notas|alt"; do
+  lab="${case%|*}"; kind="${case#*|}"
+  if [[ $kind == alt ]]; then
+    printf '### skel-list-light-desktop-alternatives · skel · list · light-desktop\n\n- %s\n- el borde\n' "$lab" > "$TMP/o.txt"
+    bash "$PARSE" --rows "$TMP/o_rows.json" "$TMP/o.txt" > "$TMP/o.json" 2> "$TMP/o.err"
+  else
+    row "- $lab\n- el borde\n" "$TMP/o.txt"
+    bash "$PARSE" --rows "$TMP/o_rows.json" "$TMP/o.txt" > "$TMP/o.json" 2> "$TMP/o.err"
+  fi
+  expect_json "$TMP/o.json" "d['rows'][0]['verdict'] == '$lab' and 'el borde' in d['rows'][0]['notes']" \
+    "strict --rows: '- $lab' then a reason bullet keeps the verdict, reason in the notes"
+  if [[ $kind == alt ]]; then
+    [[ ! -s "$TMP/o.err" ]] && ok "  ... and prints no stale --rows warning" || fail "$lab: warning printed: $(cat "$TMP/o.err")"
+  fi
+done
+# alternatives header / helper for the cells below
+ALT='### skel-list-light-desktop-alternatives · skel · list · light-desktop\n\n'
+# strict alt <body> <python over r> <label> [noerr]
+strict_alt() {
+  printf "$ALT$1" > "$TMP/s.txt"
+  bash "$PARSE" --rows "$TMP/o_rows.json" "$TMP/s.txt" > "$TMP/s.json" 2> "$TMP/s.err"
+  expect_json "$TMP/s.json" "(lambda r: $2)(d['rows'][0])" "$3"
+  if [[ ${4:-} == noerr && -s "$TMP/s.err" ]]; then fail "$3: stderr: $(cat "$TMP/s.err")"; fi
+}
+strict_alt '- Needs changes\n' 'r["verdict"] == ""' "strict alternatives: a lone '- Needs changes' is not a verdict (the page cannot offer it)"
+strict_alt '- Needs changes\n- x\n' 'r["verdict"] == ""' "strict alternatives: '- Needs changes' then a bullet is not a verdict"
+strict_alt '- None of them\n- el borde\n' 'r["verdict"] == "None of them" and "el borde" in r["notes"]' "strict alternatives: '- None of them' then a reason keeps the verdict" noerr
+strict_alt '- Other — see my notes\n- [question]\n- el borde\n' \
+  'r["verdict"] == "Other — see my notes" and r["asks"] == ["[question]"] and "el borde" in r["notes"]' "strict alternatives: Other, a marker, then a reason keeps the ask" noerr
+row '- Needs changes\n- [question]\n- el borde\n' "$TMP/m.txt"
+bash "$PARSE" --rows "$TMP/o_rows.json" "$TMP/m.txt" > "$TMP/m.json" 2>/dev/null
+expect_json "$TMP/m.json" 'd["rows"][0]["verdict"] == "Needs changes" and d["rows"][0]["asks"] == ["[question]"] and "el borde" in d["rows"][0]["notes"]' \
+  "a review row: Needs changes, a marker, then a reason keeps the ask"
+cat > "$TMP/st_rows.json" <<'JSON'
+{"gallery": "btn", "variants": ["light-desktop"],
+ "rows": [{"cell": "save", "variant": "light-desktop", "kind": "states", "look": "x",
+   "states": [{"id": "default", "label": "Reposo", "capture": "s/d.png"},
+              {"id": "hover", "label": "Hover", "capture": "s/h.png"}]}]}
+JSON
+printf '### btn-save-light-desktop-states · btn · save · light-desktop\n\n- Other — see my notes\n- el borde\n' > "$TMP/sr.txt"
+bash "$PARSE" --rows "$TMP/st_rows.json" "$TMP/sr.txt" > "$TMP/sr.json" 2>/dev/null
+expect_json "$TMP/sr.json" 'd["rows"][0]["verdict"] == "" and "el borde" in d["rows"][0]["notes"]' \
+  "a states row: '- Other' then a reason bullet is not promoted to a verdict"
+
 echo
 if [[ "$failures" == 0 ]]; then
   echo "test-gallery-reply: all passed"
