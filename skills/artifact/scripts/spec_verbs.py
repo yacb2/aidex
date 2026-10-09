@@ -394,10 +394,13 @@ def _reply_answer(reply, item_id, ids, labels=(), many=False):
         t = raw.strip()
         if not t:
             continue
-        if re.fullmatch(r"- \[[a-z][a-z-]*\]", t):
+        ask = check_artifact.ASK_LINE.fullmatch(t)
+        if ask and (ask.group(1) in check_artifact._ASK_MARKERS or ask.group(1) == "page-defect"):
             # page-defect never makes an answer provisional (composer.js):
             # the answer stands, so it is no reason to carry the item open.
-            marked = marked or t != "- [page-defect]"
+            # Only KNOWN marker names are asks, as check_artifact reads them
+            # (`[debug]` is content and falls through to the pick/note branches).
+            marked = marked or ask.group(1) != "page-defect"
             continue
         if t.startswith("- ") or (i == 0 and chat_form):  # `Q1: <answer>` head
             t = t[2:].strip() if t.startswith("- ") else t

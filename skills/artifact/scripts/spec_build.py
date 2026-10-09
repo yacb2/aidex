@@ -2364,8 +2364,8 @@ def build(spec_text, lang=None, base_dir=".", page=None):
         # language and would answer for a body that is not.
         prose = re.sub(r"(?ms)^(```|~~~).*?^\1", " ", spec_text)
         # data blocks quote data (commit subjects, commands), not prose
-        prose = re.sub(r"(?ms)^:::\s*(ledger|table|chart|diagram|graph|figure"
-                       r"|verdict|video)\b.*?^:::\s*$", " ", prose)
+        prose = re.sub(r"(?ms)^:::\s*(ledger|verdict|%s)\b.*?^:::\s*$"
+                       % "|".join(FIGURE_BLOCKS), " ", prose)
         prose = md_body.CODE.sub(" ", prose)
         prose = re.sub(r"https?://\S+", " ", prose)
         # an attribute brace keeps only its quoted values (titles are prose);
