@@ -42,6 +42,7 @@ import argparse
 import hashlib
 import html
 import json
+import math
 import os
 import re
 import shutil
@@ -341,6 +342,10 @@ def load(path):
                     for x in pair[:1]} | {x.casefold() for x in OTHER}
         seen_labels = set()
         for a in alts:
+            if len(a["label"].splitlines()) > 1:
+                die("alternative label %r has a line break — it pastes as "
+                    "two lines and the reply parser reads the second as "
+                    "notes" % a["label"])
             low = a["label"].casefold()
             if low in reserved:
                 die("alternative label %r is reserved (the none-of-them and "
@@ -543,10 +548,10 @@ def check_row(row, variants, n, alts=None, require_look=False):
         if "dropped" in row or "notApplicable" in row:
             die("row '%s': 'answer' goes on a decided review row — a dropped "
                 "or notApplicable row has nowhere to show it" % cell)
-        if row.get("kind") == "alternatives":
-            die("row '%s': 'answer' does not go on an alternatives row — its "
-                "choice radios stay visible, so the fold would not hide it "
-                "and the row would still ask" % cell)
+        if row.get("kind") in ("alternatives", "states"):
+            die("row '%s': 'answer' does not go on an alternatives or states "
+                "row — its choice controls stay visible, so the fold would "
+                "not hide them and the row would still ask" % cell)
     # `noBefore` (BL-610) is a reason on the one shape that shows a single
     # capture. Anywhere else it would be dropped silently on a live question
     # (notApplicable, alternatives), so it is refused there; a dropped row
@@ -666,6 +671,10 @@ def check_row(row, variants, n, alts=None, require_look=False):
             die("row '%s' is an alternatives row but the document declares no "
                 "'alternatives' (the labels are declared once, at the top)"
                 % cell)
+        for k in ("before", "after"):
+            if k in row:
+                die("row '%s': an alternatives row takes no '%s' — its "
+                    "captures are the 'captures' object" % (cell, k))
         caps = row.get("captures")
         if not isinstance(caps, dict):
             die("row '%s': an alternatives row needs 'captures', an object "
@@ -704,6 +713,10 @@ def check_row(row, variants, n, alts=None, require_look=False):
                 die("row '%s': every state is {\"id\": slug, \"label\": text, "
                     "\"capture\": path}, not %r" % (cell, st))
             label = st["label"].strip()
+            if len(label.splitlines()) > 1:
+                die("row '%s': state label %r has a line break — it pastes "
+                    "as two lines and the reply parser reads the second as "
+                    "notes" % (cell, label))
             if st["id"] in ids:
                 die("row '%s' names the state id '%s' twice" % (cell, st["id"]))
             if label.casefold() in labels:
@@ -810,7 +823,12 @@ def region_pixels(root, r, regions):
             data = fh.read()
     except OSError:
         return None          # the render loop refuses the missing capture itself
-    crops = [png_pixels.crop(data, int(x), int(y), int(w), int(h))
+    # Floats: the origin floors and the size rounds up, so boxes of one
+    # declared size stay one size (a sub-pixel offset of one @name is the same
+    # place). The cost: when frac(x)+frac(w) > 1 the trailing partial pixel
+    # line is left out of the crop.
+    crops = [png_pixels.crop(data, math.floor(x), math.floor(y),
+                             math.ceil(w), math.ceil(h))
              for x, y, w, h in regions]
     return None if any(c is None for c in crops) else crops
 
@@ -1112,8 +1130,8 @@ def group_intro(doc, variants, alts, require_look, lang, items=None):
     shapes = set()
     for n, row in enumerate(doc["rows"], 1):
         r = check_row(row, variants, n, alts, require_look)
-        if "dropped" in r:
-            continue
+        if "dropped" in r or "decided" in r:
+            continue    # folded rows ask nothing
         if r["kind"] is None:
             shapes.add("na")
         elif r["kind"] == "alternatives":
@@ -1224,7 +1242,8 @@ def render(doc, root, group_id, group_title, lang, page=None,
     seen, unrequested, ids = {}, {}, {}
     cell_variants = {}
     for row in doc["rows"]:
-        if isinstance(row, dict) and row.get("variant"):
+        if isinstance(row, dict) and "notApplicable" not in row \
+                and isinstance(row.get("variant"), str):
             cell_variants.setdefault(row.get("cell"), set()).add(row["variant"])
     for n, row in enumerate(doc["rows"], 1):
         r = check_row(row, variants, n, alts, require_look)
@@ -1429,9 +1448,12 @@ def render(doc, root, group_id, group_title, lang, page=None,
         dest = os.path.join(os.path.dirname(os.path.abspath(page)), assets)
         os.makedirs(dest, exist_ok=True)
         for name, full in sorted(copies.items()):
-            # Content-addressed: a file already there holds these bytes.
-            if not os.path.isfile(os.path.join(dest, name)):
-                shutil.copyfile(full, os.path.join(dest, name))
+            # Content-addressed: a file of the same size already holds these
+            # bytes; a shorter one is a copy an interrupted build left.
+            target = os.path.join(dest, name)
+            if not os.path.isfile(target) \
+                    or os.path.getsize(target) != os.path.getsize(full):
+                shutil.copyfile(full, target)
     return "\n".join(out) + "\n"
 
 
