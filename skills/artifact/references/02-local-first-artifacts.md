@@ -129,7 +129,10 @@ really goes (`prose` is markdown outside any fence; `num` is the `|---:|` column
 
 ### Worked example: a whole page, written and built
 
-Write the spec next to where the page will live — `<name>.spec.md` beside `<name>.html`:
+Write the spec next to where the page will live — `<name>.spec.md` beside `<name>.html`.
+That is next to its anchor when it has one (finding it: `route-b.md` § 1 and § 6); with no
+anchor, a throwaway or test page included, `.context/reports/YYYY-MM-DD-<slug>.spec.md` and
+`.html` — never the project root:
 
 ```
 ::: masthead {eyebrow="Ejemplo · spec-first" lang="es" visual="svg"}
