@@ -1,6 +1,7 @@
-# dash conventions
+# Artifact conventions
 
-The canon for the dash HTML render layer. dash renders `.context/` boards and
+The canon for the artifact skill's HTML render layer (formerly "dash"; the board
+renderers still live in `scripts/dash/`). The skill renders `.context/` boards and
 indexes into self-contained interactive HTML via deterministic scripts. It
 authors no content and introduces no new data files.
 
@@ -31,10 +32,10 @@ renders for equality: the timestamp changes every run, so idempotency is
 
 ## Markdown/JSON stays canon; HTML is a render
 
-- dash **reads** the existing markdown (front-matter, pipe tables, `- [x]`/`- [ ]`
+- The renderers **read** the existing markdown (front-matter, pipe tables, `- [x]`/`- [ ]`
   checkboxes) exactly like `reindex-plans.sh` / `validate.py` do. The only JSON
   it consumes is the pre-existing `coverage-matrix.json`.
-- dash **introduces zero new JSON.** There is no dash sidecar, cache, or state file.
+- The skill **introduces zero new JSON.** There is no sidecar, cache, or state file.
 - Numbers live in `.context/` markdown/JSON; the HTML only projects them.
 
 ## Sibling-path rule (one render per index/board)
@@ -58,7 +59,7 @@ backlog/finding items never get their own HTML.
 
 The sibling-path rule (not the GENERATED header, which only the board renderers emit) applies to ad-hoc reports —
 one-off HTML written for a specific `.context/` artifact rather than one of
-dash's own board renderers (see `02-local-first-artifacts.md` in this folder for the
+the skill's own board renderers (see `02-local-first-artifacts.md` in this folder for the
 full contract). `<slug>-report.html`
 sits next to a single-file artifact, or `<slug>/<slug>-report.html` inside a
 folder artifact. The markdown stays canon; the HTML is disposable,
@@ -80,11 +81,13 @@ requests** — it works from `file://` with no server and no CDN, and publishes
 unchanged as a Claude Code Artifact when (and only when) the user asks. Design
 tokens, both color themes (`prefers-color-scheme` + `data-theme` override),
 `tabular-nums`, and the sortable/filterable table JS all come from the
-session-validated visual reference. No emojis; English UI labels.
+session-validated visual reference. No emojis. The page language follows the project style profile
+(`profiles/artifact.md`, `language:`), else English; `--lang` or the masthead `lang=`
+overrides it for one page (see `02-local-first-artifacts.md` § Language).
 
 ## Publish is never automatic
 
-Rendering is on demand; **publishing is a separate, explicit user ask.** dash
+Rendering is on demand; **publishing is a separate, explicit user ask.** The skill
 never calls the `Artifact` tool unprompted. See `SKILL.md` for the full policy
 (and the `disableArtifact` / `CLAUDE_CODE_DISABLE_ARTIFACT=1` opt-out for users
 who want the native auto-Artifact behavior off entirely).
@@ -116,5 +119,8 @@ Deferred, non-goals for the first version:
 - **`render: auto` / suggest config** — a front-matter or config flag that
   auto-regenerates a render on canon change, or proactively suggests one. v1 is
   strictly on-demand.
-- **Charts library** — CSS share bars suffice for v1; no vendored charting.
+- **A vendored charting library** — not planned. Charts ship as closed stdlib SVG
+  blocks instead: `chart` (`scripts/chart_svg.py`), `diagram` (`scripts/diagram_svg.py`,
+  e.g. `tree`, `compare`) and `graph` (`scripts/graph_svg.py`, DOT through Graphviz); see
+  `figures.md` § The figure ladder. CSS share bars remain for board renderers.
 - **Per-item pages** — v1 is one render per index/board only.

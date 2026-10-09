@@ -735,7 +735,7 @@ grep -q 'data-theme' "$KIT/tokens.css" \
   || fail "tokens.css no longer declares the explicit-theme palette the control switches to"
 
 for m in 'explain-state' 'explain-options' 'explain-why' 'explain-simpler' 'question' 'reframe' 'show-me' 'not-now' 'provisional'; do
-  grep -qF "[$m]" "$SKILL/references/02-local-first-artifacts.md" \
+  grep -qF "[$m]" "$SKILL/references/unreadable-question.md" \
     || fail "the canon never documents the $m marker — a session reading a paste has nothing that says what it means"
 done
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """save_reply.py — save a consultation reply BEFORE the next round is built
-(02-local-first-artifacts.md § "The reply is saved before the next round is
+(unreadable-question.md § "The reply is saved before the next round is
 built (BL-475)"). Logic lives here; save-reply.sh is the entry, the same
 split every other dash/*.py script has.
 

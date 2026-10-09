@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The § Figures DevTools script, run against fixtures in a real engine.
 #
-# It is canon that SHIPS: 02-local-first-artifacts.md tells the author to run it
+# It is canon that SHIPS: figures.md tells the author to run it
 # on the opened page before the wrap, and it is the check that settles a figure.
 # Until this file nothing ever executed it, and it produced a wrong answer that
 # was acted on — every one of Graphviz DOT's 16 marks in a seven-route
@@ -16,7 +16,7 @@
 # Skips loudly with no Chrome, like test-composer-functional.sh.
 set -uo pipefail
 SKILL="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-CANON="$SKILL/references/02-local-first-artifacts.md"
+CANON="$SKILL/references/figures.md"
 TMP="$(mktemp -d /tmp/figscript-XXXXXX)"
 # Chrome runs under setpgrp (below), so it leads its own process group and does
 # not die with this script: the trap kills that group on any exit, and a run

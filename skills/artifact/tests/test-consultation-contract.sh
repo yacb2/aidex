@@ -357,7 +357,7 @@ rc="$(run "$TMP/ledger-numbered.html")"
 [[ "$rc" == "0" ]] || fail "8. a numbered or keyless ledger was read as item ids: $(cat "$TMP/out")"
 
 # ---- 8b. BL-359: a `data-decided` item named in the ledger is the DEFAULT ----
-# `02-local-first-artifacts.md` § Update in place calls it out in a two-row
+# `route-b.md` § Update in place calls it out in a two-row
 # table: keep the item, add `data-decided`, state the verdict in its body — "the
 # page stays a record of the reasoning rather than only of the outcome". The kit
 # already implements it (components.css greys the losing options and disables
@@ -1863,7 +1863,7 @@ grep -q 'WARN \[consult-marker-duties\]' "$TMP/out" || fail "11d. a page with no
 # disk, is enforced exactly the same as a freshly-saved one, for as long as
 # nothing newer replaces it. A hard "a new round needs its own saved reply"
 # gate is a SEPARATE, harder property (BL-507, not implemented here — see
-# 02-local-first-artifacts.md).
+# unreadable-question.md).
 showitem '' "$R/.aidex-artifact-prev/page.html"
 showitem '' "$R/.aidex-artifact-prev/page.answered.html"
 cat > "$R/.aidex-artifact-prev/page.reply.md" <<'MD'

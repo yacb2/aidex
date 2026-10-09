@@ -188,7 +188,7 @@ fi
 # the opposite context — the user is present and expecting setup questions.
 #
 # What this does NOT do is overturn "the profile is never auto-created" (e87bbd3,
-# 02-local-first-artifacts.md § "If absent, never create it silently"). It moves
+# route-b.md § "If absent, never create it silently"). It moves
 # the QUESTION, and still writes the file only on an explicit yes.
 #
 # The record of a decline is the SAME marker artifact writes

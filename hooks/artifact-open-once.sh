@@ -1,9 +1,10 @@
 #!/bin/sh
 # PreToolUse (Bash) hook — a file gets opened once per user turn, not once per fix.
 #
-# THE BEHAVIOUR IT EXISTS FOR. Gate 2 of skills/artifact/references/02-local-first-artifacts.md already says
-# "open the file ONCE, when it is final — verify with the checker and DevTools first,
-# `open` last". Nothing observed it, and the field behaviour was the opposite: the page
+# THE BEHAVIOUR IT EXISTS FOR. The artifact skill (skills/artifact/references/route-b.md, step
+# "7. Open it locally") already says to
+# open the file ONCE, when it is final — verify with the checker and DevTools first,
+# `open` last. Nothing observed it, and the field behaviour was the opposite: the page
 # was opened, then checked, then edited, then opened again, five to seven times for one
 # artifact. The reader ends up with a stack of tabs of the same page and reads a stale
 # one, because a new tab is what says "this is the version to read". Reported by the
@@ -482,7 +483,7 @@ try:
         lines = ["This file was already opened since the last thing the user said:", ""]
         lines += ["  " + p for p in repeats]
         lines += ["",
-                  "skills/artifact/references/02-local-first-artifacts.md, gate 2: open the page ONCE, when it "
+                  "skills/artifact/references/route-b.md, step 7 (Open it locally): open the page ONCE, when it "
                   "is final. Finish verifying it — check-artifact.sh, DevTools, whatever "
                   "is left — and let the open you already did stand. A second tab of the "
                   "same page is how the reader ends up reading a stale one.",

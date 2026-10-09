@@ -690,7 +690,7 @@ the cleaned SVG's whitelist; a `dot` that runs past 30 s.
 ## `gallery` rows and `item dropped=`
 
 `::: gallery {#id title=… rows=<rows.json>}` reads its rows from a JSON document (shape:
-`04-block-vocabulary.md` § `gallery`, and § Gallery rows of `02-local-first-artifacts.md`).
+`04-block-vocabulary.md` § `gallery`, and § Gallery rows of `gallery-rows.md`).
 These things of the grammar are worth stating here:
 
 - **Prose body** (BL-625): the block may carry one or more paragraphs between its fences. They
@@ -835,5 +835,5 @@ attribute and lists the alternatives.
 
 - `04-block-vocabulary.md` — the closed set of block types, their attrs and corpus counts.
 - `01-dash-conventions.md` — the GENERATED header contract of rendered board pages.
-- `02-local-first-artifacts.md` — the page contract `check-artifact` enforces on the
-  HTML the build emits.
+- `02-local-first-artifacts.md` — the Route S how-to; the page contract `check-artifact` enforces on the
+  HTML the build emits is in `consultation.md` and `route-b.md`.

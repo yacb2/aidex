@@ -554,7 +554,7 @@ check("...and the accepted item is still exactly one fence",
 print()
 print("== the general-notes item stays last ==")
 # The same page with the general-notes item INSIDE the group. The contract
-# ("always last", 02-local-first-artifacts.md §7.3) is not checked by
+# ("always last", consultation.md § 8.3) is not checked by
 # check_artifact.py, so an item appended after it would ship silently.
 NOTES_TAIL = ':::\n:::\n\n::: notes {title="Notas generales"}\n:::\n'
 INNER_NOTES = PAGE.replace(

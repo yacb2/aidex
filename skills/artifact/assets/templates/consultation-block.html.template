@@ -2,7 +2,7 @@
   consultation-block.html.template — the consultation component set for a route B
   report that has to be ANSWERED rather than read.
 
-  See references/02-local-first-artifacts.md § 8. Copy the blocks you need into
+  See references/consultation.md § 8. Copy the blocks you need into
   the page body. There is no <style> and no <script> here any more: wrap-report.sh
   injects artifact-kit's tokens.css, components.css and composer.js, so writing a
   page is writing content plus class names. A local <style> is for the one rule

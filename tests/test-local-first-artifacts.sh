@@ -43,6 +43,10 @@ CANON_FILE="$REPO_ROOT/skills/artifact/references/02-local-first-artifacts.md"
 # test_publish_policy_lockstep.sh). Single-token greps cannot straddle a newline and
 # are left alone.
 [ -f "$CANON_FILE" ] && CANON_FLAT="$(tr '\n' ' ' < "$CANON_FILE" | tr -s ' ')"
+# The hand-written-HTML procedure moved out of 02 into route-b.md when 02 was split under the
+# size ceiling; the assertions about that procedure read it there.
+ROUTE_B_FILE="$REPO_ROOT/skills/artifact/references/route-b.md"
+ROUTE_B_FLAT="$(tr '\n' ' ' < "$ROUTE_B_FILE" | tr -s ' ')"
 
 # --- Task 6.1a: the always-on rule keeps routing + both gates + the pointer ---
 if [ ! -f "$RULE_FILE" ]; then
@@ -64,19 +68,19 @@ if [ ! -f "$CANON_FILE" ]; then
 else
   # behavior 1 — the artifact stands alone offline. Anchored on the script that
   # deterministically enforces it plus the prohibition it checks, not on a phrase.
-  if ! grep -q "check-artifact.sh" "$CANON_FILE"; then
+  if ! grep -q "check-artifact.sh" "$ROUTE_B_FILE"; then
     fail "canon missing behavior 1 (self-containment enforced via check-artifact.sh)"
   fi
-  if ! grep -qF "no external CSS/JS/fonts/images" <<<"$CANON_FLAT"; then
+  if ! grep -qF "no external CSS/JS/fonts/images" <<<"$ROUTE_B_FLAT"; then
     fail "canon missing behavior 1 (external-asset prohibition)"
   fi
   if ! grep -q "sibling" "$CANON_FILE"; then
     fail "canon missing behavior 2 (sibling placement)"
   fi
-  if ! grep -q "open <file>" <<<"$CANON_FLAT"; then
+  if ! grep -q "open <file>" <<<"$ROUTE_B_FLAT"; then
     fail "canon missing behavior 3 (open locally)"
   fi
-  if ! grep -q "<slug>-report.html" "$CANON_FILE"; then
+  if ! grep -q "<slug>-report.html" "$ROUTE_B_FILE"; then
     fail "canon missing sibling naming convention (<slug>-report.html)"
   fi
   if ! grep -q "wrap-report.sh" "$CANON_FILE"; then
@@ -97,7 +101,7 @@ if [ -f "$RULE_FILE" ]; then
   if ! printf '%s' "$RULE_FLAT" | grep >/dev/null -iE 'before writing any page markup|load design guidance first'; then
     fail "rule missing mandatory load-design-guidance-BEFORE-markup ordering"
   fi
-  if ! grep -qi "hand-roll" "$RULE_FILE"; then
+  if ! grep -qi "hand-roll" "$ROUTE_B_FILE"; then
     fail "rule missing no-hand-rolled-page clause"
   fi
   # Single-artifact-interface doctrine (ADR 2026-07-23): routing board-shaped asks
@@ -110,7 +114,7 @@ fi
 # The anchor-less fallback and the per-project style profile are procedure, so they
 # moved with it (RA-ART-1). They are still mandatory — only their home changed.
 if [ -f "$CANON_FILE" ]; then
-  if ! grep -q ".context/reports/" "$CANON_FILE"; then
+  if ! grep -q ".context/reports/" "$ROUTE_B_FILE"; then
     fail "canon missing anchor-less fallback (.context/reports/)"
   fi
   if ! grep -q "profiles/artifact.md" "$CANON_FILE"; then

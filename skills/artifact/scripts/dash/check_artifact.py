@@ -41,7 +41,7 @@ Checks (per file):
                closed-page exit) may drop ids (BL-396)
   consult-marker-duties with --prev: every ask marker a saved reply
                (`.aidex-artifact-prev/<stem>.reply.md`) puts on an item owes a
-               checkable duty (02-local-first-artifacts.md, the asks table's Gate
+               checkable duty (unreadable-question.md, the asks table's Gate
                column), judged against `.aidex-artifact-prev/<stem>.answered.html`
                (`save-reply.sh`'s snapshot of the page as the reader answered it) —
                never against the contract baseline, which is advanced on every
@@ -2386,7 +2386,7 @@ def warn_file(path):
             warns.append(("svg-text", name,
                           msg + " — a static estimate (±5 %), so verify in the "
                           "browser with the DevTools script in "
-                          "02-local-first-artifacts.md § Figures, then move "
+                          "figures.md § Figures, then move "
                           "the label; this warning is cleared by the layout, "
                           "not by a waiver"))
     except Exception:                               # noqa: BLE001 — advisory
@@ -3320,7 +3320,7 @@ def check_shape(path, text):
                    f"exists at three levels (page, block, item) and a block's "
                    f"is <div class=\"group-notes\"><p class=\"fieldlabel\">"
                    f"…</p><textarea></textarea></div>, last in the block "
-                   f"(02-local-first-artifacts.md § 8.3)")
+                   f"(consultation.md § 8.3)")
         elif label is False:
             report(f"block '{ident}': its notes box has no visible label — a "
                    f"<p class=\"fieldlabel\"> with text before the <textarea>; "
@@ -3341,7 +3341,7 @@ def check_shape(path, text):
             what = "the general-notes item" if "consult-notes" in toks else f"item '{ident}'"
             report(f"{what}: its notes box has no visible label — a "
                    f"<p class=\"fieldlabel\"> with text before the <textarea>; "
-                   f"a placeholder is not a label (02-local-first-artifacts.md § 8.3)")
+                   f"a placeholder is not a label (consultation.md § 8.3)")
         for kind, lbl in _unnamed_controls(body):
             what = "the general-notes item" if "consult-notes" in toks else f"item '{ident}'"
             field = "its notes box" if kind == "textarea" else f"its {kind} labelled '{lbl}'"
@@ -3366,7 +3366,7 @@ def check_shape(path, text):
                    "from, or wrap it in a new one")
             report(f"item '{ident}'{_at(ref)} sits outside any block — every "
                    f"decision lives inside a <section class=\"consult-group\"> "
-                   f"with the context it comes from (02-local-first-artifacts.md "
+                   f"with the context it comes from (consultation.md "
                    f"§ 8.4). A block may carry one decision or several. Fix: {fix}")
 
     # Every block carries a decision: a context with nothing to answer is the
@@ -3558,7 +3558,7 @@ def check_consultation(path, text, flat):
                    f"answering to one id")
 
         # A decided item is summarised into the ledger, and the page then has
-        # two ways to land it (02-local-first-artifacts.md § Update in place):
+        # two ways to land it (route-b.md § Update in place):
         # KEEP the item with `data-decided` — the default, so the page stays a
         # record of the reasoning — or remove it. What is not allowed is the
         # third shape: the answer recorded in the ledger while the item goes on
@@ -3825,7 +3825,7 @@ def _reply_has_answer(reply_text, ident, ids=()):
     body = [b for b in (_MARK_TOKEN.sub("", b).strip() for b in body) if b]
     return bool(body)
 
-# Generic — every marker in the 02-local-first-artifacts.md asks table pastes
+# Generic — every marker in the unreadable-question.md asks table pastes
 # this shape (composer.js `readItem`/`markLabel`): `- [token]` on its own line.
 ASK_LINE = re.compile(r"^- \[([a-z][a-z-]*)\]\s*$", re.M)
 VISUAL_TAG = re.compile(r"<(?:svg|img|canvas|figure)\b", re.I)
@@ -3834,7 +3834,7 @@ BARE_VISUAL = re.compile(r"<(?:svg|img|canvas)\b", re.I)
 EXAMPLE_BLOCK = re.compile(r'<table\b|class=["\'][^"\']*\bexample\b', re.I)
 NORMALIZE_PUNCT = re.compile(r"[^\w\s]", re.U)
 
-# What the next round OWES for each marker (02-local-first-artifacts.md, the
+# What the next round OWES for each marker (unreadable-question.md, the
 # asks table's "Gate" column). Printed by save-reply.sh, one line per marked
 # item, and referenced in the check failures below so the two never drift.
 MARKER_DUTIES = {

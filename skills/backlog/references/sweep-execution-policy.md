@@ -212,9 +212,9 @@ spelled out in Stage 3 (BL-363).
    round** of the same spec (`spec_verbs.py new-round`), opened once for that turn.
 4. **If the page asks nothing**, today's order holds: `worklist-close.sh` — `--force`
    records an override; the closed list archives — then open the page **once**,
-   `open <report>.html`, per `skills/artifact/references/02-local-first-artifacts.md`
-   gate 2 (an artifact opens once, when final). Either way cite the `.html` in the run's
-   summary rather than the `.md`, and never publish it (gate 3).
+   `open <report>.html`, per `skills/artifact/references/route-b.md`
+   step "7. Open it locally" (an artifact opens once, when final). Either way cite the `.html` in the run's
+   summary rather than the `.md`, and never publish it (`02-local-first-artifacts.md` § Publishing).
 5. The branch is left **ready to merge**. Whether the merge happens here is
    `gate-policy.merge` in the work-list, not a rule of this document: `ask` (the default,
    and what an absent key means) leaves it for the owner; `preauthorized` merges once the
