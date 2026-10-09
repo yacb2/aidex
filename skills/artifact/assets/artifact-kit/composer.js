@@ -1337,7 +1337,9 @@
       var raw = localStorage.getItem(STORE_KEY);
       if (!raw) return { n: 0, stale: 0, spent: 0 };
       var data = JSON.parse(raw);
-      items.forEach(function (el) {
+      /* Per item (C-c13): one malformed stored entry costs only its own item,
+       * never the items after it nor the count of the ones already filled. */
+      function restoreItem(el) {
         var s = data[el.dataset.id];
         if (!s) return;
         /* A decided row is not a question: its round-1 answer is settled, and its
@@ -1396,15 +1398,18 @@
           // forgetting that here would make the next save record it as unsent.
           if (s.x) copied[el.dataset.id] = fnv(replyBody(el));
         }
-      });
+      }
+      items.forEach(function (el) { try { restoreItem(el); } catch (e) { /* malformed entry: skip this item */ } });
       noteGroups().forEach(function (g) {
-        var s = data[groupKey(g)];
-        if (!s || !s.a || !s.a[0] || !s.a[0].trim()) return;
-        if (s.h && s.h !== groupTitleHash(g)) { stale++; return; }
-        if (isSpent(s)) { spent++; return; }
-        groupNoteBox(g).value = s.a[0];
-        n++;
-        if (s.x) copied[groupKey(g)] = fnv(s.a[0].trim());
+        try {
+          var s = data[groupKey(g)];
+          if (!s || !s.a || !s.a[0] || !s.a[0].trim()) return;
+          if (s.h && s.h !== groupTitleHash(g)) { stale++; return; }
+          if (isSpent(s)) { spent++; return; }
+          groupNoteBox(g).value = s.a[0];
+          n++;
+          if (s.x) copied[groupKey(g)] = fnv(s.a[0].trim());
+        } catch (e) { /* malformed entry: skip this block's note */ }
       });
     } catch (e) { return { n: 0, stale: 0, spent: 0 }; }
     return { n: n, stale: stale, spent: spent };
