@@ -11,7 +11,7 @@
 //   units   array of unit slugs to run, taken from manifest.json (keep it a list of slugs, not objects)
 //   verify  optional boolean, default true; false skips the verify stage and compare gets every extracted fact
 //
-// PER UNIT: extract (aidex:drift-extract) -> verify (aidex:drift-verify, batches of 25, first 50 facts) -> compare (aidex:drift-compare).
+// PER UNIT: extract (aidex:drift-extract, one fresh retry) -> verify (aidex:drift-verify, batches of 25, first 50 facts) -> compare (aidex:drift-compare).
 // Every agent call goes through safe(): a stage that throws or returns no structured output is logged
 // and the unit stops there, status "failed"; the run completes with the other units.
 // Compare receives only `confirmed` facts (when verify is false: the extracted `traced` facts, flagged to the comparer as not verified). One compare per unit.
@@ -296,16 +296,18 @@ const done = (slug, status, failed_stage, extra) => ({ slug, status, failed_stag
 phase('Units')
 if (!Array.isArray(A.units) || !A.units.length) throw new Error('args.units must be a non-empty list of unit slugs from manifest.json')
 // A Workflow run caps at 1,000 agent() calls; past it the last units silently lose a stage (BL-739).
-// A unit costs extract + 2 verify batches + compare = 4 calls, or 2 with verify off.
-const maxUnits = useVerify ? 250 : 500
+// A unit costs at most 2 extract attempts + 2 verify batches + compare = 5 calls, or 3 with verify off.
+const maxUnits = useVerify ? 200 : 333
 if (A.units.length > maxUnits) throw new Error(`args.units has ${A.units.length} units; one launch holds at most ${maxUnits} (verify ${useVerify}): split the manifest into launches of ${maxUnits}`)
 const slugs = A.units
 log(`drift ${A.date || ''}: ${slugs.length} units, verify ${useVerify}`)
 
 const results = await pipeline(slugs,
   async slug => {
-    const r = await safe(extractPrompt(slug), { label: `extract:${slug}`, phase: 'Units',
-      agentType: 'aidex:drift-extract', schema: FACTS })
+    const extract = label => safe(extractPrompt(slug), { label, phase: 'Units', agentType: 'aidex:drift-extract', schema: FACTS })
+    // BL-746: Haiku slips in long StructuredOutput JSON and its own retries re-emit the same draft;
+    // a fresh agent is a new draw. The distinct label keeps the resume cache from conflating the two.
+    const r = await extract(`extract:${slug}`) || await extract(`extract:${slug}#retry`)
     if (!r) return done(slug, 'failed', 'extract')
     const info = { facts_extracted: r.facts.length, not_covered: r.not_covered.length }
     // Nothing read while files stayed uncovered: the unit was not examined, so it is not "ok".
