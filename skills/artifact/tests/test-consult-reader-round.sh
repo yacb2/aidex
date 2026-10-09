@@ -221,4 +221,18 @@ python3 "$BUILD" "$SP2" -o "$SPB" --new-round >/dev/null 2>&1 && [[ "$(round_of 
   && ok "(f) the round after a reply with block notes opens" \
   || fail "(f) the round after a reply with block notes did not open (got '$(round_of "$SPB")')"
 
+# (g) A page that was plain before: the guard counts the surface-less baseline's
+# wrap count as an open reader round. The first wrap that gives it a consult
+# surface is reader round 1 (next_round resets), so --new-round must pass there
+# exactly as it does on a brand-new page (c), not refuse "round N already open".
+GP="$TMP/reports/g.html"
+for _ in 1 2; do
+  bash "$WRAP" --title Read --lang en --in "$TMP/read.html" --out "$GP" >/dev/null 2>&1 \
+    || fail "(g) a plain wrap failed"
+done
+out="$(bash "$WRAP" --title Consultation --lang en --in "$KIT/skeleton.html" --out "$GP" --new-round 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$(round_of "$GP")" == "1" ]] \
+  && ok "(g) the first consult wrap over a plain page takes --new-round and is round 1" \
+  || fail "(g) --new-round on the first consult wrap over a plain page exited $rc (round '$(round_of "$GP")'): $out"
+
 [[ $failures -eq 0 ]] && echo "PASS: consult reader round" || { echo "FAILED: $failures"; exit 1; }

@@ -205,7 +205,11 @@ def _answered_path(outfile):
 def _current_round(outfile):
     base = _baseline_path(outfile)
     ref = base if os.path.isfile(base) else os.path.abspath(outfile)
-    return (_round_of(ref) or 1) if os.path.isfile(ref) else 0
+    # Mirrors next_round: a baseline with no consult surface is no reader round
+    # (the first surface wrap over it is round 1), whatever wrap count it carries.
+    if not os.path.isfile(ref) or not _has_surface(ref):
+        return 0
+    return _round_of(ref) or 1
 
 
 def round_answered(outfile):
