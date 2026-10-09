@@ -1,7 +1,7 @@
 ---
 type: tool_used
 tool: Edit
-input_match: 'consulta\.html'
+input_match: 'file_path"\s*:\s*"[^"]*consulta\.html'
 min: 0
 max: 0
 ---

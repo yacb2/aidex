@@ -1,7 +1,7 @@
 ---
 type: tool_used
 tool: Edit
-input_match: 'src/templates'
+input_match: 'file_path"\s*:\s*"[^"]*src/templates'
 min: 0
 max: 0
 ---
