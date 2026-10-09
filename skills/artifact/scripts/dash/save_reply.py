@@ -258,6 +258,20 @@ def duties_for(reply_text, ordinary=(), states=None):
     return out + gallery_duties_for(reply_text, ordinary, states)
 
 
+def withdrawn_for(reply_text, ordinary=(), states=None):
+    """[(id, marker)] that a later full paste of the same round withdrew: owed
+    if every save were its own round, not owed under the live reply (BL-598).
+    The rule stays supersession; this only keeps a withdrawal from being
+    silent when the reader's browser lost the composer state."""
+    def asks(text):    # per mark, never a stacked "3+ asks" duty row
+        return ([(i, m) for i, marks in ca.marker_duties_of(text) for m in marks]
+                + [(i, t) for i, t, _ in gallery_duties_for(text, ordinary, states)])
+
+    live = set(asks(reply_text))
+    as_rounds = re.sub(r" same-round -->", " duty -->", reply_text)
+    return [a for a in asks(as_rounds) if a not in live]
+
+
 def save_reply(page_path, reply_text):
     """Writes the reply and the answered snapshot (or appends/keeps them when
     a duty is still outstanding or the round has not been rebuilt — see the
@@ -374,6 +388,18 @@ def main(argv):
     else:
         print(f"reply saved: {reply_path}")
         print(f"answered snapshot: {answered_path}")
+    if appended == "same-round":
+        with open(page_path, encoding="utf-8", errors="replace") as fh:
+            page_text = fh.read()
+        with open(reply_path, encoding="utf-8") as fh:
+            withdrawn = withdrawn_for(fh.read(), ca.ordinary_item_ids(page_text),
+                                      states_in_page(page_text))
+        if withdrawn:
+            print("WITHDRAWN in this round (an earlier paste asked, this full "
+                  "paste of the same page does not; confirm with the reader if "
+                  "unsure):")
+            for ident, marker in withdrawn:
+                print(f"{ident} [{marker}]")
     if not duties:
         print("no marked items — nothing owed by the next round")
         return 0

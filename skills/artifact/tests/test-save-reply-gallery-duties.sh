@@ -428,6 +428,24 @@ PY
 then ok "BL-755: gallery duties follow same-round supersession"
 else fail "BL-755: gallery_duties_for ignored same-round supersession"; fi
 
+# A same-round withdrawal is announced, never silent: withdrawn_for names the
+# gallery duty the later full paste dropped, and nothing when the row is kept,
+# the separator is a round end, or the earlier paste was refused.
+if PYTHONPATH="$SKILL/scripts/dash" python3 - <<'PY'
+import save_reply
+ROW = ("## G1 · Galeria\n\n### x-full-light-desktop · x · full · light-desktop\n\n"
+       "- Necesita cambios\n\nel borde\n\n")
+WITHOUT = "## G1 · Galeria\n\n### Q3 · Tres\n\nvale\n"
+def sep(mode): return "<!-- reply saved 2026-10-09 page:abc %s -->\n" % mode
+w = save_reply.withdrawn_for
+assert w(ROW + sep("same-round") + WITHOUT) == [("x-full-light-desktop", "needs-changes")], w(ROW + sep("same-round") + WITHOUT)
+assert w(ROW + sep("same-round") + ROW) == []
+assert w(ROW + sep("duty") + WITHOUT) == []
+assert w(ROW + "[mark garbage]\n" + sep("same-round") + WITHOUT) == []
+PY
+then ok "withdrawn_for: a gallery duty a same-round paste dropped is named"
+else fail "withdrawn_for: gallery withdrawal not named, or named when it should not be"; fi
+
 if PYTHONPATH="$SKILL/scripts/dash" python3 - <<'PY'
 import check_artifact as ca
 assert ca.marker_duties_of("### q1 \u00b7 Uno\n\n- [debug]\n") == []

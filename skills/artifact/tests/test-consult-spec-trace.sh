@@ -504,6 +504,35 @@ elif [[ "$rc" != "0" ]] || grep -q 'consult-marker-duties' "$TMP/build.out"; the
 else
   ok "36b. a later full paste withdraws a marker ask: no duty printed, no marker FAIL"
 fi
+# 36c. the withdrawal is announced, never silent: save-reply names the item and the mark
+grep -qx 'Q2 \[show-me\]' <(sed -n '/^WITHDRAWN/,$p' "$TMP/save36b.out") \
+  && ok "36c. save-reply names the mark a later same-round paste withdrew" \
+  || fail "36c. no WITHDRAWN line for Q2 [show-me]: $(cat "$TMP/save36b.out")"
+
+# 36d. a mark the later paste still carries is not reported as withdrawn
+newpage dutykept
+spec "" ""; build
+printf '## G1 · x\n\n### Q2 · b\n\n- [show-me]\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "36d. save 1 failed"
+printf '## G1 · x\n\n### Q2 · b\n\n- [show-me]\n\notra nota\n' | bash "$SAVE_REPLY" "$PAGE" >"$TMP/save36d.out" || fail "36d. save 2 failed"
+grep -q 'reply saved .* same-round -->' "$D/.aidex-artifact-prev/dutykept.reply.md" \
+  || fail "36d. fixture: save 2 was not labelled same-round"
+if grep -q '^WITHDRAWN' "$TMP/save36d.out"; then
+  fail "36d. a kept mark was reported withdrawn: $(cat "$TMP/save36d.out")"
+elif ! grep -q '^Q2 \[show-me\]:' "$TMP/save36d.out"; then
+  fail "36d. fixture: the kept show-me is not owed: $(cat "$TMP/save36d.out")"
+else
+  ok "36d. a mark the later paste still carries is owed, not reported withdrawn"
+fi
+
+# 36e. three stacked asks, then a paste that keeps two: only the dropped mark is
+# reported, never the stacked group (the comparison is per mark, not per duty row)
+newpage dutystack
+spec "" ""; build
+printf '## G1 · x\n\n### Q2 · b\n\n- [show-me]\n- [reframe]\n- [explain-why]\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "36e. save 1 failed"
+printf '## G1 · x\n\n### Q2 · b\n\n- [show-me]\n- [reframe]\n' | bash "$SAVE_REPLY" "$PAGE" >"$TMP/save36e.out" || fail "36e. save 2 failed"
+[[ "$(sed -n '/^WITHDRAWN/,/^DUTIES/p' "$TMP/save36e.out" | grep '^Q')" == "Q2 [explain-why]" ]] \
+  && ok "36e. of three stacked asks, only the dropped one is reported withdrawn" \
+  || fail "36e. withdrawn list is not exactly Q2 [explain-why]: $(cat "$TMP/save36e.out")"
 
 # 37. a legacy separator with no mode (reply.md written before BL-598) is a
 # round end: a later full paste does not supersede across it
