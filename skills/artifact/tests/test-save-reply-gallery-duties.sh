@@ -334,13 +334,22 @@ then ok "BL-752: a '### two words · x' line in a gallery row's notes ends no bl
 else fail "BL-752: a reader's own '### Tema largo · detalle' line cut the gallery row"; fi
 
 # BL-753: the answer reader keeps the text after the colon of a hashed chat head.
-if PYTHONPATH="$SKILL/scripts/dash" python3 - <<'PY'
+if PYTHONPATH="$SKILL/scripts/dash" python3 - "$SKILL/scripts" <<'PY'
 import check_artifact as ca
 assert ca._reply_has_answer("### Q2: mejor B\n", "Q2", ("Q2",)) is True
 # both follow chat_any (an optional `##`/`###` prefix), not a stricter head
 assert ca._reply_has_answer("## Q2: si\n", "Q2", ("Q2",)) is True
-assert ca._picked_only("### Q2: - Opcion A\n", "Q2", ("Q2",)) == ["Opcion A"]
 assert ca._reply_has_answer("### Q2 · Titulo\n", "Q2", ("Q2",)) is False   # a title is no answer
+# a hashed colon head is a chat-form answer like bare `Q2:` (chat_any), in every
+# reader: not a bare pick, and its first line is the answer, not a note
+assert ca._picked_only("### Q2: - Opcion A\n", "Q2", ("Q2",)) is None
+assert ca._picked_only("Q2: - Opcion A\n", "Q2", ("Q2",)) is None
+import sys; sys.path.insert(0, sys.argv[1]); import spec_verbs as sv
+assert sv._reply_answer("### Q2: Opcion A\n", "Q2", ("Q2",), ["Opcion A", "Opcion B"]) \
+    == sv._reply_answer("Q2: Opcion A\n", "Q2", ("Q2",), ["Opcion A", "Opcion B"]), \
+    sv._reply_answer("### Q2: Opcion A\n", "Q2", ("Q2",), ["Opcion A", "Opcion B"])
+# the answer text reaches proposal expiry too: a reply under a group heading
+assert ca.reply_blocks("## G \u00b7 g\n\n### Q2: keep A\n", "Q2", ("Q2",))[-1][0][0].strip() == "keep A"
 PY
 then ok "BL-753: '### Q2: mejor B' counts as Q2's answer"
 else fail "BL-753: the text after a hashed chat head's colon was dropped"; fi
@@ -407,6 +416,14 @@ assert ("x-full-light-desktop", "needs-changes") in tags(ROW + sep("same-round")
 assert ("(gallery)", "unreadable") in tags(ROW + sep("same-round") + BAD)
 assert tags(BAD + sep("same-round") + WITHOUT) == [("(gallery)", "unreadable")], tags(BAD + sep("same-round") + WITHOUT)
 assert tags(ROW + sep("duty") + WITHOUT) == [("x-full-light-desktop", "needs-changes")]
+# with BL-756: a same-round paste readable only because the chat head after the
+# marks is an ordinary item's still supersedes; without `ordinary` it is refused
+# and the earlier verdict comes back (fail closed)
+S2 = ("## G1 \u00b7 Galeria\n\n### x-full-light-desktop \u00b7 x \u00b7 full \u00b7 light-desktop\n\n"
+      "- Aprobada\n\n[mark after 1.0,1.0 5.0x5.0] aqui\n\n### Q2: vale\n")
+got = [x[:2] for x in save_reply.gallery_duties_for(ROW + sep("same-round") + S2, {"Q2"})]
+assert got == [("x-full-light-desktop", "region-marks")], got
+assert ("x-full-light-desktop", "needs-changes") in tags(ROW + sep("same-round") + S2)
 PY
 then ok "BL-755: gallery duties follow same-round supersession"
 else fail "BL-755: gallery_duties_for ignored same-round supersession"; fi

@@ -3796,9 +3796,10 @@ def reply_blocks(reply_text, ident, ids=(), boxes=True):
         m = head.match(line)
         if m and not held:
             # a `### Q1 · title` head carries the item title, not an answer;
-            # a `### Q1: text` head carries the answer after its colon
+            # a `### Q1: text` head carries the answer after its colon and is
+            # chat-form, like bare `Q1:` (chat_any)
             cur = [] if m.group(1) and m.group(2) == "·" else [m.group(3)]
-            out.append((cur, not m.group(1)))
+            out.append((cur, not m.group(1) or m.group(2) == ":"))
         elif cur is not None:
             cur.append(line)
     return out
