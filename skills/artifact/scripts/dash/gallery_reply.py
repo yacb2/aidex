@@ -96,6 +96,9 @@ ANSWERS = {label for pairs in VERDICTS.values() for label, _ in pairs} \
 # The answers that owe the next round something (everything but Approved).
 OWING_FIRST = ANSWERS - {pairs[0][0] for pairs in VERDICTS.values()}
 NONE_LABELS = {pair[0] for pair in NONE_OF_THEM.values()}
+# Every answer that owes the next round something: OWING_FIRST plus "None of
+# them". save_reply imports it, so the two cannot drift.
+OWING_ANSWERS = OWING_FIRST | NONE_LABELS
 PROVISIONAL = " [provisional]"
 GALLERY_REPLY_FORM = ('gallery-reply.sh [--rows <rows.json>]... [--tiles "<t1> <t2> ..."] '
                       "[<reply.md>|-]  (or pipe the reply on stdin)")
@@ -248,7 +251,7 @@ def parse_row(ident, key, body, tiles=None, labels=None, lenient=False,
         label = label[:-len(PROVISIONAL)]
     if kind == "alternatives":
         owing = label in (set(OTHER) | NONE_LABELS if extra is not None
-                          else OWING_FIRST | NONE_LABELS)
+                          else OWING_ANSWERS)
     else:
         owing = kind != "states" and label in OWING_FIRST
     answer = parse_answer(ident, body[:first], extra,
@@ -373,7 +376,7 @@ def main(argv):
             # one gallery come in two documents with the same slug.
             labels.setdefault(doc["gallery"], set()).update(
                 {a["label"].strip() for a in doc.get("alternatives", [])}
-                | {pair[0] for pair in NONE_OF_THEM.values()})
+                | NONE_LABELS)
             alts = doc.get("alternatives")
             if alts:
                 try:

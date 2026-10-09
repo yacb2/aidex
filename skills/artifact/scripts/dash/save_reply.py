@@ -83,8 +83,8 @@ APPROVED = {"Aprobada", "Approved"}
 NEEDS_CHANGES = {pairs[1][0] for pairs in VERDICTS.values()}
 # Every answer a reader can give that is not the approval: Needs changes,
 # Cannot judge, the kit's two "Other" labels and "None of them" (the reader
-# rejected every alternative).
-OWING_VERDICTS = (set(gallery_reply.ANSWERS) - APPROVED) | gallery_reply.NONE_LABELS
+# rejected every alternative). One definition, in gallery_reply.
+OWING_VERDICTS = gallery_reply.OWING_ANSWERS
 GALLERY_NEEDS_DUTY = ("the reader said this gallery row needs changes: read "
                       "its note and change what it names")
 GALLERY_OTHER_DUTY = ("the reader did not approve this gallery row (Other / "
