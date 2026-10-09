@@ -26,3 +26,6 @@ SPEC
 ( cd .context/reports && python3 "$SCRIPTS/spec_build.py" 2026-10-09-status.spec.md -o 2026-10-09-status.html --check >/dev/null )
 # The page predates the spec route: only its HTML exists.
 rm -f .context/reports/2026-10-09-status.spec.md
+# A page from before the spec route carries no spec-built marker (F11).
+sed -i '' '1{/^<!-- GENERATED from /d;}' .context/reports/2026-10-09-status.html \
+  .context/reports/.aidex-artifact-prev/2026-10-09-status.html
