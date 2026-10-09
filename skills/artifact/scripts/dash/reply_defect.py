@@ -11,6 +11,13 @@ import re
 DEFECT_HEAD = re.compile(r"^#### (?:Fallo de la p\u00e1gina|Page problem)[ \t]*$", re.M)
 
 
+def is_block_head(line):
+    """A `## ` or `### ` line is a heading only when it carries the composer's
+    separator (`## G1 · title`, `### id · title`; ` ·` without the trailing
+    space is the empty-title form). Any other such line is a note."""
+    return line.startswith(("## ", "### ")) and " \u00b7" in line
+
+
 def split_defect(block):
     """(block without its page-defect sub-block, the reported text or "")."""
     found = list(DEFECT_HEAD.finditer(block))
@@ -28,7 +35,7 @@ def blank_defects(chunk):
     lines = chunk.split("\n")
     start = None
     for k, line in enumerate(lines + ["## end"]):
-        if line.startswith(("## ", "### ")):
+        if k == len(lines) or is_block_head(line):
             if start is not None:
                 hits = [j for j in range(start, k) if DEFECT_HEAD.match(lines[j])]
                 if hits:

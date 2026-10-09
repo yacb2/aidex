@@ -52,6 +52,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _usage import read_stdin, usage_exit  # noqa: E402
 import check_artifact as ca  # noqa: E402
 import gallery_reply  # noqa: E402
+from reply_defect import is_block_head  # noqa: E402
 from gallery_items import VERDICTS  # noqa: E402
 import wrap_report  # noqa: E402
 
@@ -99,9 +100,9 @@ def _drop_items(chunk, ordinary):
     any such heading hands the rest to that item's block."""
     out, keep = [], True
     for line in chunk.splitlines(keepends=True):
-        if line.startswith("### "):
-            keep = line[4:].partition(" · ")[0].strip() not in ordinary
-        elif line.startswith("## "):
+        if is_block_head(line) and line.startswith("### "):
+            keep = line[4:].partition(" ·")[0].strip() not in ordinary
+        elif is_block_head(line):
             keep = True
         out.append(line if keep else "\n")
     return "".join(out)

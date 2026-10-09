@@ -35,7 +35,7 @@ makes it rework.
 
 ## A phase waiting on the owner
 
-The phase whose owner page is still open may log `ui-surface: pending-owner · <its page> ·
+The phase whose owner page is still open may log `ui-surface: phase <N> · pending-owner · <its page> ·
 cells: ...` so the next phase proceeds, if the next phase touches none of those cells;
 never the skeleton review (phase 2) nor the final phase. The grammar is owned by
 `${CLAUDE_PLUGIN_ROOT}/skills/plan-exec/scripts/check-ui-evidence.sh`, and plan-exec's

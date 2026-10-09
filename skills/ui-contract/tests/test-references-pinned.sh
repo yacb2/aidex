@@ -29,7 +29,17 @@ done
 # 3. The rules that moved with the phases are still stated; the round shape stays inline
 #    because it is sketch-trial text.
 grep -qF 'Geometry assertions go in before the first owner round' "$REF" || fail "geometry-assertion rule lost"
-grep -qF 'ui-surface: pending-owner' "$REF" || fail "pending-owner rule lost"
+# The documented pending-owner line, filled in, is read by the gate that owns the grammar.
+LINE="$(python3 -c "
+import re, sys
+t = ' '.join(open(sys.argv[1], encoding='utf-8').read().split())
+m = re.search(r'\`(ui-surface: [^\`]*pending-owner[^\`]*)\`', t)
+print(m.group(1).replace('<N>', '3').replace('<its page>', 'consult.html').replace('...', 'empty') if m else '')
+" "$REF")"
+PLAN="$(mktemp)"; printf '## UI contract\n\n## Execution log\n\n- %s\n' "$LINE" > "$PLAN"
+bash "$SKILL_DIR/../plan-exec/scripts/check-ui-evidence.sh" --pending "$PLAN" 2>&1 | grep -qxF 'pending-owner: phase 3 · consult.html · cells: empty' \
+  || fail "the pending-owner line documented in 03-skeleton-first.md is not read by check-ui-evidence.sh --pending: '$LINE'"
+rm -f "$PLAN"
 grep -qF 'a budget of 2 rounds' "$SKILL" || fail "skeleton round budget left SKILL.md"
 
 # 4. The light/dark-only rule moved to the harness contract; SKILL.md points there.
