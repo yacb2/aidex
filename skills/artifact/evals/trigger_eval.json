@@ -108,5 +108,15 @@
     "query": "Hazme un artefacto sencillo, solo para probar que funciona.",
     "should_trigger": true,
     "expected_behavior": "ES content-free throwaway/test page: still this skill, built locally, never published (description names quick throwaway pages)."
+  },
+  {
+    "query": "En la consulta `.context/research/2026-10-09-order-list/consulta.html` cambia la recomendación de Q1: ahora recomiendo «Por fecha de alta». Déjala lista.",
+    "should_trigger": true,
+    "expected_behavior": "ES change to an existing consultation page (LOOP-012 scn-edit-spec-page): the description names 'a change to an existing artifact page'. The page has a .spec.md, so the edit goes through the spec and a rebuild, never a hand-edit of the built HTML."
+  },
+  {
+    "query": "Add a section to `.context/reports/2026-10-09-status.html` called Risks with these two: the vendor API deprecation and the missing staging data. Leave it ready.",
+    "should_trigger": true,
+    "expected_behavior": "EN change to an existing HTML report (LOOP-012 scn-edit-html-page): the description's 'add a section to this page' trigger. No .spec.md, so the page stays on the HTML route and is re-wrapped and re-checked, not hand-patched."
   }
 ]

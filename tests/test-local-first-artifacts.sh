@@ -132,6 +132,14 @@ fi
 if ! grep -qE "^description:.*artifact" "$REPO_ROOT/skills/artifact/SKILL.md"; then
   fail "artifact SKILL.md description no longer names the artifact shape"
 fi
+# Regression (LOOP-012 round 1, 2026-10-09): two prompts that asked to change an existing
+# `.context/**.html` page never loaded the skill, so the spec route was bypassed (built
+# HTML hand-edited) and the HTML route skipped the re-wrap. The description named only
+# creating pages. Only the clause before `Not for:` counts: a Not-for mention is no trigger.
+ART_DESC_POSITIVE="$(sed -n 's/^description:[[:space:]]*//p' "$REPO_ROOT/skills/artifact/SKILL.md" | sed 's/Not for:.*//')"
+if ! grep -qiE '(chang|edit|updat)[a-z]* [a-z ]{0,20}existing [a-z ]{0,12}page' <<<"$ART_DESC_POSITIVE"; then
+  fail "artifact SKILL.md description names no change/edit to an existing artifact page"
+fi
 
 if ! grep -qi "artifact-design" "$REPO_ROOT/skills/artifact/SKILL.md"; then
   fail "artifact SKILL.md does not route declined ad-hoc asks to artifact-design"
