@@ -100,14 +100,28 @@ def _drop_items(chunk, ordinary):
     """The chunk with every `### <id>` block whose id is an ordinary item of
     the page blanked out (lines kept, so refusal line numbers still match).
     A `### <ordinary-id> · ...` line pasted inside a gallery row's notes blanks
-    what follows it too, marks included: the parser's existing limit, where
-    any such heading hands the rest to that item's block."""
-    out, keep = [], True
+    what follows it too, marks included. The parser dies only on text AFTER a
+    row's `[mark ` lines, so only there does a line that is not the row's own
+    end the row: a chat-form head of an ordinary item (`Q2: ...`,
+    `### Q2: ...`, check_artifact's chat_any rule) or a `### two words · x`
+    line; both blank what follows, up to the next block head. Before the marks
+    they stay the row's notes."""
+    chat = re.compile(r"^[ \t]*(?:#{2,3}[ \t]+)?(?:"
+                      + "|".join(re.escape(i) for i in sorted(ordinary, key=len, reverse=True))
+                      + r")(?![\w-])[ \t]*[:\u00b7]") if ordinary else None
+    out, keep, marked = [], True, False
     for line in chunk.splitlines(keepends=True):
-        if is_block_head(line) and line.startswith("### "):
-            keep = line[4:].partition(" ·")[0].strip() not in ordinary
-        elif is_block_head(line):
-            keep = True
+        if is_block_head(line):
+            marked = False
+            if line.startswith("### "):
+                keep = line[4:].partition(" ·")[0].strip() not in ordinary
+            else:
+                keep = True
+        elif keep and line.startswith("[mark "):
+            marked = True
+        elif keep and marked and ((chat and chat.match(line))
+                                  or (line.startswith("### ") and " \u00b7" in line)):
+            keep = False
         out.append(line if keep else "\n")
     return "".join(out)
 
@@ -235,6 +249,7 @@ def save_reply(page_path, reply_text):
     a duty is still outstanding or the round has not been rebuilt — see the
     module docstring). Returns (duties, reply_path, answered_path, appended),
     where appended is False, "duty" or "same-round"."""
+    reply_text = reply_text.replace("\r\n", "\n").replace("\r", "\n")   # the gate reads universal newlines
     prev_dir, reply_path, answered_path = _paths(page_path)
     os.makedirs(prev_dir, exist_ok=True)
     had_previous = os.path.isfile(reply_path) and os.path.isfile(answered_path)

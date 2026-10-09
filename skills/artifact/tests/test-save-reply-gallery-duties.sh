@@ -295,6 +295,100 @@ PY
 then ok "an ordinary item's block ends at a '## ... · ' heading, not at a plain '## ' note line"
 else fail "the ordinary-item duty readers still end a block at every '## ' line"; fi
 
+# BL-752: the gallery readers end a row's block on the same heading rule as the
+# gate (reply_defect.is_block_head): a reader's own `### Tema largo · detalle`
+# line inside a row's notes is a note, so the marks after it stay the row's.
+if python3 - "$SKILL/scripts/dash" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1])
+import save_reply
+text = """### x-full-light-desktop · x · full · light-desktop
+
+- Necesita cambios
+
+### Tema largo · detalle
+
+nota
+
+[mark after 1.0,1.0 5.0x5.0] aqui
+"""
+d = save_reply.gallery_duties_for(text)
+assert {x[1] for x in d} == {"needs-changes", "region-marks"}, d
+# after the marks the same line ends the row: its text is no note after the marks (case D)
+after = """### x-full-light-desktop \u00b7 x \u00b7 full \u00b7 light-desktop
+
+- Aprobada
+
+nota
+
+[mark after 1.0,1.0 5.0x5.0] aqui
+
+### Tema largo \u00b7 detalle
+
+texto
+"""
+d = save_reply.gallery_duties_for(after)
+assert [x[1] for x in d] == ["region-marks"], d
+PY
+then ok "BL-752: a '### two words · x' line in a gallery row's notes ends no block"
+else fail "BL-752: a reader's own '### Tema largo · detalle' line cut the gallery row"; fi
+
+# BL-753: the answer reader keeps the text after the colon of a hashed chat head.
+if PYTHONPATH="$SKILL/scripts/dash" python3 - <<'PY'
+import check_artifact as ca
+assert ca._reply_has_answer("### Q2: mejor B\n", "Q2", ("Q2",)) is True
+# both follow chat_any (an optional `##`/`###` prefix), not a stricter head
+assert ca._reply_has_answer("## Q2: si\n", "Q2", ("Q2",)) is True
+assert ca._picked_only("### Q2: - Opcion A\n", "Q2", ("Q2",)) == ["Opcion A"]
+assert ca._reply_has_answer("### Q2 · Titulo\n", "Q2", ("Q2",)) is False   # a title is no answer
+PY
+then ok "BL-753: '### Q2: mejor B' counts as Q2's answer"
+else fail "BL-753: the text after a hashed chat head's colon was dropped"; fi
+
+# BL-756: a hashed (or bare) chat head of an ordinary item after a gallery row
+# with region marks must not make the gallery chunk unreadable.
+if python3 - "$SKILL/scripts/dash" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1])
+import save_reply
+row = """### x-full-light-desktop · x · full · light-desktop
+
+- Necesita cambios
+
+nota
+
+[mark after 1.0,1.0 5.0x5.0] aqui
+
+"""
+for tail in ("### Q2: vale\n", "Q2: vale\n"):
+    d = save_reply.gallery_duties_for(row + tail, ordinary={"Q2"})
+    assert {x[1] for x in d} == {"needs-changes", "region-marks"}, (tail, d)
+# BEFORE the marks a chat-form line of an ordinary id is the row's own note: the
+# marks (and a later verdict) stay the row's (cases A, B, C, E)
+H = "### x-full-light-desktop \u00b7 x \u00b7 full \u00b7 light-desktop\n\n"
+M = "[mark after 1.0,1.0 5.0x5.0] aqui\n"
+cases = [
+    ("A", H + "- Aprobada\n\nQ2: ver arriba\n\n" + M, {"Q2"}, {"region-marks"}),
+    ("B", H + "- Necesita cambios\n\nQ2: ver arriba\n\n" + M, {"Q2"}, {"needs-changes", "region-marks"}),
+    ("C", H + "- Aprobada\n\nnotes: el borde\n\n" + M, {"notes"}, {"region-marks"}),
+    # E: only the marks are pinned; the verdict after a note line is a
+    # separate parser limit (a first-bullet-only verdict), not this contract
+    ("E", H + "Q2: algo\n\n- Necesita cambios\n\n" + M, {"Q2"}, {"region-marks"}),
+]
+for name, text, ordn, want in cases:
+    d = save_reply.gallery_duties_for(text, ordinary=ordn)
+    tags = {x[1] for x in d}
+    assert (want <= tags) if name == "E" else (tags == want), (name, d)
+PY
+then ok "BL-756: a chat head of an ordinary item after marked gallery rows keeps the duties"
+else fail "BL-756: a chat head after a gallery row's marks made the chunk unreadable"; fi
+
+# BL-757: a CRLF stdin paste with an empty-title head reads as the same item
+# for save-reply and the gate.
+save "$TMP/crlf" "$(printf '### q1 \xc2\xb7 Uno\r\n\r\n- Si\r\n\r\n### q2 \xc2\xb7\r\n\r\n- [show-me]\r\n')"
+[[ "$out" == *"q2 [show-me]"* && "$out" != *"q1 [show-me]"* ]] \
+  && ok "BL-757: a CRLF paste with an empty-title head names q2" || fail "BL-757: crlf: $out"
+
 echo
 [[ $failures -eq 0 ]] && { echo "test-save-reply-gallery-duties: PASS"; exit 0; }
 echo "test-save-reply-gallery-duties: $failures FAIL"; exit 1

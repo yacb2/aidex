@@ -3683,7 +3683,7 @@ def check_consultation(path, text, flat):
 # a reply is saved, EVERY later wrap of the page is judged against that same
 # answered snapshot, until a newer reply replaces it.
 # `### id · title`, or `### id ·` for an empty title (the composer trims the space)
-REPLY_ITEM = re.compile(r"^### (\S+) ·(?:[ \t]|$)", re.M)
+from reply_defect import ITEM_HEAD as REPLY_ITEM   # noqa: E402
 # A `## ` line ends an item's block only with the composer's ` ·` separator
 # (reply_defect.is_block_head's rule); a plain `## note` is the reader's text.
 # `### ` heads are REPLY_ITEM's job: a reader's own `### two words · x` line
@@ -3755,7 +3755,7 @@ def reply_blocks(reply_text, ident, ids=(), boxes=True):
                                                  key=len, reverse=True))
     chat_any = re.compile(r"^[ \t]*(?:#{2,3}[ \t]+)?(?:" + alts + r")(?![\w-])[ \t]*[:·]")
     head = re.compile(r"^[ \t]*(#{2,3}[ \t]+)?" + re.escape(ident)
-                      + r"(?![\w-])[ \t]*[:·](.*)$")
+                      + r"(?![\w-])[ \t]*([:·])(.*)$")
     lines = reply_text.split("\n")
     # defect_after[k]: a `#### Fallo` sub-block follows line k in its box
     defect_after, after = [False] * len(lines), False
@@ -3786,8 +3786,9 @@ def reply_blocks(reply_text, ident, ids=(), boxes=True):
         filled = filled or (box and bool(line.strip()) and not _ITEM_BOX.match(line))
         m = head.match(line)
         if m and not held:
-            # a `### Q1 · title` head carries the item title, not an answer
-            cur = [] if m.group(1) else [m.group(2)]
+            # a `### Q1 · title` head carries the item title, not an answer;
+            # a `### Q1: text` head carries the answer after its colon
+            cur = [] if m.group(1) and m.group(2) == "·" else [m.group(3)]
             out.append((cur, not m.group(1)))
         elif cur is not None:
             cur.append(line)
