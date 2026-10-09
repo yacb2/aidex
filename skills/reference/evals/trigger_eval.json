@@ -98,5 +98,25 @@
     "query": "Production is throwing 502s intermittently behind the load balancer. Help me debug it.",
     "should_trigger": false,
     "expected_behavior": "Debugging task, NOT reference."
+  },
+  {
+    "query": "Are the docs out of date? Check which of our .context/references no longer match the code.",
+    "should_trigger": true,
+    "expected_behavior": "Should run the drift sub-action: prepare, launch drift.workflow.js, report findings; edits nothing."
+  },
+  {
+    "query": "Which references no longer match the code in this project?",
+    "should_trigger": true,
+    "expected_behavior": "Should run the drift sub-action and report stale/wrong/missing findings by reference."
+  },
+  {
+    "query": "Actualiza la documentación.",
+    "should_trigger": true,
+    "expected_behavior": "No topic named: should run drift first, then feed findings to the author/update flow with its refuter gate."
+  },
+  {
+    "query": "Create the documentation for the billing module.",
+    "should_trigger": true,
+    "expected_behavior": "Topic named: stays the author flow (new module), not drift."
   }
 ]
