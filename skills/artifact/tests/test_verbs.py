@@ -421,6 +421,12 @@ REVERT = ("## G1 \u00b7 Formato del spec\n\n" + H2 + "- No, un atributo nuevo\n"
 check("a same-round full paste without the proposal supersedes the earlier pick: no guard, and it expires",
       spec_verbs._bare_picks(two, REVERT, {"Q2"}) == []
       and new_round(two, answered_html=SNAP, reply=REVERT).count("proposal=yes") == 1)
+# B-s22: a bare `- [word]` line is an ask only when the word is a KNOWN marker, as check_artifact reads it
+# (`[debug]` is content, not an ask); _reply_answer used to count any lowercase word.
+for word, want in (("debug", False), ("question", True), ("provisional", True), ("page-defect", False)):
+    got = spec_verbs._reply_answer("Q1: vale\n- [%s]\n" % word, "Q1", ["Q1", "Q2"], ["vale"])
+    check("B-s22: a bare `- [%s]` line %s a marked answer" % (word, "makes" if want else "does not make"),
+          got is not None and got[3] is want, repr(got))
 # decide after new-round must move the ledger row's verdict as well.
 settled = new_round(decide(PAGE, "Q1", "Fences de Pandoc"))
 redecided = decide(settled, "Q1", "YAML anidado")
