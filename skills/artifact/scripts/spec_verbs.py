@@ -1015,7 +1015,7 @@ def _apply_edit(spec_path, transform, out=None, lang=None, needs_page=False):
                         % (spec_path, exc.object[exc.start], exc.start))
 
     out = out or default_out(spec_path)
-    defect = spec_build.hand_edit_defect(out)
+    defect = spec_build.hand_edit_defect(out, spec_path)
     if defect:
         raise VerbError("%s — nothing was written" % defect)
     new = transform(old)

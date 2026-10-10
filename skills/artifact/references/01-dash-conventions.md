@@ -37,6 +37,9 @@ naming its spec (path relative to the page) instead of a timestamp:
 <!-- GENERATED from <spec.md> by /aidex:artifact spec_build.py — DO NOT EDIT: edit the spec and rebuild -->
 ```
 
+A rebuild over such a page whose HTML differs from the baseline the last build wrote
+(`.aidex-artifact-prev/`) refuses and names the edit; `--discard-hand-edit` overwrites it on purpose.
+
 ## Markdown/JSON stays canon; HTML is a render
 
 - The renderers **read** the existing markdown (front-matter, pipe tables, `- [x]`/`- [ ]`

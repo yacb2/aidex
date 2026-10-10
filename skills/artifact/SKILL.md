@@ -108,7 +108,9 @@ named `python3 /path/...`): write the command out, or use a function.
 
 Edits to a page on this route go through the verbs
 (`scripts/spec_verbs.py add-item | decide | new-round`), which rewrite the spec and
-rebuild the page. The built HTML is an output; it is regenerated, never hand-edited.
+rebuild the page. The built HTML is an output; it is regenerated, never hand-edited:
+a rebuild over a page that differs from the last build REFUSES, naming the edit; move the change
+into the spec, or pass `--discard-hand-edit` to `spec_build.py` to overwrite it on purpose.
 
 Refusals a first spec usually meets (`references/02-local-first-artifacts.md`
 § Worked example):

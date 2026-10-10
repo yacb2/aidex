@@ -2436,11 +2436,13 @@ def resolve_lang(spec_text, lang, out):
     return spec_lang(spec_text) or lang or profile or "es"
 
 
-def hand_edit_defect(out):
+def hand_edit_defect(out, spec=None):
     """A message when the built page at `out` differs from what the last wrap
     landed (the `.aidex-artifact-prev/<page>` baseline), else None. A rebuild
-    over it would silently overwrite the hand edit (M3, case 51). No page or no
-    baseline (a page that predates baselines) is nothing to compare."""
+    over it would silently overwrite the hand edit (M3, case 51; P3 2026-10-10).
+    No page or no baseline (a page that predates baselines) is nothing to
+    compare. The message names the page, a short diff summary and both exits:
+    the change into the spec, or `--discard-hand-edit` on purpose."""
     baseline = wrap_report._baseline_path(out)
     try:
         with open(out, "rb") as fh:
@@ -2451,19 +2453,28 @@ def hand_edit_defect(out):
         return None
     if page == built:
         return None
-    return ("%s differs from %s, what the last build wrote: it was "
-            "hand-edited, restored from git, or left by an unfinished build, "
-            "and a rebuild would overwrite it. The page is an output: make the change in the spec (or "
-            "with the `add-item` / `decide` / `new-round` verbs) and rebuild; "
-            "to discard the hand edit on purpose, delete %s and build again"
-            % (out, baseline, out))
+    had = built.decode("utf-8", "replace").splitlines()
+    has = page.decode("utf-8", "replace").splitlines()
+    first = next((i for i, (x, y) in enumerate(zip(had, has)) if x != y),
+                 min(len(had), len(has)))
+    changed = sum(1 for x, y in zip(had, has) if x != y) + abs(len(had) - len(has))
+    shown = (has[first] if first < len(has) else "(line removed)").strip()[:100]
+    spec_arg = spec or "<spec.md>"
+    return ("%s differs from %s, what the last build wrote: it was hand-edited "
+            "(%d line%s changed; first at line %d: %s). The page is an output: "
+            "move the change into the spec (or use the `add-item` / `decide` / "
+            "`new-round` verbs) and rebuild; to overwrite the hand edit on "
+            "purpose, build with `spec_build.py %s -o %s --discard-hand-edit`"
+            % (out, baseline, changed, "" if changed == 1 else "s", first + 1,
+               shown, spec_arg, out))
 
 
 # --- CLI ---------------------------------------------------------------------
 def main(argv):
     p = UsageParser(
         prog="spec_build.py",
-        form="spec_build.py <spec.md> [-o <out.html> [--check] [--new-round]] "
+        form="spec_build.py <spec.md> [-o <out.html> [--check] [--new-round] "
+             "[--discard-hand-edit]] "
              "[--lang es|en] [--title <title>]",
         description="Build a page spec into artifact-kit HTML.")
     p.add_argument("spec", metavar="<spec.md>", help="the page spec")
@@ -2487,6 +2498,10 @@ def main(argv):
                    help="passed to wrap-report.sh: this build opens a new reader "
                         "round, refused unless save-reply.sh saved the reply to "
                         "the open one (BL-507). Needs -o")
+    p.add_argument("--discard-hand-edit", action="store_true",
+                   help="rebuild over a built page that was edited by hand "
+                        "(its HTML differs from the last build), discarding "
+                        "the edit. Without it the build refuses. Needs -o")
     args = p.parse_args(argv)
 
     try:
@@ -2526,7 +2541,7 @@ def main(argv):
     if not args.out:
         sys.stdout.write(body)
         return 0
-    defect = hand_edit_defect(args.out)
+    defect = None if args.discard_hand_edit else hand_edit_defect(args.out, args.spec)
     if defect:
         sys.stderr.write("spec-build: %s\n" % defect)
         return 1

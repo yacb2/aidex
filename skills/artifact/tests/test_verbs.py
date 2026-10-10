@@ -1647,6 +1647,30 @@ Contexto dos.
     check("...leaving the page and the spec as they were",
           read(he_page) == edited and read(he) == he_spec)
 
+    # P3: the refusal names the page, how much changed and the way out; the
+    # override flag overwrites the edit; a verb's refusal names the same flag.
+    r = subprocess.run([sys.executable, BUILD, he, "-o", he_page],
+                       capture_output=True, text=True)
+    check("P3: the refusal names the page, the changed-line count and "
+          "--discard-hand-edit", r.returncode == 1 and he_page in r.stderr
+          and re.search(r"\d+ lines? changed", r.stderr) is not None
+          and "--discard-hand-edit" in r.stderr, r.stderr)
+    r = run("decide", he, "--id", "Q1", "--verdict", "YAML anidado")
+    check("P3: the verb refusal names the same override",
+          r.returncode == 1 and "--discard-hand-edit" in r.stderr, r.stderr)
+    r = subprocess.run([sys.executable, BUILD, he, "-o", he_page,
+                        "--discard-hand-edit"], capture_output=True, text=True)
+    check("P3: --discard-hand-edit rebuilds over the edit",
+          r.returncode == 0 and "HAND-EDIT" not in read(he_page),
+          r.stdout + r.stderr)
+    r = subprocess.run([sys.executable, BUILD, he, "-o", he_page],
+                       capture_output=True, text=True)
+    check("P3: an unedited page rebuilds without the flag", r.returncode == 0,
+          r.stdout + r.stderr)
+    r = run("decide", he, "--id", "Q1", "--verdict", "YAML anidado")
+    check("P3: a verb over the unedited page works", r.returncode == 0,
+          r.stdout + r.stderr)
+
     # --- BL-721: ten low-severity findings of the K5 review ------------------
     print()
     print("== BL-721: refusals and rollbacks that did not hold ==")
