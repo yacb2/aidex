@@ -1211,6 +1211,29 @@ grep -q "WARN \[figure-tall\].*508 units tall" <(bash "$CHECK" "$TMP/bare-508.sv
 grep -q "WARN \[figure-tall\]" <(bash "$CHECK" "$TMP/bare-500.svg" 2>&1) \
   && fail "10c3. BL-620: a bare svg at the 500-unit cap was reported"
 
+# ---- 10c4. LOOP-012 P1 c: a prose wall. The grader's largest judgment class
+# (114 deductions) is a paragraph the reader skips. A <p> of MORE than 80 words
+# warns on ANY page (this one is not a consultation). Words are tokens holding a
+# letter or digit, on the decoded text: 80 words, 77 words + 3 codes + 3 bare commas, a
+# fieldlabel paragraph and a long paragraph inside a comment stay silent.
+w() { python3 -c "print(' '.join(['palabra'] * $1))"; }
+mkpage "$TMP/warn-wall.html" "<div class=\"page\"><main class=\"main\">
+<p>$(w 80) &aacute;</p>
+<p>$(w 80)</p>
+<p class=\"fieldlabel\">$(w 90)</p>
+<!-- <p>$(w 90)</p> -->
+<p>$(w 79) palabra&nbsp;palabra</p>
+<p>$(w 78) <code>x</code> , <code>x</code> , <code>x</code> ,</p>
+<p>$(w 77) <code>x</code> , <code>x</code> , <code>x</code> ,</p>
+</main></div>
+$composer"
+rc="$(run "$TMP/warn-wall.html")"
+[[ "$rc" == "0" ]] || fail "10c4. prose-wall changed the exit code — it is a warning: $(cat "$TMP/out")"
+[[ "$(grep -c 'WARN \[prose-wall\]' "$TMP/out")" == "3" ]] \
+  || fail "10c4. expected exactly three prose-wall warnings (81 words; 81 decoded; 78 words + 3 codes + 3 bare commas): $(cat "$TMP/out")"
+[[ "$(grep -c 'WARN \[prose-wall\].*a paragraph of 81 words.*over 80' "$TMP/out")" == "3" ]] \
+  || fail "10c4. each warning must say 81 words and the threshold 80 (80 passes, 82 is not the boundary; punctuation is no word): $(cat "$TMP/out")"
+
 # ---- 10d. BL-330: an embedded <style> is a stylesheet in the PAGE, and the
 # text nobody measured. Reported by the owner on a bench page: "los textos que
 # están en un azul no se leen prácticamente". One figure's own

@@ -111,6 +111,10 @@ a census warning on a page nobody is editing is noise no one can clear.
                at its own size it fills most of a laptop screen (BL-511). Static,
                on the intrinsic height; every page
 
+  prose-wall   a <p> over PROSE_WALL_WORDS words (80): a wall the reader skips. Every
+               page, outside fieldlabel paragraphs; rows or a split, not a longer
+               paragraph (LOOP-012 P1 c)
+
 Exit 0 = every file passes. Exit 1 = at least one violation (each printed).
 Exit 2 = usage error.
 """
@@ -2384,6 +2388,32 @@ def figure_tall_findings(text):
     return out
 
 
+# LOOP-012 grader census: "density/prose-wall" is the largest judgment class (114
+# deductions; leads of "4-6 lines" in bold serif). Measured on 1085 <p> of 27
+# reports (2026-09-20..10-08): p50 6, p75 27, p90 51, p95 61, p99 90 words. 80
+# flags ~1.7 % of paragraphs, past the p95 of ordinary explanation. A WARN: words
+# are a proxy for lines, so it is advisory: the proxy BL-243 rejected for a FAIL
+# is acceptable for a WARN. Only tokens with a letter or digit count (a bare ","
+# left by a stripped tag is no word). P_BLOCK's lazy scan is quadratic on an
+# unclosed <p>; not reachable on real pages, left as is.
+PROSE_WALL_WORDS = 80
+
+
+def prose_wall_findings(text):
+    """[(words, excerpt)] for every <p> of the page over PROSE_WALL_WORDS words
+    (tags dropped, entities decoded; fieldlabel paragraphs are labels)."""
+    body = strip_html_comments(strip_script_style(text))
+    out = []
+    for m in P_BLOCK.finditer(body):
+        if P_FIELDLABEL.search(m.group(1)):
+            continue
+        prose = ' '.join(_html.unescape(re.sub(r'<[^>]+>', ' ', m.group(2))).split())
+        words = sum(1 for t in prose.split() if re.search(r'\w', t))
+        if words > PROSE_WALL_WORDS:
+            out.append((words, prose[:60]))
+    return out
+
+
 def warn_file(path):
     """Non-fatal findings as (check, name, message). Exit-neutral and never
     waived — see the module docstring for why they are a separate channel."""
@@ -2409,6 +2439,15 @@ def warn_file(path):
         pass
     for msg in figure_tall_findings(text):
         warns.append(("figure-tall", name, msg))
+    try:
+        for words, excerpt in prose_wall_findings(text):
+            warns.append(("prose-wall", name,
+                          f"a paragraph of {words} words (\"{excerpt}…\") is over "
+                          f"{PROSE_WALL_WORDS} — a wall the reader skips. Split it "
+                          f"into paragraphs of one idea, or turn the N facts it "
+                          f"lists into rows; cleared by the rewrite, not by a waiver"))
+    except Exception:                               # noqa: BLE001 — advisory
+        pass
     # The below-floor findings are FAILURES and live in check_file (v15); what
     # comes back here is only "nothing could be measured".
     warns.extend(svg_contrast_reports(text, name)[1])
