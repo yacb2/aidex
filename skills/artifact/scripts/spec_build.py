@@ -163,7 +163,7 @@ class BuildContext:
     None for a body that is not written as a page (BL-474).
     """
 
-    def __init__(self, lang="es", base_dir=".", page=None):
+    def __init__(self, lang="es", base_dir=".", page=None, warnings=None):
         if lang not in LANGS:
             raise SpecBuildError(0, "unknown page language %r (known: %s)"
                                  % (lang, ", ".join(LANGS)))
@@ -172,6 +172,8 @@ class BuildContext:
         self.page = page
         self.s = STRINGS[lang]
         self.tree = ()      # the parsed spec, set by `build` (a gallery reads its items)
+        # (check, spec line, message) build warnings; the CLI prints them.
+        self.warnings = [] if warnings is None else warnings
 
 
 # --- the dispatch table ------------------------------------------------------
@@ -933,6 +935,14 @@ def emit_item(node, ctx):
         lead, question = _split_question(question)
         if lead:
             parts.insert(0, '<p class="consult-lead">%s</p>' % lead)
+        elif not _settled(node):
+            ctx.warnings.append((
+                "consult-lead-missing", node.line,
+                "`item` %s: its first paragraph is only the question, so it "
+                "became the heading and the item has no situation lead under "
+                "it. Write the situation (who, which screen, what happens "
+                "today) before the question, in that same first paragraph "
+                "(consultation.md § 8.4, BL-503/BL-514)" % node.id))
         if question is None:
             question = md_body._inline(a["title"])
     else:
@@ -2260,14 +2270,17 @@ def _refuse_title_links(tree):
                 "body" % (node.block_type, title))
 
 
-def build(spec_text, lang=None, base_dir=".", page=None):
+def build(spec_text, lang=None, base_dir=".", page=None, warnings=None):
     """The spec as an artifact-kit page BODY (no doctype, no head).
 
     Deterministic: same text in, byte-identical HTML out. Wrapping the body into
     a document is `wrap-report.sh`'s job and is where the build stamp lives.
+    `warnings`, when a list, collects (check, spec line, message) tuples the
+    CLI prints as `WARN [check]` lines; the build itself never prints them.
     """
     lang = spec_lang(spec_text) or lang or "es"
-    ctx = BuildContext(lang=lang, base_dir=base_dir, page=page)
+    ctx = BuildContext(lang=lang, base_dir=base_dir, page=page,
+                       warnings=warnings)
     tree = parse(spec_text)
     ctx.tree = tree
     _autofix(tree, lang)
@@ -2499,13 +2512,16 @@ def main(argv):
         # Before build(): a gallery copies its captures beside the page while
         # it builds, and a refusal must leave no `<name>-assets/` behind.
         refuse_missing_visual(spec_text)
+        warnings = []
         body = build(spec_text, lang=lang,
                      base_dir=os.path.dirname(os.path.abspath(args.spec)),
-                     page=args.out)
+                     page=args.out, warnings=warnings)
         title = args.title or page_title(spec_text)
     except (SpecSyntaxError, SpecBuildError) as exc:
         sys.stderr.write("%s:%d: %s\n" % (args.spec, exc.line, exc.message))
         return 1
+    for check, line, msg in warnings:
+        sys.stderr.write("WARN [%s] %s:%d: %s\n" % (check, args.spec, line, msg))
 
     if not args.out:
         sys.stdout.write(body)

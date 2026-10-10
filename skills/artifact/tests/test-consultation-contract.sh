@@ -890,6 +890,75 @@ grep -q "WARN \[consult-lead-id\].*'E2'" "$TMP/out" \
 grep -q "WARN \[consult-lead-id\].*'E3'" "$TMP/out" \
   || fail "10b4c. a situation lead opening with M095 above its question did not warn: $(cat "$TMP/out")"
 
+# 10b4c2. scn-bare-questions (2026-10-10): an item whose first paragraph is ONLY
+# its question became the h3 whole and left no `.consult-lead`; the situation
+# paragraph after it reads as plain body, and build and check both stayed
+# silent. The BUILD warns (it alone knows which paragraph became the heading);
+# rc stays 0. Silent: a situation before the question (N2), a situation with
+# no question (N3, title-headed), options only under a statement title (N4),
+# settled items (N5 decided, N6 proposal) and a notes box with a "?" title.
+cat > "$TMP/built-nolead.spec.md" <<'SPEC'
+::: masthead {lang="en" visual="none: consultation"}
+# Missing leads
+:::
+
+::: group {#G1 title="Leads"}
+::: item {#N1 title="Where the cache lives"}
+When a person repeats a search and three workers serve it, where do we keep the result?
+
+With Redis the three workers share one cache.
+
+- Use Redis {recommended}
+- Use each worker's memory
+:::
+
+::: item {#N2 title="Situation then question"}
+Ana repeats a search. Today it takes two seconds. Do we keep the result?
+
+- Keep it {recommended}
+- Recompute it
+:::
+
+::: item {#N3 title="Situation only"}
+Ana repeats a search and waits two seconds.
+
+- Keep it {recommended}
+- Recompute it
+:::
+
+::: item {#N4 title="Statement title"}
+- Keep it {recommended}
+- Recompute it
+:::
+
+::: item {#N5 title="Settled" decided=yes}
+Do we keep the result?
+
+- Keep it {recommended}
+- Recompute it
+:::
+
+::: item {#N6 title="Proposed" decided=yes proposal=yes}
+Do we keep the result?
+
+- Keep it {recommended}
+- Recompute it
+:::
+:::
+
+::: notes {title="Anything else?"}
+:::
+SPEC
+( cd "$TMP" && python3 "$SKILL/scripts/spec_build.py" built-nolead.spec.md -o "$TMP/built-nolead.html" ) >"$TMP/build.out" 2>&1
+rc=$?
+[[ "$rc" == "0" ]] || fail "10b4c2. consult-lead-missing changed the build's exit code: $(cat "$TMP/build.out")"
+grep -q "^WARN \[consult-lead-missing\] built-nolead.spec.md:6: .*N1" "$TMP/build.out" \
+  || fail "10b4c2. a built item whose first paragraph is only its question (no .consult-lead) was not reported at its spec line: $(cat "$TMP/build.out")"
+n="$(grep -c "consult-lead-missing" "$TMP/build.out")"
+[[ "$n" == "1" ]] || fail "10b4c2. only N1 lacks a lead; got $n consult-lead-missing lines: $(cat "$TMP/build.out")"
+grep -q 'data-id="N1"' "$TMP/built-nolead.html" \
+  || fail "10b4c2. the warning must not stop the page from being written"
+
 # 10b4d. BL-631: a product name with a number ("Los Simpson T8") is not an id.
 # A bare letter+digits counts only after an id word or as a Q/M095 prefix, and
 # never right after a capitalized proper-noun word.

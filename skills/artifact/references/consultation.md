@@ -174,6 +174,10 @@ messages and the tests; § 8.4 is the block shape.
    question (one or more `?` sentences) as the item's heading and sets the situation
    under it as body text (`.consult-lead`, BL-514), so keep the question to one short
    sentence. A situation with no closing question is headed by the item's `title`.
+   A first paragraph that is only the question leaves the item with no lead, and
+   `spec_build.py` warns (`WARN [consult-lead-missing] <spec>:<line>`, exit code
+   unchanged): write the situation as its own sentence before the closing question.
+   Decided and proposal items skip it; hand-written pages are not checked for it.
 
    **The same rule for a question about work, not product (2026-09-30).** When the item
    is about a backlog item, a tool, a hook, a run or a measurement, the "situation" is

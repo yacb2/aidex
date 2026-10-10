@@ -126,7 +126,7 @@ Dos preguntas abiertas y una decisión cerrada.
 La consulta de hoy: qué escribe el agente cuando la página cambia.
 
 ::: item {#Q1   title="Fences o YAML"    }
-¿Fences de Pandoc o YAML anidado?
+El agente reescribe el spec en cada ronda. ¿Fences de Pandoc o YAML anidado?
 
 - Fences de Pandoc — prosa con marcas mínimas {recommended}
 - YAML anidado — estructura explícita
@@ -713,7 +713,7 @@ try:
     page = os.path.join(os.path.dirname(spec), "page.html")
     for argv, label in (
             (("add-item", spec, "--group", "G1", "--id", "Q3",
-              "--title", "Ruta de figuras", "--body", "¿Qué renderizador?",
+              "--title", "Ruta de figuras", "--body", "Las barras se dibujan hoy a mano. ¿Qué renderizador?",
               "--option", "Uno propio de stdlib {recommended}",
               "--option", "El de la librería"), "add-item"),
             (("decide", spec, "--id", "Q1", "--verdict", V), "decide"),

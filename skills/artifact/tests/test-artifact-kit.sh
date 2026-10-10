@@ -22,6 +22,7 @@ set -uo pipefail
 SKILL="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 KIT="$SKILL/assets/artifact-kit"
 WRAP="$SKILL/scripts/wrap-report.sh"
+CHECK="$SKILL/scripts/check-artifact.sh"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 failures=0
@@ -192,6 +193,16 @@ out="$(bash "$WRAP" --title "Kit smoke" --in "$TMP/body.html" --out "$OUT" 2>&1)
 [[ "$rc" -eq 0 ]] || fail "wrapping the skeleton failed (exit $rc): $out"
 grep -q 'artifact contract OK' <<<"$out" \
   || fail "the wrapped skeleton does not pass the artifact contract: $out"
+# scn-bare-questions: consult-lead-missing is the BUILD's warning. A hand-written
+# page from this skeleton carries the consult-id badge too, a question h3 and a
+# <p> lead with no `.consult-lead` class; check-artifact must not call it leadless.
+sed 's#The question, asked as a question<#Do we ship it?<#' "$TMP/body.html" > "$TMP/body-q.html"
+grep -q 'consult-id">Q1</span>Do we ship it?<' "$TMP/body-q.html" \
+  || fail "(setup) the skeleton's Q1 heading was not turned into a question"
+out="$(bash "$WRAP" --title "Kit question" --in "$TMP/body-q.html" --out "$TMP/reports/kit-q.html" 2>&1)" \
+  || fail "wrapping the question-headed skeleton failed: $out"
+grep -q 'consult-lead-missing' <<<"$out$(bash "$CHECK" "$TMP/reports/kit-q.html" 2>&1)" \
+  && fail "a hand-written skeleton item (badge, question h3, <p> lead) was reported leadless: $out"
 # The same skeleton under lang="es": every English kit label it ships (buttons,
 # field labels, placeholders) is written in the page's language by the wrap, or
 # the blocking ui-string-language class refuses the page (LOOP-006). Wrapped to
