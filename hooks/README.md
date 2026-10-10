@@ -273,6 +273,21 @@ Sunset review 2026-12-21, criterion in the script header.
 
 **Tests:** `python3 test-references-root-gate.py` — 12 checks.
 
+## generated-html-edit-gate.sh — a spec-built page is edited through its spec (PreToolUse/Write, Edit, MultiEdit)
+
+Denies a `Write`, `Edit` or `MultiEdit` of an existing `.html` file whose line 1 is the
+`spec_build.py` marker (`<!-- GENERATED from <spec> by /aidex:artifact spec_build.py ... -->`).
+The reason names the spec (resolved against the page's directory) and says to edit it and
+rebuild with `spec_build.py`. LOOP-012 F10: a Read of a built page shows plain HTML and an
+edit request hand-edited the build output, lost at the next rebuild. A new file, an HTML
+without the marker, a board's `GENERATED <timestamp>` header, a non-HTML file and any error
+pass silently, and so does a marker whose spec no longer exists (the rebuild is impossible). The
+`.aidex-artifact-prev/` baseline copy names the same spec as its page. Edit tools only: `sed` or
+`python` through Bash is not covered. Sunset review 2026-12-21: a deny is justified when the session
+then edits the spec and rebuilds, not when it switches to a Bash rewrite.
+
+**Tests:** `python3 test-generated-html-edit-gate.py` — 17 checks.
+
 ## first-test-write-gate.sh — the first new test file waits for the testing core (PreToolUse/Write, Bash)
 
 Denies the first `Write` — or `Bash` command — that creates a test file that does not exist yet, once per
