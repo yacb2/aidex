@@ -722,6 +722,24 @@ PY
 )"
 [[ "$chk" == ok ]] && ok "a closed fold's id is on the tile showing its summary row and none below; visible ids on theirs" || bad "collapsed ids: $chk"
 
+echo "== a screenshot-sized raster drawn at less than half its width (LOOP-012 P1a) =="
+python3 "$HERE/png_fixture.py" "$TMP/shrunk.png" 1600 900 110
+python3 "$HERE/png_fixture.py" "$TMP/small.png" 780 400 120
+python3 "$HERE/png_fixture.py" "$TMP/zoomable.png" 1600 900 130
+out="$(bash "$PROBE" "$TMP/raster-shrunk.html" 2>&1)"; rc=$?
+[[ $rc -eq 1 ]] && ok "raster-shrunk exits 1" || bad "raster-shrunk exit $rc, expected 1: $out"
+line="$(grep -E '^DEFECT raster-shrunk\.html @390px raster-shrunk: ' <<<"$out" || true)"
+grep -qF 'shrunk.png' <<<"$line" \
+  && ok "a 1600 px raster drawn small at 390 px is raster-shrunk, naming the file" || bad "no raster-shrunk naming shrunk.png at 390px in: $out"
+grep -qE '1600 px.*drawn [0-9]+ px' <<<"$line" \
+  && ok "the finding reports natural and drawn widths" || bad "no widths in the raster-shrunk line: $out"
+grep -qE '^DEFECT raster-shrunk\.html @390px raster-shrunk: img #[0-9]+ "Captura embebida de la lista" \(figure "Una captura embebida de 1600 px\.?"\)' <<<"$out" \
+  && ok "a data-URI raster is raster-shrunk, named by ordinal, alt and caption" || bad "no named data-URI raster-shrunk at 390px in: $out"
+hit="$(grep -E '^DEFECT raster-shrunk\.html @1280px raster-shrunk: ' <<<"$out" || true)"
+[[ -z "$hit" ]] && ok "raster-shrunk is a 390 px finding only" || bad "$hit"
+hit="$(grep -E '^DEFECT raster-shrunk\.html @[0-9]+px raster-shrunk: .*(small|zoomable)\.png|^DEFECT raster-shrunk\.html @[0-9]+px raster-shrunk: .*Dibujo' <<<"$out" || true)"
+[[ -z "$hit" ]] && ok "a raster under 800 px, one with the zoom button and an svg are not raster-shrunk" || bad "$hit"
+
 echo "== --shots refuses what it would silently get wrong (BL-724) =="
 # B-c08: output files are named by basename, so two pages sharing one would overwrite each
 # other's tiles and manifest. B-c12: shots are taken only in the geometry pass, which

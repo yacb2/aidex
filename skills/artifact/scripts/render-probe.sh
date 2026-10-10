@@ -5,7 +5,8 @@
 # outside its svg, content spilling out of or cut by its box, a table of one to three
 # columns wider than the box it scrolls in, svg text under the 11 px floor at 390 px,
 # an unfilled stroked rect whose edge crosses an svg text, a fixed control over
-# body text, horizontal page scroll; and the three render contract classes
+# body text, horizontal page scroll, a screenshot-sized raster (>= 800 px) drawn under
+# half its width at 390 px (raster-shrunk); and the three render contract classes
 # (text-style-drift, figure-text-contrast in both schemes, svg-label-outside-its-box).
 # text-style-drift's svg font-family half runs only under --contract text-style-drift:
 # it stays out of the default run until the owner answers whether author font

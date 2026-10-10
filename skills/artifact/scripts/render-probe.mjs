@@ -14,6 +14,9 @@
 //   table-cut         a table of 1-3 columns wider than the box it scrolls in
 //   fixed-over-text   a position:fixed control drawn over page text (any scroll position)
 //   page-hscroll      the page scrolls horizontally
+//   raster-shrunk     at 390 px, a screenshot-sized raster <img> (natural width >= 800 px) drawn
+//                     at under half its natural width, so text inside it cannot be read; not
+//                     one inside a kit zoom button (`[data-zoom]`)
 // and for the three render contract classes of the defect registry (LOOP-006):
 //   text-style-drift          a kit class that declares a font-size renders at another
 //                             size (a descendant rule such as `.consult-item p` beat it),
@@ -226,6 +229,36 @@ const check = () => {
     if (!sc || sc === document.body || !sc.clientWidth) continue;
     const r = t.getBoundingClientRect(), dx = Math.round(r.width - sc.clientWidth);
     if (dx > 1) out.push({ kind: 'table-cut', a: name(t), dx, y: Math.round(r.top + sy) });
+  }
+  // 3c. a screenshot-sized raster drawn small (LOOP-012 P1a). The grader census (41 rounds,
+  // subclass raster-shrink) deducts a capture of 1280-1600 px drawn at the 390 px column: its
+  // text lands at 3-7 px. Two thresholds: natural width >= 800 px (the smallest capture the
+  // census names is a 1280 px one) and drawn under half of it. At 390 px the column is ~358 px,
+  // so any image >= 800 px is already drawn at <= 0.45x: the WIDTH floor is what decides on a
+  // kit page and the ratio never does; it is kept for a narrower-than-kit or wider-viewport page.
+  // A figure the kit turned into a zoom button (`[data-zoom]`, composer.js, BL-466) opens the
+  // image at full size, so a shrunk grid thumbnail there is the designed state, not a defect.
+  const RASTER_MIN_NATURAL = 800, RASTER_MAX_RATIO = 0.5, RASTER_VIEWPORT_MAX = 480;
+  if (innerWidth <= RASTER_VIEWPORT_MAX) {
+    const raster = /\.(png|jpe?g|webp|gif)(\?|#|$)|^data:image\/(png|jpe?g|webp|gif)[;,]/i;
+    for (const im of document.body.querySelectorAll('img')) {
+      const src = im.currentSrc || im.getAttribute('src') || '';
+      if (!vis(im) || im.closest('svg,[data-zoom]') || !raster.test(src) || !im.complete) continue;
+      const nat = im.naturalWidth, w = im.getBoundingClientRect().width;
+      if (nat < RASTER_MIN_NATURAL || !w || w / nat >= RASTER_MAX_RATIO) continue;
+      // Named so the fixer can find it: a real page embeds every capture as a data URI, so the
+      // file name says nothing. Ordinal among all imgs, alt, and the figure caption or the
+      // nearest heading before it.
+      const ord = [...document.body.querySelectorAll('img')].indexOf(im) + 1;
+      const cap = im.closest('figure') && im.closest('figure').querySelector('figcaption');
+      let where = cap ? `figure "${cap.textContent.trim().slice(0, 40)}"` : '';
+      if (!where) {
+        const hs = [...document.body.querySelectorAll('h1,h2,h3,h4')].filter(h => h.compareDocumentPosition(im) & Node.DOCUMENT_POSITION_FOLLOWING);
+        if (hs.length) where = `after "${hs[hs.length - 1].textContent.trim().slice(0, 40)}"`;
+      }
+      const file = src.startsWith('data:') ? '' : ' ' + decodeURIComponent(src.split(/[?#]/)[0].split('/').pop());
+      out.push({ kind: 'raster-shrunk', a: `img #${ord}${file}${im.alt ? ' "' + im.alt.slice(0, 40) + '"' : ''}${where ? ' (' + where + ')' : ''}`, msg: `natural ${nat} px, drawn ${Math.round(w)} px (${(w / nat).toFixed(2)}x)`, y: Math.round(im.getBoundingClientRect().top + sy) });
+    }
   }
   // 4. a fixed control drawn over page text. Both the container's own rect and each fixed
   // text box are tested. The container rect alone misses a label hanging out of a 0-height
