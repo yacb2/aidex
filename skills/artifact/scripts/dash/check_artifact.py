@@ -1440,6 +1440,11 @@ SVG_CONTRAST_FLOOR = 4.5
 # A fill that IS declared and cannot be read: currentColor, a var(), a gradient
 # url. Distinct from None (never declared) because it overrides inheritance.
 SVG_UNREADABLE = '?'
+# Root classes the kit's chart (chart_svg.py `_Geo.cls`) and diagram
+# (diagram_svg.py) emitters write, and the capped style the graph emitter writes
+# on its classless root; only those figures are exempt from the count.
+KIT_SVG_STYLE = 'font-family:var(--sans);max-width:'
+KIT_SVG_CLASSES = frozenset(('chart-w', 'chart-n', 'dg-wide', 'dg-narrow'))
 
 
 def _svg_style_prop(style, prop):
@@ -2242,9 +2247,15 @@ def svg_contrast_findings(text):
         texts, rects = svg_geometry(
             m.group(2), fonts, rules,
             root=('svg', tuple(root_attrs.get('class', '').split())))
+        kit_drawn = (bool(KIT_SVG_CLASSES & set(root_attrs.get('class', '').split()))
+                     or (root_attrs.get('style') or '').startswith(KIT_SVG_STYLE))
         for label, x0, y0, x1, y1, fg in texts:
             if not isinstance(fg, tuple):
-                unmeasured += 1
+                # A figure the kit's own emitter drew paints its labels with
+                # currentColor by design; render-probe's figure-text-contrast
+                # measures them in the browser. They are not "unmeasured" noise.
+                if not kit_drawn:
+                    unmeasured += 1
                 continue
             cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
             box = wrap
