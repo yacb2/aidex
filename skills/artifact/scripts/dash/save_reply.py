@@ -38,11 +38,13 @@ earlier one (BL-598).
 Usage: save-reply.sh <page.html> [<reply-file>|-]
   <reply-file> omitted or "-": read the paste from stdin.
 """
+import base64
 import contextlib
 import datetime
 import hashlib
 import html
 import io
+import json
 import os
 import re
 import sys
@@ -70,6 +72,28 @@ def _paths(page_path):
 
 
 _PAGE_FP = re.compile(r" page:([0-9a-f]+) ")
+# The states each appended paste was parsed against (BL-762): base64 of the
+# states_in_page JSON, so labels with spaces or accents round-trip and the
+# separator can never hold `-->` or the word `same-round`.
+_SEP_STATES = re.compile(r" states:([A-Za-z0-9+/=]*) ")
+
+
+def _encode_states(states):
+    return base64.b64encode(json.dumps(states, ensure_ascii=False)
+                            .encode("utf-8")).decode("ascii")
+
+
+def _answered_states(answered_path):
+    """The states of the answered snapshot: the first paste's (BL-762)."""
+    with open(answered_path, encoding="utf-8", errors="replace") as fh:
+        return states_in_page(fh.read())
+
+
+def _sep_states(sep, default):
+    """The states a separator recorded; `default` (answered.html's, or the
+    caller's) for the first paste and a separator written before BL-762."""
+    m = _SEP_STATES.search(sep or "")
+    return json.loads(base64.b64decode(m.group(1))) if m else default
 
 
 def _fingerprint(path):
@@ -179,13 +203,13 @@ def gallery_duties_for(reply_text, ordinary=(), states=None):
     page shows as ordinary items, never read as gallery rows (BL-654)."""
     by_id, unreadable = {}, []
 
-    def read(chunk):
+    def read(chunk, sep):
         err = io.StringIO()
         try:
             with contextlib.redirect_stderr(err):
                 return gallery_reply.parse(_drop_items(chunk, ordinary),
                                            lenient=True,
-                                           states=states)["rows"]
+                                           states=_sep_states(sep, states))["rows"]
         except SystemExit:
             msg = err.getvalue().strip().replace("gallery-reply: ", "", 1)
             if msg not in unreadable:
@@ -194,12 +218,15 @@ def gallery_duties_for(reply_text, ordinary=(), states=None):
 
     # A refused paste is blanked before supersession, so it never withdraws the
     # rows an earlier readable paste of its round still owes.
-    parts = re.split("(" + ca._SAVE_SEP.pattern + ")", reply_text, flags=re.M)
+    # Each paste is read with the states its own separator recorded (BL-762).
+    split = re.compile("(" + ca._SAVE_SEP.pattern + ")", re.M).split
+    parts = split(reply_text)
     for k in range(0, len(parts), 2):
-        if read(parts[k]) is None:
+        if read(parts[k], parts[k - 1] if k else None) is None:
             parts[k] = ""
-    for chunk in ca._SAVE_SEP.split(ca._live_reply("".join(parts))):
-        rows = read(chunk)
+    live = split(ca._live_reply("".join(parts)))
+    for k in range(0, len(live), 2):
+        rows = read(live[k], live[k - 1] if k else None)
         if rows is None:
             continue
         for row in rows:
@@ -310,11 +337,16 @@ def save_reply(page_path, reply_text):
             # the mode tells check_artifact._live_reply whether this paste
             # is from the same page as the one before it (BL-598); the page
             # fingerprint is what the next save compares with (BL-644)
-            fh.write(f"\n\n<!-- reply saved {stamp} page:{page_fp} {appended} -->"
+            # and the states are the ones this paste is parsed with (BL-762),
+            # written before them so `page:<fp> <mode> -->` stays as it was
+            fh.write(f"\n\n<!-- reply saved {stamp} states:{_encode_states(states)} "
+                     f"page:{page_fp} {appended} -->"
                      f"\n\n{reply_text}")
         with open(reply_path, encoding="utf-8") as fh:
             combined = fh.read()
-        return duties_for(combined, ordinary, states), reply_path, answered_path, appended
+        # the first paste answered the snapshot, not this page (BL-762)
+        return (duties_for(combined, ordinary, _answered_states(answered_path)),
+                reply_path, answered_path, appended)
     with open(reply_path, "w", encoding="utf-8") as fh:
         fh.write(reply_text)
     with open(answered_path, "w", encoding="utf-8") as fh:
@@ -393,7 +425,7 @@ def main(argv):
             page_text = fh.read()
         with open(reply_path, encoding="utf-8") as fh:
             withdrawn = withdrawn_for(fh.read(), ca.ordinary_item_ids(page_text),
-                                      states_in_page(page_text))
+                                      _answered_states(answered_path))
         if withdrawn:
             print("WITHDRAWN in this round (an earlier paste asked, this full "
                   "paste of the same page does not; confirm with the reader if "
