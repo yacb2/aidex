@@ -28,7 +28,7 @@ listed="$(printf '%s\n' "${ROUTED[@]}" | sort)"
 for n in "${ROUTED[@]}"; do
   f="$AGENTS_DIR/$n.md"
   [[ -f "$f" ]] || { err "$n.md missing under $AGENTS_DIR"; continue; }
-  private="$(grep -nE 'BL-[0-9]|/Users/|aidex_ws' "$f")"
+  private="$(grep -niE 'BL-[0-9]|/Users/|aidex_ws|~/\.claude|~/Documents' "$f")"
   [[ -z "$private" ]] || err "$n: private string: ${private:0:100}"
   # drop the `name:` line and every `aidex:<x>` mention, then look for a bare routed name
   bare="$(grep -v '^name: ' "$f" | sed -E 's/aidex:[a-zA-Z][a-zA-Z0-9-]*//g' | grep -niE "(^|[^a-z0-9-])($names)([^a-z0-9-]|\$)")"

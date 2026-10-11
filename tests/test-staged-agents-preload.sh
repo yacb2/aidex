@@ -92,6 +92,7 @@ if [ -z "${STAGED_AGENTS_DIR:-}" ]; then
   printf -- '---\nname: fx-agent\nskills:\n  - aidex:testing\n  # the next one is misspelled\n\n  - aidex:tesitng\n---\n' > "$fx/fx-agent.md"
   printf -- '---\nname: bugfix-opus\nskills: [aidex:testing,\n  aidex:bugfx]\n---\n' > "$fx/bugfix-opus.md"
   printf -- '---\nname: review-diff-opus\nskills: [aidex:testing]\n---\n' > "$fx/review-diff-opus.md"
+  printf -- '---\nname: impl-sonnet\nskills: [aidex:testing]\n---\n' > "$fx/impl-sonnet.md"
   fx_out="$(STAGED_AGENTS_DIR="$fx" bash "${BASH_SOURCE[0]}" 2>&1)" \
     && err "self-check: a misspelled entry after a comment in a block list passed"
   grep -qF 'tesitng' <<<"$fx_out" || err "self-check: an entry after a comment line was not read: $fx_out"

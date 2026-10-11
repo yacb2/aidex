@@ -76,7 +76,7 @@ for f in "$ROOT"/agents/*.md; do
   if is_routed "$n"; then
     desc="$(grep '^description:' <<<"$head")"
     # the whole front-matter head, so a wrapped YAML continuation line cannot hide the phrase
-    grep -qE 'Launched by|not for direct use' <<<"$head" \
+    grep -qiE 'Launched by|not for direct use' <<<"$head" \
       && err "(d) routed agent agents/$n.md describes itself as skill-launched; a routed description states when to use it"
     grep -qE '^description: Use ' <<<"$desc" || err "(d) routed agent agents/$n.md description does not start with 'Use ' (when to use it)"
     continue
