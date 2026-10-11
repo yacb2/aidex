@@ -925,7 +925,9 @@ if [[ "$cmd" == "new" ]]; then
       # failed with "still exists after removal" -- behind >/dev/null, so the
       # user saw only rollback's own error and the retry that "creation is
       # all-or-nothing" invites died on "destination already exists".
-      rbargs=(remove --slug "$SLUG" --dest "$DEST" --skip-teardown)
+      # --force: `new` refuses an existing $DEST, so all it holds is this run's.
+      # Without it remove's dirt check refused on this run's own leftovers, unseen.
+      rbargs=(remove --slug "$SLUG" --dest "$DEST" --skip-teardown --force)
       for c in $WT_COPIES; do rbargs+=(--copy "$c"); done
       [[ -d "$DEST" ]] && ( cd "$ROOT" && AIDEX_WT_INTERNAL=1 bash "$MULTI" "${rbargs[@]}" ) >/dev/null 2>&1
     fi
