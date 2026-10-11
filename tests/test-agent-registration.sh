@@ -9,7 +9,10 @@
 #   (b) a skill text names `subagent_type: aidex:<x>` (or any `aidex:<x>` that is neither a
 #       skill nor an agent) where agents/<x>.md does not exist;
 #   (c) a skill text still tells the model to read an agent file and pass it as the prompt;
-#   (d) an agent file has no `name:` equal to its filename, or no "Launched by /aidex:" scope.
+#   (d) an agent file has no `name:` equal to its filename; a skill-launched agent has no
+#       "Launched by /aidex:" scope; a routed agent (listed in ROUTED_AGENTS) has none of
+#       "Launched by" / "not for direct use" (it is chosen by description, so it must say
+#       when to use it).
 #
 # Run with: bash tests/test-agent-registration.sh   (ROOT=<dir> to point at another tree)
 
@@ -57,11 +60,24 @@ DESC_EXEMPT=(
 )
 is_desc_exempt() { local e; for e in "${DESC_EXEMPT[@]}"; do [[ "${e%%:*}" == "$1" ]] && return 0; done; return 1; }
 
+# Routed agents: chosen by the main session from their description, not launched by a skill.
+# Explicit list rather than a frontmatter key: an unlisted agent defaults to the strict
+# skill-launched check, so a new agent cannot opt out of "Launched by" by accident.
+ROUTED_AGENTS=(bugfix-opus review-diff-opus smoke-sonnet synthesis-sonnet task-general verify-browser-opus verify-browser-sonnet)
+is_routed() { local r; for r in "${ROUTED_AGENTS[@]}"; do [[ "$r" == "$1" ]] && return 0; done; return 1; }
+
 # (d) each agent is named after its file and scopes itself
 for f in "$ROOT"/agents/*.md; do
   n="$(basename "$f" .md)"
   head="$(awk 'NR>1 && /^---$/ {exit} NR>1 {print}' "$f")"
   grep -qx "name: $n" <<<"$head" || err "(d) agents/$n.md front matter has no 'name: $n'"
+  if is_routed "$n"; then
+    desc="$(grep '^description:' <<<"$head")"
+    grep -qE 'Launched by|not for direct use' <<<"$desc" \
+      && err "(d) routed agent agents/$n.md describes itself as skill-launched; a routed description states when to use it"
+    grep -qE '^description: Use ' <<<"$desc" || err "(d) routed agent agents/$n.md description does not start with 'Use ' (when to use it)"
+    continue
+  fi
   is_desc_exempt "$n" && continue
   grep -q '^description: Launched by /aidex:' <<<"$head" || err "(d) agents/$n.md description does not start 'Launched by /aidex:'"
 done

@@ -337,8 +337,16 @@ the suite cannot show a reader two contradictory examples.
 Agents live in the plugin-level `agents/` directory, flat, and are launched by type
 (`subagent_type: aidex:<name>`). A skill-local `skills/<skill>/agents/*.md` is NOT registered
 by Claude Code, so its `model`/`effort`/`tools` would be ignored when pasted as a prompt;
-`tests/test-agent-registration.sh` fails on one. Each description says which skill launches
-it and that it is not for direct use. Every agent declares `effort:`, `haiku` included (Haiku 5.5 honours it; the Haiku 4.5 loader dropped it).
+`tests/test-agent-registration.sh` fails on one. Two classes of agent, told apart by the
+`ROUTED_AGENTS` list in that test:
+
+- **Skill-launched** (the default): the description says which skill launches it and that it
+  is not for direct use ("Launched by /aidex:X; not for direct use").
+- **Routed**: the main session picks it from its description, so the description starts
+  "Use ..." and states when to use it and when not to; it never claims to be skill-launched.
+  An agent not in `ROUTED_AGENTS` is held to the skill-launched rule.
+
+Every agent declares `effort:`, `haiku` included (Haiku 5.5 honours it; the Haiku 4.5 loader dropped it).
 
 **Declare `model` AND `effort`. Both, always, `haiku` included** — enforced by
 `scripts/test_registry_lockstep.py` check 7.

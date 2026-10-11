@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The staged personal agents in docs/agents/ preload skills that exist.
+# The shipped agents in agents/ preload skills that exist.
 #
 # Code-writing agents get the testing core by `skills:` preload, not by a copy of it in
 # their body (plan 2026-09-25-testing-canon-delivery, phase 4). A preloaded skill that is
@@ -7,9 +7,9 @@
 # nothing says so. So a renamed or misspelled entry would ship an agent that looks wired
 # and is not. This test makes that loud:
 #
-#   1. every `skills:` entry in docs/agents/*.md names a skill shipped under skills/
+#   1. every `skills:` entry in agents/*.md names a skill shipped under skills/
 #      (bare `name` or `aidex:name`; any other namespace is not ours to guarantee);
-#   2. impl-opus, bugfix-opus and review-diff-opus preload `testing` — dropping it removes
+#   2. bugfix-opus and review-diff-opus preload `testing` — dropping it removes
 #      the only channel that puts the core in that agent's context before its first test
 #      write. (bugfix-opus does not preload `bugfix`: its body carries RED→GREEN, and the
 #      skill's main-session steps would conflict with it.)
@@ -23,7 +23,7 @@
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-AGENTS="${STAGED_AGENTS_DIR:-$ROOT/docs/agents}"
+AGENTS="${STAGED_AGENTS_DIR:-$ROOT/agents}"
 fail=0
 err() { printf 'FAIL: %s\n' "$*" >&2; fail=1; }
 
@@ -55,10 +55,9 @@ skills_of() {
 files=()
 for f in "$AGENTS"/*.md; do
   [ -e "$f" ] || continue
-  [ "${f##*/}" = README.md ] && continue
   files+=("$f")
 done
-[ "${#files[@]}" -gt 0 ] || err "no staged agent definitions under ${AGENTS#$ROOT/}"
+[ "${#files[@]}" -gt 0 ] || err "no agent definitions under ${AGENTS#$ROOT/}"
 
 # ---------- 1. every preloaded skill is shipped ----------
 for f in ${files[@]+"${files[@]}"}; do
@@ -77,20 +76,19 @@ done
 require() {  # $1 = agent file stem, rest = skill names it must preload
   local stem="$1"; shift
   local f="$AGENTS/$stem.md"
-  [ -f "$f" ] || { err "missing staged agent ${f#$ROOT/}"; return; }
+  [ -f "$f" ] || { err "missing agent ${f#$ROOT/}"; return; }
   local have; have="$(skills_of "$f" | sed 's/^aidex://')"
   for want in "$@"; do
     grep -qxF -- "$want" <<<"$have" || err "${f#$ROOT/} does not preload \"$want\""
   done
 }
-require impl-opus testing
 require bugfix-opus testing
 require review-diff-opus testing
 
 # ---------- self-check: the reader sees entries a comment or a wrapped list would hide ----------
 if [ -z "${STAGED_AGENTS_DIR:-}" ]; then
   fx="$(mktemp -d)"; trap 'rm -rf "$fx"' EXIT
-  printf -- '---\nname: impl-opus\nskills:\n  - aidex:testing\n  # the next one is misspelled\n\n  - aidex:tesitng\n---\n' > "$fx/impl-opus.md"
+  printf -- '---\nname: fx-agent\nskills:\n  - aidex:testing\n  # the next one is misspelled\n\n  - aidex:tesitng\n---\n' > "$fx/fx-agent.md"
   printf -- '---\nname: bugfix-opus\nskills: [aidex:testing,\n  aidex:bugfx]\n---\n' > "$fx/bugfix-opus.md"
   printf -- '---\nname: review-diff-opus\nskills: [aidex:testing]\n---\n' > "$fx/review-diff-opus.md"
   fx_out="$(STAGED_AGENTS_DIR="$fx" bash "${BASH_SOURCE[0]}" 2>&1)" \
@@ -100,7 +98,7 @@ if [ -z "${STAGED_AGENTS_DIR:-}" ]; then
 fi
 
 if [ "$fail" -eq 0 ]; then
-  echo "PASS: ${#files[@]} staged agents preload only shipped skills; impl/bugfix/review-diff carry testing; the reader survives comments and wrapped lists"
+  echo "PASS: ${#files[@]} agents preload only shipped skills; bugfix/review-diff carry testing; the reader survives comments and wrapped lists"
   exit 0
 fi
 exit 1
