@@ -699,11 +699,16 @@ def _expire_proposals(text, answered_html, reply=None):
     settled item and folds. Unless the reply asked about it (BL-711): a proposal
     has the ask chips and `[not-now]` like an open item, so a block for it that
     holds a bare `- [marker]` line means the reader did NOT accept it, and it
-    stays a proposal, unsettled and out of the ledger. So does a real pick, the
-    Other choice or a note: the composer sends nothing for an untouched proposal,
-    so ANY content but page-defect text in its block (a chat-form line, a reworded
-    option) is the reader answering it, and it takes the open-item path
-    (`_bare_picks`, then `decide`). "Marked" is read
+    stays a proposal, unsettled and out of the ledger. So does a page defect
+    (`[page-defect]` or the `#### Fallo` sub-block) in a `### <id> · ` block: the
+    reader could not answer the proposal as shown, which is no acceptance. The
+    exception is the chat form (`Q2:` with no `### ` head): marker_duties_of reads
+    no mark there, so no duty is owed and a defect-only chat block still expires,
+    as both readers agree. So do a real pick, the Other
+    choice or a note: the composer sends nothing for an untouched proposal, so
+    ANY content in its block (a chat-form line, a reworded option) is the reader
+    answering it, and it takes the open-item path (`_bare_picks`, then
+    `decide`). "Marked" is read
     with check_artifact.marker_duties_of, the reader of the duty check, so both
     sides agree across several saved pastes."""
     if not answered_html:
@@ -717,8 +722,7 @@ def _expire_proposals(text, answered_html, reply=None):
     ids = _ids_of(tree, "item")
     # Marks and block content are both read from the LIVE reply (marker_duties_of applies
     # the supersession itself), as the duty check reads them.
-    marked = {i for i, marks in check_artifact.marker_duties_of(reply or "")
-              if set(marks) - {"page-defect"}}
+    marked = {i for i, _ in check_artifact.marker_duties_of(reply or "")}
     live = check_artifact._live_reply(reply or "")
     for n in _walk(tree):
         if n.block_type == "item" and n.id in seen and "proposal" in n.attrs:
