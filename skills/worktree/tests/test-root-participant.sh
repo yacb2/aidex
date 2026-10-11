@@ -137,4 +137,37 @@ if [[ -e "$D3/.git" ]]; then
 fi
 ( cd "$p3" && bash "$WT" down lk --force ) >/dev/null 2>&1
 
+# --- case 4: a WT_COPIES entry the root checkout TRACKS is the repo's file --------
+# `create` skips it (the checkout carries it), but `remove` rm'd every --copy entry,
+# so a plain `down` deleted the tracked file -- with any uncommitted edit to it -- and
+# `git worktree remove` then refused forever on the deletion it had just made.
+# The untracked link and copy are aidex's own: they must not count as the user's work.
+p4="$TMP/proj4"
+mkdir -p "$p4/.context/worktrees" "$p4/backend"
+printf 'WT_PARTICIPANTS=". backend"\nWT_LINKS="local.yml"\nWT_COPIES="x.lock extra.lock"\n' > "$p4/.context/worktrees/config.env"
+printf 'v1\n' > "$p4/x.lock"
+( cd "$p4" && git_q init . && git_q config user.email t@example.com && git_q config user.name t \
+  && git_q add -A && git_q commit -qm init )
+( cd "$p4/backend" && git_q init . && git_q config user.email t@example.com && git_q config user.name t \
+  && echo hi > f.txt && git_q add -A && git_q commit -qm init )
+printf 'a: 1\n' > "$p4/local.yml"; printf 'untracked\n' > "$p4/extra.lock"
+( cd "$p4" && bash "$WT" new cp --branch wt/cp --no-infra ) >/dev/null 2>&1
+D4="$p4/../proj4-wt-cp"
+if [[ -e "$D4/.git" ]]; then
+  printf 'USER EDIT\n' >> "$D4/x.lock"
+  ( cd "$p4" && bash "$WT" down cp ) >/dev/null 2>&1
+  grep -q 'USER EDIT' "$D4/x.lock" 2>/dev/null \
+    && ok "a plain down keeps an uncommitted edit to a tracked WT_COPIES file" \
+    || fail "down deleted the tracked WT_COPIES file and the user's uncommitted edit to it"
+  [[ -f "$D4/backend/.git" ]] && ok "a refused down removed no participant" \
+    || fail "the dirty root checkout refused only after backend was already removed"
+  /usr/bin/git -C "$D4" checkout -q -- x.lock 2>/dev/null
+  outc="$( cd "$p4" && bash "$WT" down cp 2>&1 )"
+  [[ ! -d "$D4" ]] && ok "a plain down removes a clean root checkout that tracks a WT_COPIES file" \
+    || fail "down refused a clean checkout: $(printf '%s' "$outc" | tail -2 | tr '\n' ' ')"
+else
+  fail "case 4: new with a tracked WT_COPIES entry did not create the root checkout"
+fi
+( cd "$p4" && bash "$WT" down cp --force ) >/dev/null 2>&1
+
 if [[ $failures -eq 0 ]]; then echo "OK — root participant"; else echo "$failures failure(s)"; exit 1; fi

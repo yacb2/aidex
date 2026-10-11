@@ -249,6 +249,30 @@ awk '/rbargs=\(remove --slug/,/MULTI" "\$\{rbargs\[@\]\}"/' "$S/worktree.sh" \
   | grep >/dev/null 'for c in $WT_COPIES; do rbargs+=(--copy "$c"); done' \
   || fail "rollback: its remove call must carry the same --copy args as down's"
 
+# C. rollback removes what THIS run made, even when that reads as dirty.
+# `new` refuses an existing $DEST, so everything in it is this run's. Without
+# --force, remove's up-front dirt check refused on this run's own untracked copy
+# inside a participant -- silently, behind rollback's >/dev/null -- and the retry
+# then died on "destination already exists". Behavioural: `compose up` fails.
+mkdir -p "$TMP/prb/.context/worktrees" "$TMP/prb/backend"
+cat > "$TMP/prb/.context/worktrees/config.env" <<'ENV'
+WT_PARTICIPANTS="backend"
+WT_LINKS=""
+WT_COPIES="backend/extra.txt"
+WT_PORT_VARS="DB_PORT=6400"
+ENV
+printf 'services:\n  backend:\n    image: nginx\n' > "$TMP/prb/docker-compose.yml"
+( cd "$TMP/prb/backend" && /usr/bin/git init -q . && /usr/bin/git config user.email t@e.com \
+  && /usr/bin/git config user.name t && echo x > f && /usr/bin/git add -A && /usr/bin/git commit -qm i ) >/dev/null 2>&1
+echo extra > "$TMP/prb/backend/extra.txt"   # untracked in backend, so the copy is too
+mk_docker '#!/bin/sh
+case " $* " in *" up "*) exit 1 ;; esac
+exit 0'
+out="$( cd "$TMP/prb" && PATH="$BIN:$PATH" bash "$S/worktree.sh" new rb --branch wt/rb 2>&1 )"; rc=$?
+[[ $rc -ne 0 ]] || fail "rollback fixture: new must fail when compose up fails, got exit 0"
+[[ ! -e "$TMP/prb-wt-rb" ]] \
+  || fail "rollback: a failed new must leave no \$DEST behind (this run's own copy made it read dirty): $out"
+
 # --- BL-267. `down` removes a $DEST that is itself a root-repo checkout ------
 # The 2026-08-28 workaround: a project whose root owns .context/, so the
 # worktree's $DEST was made a checkout of the root repo by hand. `down` builds
@@ -261,7 +285,7 @@ awk '/rbargs=\(remove --slug/,/MULTI" "\$\{rbargs\[@\]\}"/' "$S/worktree.sh" \
 # refuses a $DEST that already exists: `new` builds the markers and the claim,
 # then $DEST is re-created as a root checkout with git's own bookkeeping and
 # the contents move back into it.
-mk_rootco() {  # mk_rootco <project-dir> -> builds the worktree, $DEST is a root checkout
+mk_rootco() {  # mk_rootco <project-dir> [noignore] -> builds the worktree, $DEST is a root checkout
   local P="$1" D="$1-wt-rootco"
   mkdir -p "$P/.context/worktrees" "$P/backend"
   cat > "$P/.context/worktrees/config.env" <<'ENV'
@@ -270,7 +294,7 @@ WT_LINKS=""
 ENV
   # backend/ is ignored by the root repo: it is a repo of its own, and an
   # untracked directory would make every root checkout read as dirty.
-  printf 'backend/\n' > "$P/.gitignore"
+  [[ "${2:-}" == noignore ]] || printf 'backend/\n' > "$P/.gitignore"
   ( cd "$P" && /usr/bin/git init -q . && /usr/bin/git config user.email t@e.com \
     && /usr/bin/git config user.name t && /usr/bin/git add -A && /usr/bin/git commit -qm i )
   ( cd "$P/backend" && /usr/bin/git init -q . && /usr/bin/git config user.email t@e.com \
@@ -303,6 +327,15 @@ out="$( cd "$P267" && PATH="$BIN:$PATH" bash "$S/worktree.sh" down rootco 2>&1 )
   && fail "BL-267: the root repo still lists \$DEST as a live worktree after down"
 [[ -e "$TMPDIR/aidex-wt-slots-p267/slot-3" ]] \
   && fail "BL-267: the slot claim was not released, so slot 3 stays taken: $out"
+
+# A root repo that does NOT ignore the participant sees `?? backend/`. That is the
+# participant itself, not the user's work: the old order removed it first and the
+# root was then clean, so the up-front dirt check must not refuse on it.
+P269="$TMP/p269"; D269="$TMP/p269-wt-rootco"
+mk_rootco "$P269" noignore >/dev/null 2>&1
+out="$( cd "$P269" && PATH="$BIN:$PATH" bash "$S/worktree.sh" down rootco 2>&1 )"; rc=$?
+[[ $rc -eq 0 && ! -d "$D269" ]] \
+  || fail "root checkout with an unignored participant: down must exit 0 and remove \$DEST (rc=$rc): $out"
 
 # The uncommitted-work refusal covers the root checkout too: without --force,
 # `down` must refuse and print the ROOT's own status, not only the
