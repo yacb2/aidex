@@ -1,5 +1,5 @@
 {
-  "description": "aidex plugin hooks \u2014 memory hygiene nudge/gate, references-root gate, generated-html edit gate, first-test-write gate, artifact open-once (+ wrap-without-open Stop check), context-depth nudge",
+  "description": "aidex plugin hooks \u2014 memory hygiene nudge/gate, references-root gate, generated-html edit gate, first-test-write gate, artifact open-once (+ wrap-without-open Stop check), context-depth nudge, subagent poll guard",
   "hooks": {
     "SessionStart": [
       {
@@ -42,6 +42,10 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/first-test-write-gate.sh\""
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/subagent-poll-guard.py\""
           }
         ],
         "matcher": "Bash"
