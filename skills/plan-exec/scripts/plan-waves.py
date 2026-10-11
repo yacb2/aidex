@@ -92,11 +92,42 @@ def tails(p):
     return ["/".join(parts[i:]) for i in range(len(parts))]
 
 
+def wild(name, pat):
+    """Only `*` is special: `[id]` and `?` are literal."""
+    return re.fullmatch(".*".join(map(re.escape, pat.split("*"))), name) is not None
+
+
+def comp(x, y):
+    return x == y or ("*" in x and "*" in y) or wild(x, y) or wild(y, x)
+
+
+def pmatch(p, q, last=None):
+    """Pattern components p against path components q: the same path, a directory holding a
+    match, or content under a match. `*` is one component and has no content under it when
+    it ends the pattern; `**` spans any number."""
+    if not p:
+        return not q or last != "*"
+    if not q:
+        return True
+    if p[0] == "**":
+        return pmatch(p[1:], q, "**") or pmatch(p, q[1:], "**")
+    if q[0] == "**":
+        return pmatch(p, q[1:]) or pmatch(p[1:], q)
+    return comp(p[0], q[0]) and pmatch(p[1:], q[1:], p[0])
+
+
+def clash_tail(t, p, q):
+    """A dropped tail with an empty literal prefix (`*/S.md`) is matched as a pattern."""
+    if t != p and t.startswith("*"):
+        return pmatch(t.split("/"), q.split("/"))
+    return clash1(t, q)
+
+
 def clash(a, b):
     """Fail closed: the same file, a directory and its content, or a glob and anything under
     its literal prefix, under any spelling: one side may lack leading components (a repo
     prefix), so each side is also tried with leading components dropped."""
-    return any(clash1(a, t) for t in tails(b)) or any(clash1(t, b) for t in tails(a))
+    return any(clash_tail(t, b, a) for t in tails(b)) or any(clash_tail(t, a, b) for t in tails(a))
 
 
 def overlaps(p, q):

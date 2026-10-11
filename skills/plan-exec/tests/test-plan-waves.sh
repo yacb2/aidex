@@ -132,6 +132,34 @@ d="$TMP/basename"
 phase "$d" 1 "" afk-impl '`x/a.txt`' 0; phase "$d" 2 "" afk-impl '`y/a.txt`' 0
 check "same basename in different directories stays disjoint" "$d" "wave 1: 1, 2"
 
+# N4: a glob clashes with every path it can match, or that holds or sits under a match,
+# under any spelling (either side may lack leading components); a glob on another tree
+# stays disjoint
+d="$TMP/globtail"
+phase "$d" 1 "" afk-impl '`frontend/src/App.vue`' 0; phase "$d" 2 "" afk-impl '`frontend-next/src/app.tsx`, `frontend-next/messages/*`' 0
+check "glob on a disjoint tree stays disjoint" "$d" "wave 1: 1, 2"
+d="$TMP/globtail2"
+phase "$d" 1 "" afk-impl '`frontend-next/messages/*`' 0; phase "$d" 2 "" afk-impl '`messages/en.json`' 0
+check "glob vs file under its literal prefix, other spelling, splits" "$d" $'wave 1: 1\nwave 2: 2'
+d="$TMP/globtail3"  # y/S.md is x/y/S.md with x/ dropped
+phase "$d" 1 "" afk-impl '`x/*/S.md`' 0; phase "$d" 2 "" afk-impl '`y/S.md`' 0
+check "glob vs file it matches with the literal prefix dropped, splits" "$d" $'wave 1: 1\nwave 2: 2'
+d="$TMP/globtail4"
+phase "$d" 1 "" afk-impl '`x/*/S.md`' 0; phase "$d" 2 "" afk-impl '`z/T.md`' 0
+check "glob vs file it cannot match stays disjoint" "$d" "wave 1: 1, 2"
+d="$TMP/globtail5"  # skills/... is aidex/skills/... with aidex/ dropped
+phase "$d" 1 "" afk-impl '`aidex/**`' 0; phase "$d" 2 "" afk-impl '`skills/plan-exec/SKILL.md`' 0
+check "recursive glob vs file under it, other spelling, splits" "$d" $'wave 1: 1\nwave 2: 2'
+d="$TMP/globtail6"
+phase "$d" 1 "" afk-impl '`x/*`' 0; phase "$d" 2 "" afk-impl '`a.txt`' 0
+check "trailing-star glob vs file it matches, other spelling, splits" "$d" $'wave 1: 1\nwave 2: 2'
+d="$TMP/globtail7"
+phase "$d" 1 "" afk-impl '`x/*/*`' 0; phase "$d" 2 "" afk-impl '`y/S.md`' 0
+check "all-star tail vs file it matches, other spelling, splits" "$d" $'wave 1: 1\nwave 2: 2'
+d="$TMP/globtail8"  # [id] is a literal route segment, not a character class
+phase "$d" 1 "" afk-impl '`app/*/[id]/page.tsx`' 0; phase "$d" 2 "" afk-impl '`users/[id]/page.tsx`' 0
+check "brackets are literal in a glob, other spelling, splits" "$d" $'wave 1: 1\nwave 2: 2'
+
 # N3: a trailing comment on depends_on does not block
 d="$TMP/comment"
 phase "$d" 1 "" afk-impl '`a.txt`' 1
