@@ -138,13 +138,14 @@ def skills_in_assistant(o):
 
 def agents_in_assistant(o):
     """Subagent types launched in this record. A delegated build carries an Agent
-    launch and no Skill block, so skills_fired alone reads it as a miss (BL-438)."""
+    launch and no Skill block, so skills_fired alone reads it as a miss (BL-438).
+    A plugin-launched agent (`aidex:impl-sonnet`) is the same series as its bare name."""
     out = []
     if o.get("type") != "assistant": return out
     for b in o.get("message", {}).get("content", []):
         if isinstance(b, dict) and b.get("type") == "tool_use" and b.get("name") in ("Agent", "Task"):
             a = b.get("input", {}).get("subagent_type")
-            if a: out.append(a)
+            if a: out.append(a[len("aidex:"):] if a.startswith("aidex:") else a)
     return out
 
 def parse_bound(s):

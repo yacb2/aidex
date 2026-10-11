@@ -167,7 +167,10 @@ def agent_meta(path):
         return "unknown", False
     model = d.get("model")
     # "inherit" is an explicit value naming the absent case: 1 of 400 sampled metas.
-    return d.get("agentType") or "unknown", not (bool(model) and model != "inherit")
+    atype = d.get("agentType") or "unknown"
+    if isinstance(atype, str) and atype.startswith("aidex:"):  # a plugin launch is the same series as the bare name
+        atype = atype[len("aidex:"):]
+    return atype, not (bool(model) and model != "inherit")
 
 
 def walk(tx_root):
