@@ -210,7 +210,7 @@ For each phase in order:
 6. **Tests and bugs met mid-phase.** Tests follow `testing`; every delegate brief names
    `aidex:testing`. An in-scope bug is fixed RED-first (`bugfix`). An out-of-scope one —
    found here or reported by a delegate (batch: the result's `outOfScopeBugs`) — is never
-   patched inline: route it with its reproduction to a bugfix delegate (`bugfix-opus`
+   patched inline: route it with its reproduction to a bugfix delegate (`aidex:bugfix-opus`
    where defined) or register it ([03](references/03-deferring-emergent-work.md)). If it
    blocks the phase's gate, the phase stays blocked until that fix lands, then resumes.
 

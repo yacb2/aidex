@@ -379,3 +379,15 @@ and the verdict in the second one was lost.
 cells are the cheap half; the allow cells are the point (consultation loop, a different
 page, a URL, a non-`open` command, a stale lock, and five fail-open paths). The
 producing half of the lock is `skills/artifact/tests/test-build-lock.sh`.
+
+## subagent-poll-guard.py — no sleep-polling loops inside subagents (PreToolUse/Bash)
+
+Wired in `hooks.json` on the `Bash` matcher. When the payload carries `agent_id` (the call
+comes from a subagent) and the command matches an `until ...; do ... sleep` or
+`while ...; do ... sleep` loop, the hook answers `permissionDecision: deny` with a reason
+telling the delegate to run the command in the foreground with a timeout that covers it. The
+main session is never touched, and a loop without `sleep` is allowed. Why: a delegate polling
+on its own Bash call sits on the timeout and reads as a hung run.
+
+**Tests:** `python3 test-subagent-poll-guard.py` — 8 checks on `decide()`; deny cells and
+allow cells (loop without sleep, `until` inside a string, main session, backgrounded command).

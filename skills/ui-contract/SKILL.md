@@ -62,7 +62,7 @@ consultation rounds, never the plan's technical order (backend, shared component
 **One drawn exception: the target-form question for genuinely new content.** When the
 owner must choose page, dialog or panel for a piece whose host screen does not exist yet
 AND none of whose content renders anywhere today, that one question may carry a figure
-from `figure-sonnet` (one per option, inline SVG in the consultation page). The figure is
+from `aidex:figure-sonnet` (one per option, inline SVG in the consultation page). The figure is
 a question aid, never a round or the contract, dropped once the host's skeleton exists. It
 never qualifies when the content exists today (an extraction, a move, a split, a redesign):
 there build the host first, show the BEFORE beside the real AFTER, and put the form options
@@ -95,7 +95,7 @@ before that approval is a sketch round:
 - **First build:** a screen with no gallery spec gets `aidex:gallery-builder` once, in the
   first sketch round, never throwaway capture scripts; every later round re-captures. For an
   extraction, capture the BEFORE from main's code before the branch moves it.
-- **On the hand-back:** the next consultation page. No `review-diff-opus`, no E2E, no commit.
+- **On the hand-back:** the next consultation page. No `aidex:review-diff-opus`, no E2E, no commit.
   The capturing agent gets the screen's `gallery-kit.md` and the project's
   `.context/profiles/ui-contract.md` (template `assets/templates/project-ui-contract.md`),
   reads only those two, runs ONE `--update-snapshots` capture (no run before or after it;
@@ -107,9 +107,9 @@ Read `${CLAUDE_PLUGIN_ROOT}/skills/ui-contract/references/02-sketch-round-kit.md
 briefing the capturing agent.
 
 **One hardening round, when the owner approves the whole screen.** The approved branch
-is what gets hardened, not rebuilt. Launch together, in one message: `review-diff-opus` on
+is what gets hardened, not rebuilt. Launch together, in one message: `aidex:review-diff-opus` on
 the branch's whole diff (its review-yield row carries `hardening` in the phrase), the E2E
-specs the screen touches on `gate-runner`, and the gallery with the gate and a bare
+specs the screen touches on `aidex:gate-runner`, and the gallery with the gate and a bare
 `meta: N/N` (Step 4, "verified" part 2). A DO NOT SHIP goes back to the same impl agent
 through `SendMessage`; only what that fix touches re-runs. Then the commit to main, and
 the branch is deleted. A conditional approval ("approved, and add Edit") hardens the

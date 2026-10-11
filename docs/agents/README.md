@@ -1,10 +1,16 @@
-# Staged personal agents
+# Routed agents
 
-These are the owner's personal subagent definitions (`impl-opus`, `bugfix-opus`,
-`review-diff-opus`), staged here so the testing-canon eval can load them with `--agents`
-and so their change is reviewable. They are not installed by `install.sh` or the plugin:
-agents stay personal, and the merge copies these files to `~/.claude/agents/` by hand.
+The subagents the main session routes work to by description ship in `agents/` and are
+launched as `aidex:<name>`: `artifact-sonnet`, `backlog-filer`, `bugfix-opus`, `figure-sonnet`,
+`gate-runner`, `impl-sonnet`, `lookup-sonnet`, `research-sonnet`, `review-diff-opus`,
+`smoke-sonnet`, `synthesis-sonnet`, `task-general`, `verify-browser-opus`,
+`verify-browser-sonnet`. Each states in its description when to use it; skill-launched
+agents say "Launched by /aidex:X; not for direct use" instead.
 
-Each preloads skills through its `skills:` front-matter. A preloaded skill that is not
-installed is skipped silently, so `tests/test-staged-agents-preload.sh` fails on any entry
-that names a skill `skills/` does not ship.
+- `smoke-sonnet` and `verify-browser-*` need the chrome-devtools MCP server, which the plugin
+  does not ship. Without it they start with Bash and Read only and say so.
+- To opt out of one agent, add a `deny` permission rule `Agent(<name>)` (for example
+  `Agent(aidex:verify-browser-opus)`).
+- An agent that preloads skills through `skills:` front matter fails silently if a skill is
+  not installed, so `tests/test-staged-agents-preload.sh` fails on any entry that names a
+  skill `skills/` does not ship.

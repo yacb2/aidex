@@ -363,7 +363,7 @@ the reply, one line per rubric line that lost points — never silently, never a
 A page whose probe still fails after round 3 is handed over the same way, with the probe's
 lines instead.
 
-**A builder that cannot launch an agent** (a subagent: `artifact-sonnet` has no Agent
+**A builder that cannot launch an agent** (a subagent: `aidex:artifact-sonnet` has no Agent
 tool, and subagents do not nest) runs steps 1 and 2 and stops there. Its reply carries the
 manifest path, the `SHOT` lines and the probe's last line; the session that launched it runs step 3 and,
 under 9, sends the `FIXES` back as the next brief. The three-round cap counts across both.

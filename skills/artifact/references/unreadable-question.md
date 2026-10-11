@@ -89,8 +89,8 @@ duty is enforced on **every** wrap of the page — the first, the fifth, after t
 baseline has moved any number of times — until a newer reply replaces it. With
 no reply saved at all, the check cannot run and WARNS instead of passing
 silently. Answering a `[show-me]` means a figure — a `diagram` block (`tree`,
-`compare`) written into the page brief, `figure-sonnet` only for a wireframe — or a
-screenshot (`verify-browser-opus`), launched BEFORE the page brief, never a
+`compare`) written into the page brief, `aidex:figure-sonnet` only for a wireframe — or a
+screenshot (`aidex:verify-browser-opus`), launched BEFORE the page brief, never a
 longer paragraph.
 
 An item decided in the round being checked (`data-decided`) is exempt from its
