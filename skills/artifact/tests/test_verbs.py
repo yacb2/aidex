@@ -304,7 +304,7 @@ check("...whether or not a retitle rides along",
 # BL-711: a proposal now carries the ask chips and [not-now], so the reader can answer it
 # with something other than "fine". A reply block for it that holds an ask or [not-now]
 # means it was NOT accepted: it stays a proposal (open), with no ledger row.
-for mark in ("[not-now]", "[show-me]"):
+for mark in ("[not-now]", "[show-me]", "[page-defect]"):
     reply = "### Q2 \u00b7 Marcador de columna\n\n- %s\n" % mark
     kept = new_round(two, answered_html=SNAP, reply=reply)
     check("a proposal the reply marks %s does not expire: it stays proposal=yes with no ledger row" % mark,
@@ -340,10 +340,22 @@ check("a later full paste in the same round withdraws the earlier show-me: no du
       not any(i == "Q2" for i, _ in check_artifact.marker_duties_of(FULL_SECOND))
       and new_round(two, answered_html=SNAP, reply=FULL_SECOND).count("proposal=yes") == 1,
       new_round(two, answered_html=SNAP, reply=FULL_SECOND))
-check("a page-defect sub-block alone (the composer's shape) is no reason to keep a proposal open",
-      new_round(two, answered_html=SNAP,
-                reply="## G1 \u00b7 Formato del spec\n\n" + H2 + "#### Fallo de la p\u00e1gina\n\nel texto se corta\n").count("proposal=yes") == 1)
-# A reply the parsers cannot classify is still the reader answering: any content but defect text keeps it open.
+# A page defect on a proposal is the reader saying they could not answer it as shown (2026-10-11: five
+# optionless proposals, each with "como cambio la desicion si no pones las opciones??"): not acceptance.
+DEFECT_ONLY = "## G1 \u00b7 Formato del spec\n\n" + H2 + "#### Fallo de la p\u00e1gina\n\nel texto se corta\n"
+kept = new_round(two, answered_html=SNAP, reply=DEFECT_ONLY)
+check("a page-defect sub-block alone keeps the proposal open and its duty is owed (both agree)",
+      kept.count("proposal=yes") == 2 and "- Q2" not in kept
+      and any(i == "Q2" for i, _ in check_artifact.marker_duties_of(DEFECT_ONLY)), kept)
+check("...but the chat form `Q2:` + `- [page-defect]` carries no mark for either reader: no duty, and it expires",
+      new_round(two, answered_html=SNAP, reply="Q2:\n- [page-defect]\n").count("proposal=yes") == 1
+      and not check_artifact.marker_duties_of("Q2:\n- [page-defect]\n"))
+DEFECT_Q1 = "## G1 \u00b7 Formato del spec\n\n### Q1 \u00b7 Fences o YAML\n\n#### Fallo de la p\u00e1gina\n\nse corta\n"
+folded = new_round(two, answered_html=SNAP, reply=DEFECT_Q1)
+check("...and a defect on Q1 leaves the untouched proposal Q2 to expire: its ledger row, no proposal=yes on Q2",
+      "- Q2 \u2014 Marcador de columna" in folded and folded.count("proposal=yes") == 1
+      and 'title="Fences o YAML" decided=Fences proposal=yes}' in folded, folded)
+# A reply the parsers cannot classify is still the reader answering: any content keeps it open.
 for what, rep_ in (("a chat-form note", "Q2: vale pero cambia el texto\n"),
                    ("a line that matches no option (reworded since)", H2 + "- No, un atributo distinto\n")):
     kept = new_round(two, answered_html=SNAP, reply=rep_)

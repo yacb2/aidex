@@ -419,6 +419,32 @@ try:
             ITEM.replace("decided=yes", "decided=yes proposal=no"), 2, "is not a value")
     rejects("item: proposal=yes without decided is refused",
             ITEM.replace(" decided=yes", " proposal=yes"), 2, "needs decided=")
+    # 2026-10-11 (owner, five "decidido, corrígeme si no" items): a proposal with
+    # a text verdict and no option lines built clean, leaving the reader nothing to
+    # re-pick. A proposal keeps its options live, so none is refused; free=yes too,
+    # since no reference documents an optionless proposal.
+    BARE_PROPOSAL = ITEM.replace("decided=yes", 'decided="Decidido" proposal=yes').replace(
+        "- Sí, cerrar — los doce ajustes son menores {recommended}\n"
+        "- No, uno cambia el resultado\n", "")
+    for extra in ("", " free=yes"):
+        rejects("item: proposal=yes%s with no options is refused" % extra,
+                BARE_PROPOSAL.replace("proposal=yes", "proposal=yes" + extra), 2,
+                "needs options")
+    # Review 2026-10-11: a text-verdict proposal must pre-select its proposed
+    # option like the decided=yes flag does, or a re-pick of it reads as a
+    # correction; and a dropped item is not a proposal (it is asked of no one).
+    text_proposal = holds("item: a text-verdict proposal checks its {recommended} option",
+                          ITEM.replace("decided=yes", 'decided="Decidido" proposal=yes'),
+                          'data-label="Sí, cerrar" data-recommended checked>')
+    check("item: ...and only that one",
+          text_proposal.count(" checked") == 1, text_proposal)
+    rejects("item: a text-verdict proposal with two {recommended} on select=one is refused",
+            ITEM.replace("decided=yes", 'decided="Decidido" proposal=yes').replace(
+                "- No, uno cambia el resultado", "- No, uno cambia el resultado {recommended}"),
+            2, "more than one option")
+    rejects("item: dropped and proposal together is refused",
+            BARE_PROPOSAL.replace('decided="Decidido" ', 'dropped="ya no aplica" '), 2,
+            "dropped")
     rejects("item: decided=yes with no {recommended} option is refused",
             ITEM.replace(" {recommended}", ""), 2,
             "no option marked {recommended}")

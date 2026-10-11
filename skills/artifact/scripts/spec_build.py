@@ -971,6 +971,10 @@ def emit_item(node, ctx):
             raise SpecBuildError(
                 node.line, "`item` is both dropped and decided — it left the "
                 "question set or it was settled, not both")
+        if "proposal" in a:
+            raise SpecBuildError(
+                node.line, "`item` is both dropped and a proposal — a dropped "
+                "item is asked of no one, so drop proposal= (or dropped=)")
         decided = gallery_items.DROPPED_WORD[ctx.lang] + ": " + reason
         flag = ' data-dropped="%s"' % esc(reason)
     chosen_n = sum(1 for t in opts if _option(t)[3])
@@ -1031,6 +1035,21 @@ def emit_item(node, ctx):
                 node.line, "`item` proposal=yes needs decided=: a proposal is a "
                 "decided point awaiting correction (decided=yes, or the verdict "
                 "itself)")
+        if not opts:
+            raise SpecBuildError(
+                node.line, "`item` proposal=yes needs options: a proposal keeps "
+                "them live for the reader to re-pick, so list them with `-` and "
+                "mark the proposed one {recommended} (or {chosen})")
+        # A text verdict skips the flag branch above, yet the proposed option is
+        # pre-selected all the same: the composer reads the checked one as the
+        # proposal, so a re-pick of it is no correction.
+        if not chosen_n and not check_recommended:
+            if sum(1 for t in opts if _option(t)[2]) > 1 and select == "one":
+                raise SpecBuildError(
+                    node.line, "`item` proposal=yes marks more than one option "
+                    "{recommended} on a select=one item, so it cannot say which "
+                    "one is proposed: keep the marker on that one")
+            check_recommended = True
         flag += " data-proposal"
     # The rail label is data-title, so it must be visible text of the item: when
     # the h3 is a question (or a heading=) that is not the title, the title shows

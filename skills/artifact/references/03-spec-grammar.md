@@ -221,7 +221,7 @@ builder, not tokenizer.
 A `group` needs no child for its own free text: the build closes every group with
 its notes box (BL-701; `04-block-vocabulary.md`), so a spec never writes one.
 
-- **A decided-but-correctable point is an `item decided=yes proposal=yes` in its consult group** (BL-687, BL-692: `proposal=yes` keeps it in place instead of folding it as settled), with the other items of its round: not a top-level `callout`, not a `ledger` row (the ledger holds what EARLIER rounds settled). `04-block-vocabulary.md` § `item` has the shape; `tests/fixtures/decided-items.spec.md` is a built example.
+- **A decided-but-correctable point is an `item decided=yes proposal=yes` in its consult group** (BL-687, BL-692: `proposal=yes` keeps it in place instead of folding it as settled), with the other items of its round: not a top-level `callout`, not a `ledger` row (the ledger holds what EARLIER rounds settled). `04-block-vocabulary.md` § `item` has the shape; `tests/fixtures/decided-items.spec.md` is a built example. A proposal with no option lines is refused (`proposal=yes needs options`), `free=yes` or not: the reader corrects it by re-picking, so it lists its options with the proposed one `{recommended}` or `{chosen}`, and that one is pre-selected whether `decided=` is the flag or the verdict as text (a `dropped=` item cannot be a proposal).
 - **`item` at the document's top level builds**, but `check_artifact`'s `check_shape` fails
   the built page (an item outside a block, § 8.4), so an ungrouped item cannot ship.
 - **`item`, `masthead` and `note` accept a nested `note` or `callout`**, in the position
@@ -736,7 +736,7 @@ the declaration lasts ONE round: every `new-round` replaces `retitled-ids` with 
 must be declared again. The id must still be in the spec. Start every round with
 `new-round`; a rebuild by other means keeps the previous declaration. (`new-round` also settles
 the `proposal=yes` items the reader saw on the saved answered page, BL-692, except one the saved
-reply answered (an ask or `[not-now]` in any saved paste, a re-pick, Other or a note), which stays an
+reply answered (an ask, `[not-now]` or a page defect in any saved paste, a re-pick, Other or a note), which stays an
 open proposal until the writer `decide`s it, BL-711; it changes nothing
 about ones written this turn.)
 
