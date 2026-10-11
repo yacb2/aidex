@@ -221,7 +221,7 @@ builder, not tokenizer.
 A `group` needs no child for its own free text: the build closes every group with
 its notes box (BL-701; `04-block-vocabulary.md`), so a spec never writes one.
 
-- **A decided-but-correctable point is an `item decided=yes proposal=yes` in its consult group** (BL-687, BL-692: `proposal=yes` keeps it in place instead of folding it as settled), with the other items of its round: not a top-level `callout`, not a `ledger` row (the ledger holds what EARLIER rounds settled). `04-block-vocabulary.md` § `item` has the shape; `tests/fixtures/decided-items.spec.md` is a built example.
+- **A decided-but-correctable point is an `item decided=yes proposal=yes` in its consult group** (BL-687, BL-692: `proposal=yes` keeps it in place instead of folding it as settled), with the other items of its round: not a top-level `callout`, not a `ledger` row (the ledger holds what EARLIER rounds settled). `04-block-vocabulary.md` § `item` has the shape; `tests/fixtures/decided-items.spec.md` is a built example. A proposal with no option lines is refused (`proposal=yes needs options`), `free=yes` or not: the reader corrects it by re-picking, so it lists its options with the proposed one `{recommended}` or `{chosen}`, and that one is pre-selected whether `decided=` is the flag or the verdict as text (a `dropped=` item cannot be a proposal).
 - **`item` at the document's top level builds**, but `check_artifact`'s `check_shape` fails
   the built page (an item outside a block, § 8.4), so an ungrouped item cannot ship.
 - **`item`, `masthead` and `note` accept a nested `note` or `callout`**, in the position
