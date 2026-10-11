@@ -428,6 +428,32 @@ PY
 then ok "BL-755: gallery duties follow same-round supersession"
 else fail "BL-755: gallery_duties_for ignored same-round supersession"; fi
 
+# BL-761: the page-defect text the duty quotes comes from the same live reply
+# as the marks: a later FULL paste of the same round supersedes the earlier
+# one's report (a withdrawn text is never quoted); a `duty` separator (a
+# rebuilt page) supersedes nothing, so the older text is still read.
+if PYTHONPATH="$SKILL/scripts/dash" python3 - <<'PY'
+import save_reply, check_artifact as ca
+HEAD = "## G1 · Grupo\n\n### q1 · Uno\n\n- Si\n- [page-defect]\n"
+def rep(t): return HEAD + "\n#### Page problem\n\n%s\n" % t
+def sep(mode): return "<!-- reply saved 2026-10-12 page:abc %s -->\n" % mode
+def duty(t):
+    rows = [d[2] for d in save_reply.duties_for(t) if d[:2] == ("q1", "page-defect")]
+    assert len(rows) == 1, (t, rows)
+    return rows[0]
+ab = rep("texto A") + sep("same-round") + rep("texto B")
+assert ca.defect_reports_of(ab) == {"q1": "texto B"}, ca.defect_reports_of(ab)
+assert "texto B" in duty(ab) and "texto A" not in duty(ab), duty(ab)
+withdrawn = rep("texto A") + sep("same-round") + HEAD
+assert ca.defect_reports_of(withdrawn) == {}, ca.defect_reports_of(withdrawn)
+assert "texto A" not in duty(withdrawn) and ': "' not in duty(withdrawn), duty(withdrawn)
+kept = rep("texto A") + sep("duty") + HEAD
+assert ca.defect_reports_of(kept) == {"q1": "texto A"}, ca.defect_reports_of(kept)
+assert "texto A" in duty(kept), duty(kept)
+PY
+then ok "BL-761: the page-defect quote follows same-round supersession"
+else fail "BL-761: a superseded same-round paste's page-defect text was quoted"; fi
+
 # A same-round withdrawal is announced, never silent: withdrawn_for names the
 # gallery duty the later full paste dropped, and nothing when the row is kept,
 # the separator is a round end, or the earlier paste was refused.

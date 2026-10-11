@@ -3771,7 +3771,9 @@ def _block_end(reply_text, start, end):
 
 def defect_reports_of(reply_text):
     """{item id: reported page-defect text}: the newest non-empty report per id
-    across every `### <id> · ` block of the (appended-to) reply."""
+    across every `### <id> · ` block of the live reply (`_live_reply`, the
+    BL-598 supersession `marker_duties_of` follows too)."""
+    reply_text = _live_reply(reply_text)
     out = {}
     heads = list(REPLY_ITEM.finditer(reply_text))
     for k, h in enumerate(heads):
