@@ -1,0 +1,52 @@
+[
+  {
+    "query": "I'm about to hand the checkout refactor to a subagent. How should I write the brief so it doesn't wander?",
+    "should_trigger": true,
+    "expected_behavior": "Should load the skill and shape the brief with paths, a named 'Files to read first' first step, and a 'what you deliberately left alone' section in what to return."
+  },
+  {
+    "query": "This plan has four independent phases on different files. Should I fan them out to parallel agents or run one delegate?",
+    "should_trigger": true,
+    "expected_behavior": "Should apply the three fan-out conditions, the unit cap of about 80 turns and the one-worktree-per-writer rule."
+  },
+  {
+    "query": "My delegate has been running for 40 minutes. Is it hung? Should I ping it?",
+    "should_trigger": true,
+    "expected_behavior": "Should say not to ping with SendMessage, check transcripts/status instead, and TaskStop plus relaunch only if stale."
+  },
+  {
+    "query": "The impl agent just handed back a diff that changes a form's submit behaviour. What do I run before committing?",
+    "should_trigger": true,
+    "expected_behavior": "Should route to aidex:review-diff-opus if a predicate changed and aidex:smoke-sonnet for the changed flow before the commit."
+  },
+  {
+    "query": "Should I delegate this one-line rename to a subagent or just do it here with a small context?",
+    "should_trigger": true,
+    "expected_behavior": "Should apply the cost test: with a small context and a short job, keep it here."
+  },
+  {
+    "query": "Write a pytest test for the supplier endpoint that returns 404 for another workspace.",
+    "should_trigger": false,
+    "expected_behavior": "Test authoring is /aidex:testing, not delegation guidance."
+  },
+  {
+    "query": "Write an ADR recording that we chose Postgres over MySQL.",
+    "should_trigger": false,
+    "expected_behavior": "Decision records are /aidex:decision."
+  },
+  {
+    "query": "Fix the CORS error on the dev frontend hitting the backend.",
+    "should_trigger": false,
+    "expected_behavior": "A debugging task, no delegation design question."
+  },
+  {
+    "query": "Execute phase 2 of the written migration plan and commit between phases.",
+    "should_trigger": false,
+    "expected_behavior": "Phase-by-phase execution is /aidex:plan-exec."
+  },
+  {
+    "query": "Audit my .context/ folder and tell me what is stale.",
+    "should_trigger": false,
+    "expected_behavior": "Ecosystem audit is /aidex:aidex."
+  }
+]

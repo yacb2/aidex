@@ -27,7 +27,7 @@ Then restart Claude Code. In any project, just ask naturally — the right skill
 
 ### Your first session
 
-The install lands 21 skills and 6 hooks and says nothing, on purpose — no first-run nudge.
+The install lands 22 skills and 6 hooks and says nothing, on purpose — no first-run nudge.
 Start here:
 
 1. `/aidex:aidex` — audits the Claude Code setup of the project you are in and tells you what it found.
@@ -54,7 +54,7 @@ aidex solves this with two pillars:
 
 The suite ships as a single Claude Code plugin. `.claude-plugin/plugin.json` declares it,
 `.claude-plugin/marketplace.json` makes the repo its own marketplace, `skills/` holds the
-21 skills — invoked `/aidex:<name>` — and `hooks/hooks.json` wires the six shipped hooks
+22 skills — invoked `/aidex:<name>` — and `hooks/hooks.json` wires the six shipped hooks
 automatically when the plugin is installed. Nothing is copied into `~/.claude/` and nothing
 is symlinked: symlinked skills and rules were the loader path with three separate bugs
 (Claude Code 2.0.62, 2.1.198, 2.1.239), and a plugin has neither problem.
@@ -85,7 +85,8 @@ aidex/                                   <-- the plugin, as Claude Code loads it
 │   ├── review/
 │   ├── coverage/
 │   ├── testing/
-│   └── ui-contract/
+│   ├── ui-contract/
+│   └── delegation-detail/
 ├── hooks/
 │   └── hooks.json                       <-- wires the six shipped hooks on install
 └── docs/retired/                        <-- the pre-plugin installer and rules/, for the record
@@ -144,7 +145,7 @@ plugin cannot ship always-on rules, and each one's canon now lives in the `conve
 skill's `references/`, cited by the skills that need it (see
 [`docs/retired/`](docs/retired/README.md)).
 
-### 21 skills
+### 22 skills
 
 | Skill | Type | What it does |
 |-------|------|-------------|
@@ -169,6 +170,7 @@ skill's `references/`, cited by the skills that need it (see
 | **`testing`** | Model-invocable, preloaded into code-writing agents | The write-time core, stated once: the four questions answered before a test is added (behaviour protected, the regression that turns it red, why no existing test already owns it, no test-only seam), the layer from `coverage`'s model, the shape from the stack pack the profile names, the single test to run, and one regression per bug at the owning layer. Links the patterns of a test that earns nothing. `coverage` and `bugfix` point here instead of restating it. |
 | **`artifact`** | User-invoked + context-triggered | Renders `.context/` boards as self-contained interactive HTML (backlog board, plan progress, audit inventory, coverage matrix) via deterministic scripts — ~0 recurring tokens; markdown stays canon, HTML is a regenerable sibling render. Never publishes unprompted; opens locally via `file://`, and can be published as a Claude Code Artifact only on explicit request. |
 | **`ui-contract`** | User-invoked + context-triggered | Fixes what a screen must look like *before* it is built and what proves it afterwards. Three levels sized to the change (adjustment · new screen on an existing pattern · new visual direction), a state matrix fixed per page pattern (list 6 states, form 5, modal/panel 3 — a cell may read not-applicable with a reason, never blank), and the UI-contract section a plan carries. The medium is a state gallery rendered by the project's **real** components against fixtures, not a drawn mockup. Routes to two agents: `gallery-builder` (opus — a gallery is code no gate checks) and `verify-ui` (sonnet — runs the gate, reports paths). "Verified" is three things or it is not a claim: the review surface's path (a consultation page carrying the gallery as gallery rows), the gate's closing line from a run with no snapshot update, and a reviewer pass on the harness predicates themselves. |
+| **`delegation-detail`** | Model-invocable | How to brief, size, launch and gate delegates: the brief shape with its two named sections (files to read first, what you deliberately left alone), when delegating pays, the ~80-turn unit cap, fan-out and parallel-launch rules, delegate liveness, and the review and browser gates before a commit. Names the plugin's routed agents as `aidex:<name>`. |
 
 ### How it works
 
