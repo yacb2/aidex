@@ -4122,6 +4122,8 @@ def check_marker_duties(new_path):
         import save_reply
         # The states the reader ticked against are the answered page's: without
         # them a partial tick on a states row owes nothing (save_reply passes them).
+        # An appended paste is read with the states its own separator recorded
+        # (BL-762); these are for the first paste and pre-BL-762 separators.
         gallery = save_reply.gallery_duties_for(
             paste, ordinary_item_ids(text) | ordinary_item_ids(answered_text),
             save_reply.states_in_page(answered_text))
