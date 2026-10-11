@@ -154,6 +154,14 @@ if ! grep -qiE '\.context/[^;]*(overflow|visual|looks wrong)[^;]*/aidex:artifact
   fail "ui-contract SKILL.md Not-for does not send a visual defect on a .context/ page to /aidex:artifact"
 fi
 
+# Regression (LOOP-012 campaign 2, F16, 2026-10-11): "show me the flow" was answered with a
+# table in 1 of 3 runs; the canon only said which block draws a flow, not that a flow
+# request needs a figure. The block-choosing section of SKILL.md must carry that rule.
+ART_SKILL_FLAT="$(tr '\n' ' ' < "$REPO_ROOT/skills/artifact/SKILL.md" | tr -s ' ')"
+if ! grep -qiE 'asks to show a flow.{0,160}carries a diagram.{0,40}not only a table' <<<"$ART_SKILL_FLAT"; then
+  fail "artifact SKILL.md does not require a diagram when the request asks to show a flow/sequence/structure"
+fi
+
 if ! grep -qi "artifact-design" "$REPO_ROOT/skills/artifact/SKILL.md"; then
   fail "artifact SKILL.md does not route declined ad-hoc asks to artifact-design"
 fi
