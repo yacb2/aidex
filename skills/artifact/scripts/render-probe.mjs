@@ -12,6 +12,8 @@
 //   content-spills    a box whose content spills out of it (visible overflow)
 //   content-cut       a box whose content is cut by it (hidden overflow)
 //   table-cut         a table of 1-3 columns wider than the box it scrolls in
+//   table-scroll-no-cue a table that scrolls sideways with no visible `.tw-cue` notice after its
+//                     scroller (a mask or fade alone is not a cue)
 //   fixed-over-text   a position:fixed control drawn over page text (any scroll position)
 //   page-hscroll      the page scrolls horizontally
 //   raster-shrunk     at 390 px, a screenshot-sized raster <img> (natural width >= 800 px) drawn
@@ -259,6 +261,30 @@ const check = () => {
       const file = src.startsWith('data:') ? '' : ' ' + decodeURIComponent(src.split(/[?#]/)[0].split('/').pop());
       out.push({ kind: 'raster-shrunk', a: `img #${ord}${file}${im.alt ? ' "' + im.alt.slice(0, 40) + '"' : ''}${where ? ' (' + where + ')' : ''}`, msg: `natural ${nat} px, drawn ${Math.round(w)} px (${(w / nat).toFixed(2)}x)`, y: Math.round(im.getBoundingClientRect().top + sy) });
     }
+  }
+  // 3d. a table that scrolls sideways with no written notice (LOOP-012 QA). The grader census
+  // (subclass table-scroll-cue, 43 deductions) calls the kit's right-edge fade "faint" or "no
+  // cue", and a probe check that counted the mask as a cue was DO NOT SHIP because it could
+  // never fire: a mask or fade is NOT a cue here. The cue is the kit's `.tw-cue` element
+  // (composer.js fitTables) directly after the scroller, and it must be seen: rendered, with
+  // a size, inside the viewport's horizontal range, opacity > 0 (also up its ancestors).
+  // One finding per scroller, tables nested in another's cell left to the outer one.
+  const SCROLL_SLACK = 1;       // px of overflow that count, as composer.js sets `.overflows`; also the viewport edge tolerance of the cue
+  const CUE_SELECTOR = '.tw-cue';   // the census names a notice "desliza" under the table as the cue (QA, LOOP-012 round 3); a mask never counts
+  const cueSeen = c => {
+    if (!c || !c.matches(CUE_SELECTOR) || !c.checkVisibility({ opacityProperty: true, visibilityProperty: true })) return false;
+    const q = c.getBoundingClientRect(), s = getComputedStyle(c);
+    return q.width > 0 && q.height > 0 && q.left >= -SCROLL_SLACK && q.right <= innerWidth + SCROLL_SLACK && +s.opacity > 0 && s.visibility !== 'hidden';
+  };
+  const judged = new Set();
+  for (const t of document.body.querySelectorAll('table')) {
+    if (!t.checkVisibility({ opacityProperty: true, visibilityProperty: true }) || t.parentElement.closest('table')) continue;   // a table in a closed <details> is not on screen, so it owes no notice
+    let sc = t.parentElement; while (sc && sc !== document.body && !/(auto|scroll)/.test(getComputedStyle(sc).overflowX)) sc = sc.parentElement;
+    if (!sc || sc === document.body || judged.has(sc)) continue;
+    judged.add(sc);
+    const dx = sc.scrollWidth - sc.clientWidth;
+    if (dx > SCROLL_SLACK && !cueSeen(sc.nextElementSibling))
+      out.push({ kind: 'table-scroll-no-cue', a: name(t), msg: `scrolls ${dx} px sideways with no visible notice under it (the fade alone is not a cue)`, y: Math.round(t.getBoundingClientRect().top + sy) });
   }
   // 4. a fixed control drawn over page text. Both the container's own rect and each fixed
   // text box are tested. The container rect alone misses a label hanging out of a 0-height
@@ -562,7 +588,7 @@ const brief = (x, n = 60) => String(x).replace(/\s+/g, ' ').trim().slice(0, n);
 // Each predicate is keyed by its catalog id and returns detail strings, one per violation.
 const invariants = () => {
   // composer.js questionHash(): the chrome the composer injects into an item (keep in step, test-invariants.sh checks)
-  const CHROME = '.kit-tag, .consult-proposal, .consult-proposal-none, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-defect, .kit-feedback, .kit-more, .kit-provisional, .kit-marks-tile, .kit-marks-list, .consult-kicker, details.opts-more > summary';
+  const CHROME = '.kit-tag, .consult-proposal, .consult-proposal-none, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-defect, .kit-feedback, .kit-more, .kit-provisional, .kit-marks-tile, .kit-marks-list, .consult-kicker, .tw-cue, details.opts-more > summary';
   const t = s => (s || '').replace(/\s+/g, ' ').trim();
   const lc = s => t(s).toLowerCase();
   const brief = (s, n = 60) => t(s).slice(0, n);

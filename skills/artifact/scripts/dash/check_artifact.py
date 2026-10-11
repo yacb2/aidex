@@ -2989,8 +2989,9 @@ def check_file(path):
             report("layout", f"{bad} table(s) outside any scrolling container "
                    f"— a table cannot be capped, so a wide one renders over "
                    f"the rail with no scrollbar to show it. Wrap each in "
-                   f'<div class="tw">…</div>, or in any wrapper this page '
-                   f"declares with overflow-x: auto")
+                   f'<div class="tw">…</div>: the kit adds a "desliza" notice under it '
+                   f"while it scrolls, and a hand-made overflow-x: auto wrapper "
+                   f"gets none (render-probe table-scroll-no-cue fails it)")
 
     # --- § 8: the page is a CONSULTATION, not a read -----------------------------
     # Detection is an OR over four arms, and it has to stay one:

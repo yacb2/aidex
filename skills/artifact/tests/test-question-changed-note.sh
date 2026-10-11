@@ -105,6 +105,7 @@ WITH_CHROME='<section class="consult-item" data-id="Q1" data-title="TQ1">'\
 '<h3><span class="consult-id">Q1</span>The first question<span class="kit-tag">recommended</span></h3>'\
 '<div class="kit-ask"><span class="kit-ask-lead">Ask for</span><label><input type="checkbox" data-label="[explain-why]"> why</label></div>'\
 '<p class="kit-provisional">Provisional: an ask is ticked beside it.</p>'\
+'<div class="tw-cue" aria-hidden="true">scroll →</div>'\
 '<p class="fieldlabel">Notes on this one</p><textarea></textarea>'\
 '<button class="consult-clear">Clear</button></section>'
 got="$(changed "$WITH_CHROME" "$(item Q1 'The first question')")"

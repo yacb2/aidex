@@ -740,6 +740,18 @@ hit="$(grep -E '^DEFECT raster-shrunk\.html @1280px raster-shrunk: ' <<<"$out" |
 hit="$(grep -E '^DEFECT raster-shrunk\.html @[0-9]+px raster-shrunk: .*(small|zoomable)\.png|^DEFECT raster-shrunk\.html @[0-9]+px raster-shrunk: .*Dibujo' <<<"$out" || true)"
 [[ -z "$hit" ]] && ok "a raster under 800 px, one with the zoom button and an svg are not raster-shrunk" || bad "$hit"
 
+echo "== a table that scrolls sideways carries a visible notice (LOOP-012 QA, table-scroll-cue) =="
+out="$(bash "$PROBE" "$TMP/table-scroll-cue.html" 2>&1)"; rc=$?
+[[ $rc -eq 1 ]] && ok "table-scroll-cue exits 1" || bad "table-scroll-cue exit $rc, expected 1: $out"
+for cls in handfix gonefix hiddenfix clearfix awayfix awayright; do
+  grep -qE "^DEFECT table-scroll-cue\.html @390px table-scroll-no-cue: table\.$cls " <<<"$out" \
+    && ok "table.$cls scrolls at 390 px without a visible notice: table-scroll-no-cue" || bad "no table-scroll-no-cue naming table.$cls at 390px in: $out"
+done
+hit="$(grep -E '^DEFECT table-scroll-cue\.html @[0-9]+px table-scroll-no-cue: table\.(okfix|fitfix|foldfix|hidfix|opafix) ' <<<"$out" || true)"
+[[ -z "$hit" ]] && ok "a kit table that scrolls with its notice shown, one that fits, one folded in a closed <details> and one inside a hidden or transparent wrapper are not table-scroll-no-cue" || bad "$hit"
+hit="$(grep -E '^DEFECT table-scroll-cue\.html @1280px table-scroll-no-cue: ' <<<"$out" || true)"
+[[ -z "$hit" ]] && ok "a table that fits at 1280 px needs no notice" || bad "$hit"
+
 echo "== --shots refuses what it would silently get wrong (BL-724) =="
 # B-c08: output files are named by basename, so two pages sharing one would overwrite each
 # other's tiles and manifest. B-c12: shots are taken only in the geometry pass, which

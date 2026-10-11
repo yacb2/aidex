@@ -811,7 +811,7 @@ QUESTION_DROP = re.compile(
     r'<([a-zA-Z][\w:-]*)\b(?:[^>"\']|"[^"]*"|\'[^\']*\')*?'
     r'(?:\scontenteditable(?=[\s=>/])'
     r'|\sclass\s*=\s*["\'](?:[^"\']*\s)?'
-    r'(?:kit-tag|consult-clear|kit-other|kit-notnow|kit-ask|kit-provisional)'
+    r'(?:kit-tag|consult-clear|kit-other|kit-notnow|kit-ask|kit-provisional|tw-cue)'
     r'(?=[\s"\']))'
     r'[^>]*>', re.I | re.S)
 VOID_ELEMENTS = VOID

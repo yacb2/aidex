@@ -77,6 +77,16 @@ pre code { background: none; padding: 0; font-size: 1em; }
    scrollbar alone sits at the bottom of the table, out of view when it is tall. */
 .tw.overflows:not(.at-end) { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 3.5rem), transparent);
                              mask-image: linear-gradient(to right, #000 calc(100% - 3.5rem), transparent); }
+/* The written half of that cue (LOOP-012 QA): "desliza \2192" under a table that scrolls. --muted
+   is held to 4.5:1 on both papers by test-artifact-kit.sh. Out of the scroller, so it stays put. */
+.tw-cue:where(:not(svg *)) { display: none; margin: 0.3rem 0 0; text-align: right; font-family: var(--sans); font-size: 0.78rem; color: var(--muted); }
+.tw.overflows + .tw-cue:where(:not(svg *)) { display: block; }
+/* In a flex column (a section, a consult item) the parent's gap would put the notice nearer the
+   next block than its own table, so it would read as belonging to the prose: pull it up by that
+   gap (1rem, 0.7rem) to sit 0.25rem under the table; the gap below it is then the block gap. */
+.main > section > .tw.overflows + .tw-cue:where(:not(svg *)) { margin-top: calc(0.25rem - 1rem); }
+.consult-item > .tw.overflows + .tw-cue:where(:not(svg *)) { margin-top: calc(0.25rem - 0.7rem); }
+@media print { .tw-cue:where(:not(svg *)) { display: none !important; } }
 th { white-space: nowrap; }
 td.nw { white-space: nowrap; }
 /* Last resort of fitTables() (BL-567): a small table that still overflows once its

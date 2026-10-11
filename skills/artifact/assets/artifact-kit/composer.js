@@ -105,6 +105,7 @@
       decidedHint: 'Collapsed so the open questions stay in view. Open one to re-read what it asked and what it chose.',
       zoomOpen: 'Open this image at full size',
       zoomLabel: 'Enlarge',
+      tableCue: 'scroll \u2192',
       moreOptions: 'More options',
       zoomNative: 'Native size (1:1)',
       zoomFit: 'Fit to the window',
@@ -235,6 +236,7 @@
       decidedHint: 'Plegadas para que las preguntas abiertas queden a la vista. Abre una para releer qu\u00e9 preguntaba y qu\u00e9 se eligi\u00f3.',
       zoomOpen: 'Abre esta imagen a tama\u00f1o completo',
       zoomLabel: 'Ampliar',
+      tableCue: 'desliza \u2192',
       moreOptions: 'M\u00e1s opciones',
       zoomNative: 'Tama\u00f1o original (1:1)',
       zoomFit: 'Ajustar a la ventana',
@@ -1226,7 +1228,7 @@
      * the item, so leaving it in would change every fingerprint the moment the
      * kit gained these controls, and every answer stored by a reader mid-thread
      * would read as "the question changed" and be dropped on the upgrade. */
-    clone.querySelectorAll('.kit-tag, .consult-proposal, .consult-proposal-none, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-defect, .kit-feedback, .kit-more, .kit-provisional, .kit-marks-tile, .kit-marks-list, .consult-kicker').forEach(function (c) { c.remove(); });
+    clone.querySelectorAll('.kit-tag, .consult-proposal, .consult-proposal-none, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-defect, .kit-feedback, .kit-more, .kit-provisional, .kit-marks-tile, .kit-marks-list, .consult-kicker, .tw-cue').forEach(function (c) { c.remove(); });
     /* The generator's own <details> keeps its radios in the question (a row
      * built before it existed hashed them flat), but its summary word is chrome:
      * left in, every stored gallery answer would read as a changed question. */
@@ -1913,6 +1915,17 @@
       /* Columns of the OUTER table only: `.rows` never reaches a table nested in a cell. */
       var cols = table ? [].reduce.call(table.rows, function (m, r) { return Math.max(m, r.cells.length); }, 0) : 0;
       var tds = tw.querySelectorAll('td'), cells = tw.querySelectorAll('td, th');
+      /* LOOP-012 QA: a written notice under the table, shown only while it scrolls
+       * (`.tw.overflows + .tw-cue`, components.css). The fade alone was graded "faint" or
+       * "no cue" in 43 deductions (grader-census, subclass table-scroll-cue). A sibling,
+       * not a child: inside the scroller it would scroll away with the table. Decorative
+       * for a screen reader, which has the table. render-probe `table-scroll-no-cue`
+       * looks for exactly this element. */
+      var cue = document.createElement('div');
+      cue.className = 'tw-cue';
+      cue.setAttribute('aria-hidden', 'true');
+      cue.textContent = L.tableCue;
+      tw.parentNode.insertBefore(cue, tw.nextSibling);
       /* BL-567: a table of one to three columns must fit the screen, so the no-wrap
        * cells give way when they alone make it wider (the answer column was out of
        * sight). Four or more columns keep them and scroll, as BL-248 intends. Measured

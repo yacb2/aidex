@@ -3,7 +3,8 @@
 # check-artifact reads source; this loads the page headless (Playwright Chromium,
 # 1280 and 390 px) and fails on what the reader sees: text over text, svg text
 # outside its svg, content spilling out of or cut by its box, a table of one to three
-# columns wider than the box it scrolls in, svg text under the 11 px floor at 390 px,
+# columns wider than the box it scrolls in, a table that scrolls sideways with no visible
+# notice under it (table-scroll-no-cue), svg text under the 11 px floor at 390 px,
 # an unfilled stroked rect whose edge crosses an svg text, a fixed control over
 # body text, horizontal page scroll, a screenshot-sized raster (>= 800 px) drawn under
 # half its width at 390 px (raster-shrunk); and the three render contract classes

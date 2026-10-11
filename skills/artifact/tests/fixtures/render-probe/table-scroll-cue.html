@@ -1,0 +1,52 @@
+<!-- render-probe fixture (LOOP-012 QA): a table that scrolls sideways must carry a visible
+     notice. The census (subclass table-scroll-cue, 43 deductions) shows graders calling the
+     kit's fade "faint" or "no cue". Cases, each table 40rem wide so it overflows at 390 px
+     and fits at 1280 px:
+       okfix      kit .tw: the composer adds the notice, so it is silent
+       fitfix     kit .tw that fits at both widths: silent
+       handfix    hand-made overflow-x:auto wrapper, no notice: table-scroll-no-cue
+       gonefix    kit .tw whose notice is removed after the composer ran: table-scroll-no-cue
+       hiddenfix  kit .tw whose notice is display:none: table-scroll-no-cue (not rendered)
+       clearfix   kit .tw whose notice has opacity 0: table-scroll-no-cue (not visible)
+       awayfix    kit .tw whose notice is drawn off the screen to the left: table-scroll-no-cue
+       awayright  kit .tw whose notice is drawn past the right edge at 390 px (left:500px): table-scroll-no-cue
+       foldfix    kit .tw inside a closed <details> (a folded decided item): not on screen, silent -->
+<style>
+table.okfix, table.foldfix, table.hidfix, table.opafix, table.awayright, table.handfix, table.gonefix, table.hiddenfix, table.clearfix, table.awayfix { min-width: 40rem; }
+.handwrap { overflow-x: auto; border: 1px solid #ccc; }
+.hiddenwrap + .tw-cue { display: none !important; }
+.clearwrap + .tw-cue { opacity: 0 !important; }
+.awaywrap + .tw-cue { position: absolute; left: -400px !important; }
+.awayrwrap + .tw-cue { position: absolute; left: 500px !important; }
+</style>
+<div class="page"><main class="main">
+<h1>Tablas que se desplazan</h1>
+<div class="tw"><table class="okfix"><thead><tr><th>A</th><th>B</th><th>C</th><th>D</th></tr></thead>
+<tbody><tr><td>uno</td><td>dos</td><td>tres</td><td>cuatro</td></tr></tbody></table></div>
+<div class="tw"><table class="fitfix"><thead><tr><th>A</th><th>B</th><th>C</th><th>D</th></tr></thead>
+<tbody><tr><td>1</td><td>2</td><td>3</td><td>4</td></tr></tbody></table></div>
+<div class="handwrap"><table class="handfix"><thead><tr><th>A</th><th>B</th><th>C</th><th>D</th></tr></thead>
+<tbody><tr><td>uno</td><td>dos</td><td>tres</td><td>cuatro</td></tr></tbody></table></div>
+<div class="tw gonewrap"><table class="gonefix"><thead><tr><th>A</th><th>B</th><th>C</th><th>D</th></tr></thead>
+<tbody><tr><td>uno</td><td>dos</td><td>tres</td><td>cuatro</td></tr></tbody></table></div>
+<div class="tw hiddenwrap"><table class="hiddenfix"><thead><tr><th>A</th><th>B</th><th>C</th><th>D</th></tr></thead>
+<tbody><tr><td>uno</td><td>dos</td><td>tres</td><td>cuatro</td></tr></tbody></table></div>
+<div class="tw clearwrap"><table class="clearfix"><thead><tr><th>A</th><th>B</th><th>C</th><th>D</th></tr></thead>
+<tbody><tr><td>uno</td><td>dos</td><td>tres</td><td>cuatro</td></tr></tbody></table></div>
+<div class="tw awaywrap"><table class="awayfix"><thead><tr><th>A</th><th>B</th><th>C</th><th>D</th></tr></thead>
+<tbody><tr><td>uno</td><td>dos</td><td>tres</td><td>cuatro</td></tr></tbody></table></div>
+<div class="tw awayrwrap"><table class="awayright"><thead><tr><th>A</th><th>B</th><th>C</th><th>D</th></tr></thead>
+<tbody><tr><td>uno</td><td>dos</td><td>tres</td><td>cuatro</td></tr></tbody></table></div>
+<details><summary>x</summary><div class="tw"><table class="foldfix"><thead><tr><th>A</th><th>B</th><th>C</th><th>D</th></tr></thead>
+<tbody><tr><td>uno</td><td>dos</td><td>tres</td><td>cuatro</td></tr></tbody></table></div></details>
+<div style="visibility:hidden"><div class="tw"><table class="hidfix"><thead><tr><th>A</th><th>B</th><th>C</th><th>D</th></tr></thead>
+<tbody><tr><td>uno</td><td>dos</td><td>tres</td><td>cuatro</td></tr></tbody></table></div></div>
+<div style="opacity:0"><div class="tw"><table class="opafix"><thead><tr><th>A</th><th>B</th><th>C</th><th>D</th></tr></thead>
+<tbody><tr><td>uno</td><td>dos</td><td>tres</td><td>cuatro</td></tr></tbody></table></div></div>
+</main></div>
+<script>
+/* the "notice removed" case: strip it once the composer has added it */
+new MutationObserver(function () {
+  document.querySelectorAll('.gonewrap + .tw-cue').forEach(function (e) { e.remove(); });
+}).observe(document.body, { childList: true, subtree: true });
+</script>

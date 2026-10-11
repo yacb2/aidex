@@ -1390,6 +1390,7 @@ t2="$(run 'phase=verify')"
 [[ "$t2" == *"CE=typed-into-contenteditable-789"* && "$t2" != *"se dejaron en blanco"* ]] \
   || fail "C-c22: the 'left blank because the question changed' banner came back on a second reload of the same page (the stale entry must leave the store; Q2 must still restore): $t2"
 
+
 # Restore the page to v1 so the phases below run against the body they expect.
 write_body "$Q1_V1"
 wrap_page
@@ -5306,6 +5307,97 @@ $(grp717 G1 "$(item717 Q1)")$(grp717 G2 "$(item717 Q2)")" \
 document.title = 'C13G|Q1=' + document.querySelector('[data-id=\"Q1\"] textarea').value + '|G2=' + document.querySelector('#G2 .group-notes textarea').value + '|NOTE=' + (note ? note.textContent.slice(0, 2).trim() : 'none') + '|';")"
 [[ "$t" == *"|Q1=uno|G2=nota|NOTE=2|"* ]] \
   || fail "C-c13: a malformed group-note entry must not drop the items and notes that restore fine (want Q1=uno, G2=nota, NOTE=2): $t"
+
+# ---- LOOP-012 QA: a table that scrolls sideways carries a visible notice under it ----
+# The census (subclass table-scroll-cue, 43 deductions) called the fade "faint" or "no cue".
+# At 390 px a 4-column table with a 40rem floor overflows its .tw; a 2-column one fits. The
+# notice is a sibling right after the .tw (not inside it: it would scroll away), aria-hidden,
+# in the page's language, shown only while the table overflows. The harness then lets the
+# table shrink and fires `resize`: the notice must go again.
+cue_page() {  # cue_page <lang> -> prints the page title after load at 390 px
+  local lang="$1" d="$TMP/cue-$1"; mkdir -p "$d"
+  {
+    printf '%s\n' '<meta name="consult-visual" content="none: a layout probe, nothing to draw">' \
+      '<div class="page"><main class="main"><header><p class="eyebrow">PROBE</p><h1>Cue</h1></header>' \
+      '<div class="tw"><table id="t-wide" style="min-width:40rem"><thead><tr><th>A</th><th>B</th><th>C</th><th>D</th></tr></thead><tbody><tr><td>1</td><td>2</td><td>3</td><td>4</td></tr></tbody></table></div>' \
+      '<div class="tw"><table id="t-small"><thead><tr><th>A</th><th>B</th></tr></thead><tbody><tr><td>1</td><td>2</td></tr></tbody></table></div>' \
+      '</main></div>'
+    cat <<'JS'
+<script>
+window.addEventListener('load', function () {
+  var cueOf = function (id) { var n = document.getElementById(id).closest('.tw').nextElementSibling; return n && n.classList.contains('tw-cue') ? n : null; };
+  var shown = function (n) { return !!n && getComputedStyle(n).display !== 'none' && n.getBoundingClientRect().width > 0; };
+  var w = cueOf('t-wide'), s = cueOf('t-small');
+  var box = document.getElementById('t-wide').closest('.tw');
+  var r = w ? w.getBoundingClientRect() : { top: 0, left: -1, right: -1 };
+  var under = w && r.top >= box.getBoundingClientRect().bottom - 1 && r.left >= 0 && r.right <= innerWidth;
+  var txt = w ? w.textContent.trim() : 'none', aria = w ? w.getAttribute('aria-hidden') : 'none';
+  var before = shown(w), smallShown = shown(s);
+  document.getElementById('t-wide').style.minWidth = '0';
+  window.dispatchEvent(new Event('resize'));
+  document.title = 'CUE|TXT=' + txt + '|ARIA=' + aria + '|SHOWN=' + before + '|UNDER=' + !!under + '|SMALL=' + smallShown + '|AFTER=' + shown(w) + '|';
+});
+</script>
+JS
+  } > "$d/body.html"
+  bash "$WRAP" --title "cue-$lang" --lang "$lang" --out "$TMP/reports/cue-$lang.html" < "$d/body.html" > "$d/wrap.log" 2>&1 \
+    || fail "table cue: the $lang probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$d/wrap.log" | sed -n 1,4p)"
+  rm -rf "$TMP/profile"
+  CHROME_WINDOW=390,900 chrome_dump "$d/dom.html" "file://$TMP/reports/cue-$lang.html" 45 || true
+  grep -oE '<title>[^<]*</title>' "$d/dom.html" | sed -n 1p
+}
+tc="$(cue_page es)"
+[[ "$tc" == *"|TXT=desliza →|ARIA=true|SHOWN=true|UNDER=true|SMALL=false|AFTER=false|"* ]] \
+  || fail "table cue (es): want the notice 'desliza →', aria-hidden, visible under the overflowing table, absent for a table that fits and gone after a resize that makes it fit: $tc"
+tc="$(cue_page en)"
+[[ "$tc" == *"|TXT=scroll →|ARIA=true|SHOWN=true|UNDER=true|SMALL=false|AFTER=false|"* ]] \
+  || fail "table cue (en): want the notice 'scroll →' with the same behaviour: $tc"
+
+# ---- LOOP-012 QA: the table notice is chrome, not question text ----
+# fitTables() puts `.tw-cue` INSIDE a consult item that holds a table, and questionHash() hashes
+# the item's text. Left in, every answer saved under kit 42 (no notice) read as "the question
+# changed" and was dropped on kit 43. A same-kit reload cannot see that: both sides carry the
+# notice. So the hash is made WITHOUT it: phase 1 loads the item with its table in a `twx`
+# wrapper (same text, no `.tw`, so no notice) and answers Option B; phase 2 is the same file path
+# with the real `.tw`, in the same browser profile. Option B must come back, with no stale banner.
+cuehash_page() {  # cuehash_page <twclass> <harness-js> -> prints the page title after load
+  local d="$TMP/cuehash"; mkdir -p "$d"
+  {
+    printf '%s\n' '<meta name="consult-visual" content="none: a persistence probe, nothing to draw"><style>.twx { overflow-x: auto; }</style>' \
+      '<div class="page"><main class="main"><header><p class="eyebrow">PROBE</p><h1>Cue hash</h1></header>' \
+      '<section id="sec-ask"><div class="sec-head"><h2>Questions</h2></div>' \
+      '<section class="consult-group" id="G1" data-id="G1" data-title="Context"><div class="sec-head"><h2>Context</h2></div><p>Shared context.</p>' \
+      '<section class="consult-item" data-id="Q1" data-title="The probed question"><h3><span class="consult-id">Q1</span>Which of these two layouts?</h3>' \
+      "<div class=\"$1\"><table style=\"min-width:40rem\"><thead><tr><th>A</th><th>B</th><th>C</th><th>D</th></tr></thead><tbody><tr><td>1</td><td>2</td><td>3</td><td>4</td></tr></tbody></table></div>" \
+      '<div class="opts one"><label><input type="radio" name="Q1" data-label="Option A"><span>Option A</span></label><label><input type="radio" name="Q1" data-label="Option B"><span>Option B</span></label></div><p class="fieldlabel">Notes on this one</p><textarea></textarea></section>' \
+      '<div class="group-notes"><p class="fieldlabel">Notes</p><textarea></textarea></div></section>' \
+      '<section class="consult-item consult-notes" data-id="notes" data-title="General notes"><h3>General notes</h3><textarea></textarea></section>' \
+      '<div class="endbar"><button type="button" id="consult-copy-end">Copy</button><span class="consult-status" id="consult-status-end"></span></div>' \
+      '</section></main><aside class="rail"><p class="railhead">Contents</p><nav class="raillist" id="raillist"></nav>' \
+      '<div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div></aside></div>'
+    printf '<script>window.addEventListener("load", function () {\n%s\n});</script>\n' "$2"
+  } > "$d/body.html"
+  bash "$WRAP" --title cuehash --lang en --out "$TMP/reports/cuehash.html" < "$d/body.html" > "$d/wrap.log" 2>&1 \
+    || fail "table cue hash: the probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$d/wrap.log" | sed -n 1,4p)"
+  CHROME_WINDOW=390,900 chrome_dump "$d/dom.html" "file://$TMP/reports/cuehash.html" 45 || true
+  grep -oE '<title>[^<]*</title>' "$d/dom.html" | sed -n 1p
+}
+rm -rf "$TMP/profile"
+t1="$(cuehash_page twx "var b = document.querySelector('input[data-label=\"Option B\"]'); b.checked = true; b.dispatchEvent(new Event('input', { bubbles: true }));
+document.title = 'P1|STORED=' + (localStorage.getItem('aidex-kit-answers:' + location.pathname) ? 'yes' : 'no') + '|';")"
+[[ "$t1" == *"|STORED=yes|"* ]] || fail "table cue hash: phase 1 did not store the answer (the test cannot judge phase 2): $t1"
+t2="$(cuehash_page tw "var b = document.querySelector('input[data-label=\"Option B\"]');
+var banner = document.getElementById('consult-restored');
+var tw = document.querySelector('[data-id=Q1] .tw'), cue = document.querySelector('[data-id=Q1] .tw-cue');
+var gap = tw && cue ? Math.round(cue.getBoundingClientRect().top - tw.getBoundingClientRect().bottom) : 'none';
+document.title = 'P2|B=' + b.checked + '|CUE=' + !!document.querySelector('[data-id=Q1] .tw-cue') + '|LEFTBLANK=' + /left blank/.test(banner ? banner.textContent : 'no banner') + '|RESTORED=' + !!banner + '|GAP=' + gap + '|';")"
+[[ "$t2" == *"|B=true|CUE=true|LEFTBLANK=false|RESTORED=true|"* ]] \
+  || fail "table cue hash: an answer saved before the table notice existed was dropped as 'their question changed' (want Option B checked, the notice present, a restore note without the left-blank part): $t2"
+# The notice sits against its table inside a consult item (a flex column with a gap): 0-6 px, so it
+# reads as the table's and not as the next block's. Without the pull-up rule it is ~15 px (gap + margin).
+cgap="$(sed -nE 's/.*\|GAP=(-?[0-9]+)\|.*/\1/p' <<<"$t2")"
+[[ -n "$cgap" && "$cgap" -ge 0 && "$cgap" -le 6 ]] \
+  || fail "table cue spacing: the notice is ${cgap:-?} px under its table in a consult item (want 0-6): $t2"
 
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other, the not-now choice, the multi-select item built from a spec, the ask row and the provisional state, the explicit theme, v4 answer sets, the all-decided page, the half-answered block, the gallery zoom dialog with its keyboard walk, the block filters that never reach the paste, the light/dark compare with its slider kept out of the paste, and the localised chrome included"
