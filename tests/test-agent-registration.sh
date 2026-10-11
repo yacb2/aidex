@@ -57,20 +57,15 @@ done < <(texts)
 # Agents exempt from the "Launched by /aidex:" description scope, each with its reason.
 DESC_EXEMPT=(
   "artifact-grader: registered before this guard; scoped by 'Used by the artifact skill' and calibrated (34ffb28)"
-  "artifact-sonnet: routed agent, its description states when to use it"
-  "backlog-filer: routed agent, its description states when to use it"
-  "figure-sonnet: routed agent, its description states when to use it"
-  "gate-runner: routed agent, its description states when to use it"
-  "impl-sonnet: routed agent, its description states when to use it"
-  "lookup-sonnet: routed agent, its description states when to use it"
-  "research-sonnet: routed agent, its description states when to use it"
 )
 is_desc_exempt() { local e; for e in "${DESC_EXEMPT[@]}"; do [[ "${e%%:*}" == "$1" ]] && return 0; done; return 1; }
 
 # Routed agents: chosen by the main session from their description, not launched by a skill.
 # Explicit list rather than a frontmatter key: an unlisted agent defaults to the strict
 # skill-launched check, so a new agent cannot opt out of "Launched by" by accident.
-ROUTED_AGENTS=(bugfix-opus review-diff-opus smoke-sonnet synthesis-sonnet task-general verify-browser-opus verify-browser-sonnet)
+ROUTED_AGENTS=(artifact-sonnet backlog-filer bugfix-opus figure-sonnet gate-runner impl-sonnet lookup-sonnet
+               research-sonnet review-diff-opus smoke-sonnet synthesis-sonnet task-general
+               verify-browser-opus verify-browser-sonnet)
 is_routed() { local r; for r in "${ROUTED_AGENTS[@]}"; do [[ "$r" == "$1" ]] && return 0; done; return 1; }
 
 # (d) each agent is named after its file and scopes itself
@@ -80,7 +75,8 @@ for f in "$ROOT"/agents/*.md; do
   grep -qx "name: $n" <<<"$head" || err "(d) agents/$n.md front matter has no 'name: $n'"
   if is_routed "$n"; then
     desc="$(grep '^description:' <<<"$head")"
-    grep -qE 'Launched by|not for direct use' <<<"$desc" \
+    # the whole front-matter head, so a wrapped YAML continuation line cannot hide the phrase
+    grep -qE 'Launched by|not for direct use' <<<"$head" \
       && err "(d) routed agent agents/$n.md describes itself as skill-launched; a routed description states when to use it"
     grep -qE '^description: Use ' <<<"$desc" || err "(d) routed agent agents/$n.md description does not start with 'Use ' (when to use it)"
     continue

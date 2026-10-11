@@ -3890,7 +3890,7 @@ NORMALIZE_PUNCT = re.compile(r"[^\w\s]", re.U)
 # item, and referenced in the check failures below so the two never drift.
 MARKER_DUTIES = {
     "show-me": ("a figure, image or diagram inside the item — launch "
-                "figure-sonnet or verify-browser-opus BEFORE the page brief, "
+                "aidex:figure-sonnet or aidex:verify-browser-opus BEFORE the page brief, "
                 "never more prose"),
     "more-examples": ("more visuals, tables or example blocks than the last "
                        "round carried"),

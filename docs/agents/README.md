@@ -1,9 +1,10 @@
 # Routed agents
 
 The subagents the main session routes work to by description ship in `agents/` and are
-launched as `aidex:<name>`: `bugfix-opus`, `review-diff-opus`, `smoke-sonnet`,
-`synthesis-sonnet`, `task-general`, `verify-browser-opus`, `verify-browser-sonnet` (more are
-added there as they are ported). Each states in its description when to use it; skill-launched
+launched as `aidex:<name>`: `artifact-sonnet`, `backlog-filer`, `bugfix-opus`, `figure-sonnet`,
+`gate-runner`, `impl-sonnet`, `lookup-sonnet`, `research-sonnet`, `review-diff-opus`,
+`smoke-sonnet`, `synthesis-sonnet`, `task-general`, `verify-browser-opus`,
+`verify-browser-sonnet`. Each states in its description when to use it; skill-launched
 agents say "Launched by /aidex:X; not for direct use" instead.
 
 - `smoke-sonnet` and `verify-browser-*` need the chrome-devtools MCP server, which the plugin

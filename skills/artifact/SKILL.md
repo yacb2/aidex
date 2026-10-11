@@ -72,7 +72,7 @@ duty FIRST, then run the verbs: any rebuild after `save-reply.sh` opens the roun
 a verb's included, so when a verb (`decide`, `new-round`) is the first rebuild, no
 `--new-round` follows it (it would refuse: the round is already open). A `[show-me]` duty is
 fulfilled by a `diagram` block (`tree`, `compare`) in the page brief, or, where the install has those agents (they are the owner's, not shipped in this plugin's `agents/`), by launching
-`figure-sonnet` (wireframes only) or `verify-browser-opus` BEFORE the page brief, never by writing more prose. `check-artifact --prev` then FAILS a wrap
+`aidex:figure-sonnet` (wireframes only) or `aidex:verify-browser-opus` BEFORE the page brief, never by writing more prose. `check-artifact --prev` then FAILS a wrap
 that does not carry out a printed duty — no bypass
 (read `references/unreadable-question.md`, § "The reply is saved before the
 next round is built (BL-475)", before answering a marked reply).
@@ -81,7 +81,7 @@ A consultation brief carries, per item, a situation lead written by the main ses
 (a named role, screen, action, what happens today; for a question about work, what the
 thing is, why it exists and where it stands, with no term the page does not explain),
 options stated as what that person sees or can do, ids only on a trailing `Fuente:` line, and a "decidido, corrígeme si
-no" block for reversible decisions that carry a recommendation. `artifact-sonnet` (the owner's agent, not shipped; without it the main session does this) lays
+no" block for reversible decisions that carry a recommendation. `aidex:artifact-sonnet` (a plugin agent; without it the main session does this) lays
 that out; read `references/consultation.md` § 8 (BL-503) before building it.
 
 Per-project design tokens live in `.context/profiles/artifact.md` (template:
@@ -143,7 +143,7 @@ it never lands, whichever route wrote it. Its fifteen page-contract classes
 
 Figures are blocks too, chosen by one ladder — the highest rung that carries the
 meaning: (1) `chart` / `diagram`, closed stdlib blocks; (2) `graph`, DOT through
-Graphviz; (3) `figure`, a file — figure-sonnet's SVG or a screenshot. A consult figure
+Graphviz; (3) `figure`, a file — aidex:figure-sonnet's SVG or a screenshot. A consult figure
 that shows a structure or compares options is a `diagram` (`tree`, `compare`); hand SVG
 is for wireframes only. The table with one example per rung is
 `references/figures.md` § The figure ladder (read it before adding a figure). No spec inlines SVG.

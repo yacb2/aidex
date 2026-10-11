@@ -1,6 +1,6 @@
 ---
 name: lookup-sonnet
-description: Use proactively when a prompt asks to find, check, list or count something across more than three files or transcripts ("revisa", "dónde está definido", "cuántos", "qué archivos"). Handoff: one line with the question, where to start and the exact output file and columns; add "read each row" for a semantic classification. Not for prose, web research or code changes.
+description: Use proactively when a prompt asks to find, check, list or count something across more than three files or transcripts ("check", "where is it defined", "how many", "which files"). Handoff: one line with the question, where to start and the exact output file and columns; add "read each row" for a semantic classification. Not for prose, web research or code changes.
 model: sonnet
 effort: low
 tools: Bash, Read, Grep, Glob, Write

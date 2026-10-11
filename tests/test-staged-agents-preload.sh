@@ -9,7 +9,7 @@
 #
 #   1. every `skills:` entry in agents/*.md names a skill shipped under skills/
 #      (bare `name` or `aidex:name`; any other namespace is not ours to guarantee);
-#   2. bugfix-opus and review-diff-opus preload `testing` — dropping it removes
+#   2. bugfix-opus, impl-sonnet and review-diff-opus preload `testing` — dropping it removes
 #      the only channel that puts the core in that agent's context before its first test
 #      write. (bugfix-opus does not preload `bugfix`: its body carries RED→GREEN, and the
 #      skill's main-session steps would conflict with it.)
@@ -84,6 +84,7 @@ require() {  # $1 = agent file stem, rest = skill names it must preload
 }
 require bugfix-opus testing
 require review-diff-opus testing
+require impl-sonnet testing
 
 # ---------- self-check: the reader sees entries a comment or a wrapped list would hide ----------
 if [ -z "${STAGED_AGENTS_DIR:-}" ]; then
@@ -98,7 +99,7 @@ if [ -z "${STAGED_AGENTS_DIR:-}" ]; then
 fi
 
 if [ "$fail" -eq 0 ]; then
-  echo "PASS: ${#files[@]} agents preload only shipped skills; bugfix/review-diff carry testing; the reader survives comments and wrapped lists"
+  echo "PASS: ${#files[@]} agents preload only shipped skills; bugfix/impl/review-diff carry testing; the reader survives comments and wrapped lists"
   exit 0
 fi
 exit 1

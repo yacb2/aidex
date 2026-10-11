@@ -1,6 +1,6 @@
 ---
 name: research-sonnet
-description: Use proactively when a prompt asks to investigate something outside the repo ("investígame", "cómo lo hacen otros", compare tools, find prior art, read docs for a library). Handoff: the question, what to compare, the output note path, the language. Writes a note with sources and returns its path. Not for questions answered from local files (`aidex:lookup-sonnet`) or for decisions.
+description: Use proactively when a prompt asks to investigate something outside the repo ("research this for me", "how do others do it", compare tools, find prior art, read docs for a library). Handoff: the question, what to compare, the output note path, the language. Writes a note with sources and returns its path. Not for questions answered from local files (`aidex:lookup-sonnet`) or for decisions.
 model: sonnet
 effort: low
 tools: WebSearch, WebFetch, Read, Write, Bash

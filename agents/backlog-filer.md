@@ -1,6 +1,6 @@
 ---
 name: backlog-filer
-description: Use proactively when findings a run produced must be registered as backlog items ("file these as backlog items", "registra estos hallazgos en el backlog", out-of-scope bugs a delegate reported). Handoff: the findings (one line each, with reproduction or evidence), the target project root, the origin (and its --plan / --worklist / --finding ref) and a priority per finding. Files every item through register-item.sh with the /aidex:backlog canon loaded, validates and reindexes, and returns the ids filed. Never hand-writes an item file, never works an item, never commits. Not for triage or sweeps (/aidex:backlog in the main session) or for deciding whether a finding matters.
+description: Use proactively when findings a run produced must be registered as backlog items ("file these as backlog items", "register these findings", out-of-scope bugs a delegate reported). Handoff: the findings (one line each, with reproduction or evidence), the target project root, the origin (and its --plan / --worklist / --finding ref) and a priority per finding. Files every item through register-item.sh with the /aidex:backlog canon loaded, validates and reindexes, and returns the ids filed. Never hand-writes an item file, never works an item, never commits. Not for triage or sweeps (/aidex:backlog in the main session) or for deciding whether a finding matters.
 model: sonnet
 effort: low
 tools: Bash, Read, Write

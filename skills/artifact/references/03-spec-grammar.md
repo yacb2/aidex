@@ -591,7 +591,7 @@ panel; an invalid tree or row body; `dir=` on a compare.
 :::
 ```
 
-The third rung of the figure ladder: a hand SVG (figure-sonnet's) or a screenshot enters
+The third rung of the figure ladder: a hand SVG (aidex:figure-sonnet's) or a screenshot enters
 the page here, still on the spec route. It has **no body** — the drawing is the file.
 
 - `src` is **relative to the spec file**, never to the cwd, so the same spec builds from
@@ -624,7 +624,7 @@ strict-XML parse:
 - No hex or colour-function `fill`/`stroke` (attribute, `style` or `<style>`): paint with
   `currentColor` or a kit class.
 
-A file that breaks a rule is **refused, never repaired**: fix the file (figure-sonnet
+A file that breaks a rule is **refused, never repaired**: fix the file (aidex:figure-sonnet
 draws with `currentColor` and the kit's classes) or keep the drawing off the page.
 
 A missing `src`, an absolute `src`, an unknown extension, a missing file, a png/jpg with

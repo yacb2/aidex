@@ -229,7 +229,7 @@ messages and the tests; § 8.4 is the block shape.
 
    **Who writes the situation lines (decided 2026-09-29, BL-503).** The main session,
    which holds the conversation, writes each item's situation lead and option outcomes in
-   the brief. `artifact-sonnet` lays the page out and receives this contract as a
+   the brief. `aidex:artifact-sonnet` lays the page out and receives this contract as a
    checklist; it does not invent the situation. Its effort is unchanged here: BL-500 owns
    effort measurement.
 

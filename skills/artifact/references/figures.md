@@ -21,7 +21,7 @@ highest rung that carries the figure's meaning without loss**:
 | 3 | `figure` | what neither can draw: a screen mockup or wireframe, a screenshot, a grid of text cells, an illustration | a drawn settings screen with its three states |
 
 Drop a rung only when the one above loses something the page relies on, and say what in
-the caption's neighbourhood. A rung-3 drawing is figure-sonnet's job: an `.svg` that
+the caption's neighbourhood. A rung-3 drawing is aidex:figure-sonnet's job: an `.svg` that
 passes the `figure` block's rules (`03-spec-grammar.md` § The `figure` block), embedded
 with `::: figure {src="…" title="…"}`. Nobody inlines SVG in a spec.
 
