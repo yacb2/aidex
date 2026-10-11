@@ -113,8 +113,46 @@ grep -q 'beta-wt-other' <<<"$pre" && fail "--slug must not leak another project'
 # --- --slug on a slug with nothing left: exit 0, the post-teardown all-clear ---
 bash "$SCRIPT" --slug gone >/dev/null 2>&1 || fail "--slug must exit 0 when nothing is attributable"
 
+# --- hyphen-prefixed sibling slugs (worktree-c03): slug `foo` is a string prefix
+#     of slug `foo-bar`, but foo-bar's project, volume, image and network belong
+#     to foo-bar alone. A prefix match let a live foo hide a dead foo-bar's
+#     orphans (case A) and let `--slug foo` print reclaim commands aimed at a
+#     live foo-bar (case B). ---
+mkdir -p "$TMP/bin-sib"
+cat > "$TMP/bin-sib/docker" <<'FAKE'
+#!/usr/bin/env bash
+case "$*" in
+  "info") exit 0 ;;
+  *"ps -a"*)          echo ws-wt-foo-bar ;;
+  *"volume ls"*)      echo ws-wt-foo-bar_db ;;
+  *"images -f dangling=true"*) : ;;
+  *"images --format"*) echo ws-wt-foo-bar-backend ;;
+  *"network ls"*)     echo ws-wt-foo-bar_default ;;
+  *"network inspect"*) echo 0 ;;
+  *) exit 0 ;;
+esac
+FAKE
+chmod +x "$TMP/bin-sib/docker"
+
+# case A: foo is live on disk, foo-bar has no directory -> foo-bar is orphaned
+mkdir -p "$TMP/sib-a/ws/.context" "$TMP/sib-a/ws-wt-foo"
+outA="$(cd "$TMP/sib-a/ws" && PATH="$TMP/bin-sib:$PATH" bash "$SCRIPT" --check 2>&1)"; rcA=$?
+grep -q 'ORPHAN compose project: ws-wt-foo-bar$'  <<<"$outA" || fail "A: a live foo hid dead foo-bar's compose project: $outA"
+grep -q 'ORPHAN volume: ws-wt-foo-bar_db'         <<<"$outA" || fail "A: a live foo hid dead foo-bar's volume"
+grep -q 'ORPHAN image: ws-wt-foo-bar-backend'     <<<"$outA" || fail "A: a live foo hid dead foo-bar's image"
+grep -q 'ORPHAN network: ws-wt-foo-bar_default'   <<<"$outA" || fail "A: a live foo hid dead foo-bar's network"
+[[ "$rcA" -ne 0 ]] || fail "A: --check must fail while foo-bar leaks, got rc=$rcA"
+
+# case B: both live, only foo-bar has resources -> nothing is foo's
+mkdir -p "$TMP/sib-b/ws/.context" "$TMP/sib-b/ws-wt-foo" "$TMP/sib-b/ws-wt-foo-bar"
+outB="$(cd "$TMP/sib-b/ws" && PATH="$TMP/bin-sib:$PATH" bash "$SCRIPT" --slug foo 2>&1)"; rcB=$?
+grep -q 'ws-wt-foo-bar' <<<"$outB" && fail "B: --slug foo attributed sibling foo-bar's resources to foo: $outB"
+[[ "$rcB" -eq 0 ]] || fail "B: --slug foo must exit 0 when only foo-bar has resources, got rc=$rcB"
+outB2="$(cd "$TMP/sib-b/ws" && PATH="$TMP/bin-sib:$PATH" bash "$SCRIPT" --slug foo-bar 2>&1)"
+[[ "$(grep -c '^RESOURCE' <<<"$outB2")" -eq 4 ]] || fail "B: --slug foo-bar must still list its own 4 resources: $outB2"
+
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"
   exit 1
 fi
-echo "OK — orphan-sweep scoping (no cross-project false positives), 5 resource kinds, --check gate, --slug pre-flight"
+echo "OK — orphan-sweep scoping (no cross-project false positives), 5 resource kinds, --check gate, --slug pre-flight, hyphen-prefixed sibling slugs"
