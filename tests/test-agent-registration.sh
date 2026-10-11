@@ -57,6 +57,13 @@ done < <(texts)
 # Agents exempt from the "Launched by /aidex:" description scope, each with its reason.
 DESC_EXEMPT=(
   "artifact-grader: registered before this guard; scoped by 'Used by the artifact skill' and calibrated (34ffb28)"
+  "artifact-sonnet: routed agent, its description states when to use it"
+  "backlog-filer: routed agent, its description states when to use it"
+  "figure-sonnet: routed agent, its description states when to use it"
+  "gate-runner: routed agent, its description states when to use it"
+  "impl-sonnet: routed agent, its description states when to use it"
+  "lookup-sonnet: routed agent, its description states when to use it"
+  "research-sonnet: routed agent, its description states when to use it"
 )
 is_desc_exempt() { local e; for e in "${DESC_EXEMPT[@]}"; do [[ "${e%%:*}" == "$1" ]] && return 0; done; return 1; }
 
