@@ -118,5 +118,15 @@
     "query": "Add a section to `.context/reports/2026-10-09-status.html` called Risks with these two: the vendor API deprecation and the missing staging data. Leave it ready.",
     "should_trigger": true,
     "expected_behavior": "EN change to an existing HTML report (LOOP-012 scn-edit-html-page): the description's 'add a section to this page' trigger. No .spec.md, so the page stays on the HTML route and is re-wrapped and re-checked, not hand-patched."
+  },
+  {
+    "query": "En el móvil la tabla de `.context/reports/2026-10-09-modes.html` se sale de la pantalla. Corrígela y compruébalo antes de decirme que está bien.",
+    "should_trigger": true,
+    "expected_behavior": "ES visual complaint about an existing artifact page (LOOP-012 F15, scn-visual-complaint): the description names 'a change to an existing artifact page, even a visual one'. The kit's probe, check and wrap measure the fix, not an ad-hoc Playwright script; not ui-contract."
+  },
+  {
+    "query": "The settings screen of our app overflows horizontally on mobile. Fix it and show me before and after.",
+    "should_trigger": false,
+    "expected_behavior": "App-screen visual defect with no `.context/` page: ui-contract owns it (before/after contact sheet). The overflow wording alone is not an artifact trigger."
   }
 ]

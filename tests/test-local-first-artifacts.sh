@@ -140,6 +140,19 @@ ART_DESC_POSITIVE="$(sed -n 's/^description:[[:space:]]*//p' "$REPO_ROOT/skills/
 if ! grep -qiE '(chang|edit|updat)[a-z]* [a-z ]{0,20}existing [a-z ]{0,12}page' <<<"$ART_DESC_POSITIVE"; then
   fail "artifact SKILL.md description names no change/edit to an existing artifact page"
 fi
+# Regression (LOOP-012 campaign 2, F15, 2026-10-11): "the table of `.context/reports/X.html`
+# overflows on mobile, fix it" loaded /aidex:ui-contract (whose description fires on "the
+# form overflows on mobile"), so the kit's probe/check/wrap never ran and the fix went
+# unverified. Artifact must claim a visual complaint about an existing page, and
+# ui-contract's Not-for (only that tail: its positive clause says "overflows" too) must
+# send a `.context/` page with a visual defect to /aidex:artifact.
+if ! grep -qiE '(overflow|visual|looks wrong)' <<<"$ART_DESC_POSITIVE"; then
+  fail "artifact SKILL.md description claims no visual complaint about an existing artifact page"
+fi
+UIC_NOT_FOR="$(sed -n 's/^description:[[:space:]]*//p' "$REPO_ROOT/skills/ui-contract/SKILL.md" | sed -n 's/.*Not for://p')"
+if ! grep -qiE '\.context/[^;]*(overflow|visual|looks wrong)[^;]*/aidex:artifact' <<<"$UIC_NOT_FOR"; then
+  fail "ui-contract SKILL.md Not-for does not send a visual defect on a .context/ page to /aidex:artifact"
+fi
 
 if ! grep -qi "artifact-design" "$REPO_ROOT/skills/artifact/SKILL.md"; then
   fail "artifact SKILL.md does not route declined ad-hoc asks to artifact-design"

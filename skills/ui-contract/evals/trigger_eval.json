@@ -18,5 +18,6 @@
   {"query": "Render the backlog as an HTML board so I can sort it.", "should_trigger": false, "expected_behavior": "Backlog board render: artifact."},
   {"query": "Make me an HTML report summarizing last month's incidents.", "should_trigger": false, "expected_behavior": "Generic HTML report: artifact. 'Report page' is the distractor."},
   {"query": "Write the implementation plan for the new notifications backend: phases, files, acceptance criteria.", "should_trigger": false, "expected_behavior": "Plan authoring with no screen: plan."},
-  {"query": "Escribe el plan de implementación para migrar la base de datos a Postgres 17.", "should_trigger": false, "expected_behavior": "ES plan authoring: plan."}
+  {"query": "Escribe el plan de implementación para migrar la base de datos a Postgres 17.", "should_trigger": false, "expected_behavior": "ES plan authoring: plan."},
+  {"query": "On mobile the modes table in `.context/reports/2026-10-09-modes.html` runs off the screen. Fix it, and verify before you tell me it is fine.", "should_trigger": false, "expected_behavior": "Visual defect on a `.context/` artifact page (LOOP-012 F15): artifact owns it (its kit measures the page); ui-contract is for application screens."}
 ]
