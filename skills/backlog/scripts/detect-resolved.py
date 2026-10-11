@@ -53,16 +53,17 @@ def field(block, key):
     return m.group(1).strip() if m else ""
 
 
-def commit_exists(repos, sha):
+def commit_repo(repos, sha):
+    """The first repo holding the commit, or None."""
     for repo in repos:
         try:
             r = subprocess.run(["git", "-C", repo, "cat-file", "-e", f"{sha}^{{commit}}"],
                                capture_output=True, timeout=10)
             if r.returncode == 0:
-                return True
+                return repo
         except (OSError, subprocess.SubprocessError):
             pass
-    return False
+    return None
 
 
 def anchors_for(body, ctx, repos):
@@ -90,9 +91,14 @@ def anchors_for(body, ctx, repos):
         found = os.path.exists(full) or any(
             os.path.exists(os.path.join(r, p)) for r in repos)
         (paths if found else missing).append(p)
-    commits = [c for c in dict.fromkeys(SHA.findall(prose)) if commit_exists(repos, c)]
+    # Each verified commit keeps the repo it was found in, relative to the dir holding
+    # .context/ ("." for that dir), so a reader knows where to look (BL-766).
+    root = os.path.dirname(ctx)
+    found_in = {c: commit_repo(repos, c) for c in dict.fromkeys(SHA.findall(prose))}
+    commits = [c for c, repo in found_in.items() if repo][:6]
+    commit_repos = {c: os.path.relpath(found_in[c], root) for c in commits}
     skills = [s for s in dict.fromkeys(SKILL_RE.findall(prose)) if "-" in s]
-    return paths[:8], missing[:4], commits[:6], skills[:6]
+    return paths[:8], missing[:4], commits, commit_repos, skills[:6]
 
 
 def main():
@@ -125,11 +131,11 @@ def main():
         fm, body = split_frontmatter(text)
         if field(fm, "status") not in ("open", "doing"):
             continue
-        paths, missing, commits, skills = anchors_for(body, ctx, repos)
+        paths, missing, commits, commit_repos, skills = anchors_for(body, ctx, repos)
         rows.append({"id": field(fm, "id") or "?", "title": field(fm, "title"),
                      "file": name, "priority": field(fm, "priority"),
                      "paths": paths, "paths_not_found": missing,
-                     "commits": commits, "skills": skills,
+                     "commits": commits, "commit_repos": commit_repos, "skills": skills,
                      "checkable": bool(paths or commits)})
         if args.limit and len(rows) >= args.limit:
             break
@@ -153,7 +159,8 @@ def main():
         if r["paths"]:
             print(f"    paths:   {', '.join(r['paths'])}")
         if r["commits"]:
-            print(f"    commits: {', '.join(c[:8] for c in r['commits'])}")
+            cited = (f"{c[:8]} ({r['commit_repos'][c]})" for c in r["commits"])
+            print(f"    commits: {', '.join(cited)}")
         if r["skills"]:
             print(f"    skills:  {', '.join(r['skills'])}")
         if r["paths_not_found"]:

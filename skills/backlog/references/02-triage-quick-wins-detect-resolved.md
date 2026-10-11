@@ -19,7 +19,8 @@ backlog is well-formed and answers only about order.
 ## Running `detect-resolved`
 
 1. `python3 scripts/detect-resolved.py` — the work-list: open items, and per item the code
-   paths and commits its body cites. Items with no anchor are marked; they are not worth a
+   paths and commits its body cites, each commit with the repo it lives in (`commit_repos` in
+   `--json`, `"."` for the dir holding `.context/`). Items with no anchor are marked; they are not worth a
    subagent, because a reviewer would have nothing to open.
 2. Fan out **one `aidex:backlog-reader` (`subagent_type`) per anchored item**. Give it the item's title,
    acceptance and anchors, and ask a single question: *does the current code satisfy this?*

@@ -172,6 +172,40 @@ assert byid["BL-011"]["commits"] == [sys.argv[2]], byid["BL-011"]["commits"]
 PY
 pass "with .context/ in a non-git parent, cited commits are verified in child repos"
 
+# BL-766: with two child repos, each cited commit says which repo it lives in, in the
+# json (commit_repos, relative to the dir holding .context/) and in the text output.
+mkdir -p "$WS2/code2"; : > "$WS2/code2/w.sh"
+git -C "$WS2/code2" init -q
+git -C "$WS2/code2" -c user.name=t -c user.email=t@t add w.sh
+git -C "$WS2/code2" -c user.name=t -c user.email=t@t commit -qm init
+SHA3="$(git -C "$WS2/code2" rev-parse HEAD)"
+# and one in the dir holding .context/ itself, which must be labelled "."
+git -C "$WS2" -c user.name=t -c user.email=t@t commit -q --allow-empty -m root
+SHA4="$(git -C "$WS2" rev-parse HEAD)"
+cat > "$CTX2/backlog/2026-01-11-bl-013-b.md" <<EOF
+---
+title: "item BL-013"
+id: BL-013
+status: open
+priority: P2
+---
+
+# item BL-013
+
+Fixed in ${SHA3:0:12}, ${SHA2:0:12} and ${SHA4:0:12}.
+EOF
+OUT_R="$(python3 "$DR" "$CTX2" --json "$WS/dr5.json" 2>&1)"
+python3 - "$WS/dr5.json" "${SHA3:0:12}" "${SHA2:0:12}" "${SHA4:0:12}" <<'PY' || fail "BL-766: commit_repos does not map each SHA to its own repo"
+import json, sys
+r = {r["id"]: r for r in json.load(open(sys.argv[1]))["items"]}["BL-013"]
+assert r["commits"] == [sys.argv[2], sys.argv[3], sys.argv[4]], r["commits"]
+assert r.get("commit_repos") == {sys.argv[2]: "code2", sys.argv[3]: "code",
+                                 sys.argv[4]: "."}, r.get("commit_repos")
+PY
+grep -qF "commits: ${SHA3:0:8} (code2), ${SHA2:0:8} (code), ${SHA4:0:8} (.)" <<<"$OUT_R" \
+  || fail "BL-766: the text output does not print the repo after each SHA"
+pass "each cited commit names the repo it lives in, in json and text"
+
 # BL-738: a path cited relative to a child repo (the split workspace: items cite
 # skills/... of the nested public repo) is that repo's file, not ABSENT.
 mkdir -p "$WS2/code/skills/demo"; : > "$WS2/code/skills/demo/q.py"
