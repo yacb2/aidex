@@ -1,0 +1,158 @@
+<!-- GENERATED from backlog.spec.md by /aidex:artifact spec_build.py — DO NOT EDIT: edit the spec and rebuild -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Backlog board</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; }
+  img, svg, video, canvas { max-width: 100%; height: auto; }
+</style>
+<style>
+  :root {
+    --bg: #F7F9FA; --card: #FFFFFF; --ink: #1B2A30; --muted: #5C7078;
+    --border: #DEE7EA; --accent: #0A84A8; --unit: #0A84A8; --e2e: #C07A2B;
+    --ok: #2F7D51; --warn: #8A5A10; --warn-bg: #F6EBD9; --ok-bg: #E3F0E8;
+    --track: #EDF2F4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101619; --card: #172126; --ink: #E2EBEE; --muted: #8FA3AB;
+      --border: #24333A; --accent: #22A5C4; --unit: #22A5C4; --e2e: #C07E2F;
+      --ok: #4C9E72; --warn: #C98A3D; --warn-bg: #2E2416; --ok-bg: #16281E;
+      --track: #1F2C33;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #F7F9FA; --card: #FFFFFF; --ink: #1B2A30; --muted: #5C7078;
+    --border: #DEE7EA; --accent: #0A84A8; --unit: #0A84A8; --e2e: #C07A2B;
+    --ok: #2F7D51; --warn: #8A5A10; --warn-bg: #F6EBD9; --ok-bg: #E3F0E8;
+    --track: #EDF2F4;
+  }
+  :root[data-theme="dark"] {
+    --bg: #101619; --card: #172126; --ink: #E2EBEE; --muted: #8FA3AB;
+    --border: #24333A; --accent: #22A5C4; --unit: #22A5C4; --e2e: #C07E2F;
+    --ok: #4C9E72; --warn: #C98A3D; --warn-bg: #2E2416; --ok-bg: #16281E;
+    --track: #1F2C33;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+    margin: 0; padding: 32px 20px 48px;
+  }
+  .wrap { max-width: 1060px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px 16px; }
+  h1 { font-size: 22px; font-weight: 650; margin: 0; letter-spacing: -0.01em; }
+  .stamp {
+    font: 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--muted); border: 1px solid var(--border); border-radius: 999px;
+    padding: 5px 10px; letter-spacing: 0.04em;
+  }
+  .eyebrow {
+    font: 600 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted);
+    margin: 0 0 10px;
+  }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .tile {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 16px 12px;
+  }
+  .tile .n {
+    font-size: 30px; font-weight: 650; letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums; display: block;
+  }
+  .tile .l { font-size: 12.5px; color: var(--muted); }
+  .tile.warned .n { color: var(--warn); }
+  section.card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 18px 18px 8px;
+  }
+  .sec-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; justify-content: space-between; }
+  .sec-head input {
+    background: var(--bg); color: var(--ink); border: 1px solid var(--border);
+    border-radius: 7px; padding: 6px 10px; font: inherit; font-size: 13px; width: 200px;
+  }
+  .sec-head input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .tbl-wrap { overflow-x: auto; margin: 6px -6px 0; padding: 0 6px 10px; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 8px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  tbody tr:last-child td { border-bottom: none; }
+  th {
+    font: 600 11px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
+    text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted);
+    cursor: pointer; user-select: none; position: relative;
+  }
+  th:hover, th:focus-visible { color: var(--ink); outline: none; }
+  th .dir { font-size: 9px; margin-left: 3px; }
+  td.mod { font-weight: 600; }
+  td .sub { display: block; font-size: 11.5px; color: var(--muted); font-weight: 400; }
+  .bar {
+    display: inline-block; vertical-align: middle; height: 8px; border-radius: 4px 4px 4px 4px;
+    background: var(--track); width: 110px; margin-left: 10px; position: relative; overflow: hidden;
+  }
+  .bar i { position: absolute; inset: 0 auto 0 0; border-radius: 4px; }
+  .bar i.u { background: var(--unit); }
+  .bar i.e { background: var(--e2e); }
+  .pill {
+    display: inline-block; font-size: 11.5px; font-weight: 600; border-radius: 999px;
+    padding: 3px 10px; letter-spacing: 0.02em;
+  }
+  .pill.warn { color: var(--warn); background: var(--warn-bg); }
+  .pill.ok { color: var(--ok); background: var(--ok-bg); }
+  .pill.plain { color: var(--muted); background: var(--track); }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); padding: 10px 2px 4px; }
+  .legend b { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  .prio-rows { display: flex; flex-direction: column; gap: 10px; padding: 10px 2px 14px; }
+  .prio { display: grid; grid-template-columns: 110px 1fr 60px; align-items: center; gap: 12px; }
+  .prio .pl { font: 600 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); letter-spacing: 0.05em; }
+  .prio .pt { height: 12px; background: var(--track); border-radius: 5px; overflow: hidden; }
+  .prio .pt i { display: block; height: 100%; background: var(--accent); border-radius: 5px; }
+  .prio .pn { font-variant-numeric: tabular-nums; font-size: 13px; color: var(--ink); }
+  footer { font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--border); padding-top: 14px; }
+  footer code { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+</style>
+</head>
+<body>
+<div class="wrap"><header><h1>Backlog board</h1><span class="stamp">GENERATED 2026-10-11T08:11:05 — backlog</span></header><div class="tiles"><div class="tile"><span class="n">3</span><span class="l">active items</span></div><div class="tile warned"><span class="n">1</span><span class="l">doing</span></div><div class="tile"><span class="n">0</span><span class="l">archived</span></div><div class="tile"><span class="n">4</span><span class="l">live files parsed</span></div></div><section class="card"><div class="sec-head"><p class="eyebrow" style="margin:0">Backlog by priority (live items)</p></div><div class="prio-rows"><div class="prio"><span class="pl">P1 HIGH</span><span class="pt"><i style="width:50%"></i></span><span class="pn">1</span></div><div class="prio"><span class="pl">P2 MEDIUM</span><span class="pt"><i style="width:100%"></i></span><span class="pn">2</span></div><div class="prio"><span class="pl">P3 LOW</span><span class="pt"><i style="width:50%"></i></span><span class="pn">1</span></div></div></section><section class="card"><div class="sec-head"><p class="eyebrow" style="margin:0">Backlog items</p><input type="search" data-target="items" placeholder="Filter…" aria-label="Filter rows"></div><div class="tbl-wrap"><table id="items"><thead><tr><th data-k="0" data-t="s">ID</th><th data-k="1" data-t="s">Title</th><th data-k="2" data-t="s">Type</th><th data-k="3" data-t="s">Status</th><th data-k="4" data-t="s">Priority</th><th data-k="5" data-t="s">Estimate</th></tr></thead><tbody><tr><td class="mod">BL-001</td><td>Corregir el total del carrito</td><td><span class="pill plain">bug</span></td><td><span class="pill plain">open</span></td><td>P1</td><td>S</td></tr><tr><td class="mod">BL-002</td><td>Exportar pedidos a CSV</td><td><span class="pill plain">feature</span></td><td><span class="pill warn">doing</span></td><td>P2</td><td>M</td></tr><tr><td class="mod">BL-004</td><td>Filtro por estado</td><td><span class="pill plain">feature</span></td><td><span class="pill ok">done</span></td><td>P2</td><td>S</td></tr><tr><td class="mod">BL-003</td><td>Actualizar dependencias</td><td><span class="pill plain">chore</span></td><td><span class="pill plain">open</span></td><td>P3</td><td>S</td></tr></tbody></table></div></section><footer>This page is a <strong>render, not a source</strong>: every value above lives in <code>.context/</code> markdown/JSON (the canon). Regenerate anytime with artifact; never edit by hand. Self-contained single file &mdash; works from <code>file://</code> with no server and no external requests.</footer></div>
+<script>
+  // Row filter: each search input names its table via data-target.
+  document.querySelectorAll('input[data-target]').forEach(function (inp) {
+    inp.addEventListener('input', function () {
+      var needle = inp.value.toLowerCase();
+      var body = document.querySelector('#' + inp.dataset.target + ' tbody');
+      if (!body) return;
+      body.querySelectorAll('tr').forEach(function (tr) {
+        tr.hidden = needle && tr.textContent.toLowerCase().indexOf(needle) === -1;
+      });
+    });
+  });
+  // Tiny column sort (numeric-aware), no library needed.
+  document.querySelectorAll('th[data-k]').forEach(function (th) {
+    th.tabIndex = 0;
+    var asc = false;
+    function sortBy() {
+      var table = th.closest('table');
+      var k = +th.dataset.k, num = th.dataset.t === 'n';
+      asc = !asc;
+      table.querySelectorAll('th .dir').forEach(function (d) { d.remove(); });
+      var d = document.createElement('span'); d.className = 'dir'; d.textContent = asc ? '\u25B2' : '\u25BC';
+      th.appendChild(d);
+      var rows = Array.from(table.tBodies[0].rows);
+      rows.sort(function (a, b) {
+        var av = a.cells[k].textContent.trim(), bv = b.cells[k].textContent.trim();
+        if (num) { av = parseFloat(av.replace(/[^0-9.-]/g, '')) || 0; bv = parseFloat(bv.replace(/[^0-9.-]/g, '')) || 0; return asc ? av - bv : bv - av; }
+        return asc ? av.localeCompare(bv) : bv.localeCompare(av);
+      });
+      rows.forEach(function (r) { table.tBodies[0].appendChild(r); });
+    }
+    th.addEventListener('click', sortBy);
+    th.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); sortBy(); } });
+  });
+</script>
+</body>
+</html>
