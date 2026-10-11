@@ -25,6 +25,14 @@ the caption's neighbourhood. A rung-3 drawing is aidex:figure-sonnet's job: an `
 passes the `figure` block's rules (`03-spec-grammar.md` § The `figure` block), embedded
 with `::: figure {src="…" title="…"}`. Nobody inlines SVG in a spec.
 
+**A screenshot is cropped only when it focuses on one thing (BL-763, owner 2026-10-11).**
+
+| The shot is for | Show | If something needs attention |
+|---|---|---|
+| one field, control, component or section | the crop of that thing | the crop itself is the focus |
+| context: a whole 404, a page inside the app shell, a whole form | the full uncropped capture | outline it on the full image (`highlight` with a `.regions.json`, `04-block-vocabulary.md` § gallery rows), never crop |
+| a wide capture drawn small at 390 px (`raster-shrunk`) | the full capture in a zoomable figure | crop only if it is a single-element shot |
+
 **A consult figure that shows a structure or compares options is a `diagram`**:
 `shape=tree` for one structure, `shape=compare` for option A vs B (each panel a tree
 or a row plus its outcome line, the recommended one in `acc`). Hand SVG (rung 3) is for
