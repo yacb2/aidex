@@ -88,19 +88,19 @@ out="$(bash "$SCRIPTS/escalate-finding.sh" F-001 2>&1)"; rc=$?
 [[ "$out" == *"a11y/00-inventory.md"* && "$out" == *"ux/00-inventory.md"* ]] \
   || fail "c03: the refusal should name both inventories, got: $out"
 [[ "$out" != *"not found"* ]] || fail "c03: an ambiguous id is not a missing one, got: $out"
-row_of "$A/a11y/00-inventory.md" F-001 | grep -q '| open |' || fail "c03: refused escalation touched the a11y row"
-row_of "$A/ux/00-inventory.md" F-001 | grep -q '| open |' || fail "c03: refused escalation touched the ux row"
+row_of "$A/a11y/00-inventory.md" F-001 | grep >/dev/null '| open |' || fail "c03: refused escalation touched the a11y row"
+row_of "$A/ux/00-inventory.md" F-001 | grep >/dev/null '| open |' || fail "c03: refused escalation touched the ux row"
 [[ -z "$(ls .context/backlog/*.md 2>/dev/null | grep -v 00-index)" ]] || fail "c03: refused escalation created a backlog entry"
 out="$(bash "$SCRIPTS/escalate-finding-to-loop.sh" F-001 --loop --dry-run 2>&1)"; rc=$?
 [[ $rc -ne 0 && "$out" == *"ux/00-inventory.md"* ]] || fail "c03: --loop should refuse a bare ambiguous id too, rc $rc: $out"
 bash "$SCRIPTS/escalate-finding.sh" ux/F-001 >/dev/null 2>&1 || fail "c03: ux/F-001 should escalate"
-row_of "$A/ux/00-inventory.md" F-001 | grep -q '| done |' || fail "c03: ux/F-001 should mark the ux row done: $(row_of "$A/ux/00-inventory.md" F-001)"
-row_of "$A/a11y/00-inventory.md" F-001 | grep -q '| open |' || fail "c03: ux/F-001 must not touch the a11y row"
+row_of "$A/ux/00-inventory.md" F-001 | grep >/dev/null '| done |' || fail "c03: ux/F-001 should mark the ux row done: $(row_of "$A/ux/00-inventory.md" F-001)"
+row_of "$A/a11y/00-inventory.md" F-001 | grep >/dev/null '| open |' || fail "c03: ux/F-001 must not touch the a11y row"
 BL_FILE="$(ls .context/backlog/*.md 2>/dev/null | grep -v 00-index | sed -n 1p)"
 [[ -n "$BL_FILE" ]] && grep -q '^origin_ref: audit/ux/2026-06-01-run/F-001$' "$BL_FILE" \
   || fail "c03: backlog origin_ref should be audit/ux/2026-06-01-run/F-001, got: $(grep '^origin_ref' "$BL_FILE" 2>/dev/null)"
 bash "$SCRIPTS/escalate-finding-to-loop.sh" a11y/F-001 --loop >/dev/null 2>&1 || fail "c03: a11y/F-001 --loop should escalate"
-row_of "$A/a11y/00-inventory.md" F-001 | grep -qE '\| done \| P1 \| 2026-06-01, [0-9-]+ \| loop/' \
+row_of "$A/a11y/00-inventory.md" F-001 | grep >/dev/null -E '\| done \| P1 \| 2026-06-01, [0-9-]+ \| loop/' \
   || fail "c03: a11y/F-001 --loop should mark the a11y row: $(row_of "$A/a11y/00-inventory.md" F-001)"
 LOOP_FILE="$(ls .context/loops/*.md 2>/dev/null | grep -v STATE | sed -n 1p)"
 [[ -n "$LOOP_FILE" ]] && grep -q '^origin_ref: audit/a11y/2026-06-01-run/F-001$' "$LOOP_FILE" \
@@ -169,7 +169,7 @@ board "$A/00-inventory.md" F-001
 board "$A/INVENTORY.md" F-001
 out="$(bash "$SCRIPTS/escalate-finding.sh" F-001 2>&1)"; rc=$?
 [[ $rc -eq 0 ]] || fail "roots: F-001 on the two legacy root boards should escalate, rc $rc: $out"
-row_of "$A/00-inventory.md" F-001 | grep -q '| done |' || fail "roots: 00-inventory.md F-001 row should be done: $(row_of "$A/00-inventory.md" F-001)"
+row_of "$A/00-inventory.md" F-001 | grep >/dev/null '| done |' || fail "roots: 00-inventory.md F-001 row should be done: $(row_of "$A/00-inventory.md" F-001)"
 [[ "$(backlog_count)" == 1 ]] || fail "roots: expected exactly one backlog file, got $(backlog_count)"
 # half-migrated: the id lives only in the legacy INVENTORY.md beside a 00-inventory.md
 new_project roots-half
@@ -177,7 +177,7 @@ board "$A/00-inventory.md" F-009
 board "$A/INVENTORY.md" F-001
 out="$(bash "$SCRIPTS/escalate-finding.sh" F-001 2>&1)"; rc=$?
 [[ $rc -eq 0 ]] || fail "roots-half: F-001 only in INVENTORY.md should escalate, rc $rc: $out"
-row_of "$A/INVENTORY.md" F-001 | grep -q '| done |' || fail "roots-half: INVENTORY.md F-001 row should be done: $(row_of "$A/INVENTORY.md" F-001)"
+row_of "$A/INVENTORY.md" F-001 | grep >/dev/null '| done |' || fail "roots-half: INVENTORY.md F-001 row should be done: $(row_of "$A/INVENTORY.md" F-001)"
 [[ "$(backlog_count)" == 1 ]] || fail "roots-half: expected exactly one backlog file, got $(backlog_count)"
 new_project roots-legacy
 board "$A/INVENTORY.md" F-001
@@ -187,11 +187,17 @@ got="$( . "$SCRIPTS/_lib.sh"; find_inventory_for_id "$A" F-001 2>&1 )"
 # --- the inventory lock is a kernel lock (lock_take in conventions/_lib.sh): a killed
 # holder never blocks, a live one is waited for and never taken over. The old mkdir lock
 # took over by age and lost escalations (two waiters both removed it; a future mtime
-# deleted a live lock: wl-review-r2 B1, bkb-review-r1 F1). Its DIRECTORY, at the same
-# name with `.lock`, may be left in TMPDIR by a run of the old code; the new lock file
-# is `.flock` and must not wedge on it.
-# inv_name <tmpdir> <inventory> [digest-cmd] -> the lock name without its suffix
-inv_name() { printf '%s/aidex-inv.%s' "$1" "$(printf '%s' "$(cd "$(dirname "$2")" && pwd -P)/$(basename "$2")" | ${3:-shasum} | cut -c1-16)"; }
+# deleted a live lock: wl-review-r2 B1, bkb-review-r1 F1). Its DIRECTORY, named
+# aidex-inv.<digest>.lock directly in TMPDIR, may be left by a run of the old code, or be
+# held by one still in flight. The new lock lives in the per-user directory
+# and must neither wedge on that directory nor remove it (an old run relies on it).
+# inv_key <inventory> [digest-cmd] -> the 16-char digest of the inventory's real path
+inv_key() { printf '%s' "$(cd "$(dirname "$1")" && pwd -P)/$(basename "$1")" | ${2:-shasum} | cut -c1-16; }
+# inv_name <tmpdir> <inventory> [digest-cmd] -> the lock name without its suffix, in the
+# per-user lock directory under <tmpdir> (created 0700 here when missing, as the code does)
+inv_name() { mkdir -m 700 "$1/aidex.locks.$EUID" 2>/dev/null; printf '%s/aidex.locks.%s/aidex-inv.%s' "$1" "$EUID" "$(inv_key "$2" "${3:-}")"; }
+# old_name <tmpdir> <inventory> [digest-cmd] -> where the old mkdir lock lived, without `.lock`
+old_name() { printf '%s/aidex-inv.%s' "$1" "$(inv_key "$2" "${3:-}")"; }
 # hold <lockfile> <seconds> [log] — a perl flock holder in the background (HPID); returns
 # once it holds the lock, appends "released" to <log> as it lets go. The fifo is opened
 # first so a holder that dies early ends the read instead of hanging it.
@@ -208,11 +214,11 @@ killhold() { kill -9 "$HPID" 2>/dev/null; { wait "$HPID"; } 2>/dev/null; }
 # a killed holder and an aged old-style lock dir: ten escalations at once all land
 new_project stale
 LOCKDIR="$TMP/stale-tmp"; mkdir -p "$LOCKDIR"
-INV="$A/ux/00-inventory.md"; mkdir -p "$A/ux"; L="$(inv_name "$LOCKDIR" "$INV")"
+INV="$A/ux/00-inventory.md"; mkdir -p "$A/ux"; L="$(inv_name "$LOCKDIR" "$INV")"; O="$(old_name "$LOCKDIR" "$INV")"
 errs="$TMP/stale.err"; : > "$errs"; lost=0
 for r in 1 2 3 4 5; do
   board "$INV" F-1 F-2 F-3 F-4 F-5 F-6 F-7 F-8 F-9 F-10
-  rm -rf "$L.lock"; mkdir "$L.lock"; touch -t 202601010000 "$L.lock"
+  rm -rf "$O.lock"; mkdir "$O.lock"; touch -t 202601010000 "$O.lock"
   hold "$L.flock" 600
   for i in 1 2 3 4 5 6 7 8 9 10; do
     ( TMPDIR="$LOCKDIR"; . "$SCRIPTS/_lib.sh"; mark_row_escalated "$INV" "F-$i" "backlog/bl-$i" || echo "rc $? on F-$i" >&2 ) 2>>"$errs" &
@@ -221,29 +227,31 @@ for r in 1 2 3 4 5; do
   [[ "$(grep -c '| done |' "$INV")" == 10 ]] || lost=$((lost + 1))
 done
 [[ $lost -eq 0 ]] || fail "stale: $lost of 5 rounds lost an escalation behind a killed holder and an old lock dir"
-[[ ! -s "$errs" ]] || fail "stale: every escalation should exit 0 with no takeover, stderr: $(sort "$errs" | uniq -c | head -5)"
+[[ ! -s "$errs" ]] || fail "stale: every escalation should exit 0 with no takeover, stderr: $(sort "$errs" | uniq -c | sed -n 1,5p)"
+[[ -d "$O.lock" ]] || fail "stale: the aged old lock dir is not ours to remove"
 
 # a future-dated old-style lock dir is not a lock: it is neither waited for nor removed
 new_project future
 board "$A/ux/00-inventory.md" F-001
 LOCKDIR="$TMP/future-tmp"; mkdir -p "$LOCKDIR"; L="$(inv_name "$LOCKDIR" "$A/ux/00-inventory.md")"
-mkdir "$L.lock"; touch -t 203001010000 "$L.lock"
+O="$(old_name "$LOCKDIR" "$A/ux/00-inventory.md")"; mkdir "$O.lock"; touch -t 203001010000 "$O.lock"
 hold "$L.flock" 600; killhold
 out="$(TMPDIR="$LOCKDIR" bash "$SCRIPTS/escalate-finding.sh" F-001 2>&1)"; rc=$?
 [[ $rc -eq 0 ]] || fail "future: a killed holder should not block the escalation, rc $rc: $out"
-row_of "$A/ux/00-inventory.md" F-001 | grep -q '| done |' || fail "future: F-001 row should be done"
+row_of "$A/ux/00-inventory.md" F-001 | grep >/dev/null '| done |' || fail "future: F-001 row should be done"
 [[ "$(backlog_count)" == 1 ]] || fail "future: expected exactly one backlog file, got $(backlog_count)"
 [[ "$out" != *"taking over"* ]] || fail "future: nothing is taken over any more: $out"
+[[ -d "$O.lock" ]] || fail "future: the future-dated old lock dir is not ours to remove"
 
 # a fresh old-style lock dir (an old-code run in flight) does not hold the write up
 new_project leftover
 board "$A/ux/00-inventory.md" F-001
-LOCKDIR="$TMP/leftover-tmp"; mkdir -p "$LOCKDIR"; L="$(inv_name "$LOCKDIR" "$A/ux/00-inventory.md")"
-mkdir "$L.lock"
+LOCKDIR="$TMP/leftover-tmp"; mkdir -p "$LOCKDIR"; O="$(old_name "$LOCKDIR" "$A/ux/00-inventory.md")"
+mkdir "$O.lock"
 out="$( TMPDIR="$LOCKDIR"; . "$SCRIPTS/_lib.sh"; mark_row_escalated "$A/ux/00-inventory.md" F-001 backlog/bl-1 2>&1 )"; rc=$?
 [[ $rc -eq 0 && -z "$out" ]] || fail "leftover: an old lock dir should not affect the write, rc $rc: $out"
-row_of "$A/ux/00-inventory.md" F-001 | grep -q '| done |' || fail "leftover: F-001 row should be done"
-[[ -d "$L.lock" ]] || fail "leftover: the old lock dir is not ours to remove"
+row_of "$A/ux/00-inventory.md" F-001 | grep >/dev/null '| done |' || fail "leftover: F-001 row should be done"
+[[ -d "$O.lock" ]] || fail "leftover: the old lock dir is not ours to remove"
 
 # GNU coreutils: `stat -f` is filesystem status (prints a block, exits 1) and shasum may
 # be missing. Stubs emulate that host. The stale WINDOW lock (escalate-finding.sh, still
@@ -265,14 +273,14 @@ chmod +x "$STUB/stat" "$STUB/shasum"
 digest() { { sha256sum 2>/dev/null || cksum; } | cut -d' ' -f1; }
 LOCKDIR="$TMP/gnu-tmp"; mkdir -p "$LOCKDIR"
 L="$(inv_name "$LOCKDIR" "$A/ux/00-inventory.md" digest)"
-mkdir "$L.lock"; touch -t 202601010000 "$L.lock"
+O="$(old_name "$LOCKDIR" "$A/ux/00-inventory.md" digest)"; mkdir "$O.lock"; touch -t 202601010000 "$O.lock"
 WLOCK="$XDG_STATE_HOME/aidex/escalation-log/$(printf '%s' "$(pwd -P)" | digest).lock"
 mkdir -p "$WLOCK"; touch -t 202601010000 "$WLOCK"
 out="$(PATH="$STUB:$PATH" TMPDIR="$LOCKDIR" bash "$SCRIPTS/escalate-finding.sh" F-001 2>&1)"; rc=$?
 [[ $rc -eq 0 ]] || fail "gnu: a stale window lock under GNU stat and no shasum should be taken over, rc $rc: $out"
-row_of "$A/ux/00-inventory.md" F-001 | grep -q '| done |' || fail "gnu: F-001 row should be done"
+row_of "$A/ux/00-inventory.md" F-001 | grep >/dev/null '| done |' || fail "gnu: F-001 row should be done"
 [[ "$(backlog_count)" == 1 ]] || fail "gnu: expected exactly one backlog file, got $(backlog_count)"
-[[ -f "$L.flock" ]] || fail "gnu: the inventory lock should be named by the no-shasum digest ($L.flock): $(ls "$LOCKDIR")"
+[[ -f "$L.flock" ]] || fail "gnu: the inventory lock should be named by the no-shasum digest ($L.flock): $(ls "$(dirname "$L")")"
 
 # a LIVE holder is waited for, never taken over: the write lands after it lets go
 new_project busy
@@ -282,7 +290,7 @@ log="$TMP/busy.log"
 hold "$L.flock" 2 "$log"
 out="$( TMPDIR="$LOCKDIR"; . "$SCRIPTS/_lib.sh"; rc=0; mark_row_escalated "$A/ux/00-inventory.md" F-001 backlog/bl-1 2>&1 || rc=$?; echo written >> "$log"; exit $rc )"; rc=$?
 { wait "$HPID"; } 2>/dev/null
-[[ $rc -eq 0 ]] && row_of "$A/ux/00-inventory.md" F-001 | grep -q '| done |' || fail "busy: the row should be marked once the holder lets go, rc $rc: $out"
+[[ $rc -eq 0 ]] && row_of "$A/ux/00-inventory.md" F-001 | grep >/dev/null '| done |' || fail "busy: the row should be marked once the holder lets go, rc $rc: $out"
 [[ "$(tr '\n' ' ' < "$log")" == "released written " ]] || fail "busy: the write should land after the live holder exits, order: $(tr '\n' ' ' < "$log")"
 [[ "$out" != *"taking over"* ]] || fail "busy: a live lock must not be taken over: $out"
 # nothing in the inventory lock path removes a lock or judges one by age (T6)
@@ -309,6 +317,35 @@ chmod 755 "$A/ux"
 [[ $rc -ne 0 ]] || fail "rofail: a failed write (no temp file possible) should not exit 0: $out"
 [[ "$(cksum < "$A/ux/00-inventory.md")" == "$before" ]] || fail "rofail: the board changed"
 
+# the lock lives in a per-user directory, never the shared temp namespace (/tmp on Linux,
+# where another user could plant a symlink at a guessable name): created 0700 if missing
+new_project lockdir
+board "$A/ux/00-inventory.md" F-001
+LOCKDIR="$TMP/lockdir-tmp"; mkdir -p "$LOCKDIR"
+out="$( TMPDIR="$LOCKDIR"; . "$SCRIPTS/_lib.sh"; mark_row_escalated "$A/ux/00-inventory.md" F-001 backlog/bl-1 2>&1 )"; rc=$?
+mode="$(stat -c %a "$LOCKDIR/aidex.locks.$EUID" 2>/dev/null || stat -f %Lp "$LOCKDIR/aidex.locks.$EUID" 2>/dev/null)"
+[[ $rc -eq 0 && "$mode" == 700 ]] || fail "lockdir: the lock directory should be created 0700, rc $rc mode '$mode': $out"
+[[ -f "$(inv_name "$LOCKDIR" "$A/ux/00-inventory.md").flock" ]] || fail "lockdir: the lock file should sit in the per-user directory: $(ls -R "$LOCKDIR")"
+# a symlink planted where that directory goes is refused: rc 2, the inventory untouched
+new_project lockdir-sym
+board "$A/ux/00-inventory.md" F-001
+LOCKDIR="$TMP/lockdir-sym-tmp"; mkdir -p "$LOCKDIR" "$TMP/elsewhere"
+ln -s "$TMP/elsewhere" "$LOCKDIR/aidex.locks.$EUID"
+before="$(cksum < "$A/ux/00-inventory.md")"
+out="$( TMPDIR="$LOCKDIR"; . "$SCRIPTS/_lib.sh"; mark_row_escalated "$A/ux/00-inventory.md" F-001 backlog/bl-1 2>&1 )"; rc=$?
+[[ $rc -eq 2 && "$out" == *"$LOCKDIR/aidex.locks.$EUID"* ]] || fail "lockdir-sym: a symlinked lock directory should be refused with rc 2 naming it, rc $rc: $out"
+[[ "$(cksum < "$A/ux/00-inventory.md")" == "$before" ]] || fail "lockdir-sym: the inventory was written"
+[[ -z "$(ls "$TMP/elsewhere")" ]] || fail "lockdir-sym: a lock was created through the symlink: $(ls "$TMP/elsewhere")"
+# a regular file where that directory goes is refused by the directory check itself (not
+# later, by lock_take failing to open a path under a file): rc 2, the inventory untouched
+new_project lockdir-file
+board "$A/ux/00-inventory.md" F-001
+LOCKDIR="$TMP/lockdir-file-tmp"; mkdir -p "$LOCKDIR"; : > "$LOCKDIR/aidex.locks.$EUID"
+before="$(cksum < "$A/ux/00-inventory.md")"
+out="$( TMPDIR="$LOCKDIR"; . "$SCRIPTS/_lib.sh"; mark_row_escalated "$A/ux/00-inventory.md" F-001 backlog/bl-1 2>&1 )"; rc=$?
+[[ $rc -eq 2 && "$out" == *"lock directory"* ]] || fail "lockdir-file: a file at the lock directory should be refused by the directory check, rc $rc: $out"
+[[ "$(cksum < "$A/ux/00-inventory.md")" == "$before" ]] || fail "lockdir-file: the inventory was written"
+
 # --- the methodology part of a qualified id is a folder name, never a path ---
 new_project qual
 board "$A/00-inventory.md" F-001
@@ -332,4 +369,4 @@ got="$( . "$SCRIPTS/_lib.sh"; find_inventory_for_id "$A" F-001 2>&1 )"
 [[ "$got" == "$A/ux/00-inventory.md" ]] || fail "literal: _archive/methodology/_deferred boards must be skipped, got: $got"
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
-echo "OK — canon markers, methodology-scoped origin_ref, loop back-link, base vocab + ISO, qualified ids, escaped pipes, whole-token runs, concurrent marks"
+echo "OK — canon markers, methodology-scoped origin_ref, loop back-link, base vocab + ISO, qualified ids, escaped pipes, whole-token runs, concurrent marks, per-user 0700 lock dir, symlinked lock dir refused"

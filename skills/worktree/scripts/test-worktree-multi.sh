@@ -262,7 +262,7 @@ git -C "$PN" -c user.email=t@t -c user.name=t commit -q --allow-empty -m n0
 git -C "$PN" checkout -q -b feature-z
 mkdir -p "$PN/.context/worktrees"; echo 'WT_PARTICIPANTS="."' > "$PN/.context/worktrees/config.env"
 out="$( cd "$PN" && bash "$WT_SH" new c22b --branch bc22b --no-infra 2>&1 )" || fail "c22: no-default new failed -- $out"
-grep '^base ' <<<"$out" | grep -q 'feature-z (current checkout' \
+grep '^base ' <<<"$out" | grep >/dev/null 'feature-z (current checkout' \
   || fail "c22: with no default branch the base line must say it is the current checkout -- $out"
 
 # F3: --base is validated in EVERY participant before anything is created.

@@ -463,8 +463,8 @@ path_digest() { { shasum 2>/dev/null || sha256sum 2>/dev/null || cksum; } | cut 
 # long it runs. Nothing is ever removed: deleting a flock file reopens an inode race, so
 # the file stays (local filesystem only; flock is unreliable on NFS).
 # Returns 0 held; 75 when <wait-seconds> pass with the lock still taken; 2 on a bad wait
-# or fd, no perl, an unopenable file, or an fd this shell already locks with; each
-# failure prints one line naming <lockfile>.
+# or fd, no perl, a lock path that is a symlink, an unopenable file, or an fd this shell
+# already locks with; each failure prints one line naming <lockfile>.
 # Children inherit the fd: one still running (a hung `docker ps`, a background job) keeps
 # the lock after the shell drops it or dies; start such a child with `9>&-`. Nested locks
 # need distinct fds. fds above 9 are refused: bash 3.2 does not replace an open fd above 9
@@ -506,6 +506,9 @@ lock_take() {
     return 0
   fi
   [[ "${!rec:-}" != "$BASH_SUBSHELL "* ]] || { err "error: fd $fd already holds a lock in this shell; take $lock on another fd"; return 2; }
+  # a symlink is refused, not followed (a shared temp dir lets another user plant one);
+  # bash has no O_NOFOLLOW, so callers also keep their locks in a private directory
+  [[ ! -L "$lock" ]] || { err "error: the lock file $lock is a symlink; refusing to follow it, nothing written"; return 2; }
   eval "exec $fd>>\"\$lock\"" 2>/dev/null || { err "error: cannot open the lock file $lock; nothing written"; return 2; }
   perl -MFcntl=:flock -e 'open(my $h, ">&=", shift) or exit 2; $SIG{ALRM} = sub { exit 75 };
     alarm shift; exit(flock($h, LOCK_EX) ? 0 : 2)' "$fd" "$wait" || rc=$?

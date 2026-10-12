@@ -4,9 +4,9 @@
 # waiters behind a killed holder both removed the lock; a future mtime deleted a live one).
 # Layer: unit, real processes (the property is what concurrent processes see; no repo).
 # Rows: T1 killed holder, T2 no takeover, T3 serialisation, T4 long live hold, T5 timeout,
-# T6 no removal code, T7 bad wait, no perl, re-entrancy, section take/drop with nested fds,
-# a killed bash holder. The leftover old-style lock directory row lives in
-# audit/tests/test-escalation.sh, where that name is chosen.
+# T6 no removal code, T7 bad wait, no perl, a symlinked lock path refused, re-entrancy,
+# section take/drop with nested fds, a killed bash holder. The leftover old-style lock
+# directory row lives in audit/tests/test-escalation.sh, where that name is chosen.
 #
 # Run with: bash skills/conventions/scripts/test-lock-run.sh  (about 25 s: T4 holds 12 s)
 set -uo pipefail
@@ -66,7 +66,7 @@ for r in 1 2 3 4 5 6 7 8 9 10; do
   [[ "$(grep -c '^row' "$D")" == 10 && "$(sed -n 1p "$D")" == head ]] || t1=$((t1 + 1))
 done
 [[ $t1 -eq 0 ]] || fail "T1: $t1 of 10 rounds lost a row behind a killed holder"
-[[ ! -s "$E" ]] || fail "T2: every waiter should exit 0 with no takeover, stderr: $(sort "$E" | uniq -c | head -5)"
+[[ ! -s "$E" ]] || fail "T2: every waiter should exit 0 with no takeover, stderr: $(sort "$E" | uniq -c | sed -n 1,5p)"
 
 # T3: ten writers that sleep between their read and their write saw 0..9 lines
 : > "$D"; S="$TMP/seen"; : > "$S"
@@ -113,6 +113,15 @@ mkdir -p "$TMP/noperl"
 out="$(PATH="$TMP/noperl" "$BASH" "$W" "$L" 5 "$D" x 2>&1)"; rc=$?
 [[ $rc -eq 2 && "$out" == *"perl is required"* && "$out" == *"$L"* ]] || fail "no perl: should refuse with rc 2, rc $rc: $out"
 [[ "$(cksum < "$D")" == "$before" ]] || fail "no perl: wrote without a lock"
+
+# a symlink at the lock path is refused, not followed: in a shared temp dir another user
+# can plant one, and `exec N>>` would create (or open) its target. "Not opened" is not
+# observable here; "not created" is.
+ln -s "$TMP/absent" "$TMP/sym.lock"
+out="$(bash "$W" "$TMP/sym.lock" 5 "$D" x 2>&1)"; rc=$?
+[[ $rc -eq 2 && "$out" == *"$TMP/sym.lock"*"symlink"* ]] || fail "symlink: a lock path that is a symlink should be refused with rc 2, rc $rc: $out"
+[[ ! -e "$TMP/absent" ]] || fail "symlink: the symlink's target was created"
+[[ "$(cksum < "$D")" == "$before" ]] || fail "symlink: wrote without a lock"
 
 # re-entrancy, shape (a): a script holding the lock runs a child that asks for the same
 # file (spelled another way) and gets it at once; a DIFFERENT lock is still waited for
@@ -202,4 +211,4 @@ killhold
 [[ "$got" == "child:75" ]] || fail "marker without fd: the child should wait for the other run's lock, got: $got"
 
 if [[ $failures -gt 0 ]]; then printf '%d failure(s)\n' "$failures"; exit 1; fi
-echo "OK — lock_take: killed holder x10 (10 waiters), no takeover, serialised 0..9, 12 s live hold waited out, timeout 75, no removal code, bad wait, no perl, re-entrant per lock, section drop + nested fds + balanced re-entry + cross-fd refused, killed bash holder, marker checked against the fd"
+echo "OK — lock_take: killed holder x10 (10 waiters), no takeover, serialised 0..9, 12 s live hold waited out, timeout 75, no removal code, bad wait, no perl, symlink refused, re-entrant per lock, section drop + nested fds + balanced re-entry + cross-fd refused, killed bash holder, marker checked against the fd"

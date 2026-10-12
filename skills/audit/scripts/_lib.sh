@@ -221,12 +221,18 @@ extract_finding_row() {
 # never rewritten.
 # Usage: mark_row_escalated <inventory> <finding_id> <ref>
 mark_row_escalated() {
-  local inventory="$1" finding_id="$2" link="$3" tmp="" lock rc=0
+  local inventory="$1" finding_id="$2" link="$3" tmp="" lock lock_dir rc=0
   # Two escalations on one inventory (separate sessions, or a backlog and a loop
   # escalation) each read-modify-write the whole file: serialise them under a kernel
   # lock (lock_take) kept outside .context, keyed by the inventory's real path. The
   # `.flock` name never meets the `.lock` DIRECTORY the old mkdir lock may have left.
-  lock="${TMPDIR:-/tmp}/aidex-inv.$(printf '%s' "$(cd "$(dirname "$inventory")" && pwd -P)/$(basename "$inventory")" | path_digest | cut -c1-16).flock"
+  # The lock sits in a per-user 0700 directory, never the shared temp namespace (/tmp on
+  # Linux), where another user could plant a symlink at the lock's guessable name.
+  lock_dir="${TMPDIR:-/tmp}/aidex.locks.$EUID"
+  mkdir -m 700 "$lock_dir" 2>/dev/null || :   # an existing path (or symlink) stays as it is
+  [[ -d "$lock_dir" && ! -L "$lock_dir" && -O "$lock_dir" ]] \
+    || { err "error: the lock directory $lock_dir is a symlink, not a directory or not yours; nothing written"; return 2; }
+  lock="$lock_dir/aidex-inv.$(printf '%s' "$(cd "$(dirname "$inventory")" && pwd -P)/$(basename "$inventory")" | path_digest | cut -c1-16).flock"
   # A subshell: the lock goes as it ends.
   (
   lock_take "$lock" 10 || { err "error: could not lock $inventory; nothing written"; exit 2; }
