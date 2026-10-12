@@ -50,9 +50,29 @@ check "…and writes no 00-index.md" '[[ ! -f .context/audits/00-index.md ]]'
 
 echo "== renumbered =="
 inventory USAGE-20
-check "validate-audit.sh reports no duplicate once renumbered" '! bash "$VALIDATE" .context/audits 2>&1 | grep >/dev/null audit-duplicate-id'
+out="$(bash "$VALIDATE" .context/audits 2>&1)"
+check "validate-audit.sh reports no duplicate once renumbered" '[[ "$out" == *"Audit validation"* && "$out" != *audit-duplicate-id* ]]'
 check "reindex-audits.sh regenerates" 'bash "$REINDEX" >/dev/null 2>&1 && [[ -f .context/audits/00-index.md ]]'
 check "…counting one finding per run" 'grep -q "1 open / 1 findings" .context/audits/00-index.md'
+
+echo "== same id in two methodologies =="
+# Ids are scoped to a methodology (audit-conventions.md § ID conventions): F-001
+# in ux/ and F-001 in security/ are two findings, and the global F-NNN default
+# makes that collision the ordinary case, not a duplicate.
+for m in security ux; do
+  mkdir -p "$TMP/xm/.context/audits/$m"
+  printf '# %s\n' "$m" > "$TMP/xm/.context/audits/$m/00-methodology.md"
+  printf '# %s\n' "$m" > "$TMP/xm/.context/audits/$m/00-changelog.md"
+  cat > "$TMP/xm/.context/audits/$m/00-inventory.md" <<'EOR'
+| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |
+|---|---|---|---|---|---|---|---|---|
+| F-001 | gap | core | a finding | open | P2 | — | — | n |
+EOR
+done
+# Output captured first: under pipefail, `! validate | grep` is true whenever
+# validate exits 1, which is exactly what a duplicate makes it do.
+out="$(bash "$VALIDATE" "$TMP/xm/.context/audits" 2>&1)"
+check "validate-audit.sh reports no duplicate for one id in two methodologies" '[[ "$out" == *"methodologies: 2"* && "$out" != *audit-duplicate-id* ]]'
 
 echo "passed=$pass failed=$fail"
 [[ $fail -eq 0 ]]
