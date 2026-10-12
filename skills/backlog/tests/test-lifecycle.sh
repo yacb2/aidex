@@ -104,7 +104,10 @@ check "index has Closed section" 'grep -q "## Closed" .context/backlog/00-index.
 check "closed item appears with id" 'grep -q "BL-001" .context/backlog/00-index.md'
 
 echo "== sweep =="
-LEGACY="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "legacy done" --priority P3 --status done 2>/dev/null)"
+# A legacy done item lingering in the active root: registration archives a done item
+# itself now (backlog-c25), so the fixture is an open item hand-edited to done.
+LEGACY="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "legacy done" --priority P3 2>/dev/null)"
+sed -i.bak 's/^status: open$/status: done/' "$LEGACY" && rm -f "$LEGACY.bak"
 SWEEP_DRY="$(bash "$SCRIPTS/sweep.sh" 2>&1 || true)"
 check "dry-run finds the done item" '[[ "$SWEEP_DRY" == *"would archive"* ]]'
 bash "$SCRIPTS/sweep.sh" --apply >/dev/null 2>&1
@@ -118,7 +121,8 @@ check "sweep idempotent" '[[ "$SWEEP_AGAIN" == *"clean"* ]]'
 # validate.py's crossref_target_exists searches _archive/ too, so the stranded
 # page's anchor still resolves and artifact-anchor-target-missing never fires.
 # The user counted leftover pages by hand on 2026-08-24, -25 and -29.
-COMP="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "has a page" --priority P3 --status done 2>/dev/null)"
+COMP="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "has a page" --priority P3 2>/dev/null)"
+sed -i.bak 's/^status: open$/status: done/' "$COMP" && rm -f "$COMP.bak"
 printf '<meta name="artifact-anchor" content="backlog/%s">\n' "$(basename "$COMP")" \
   > ".context/backlog/$(basename "$COMP" .md)-report.html"
 bash "$SCRIPTS/sweep.sh" --apply >/dev/null 2>&1

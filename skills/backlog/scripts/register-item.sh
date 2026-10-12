@@ -276,6 +276,20 @@ release_backlog_claim() {
   return 0
 }
 
+# Serialise this script's read-modify-writes of one backlog: the escalated_to stamp
+# (parallel --escalate-to runs against one --source-id lost links and truncated the
+# source through a shared fixed temp path) and the index rebuild (a scan taken before
+# a concurrent registration wrote over the index that already listed it). The lock file
+# lives in the ledger directory: machine-local, self-ignoring, shared by every worktree
+# of the repo. Prints its path; take it with lock_take (_lib.sh), never by its age.
+backlog_lock_file() {
+  local claims
+  claims="$(backlog_claims_dir "$1")"
+  mkdir -p "$claims" || return 2
+  [[ -f "$claims/.gitignore" ]] || printf '*\n' > "$claims/.gitignore"
+  printf '%s' "$claims/.flock"
+}
+
 # Emit every assigned id VERBATIM as "<raw-id><TAB><path>", one per line. Unlike
 # scan_backlog_ids (which strips to the numeric part for max/next), this keeps the
 # id exactly as written so the shape can be checked.
@@ -342,8 +356,11 @@ resolve_source_by_id() {
 # front-matter parser — reads one line as one string; validate.py splits on the comma and
 # judges each element.
 stamp_escalated_to() {
-  local f="$1" ref="$2" today prev merged
+  local f="$1" ref="$2" today prev merged tmp lock rc=0
   today="$(date +%Y-%m-%d)"
+  # The read below and the rename at the end are one critical section: a `prev` read
+  # outside the lock still loses a concurrent run's link.
+  lock="$(backlog_lock_file "$BACKLOG_DIR")" && lock_take "$lock" 10 || die "could not stamp $f: the backlog is locked"
   # Inline, not read_field: that helper is defined INSIDE the --list block (line ~859)
   # and does not exist here.
   prev="$(awk 'BEGIN{d=0} /^---[[:space:]]*$/{d++; if(d==2) exit; next} d==1 && index($0,"escalated_to:")==1 {sub(/^[^:]*:[[:space:]]*/,""); gsub(/^\"|\"$/,""); print; exit}' "$f")"
@@ -351,7 +368,8 @@ stamp_escalated_to() {
   # <repo>/<id> pair cannot be produced twice by this flow. A guard for it would be
   # untestable code standing in for a case that cannot happen.
   merged="${prev:+$prev, }$ref"
-  awk -v ref="$merged" -v today="$today" '
+  # A private temp file beside the item (atomic rename) that takes its mode (cp -p).
+  tmp="$(mktemp "$(dirname "$f")/.$(basename "$f").XXXXXX")" && cp -p "$f" "$tmp" && awk -v ref="$merged" -v today="$today" '
     BEGIN { d=0; seen=0 }
     /^---[[:space:]]*$/ {
       d++
@@ -361,9 +379,10 @@ stamp_escalated_to() {
     d==1 && /^escalated_to:/ { print "escalated_to: \"" ref "\""; seen=1; next }
     d==1 && /^updated:/      { print "updated: " today; next }
     { print }
-  ' "$f" > "$f.tmp" || die "could not rewrite $f"
-  [[ -s "$f.tmp" ]] || die "stamping $f produced an empty file"
-  mv "$f.tmp" "$f"
+  ' "$f" > "$tmp" && [[ -s "$tmp" ]] && mv -f "$tmp" "$f" || rc=$?
+  [[ $rc -eq 0 ]] || rm -f "${tmp:-}"
+  lock_drop
+  [[ $rc -eq 0 ]] || die "could not rewrite $f"
 }
 
 # The ONE entry template. Both writers render through this: they were hand-maintained
@@ -598,9 +617,22 @@ ROOT="$(find_project_root)"
 BACKLOG_DIR="$ROOT/.context/backlog"
 
 # --- regen_index: rebuild 00-index.md from front-matter (canon §"00-index.md") ---
+# The scan and the write are one critical section under the backlog lock. Without it
+# a rebuild whose scan predates a concurrent registration wrote LAST and dropped that
+# registration's row; a temp-and-rename alone would not help, the stale scan still wins.
 regen_index() {
-  local dir="$1"
+  local dir="$1" lock rc=0
   [[ -d "$dir" ]] || { warn "no backlog directory at $dir"; return 0; }
+  lock="$(backlog_lock_file "$dir")" && lock_take "$lock" 10 || return 2
+  write_index "$dir" || rc=$?
+  lock_drop
+  [[ $rc -eq 0 ]] || return $rc
+  # Last statement: its status becomes regen_index's, so callers can act on it.
+  report_duplicate_ids "$dir"
+}
+
+write_index() {
+  local dir="$1"
 
   local index_file="$dir/00-index.md"
   local today; today="$(date +%Y-%m-%d)"
@@ -820,9 +852,6 @@ regen_index() {
   } > "$index_file"
 
   ok "Regenerated $index_file"
-
-  # Last statement: its status becomes regen_index's, so callers can act on it.
-  report_duplicate_ids "$dir"
 }
 
 # --- handle --check-ids (the reindex id guard, without writing the index) ---
@@ -1185,7 +1214,10 @@ if [[ -n "$ESCALATE_TO" ]]; then
     fi
     ok "Stamped source $SOURCE_ID → escalated_to: $TGT_NAME/$TARGET_ID"
   else
-    if ! SRC_FILE="$(emit_backlog_stub "$BACKLOG_DIR" "$SRC_ID" "$TITLE" "$ORIGIN" "$ORIGIN_REF" \
+    # A done or dropped source stub is closed on arrival: _archive/, like a plain one.
+    SRC_DIR="$BACKLOG_DIR"
+    case "$STATUS" in done|dropped) SRC_DIR="$BACKLOG_DIR/_archive" ;; esac
+    if ! SRC_FILE="$(emit_backlog_stub "$SRC_DIR" "$SRC_ID" "$TITLE" "$ORIGIN" "$ORIGIN_REF" \
       "$PRIORITY" "$TYPE" "$TGT_NAME/$TARGET_ID" \
       "Escalated to $TGT_NAME — work is tracked at $TGT_NAME/$TARGET_ID." \
       "$ESTIMATE" "$STATUS" "$BLOCKED_BY" "$SURFACE" "$VERIFY")"; then
@@ -1198,9 +1230,12 @@ if [[ -n "$ESCALATE_TO" ]]; then
   fi
   printf '  %s\n' "$SRC_FILE" >&2
 
-  # Regenerate both indexes; a pre-existing dup/nonconforming id must not abort.
-  regen_index "$BACKLOG_DIR" >/dev/null 2>&1 || true
-  regen_index "$TARGET_BACKLOG" >/dev/null 2>&1 || true
+  # Regenerate both indexes; a pre-existing dup/nonconforming id (rc 1) must not abort
+  # and stays quiet. A lock that could not be taken (rc 2) left an index stale: say so.
+  for IDX_DIR in "$BACKLOG_DIR" "$TARGET_BACKLOG"; do
+    IDX_RC=0; IDX_ERR="$(regen_index "$IDX_DIR" 2>&1 >/dev/null)" || IDX_RC=$?
+    [[ $IDX_RC -ne 2 ]] || { printf '%s\n' "$IDX_ERR" >&2; warn "warning: $IDX_DIR/00-index.md was not rebuilt — run register-item.sh --reindex in that project"; }
+  done
 
   printf '%s\n' "$SRC_FILE"
   printf '%s\n' "$TGT_FILE"
@@ -1233,10 +1268,17 @@ DATE_ISO="$(date +%Y-%m-%d)"
 # --- claim a stable short id (BL-NNN) for commit-trailer references (D-09) ---
 # Minted before the filename because the name carries it, and CLAIMED rather than
 # merely read: uniqueness "by construction" held only for one session at a time
-# (BL-235). The claim is released once the entry file exists.
+# (BL-235). The claim is KEPT after the entry is written, never released on success:
+# the entry may live on a branch the main tree cannot read, so the marker is the only
+# shared record that the number is spent, and releasing it would let a sibling
+# worktree mint the same id again (BL-239). Only a failed write gives it back.
 claim_backlog_id "$BACKLOG_DIR"
 ITEM_ID="$CLAIMED_ID"
-OUT_FILE="$BACKLOG_DIR/$DATE_ISO-$(printf '%s' "$ITEM_ID" | tr 'A-Z' 'a-z')-$SLUG.md"
+# A done or dropped item is closed on arrival, and closed items live in _archive/
+# (D-10): in the active root the index skips it and its Closed section never sees it.
+ITEM_DIR="$BACKLOG_DIR"
+case "$STATUS" in done|dropped) ITEM_DIR="$BACKLOG_DIR/_archive"; mkdir -p "$ITEM_DIR" ;; esac
+OUT_FILE="$ITEM_DIR/$DATE_ISO-$(printf '%s' "$ITEM_ID" | tr 'A-Z' 'a-z')-$SLUG.md"
 
 # --- audit provenance, appended under ## Notes ---
 NOTES_BLOCK=""
@@ -1277,11 +1319,13 @@ fi
 # --origin sweep --worklist: append the item to the run's queue (class b, emergent). The
 # report reads only the queue, so an item that was registered but never appended was
 # invisible to it — counted as 0 emergent and missing from the closed list (BL-479).
-# Only an ACTIVE work-list is appended to; stdout stays the entry path alone.
+# Only an ACTIVE work-list is appended to; stdout stays the entry path alone. The title
+# is flattened like body_title: a raw newline split the queue line in two, and in sweep
+# mode it broke the append's awk so the item never reached the queue.
 if [[ "$ORIGIN" == "sweep" && -n "$WORKLIST" ]]; then
   if [[ -f "$ROOT/.context/worklists/$WL_FILE" ]]; then
     bash "$REG_DIR/../../conventions/scripts/worklist-advance.sh" "$ROOT/.context/worklists/$WL_FILE" \
-      --append "backlog:$ITEM_ID — $TITLE" >/dev/null \
+      --append "backlog:$ITEM_ID — $(printf '%s' "$TITLE" | tr '\n\r\t' '   ')" >/dev/null \
       || warn "warning: $ITEM_ID was registered but NOT appended to worklist/$WL_FILE — append it with worklist-advance.sh --append"
   else
     warn "warning: worklist/$WL_FILE is not an active work-list — $ITEM_ID was not appended to any queue"
@@ -1297,7 +1341,9 @@ print_define_verdict "$ITEM_ID" "$OUT_FILE"
 if [[ $NO_INDEX -eq 0 ]]; then
   # A pre-existing duplicate must not fail a registration — the entry is already
   # written, and aborting here would only lose the caller's path on stdout.
-  regen_index "$BACKLOG_DIR" || true
+  # A lock that could not be taken (rc 2) left the index stale: say so.
+  IDX_RC=0; regen_index "$BACKLOG_DIR" || IDX_RC=$?
+  [[ $IDX_RC -ne 2 ]] || warn "warning: $BACKLOG_DIR/00-index.md was not rebuilt — run register-item.sh --reindex"
 fi
 
 # Emit the path to stdout so callers (like /aidex:audit escalate) can capture it
