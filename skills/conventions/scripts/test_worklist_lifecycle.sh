@@ -114,4 +114,28 @@ assert "advance: an exact stem wins over a longer name containing it" \
   "[[ $rc -eq 0 && \$(grep -cE '^1\. \[x\] ' '$f7a') -eq 1 && \"\$(cat '$f7b')\" == \"\$before7b\" ]]"
 rm -f "$f7a" "$f7b"
 
+# c05: advance and close stamp `updated`/`status` in the front matter only; a whole-file
+# sed rewrote the same keys in the body (a quoted yaml example, prose at line start).
+# The front matter is backdated first, or worklist-new's own `updated: <today>` makes a
+# stamp that never ran indistinguishable from one that did.
+fmval()    { awk -v k="$1:" 'NR>1 && /^---[[:space:]]*$/{exit} $1==k {sub(/^[^:]*:[[:space:]]*/, ""); print}' "$2"; }
+backdate() { awk 'NR>1 && /^---[[:space:]]*$/{d=1} !d && /^updated:/{$0="updated: 2020-01-01"} {print}' "$1" > "$1.tmp" && mv "$1.tmp" "$1"; }
+fence()    { sed -n '/^```yaml$/,/^```$/p' "$1"; }
+fence_want=$'```yaml\nstatus: doing\nupdated: 2019-01-01\n```'
+slug8="body-keys-$$"
+f8="$(bash "$DIR/worklist-new.sh" --title "Body keys $$" --slug "$slug8" --ref "inline:x" --ref "inline:y" --publish ask)"
+printf '\n```yaml\nstatus: doing\nupdated: 2019-01-01\n```\n' >> "$f8"
+backdate "$f8"
+rc8=0; bash "$DIR/worklist-advance.sh" "$f8" >/dev/null 2>&1 || rc8=$?
+up8="$(fmval updated "$f8")"; fence8="$(fence "$f8")"
+assert "advance: rc 0, front-matter updated stamped today, body untouched" \
+  "[[ $rc8 -eq 0 && '$up8' == '$(date +%F)' && \"\$fence8\" == \"\$fence_want\" ]]"
+backdate "$f8"
+rc8=0; out8="$(bash "$DIR/worklist-close.sh" "$f8" 2>/dev/null)" || rc8=$?
+a8="${out8#CLOSED }"
+st8="$(fmval status "$a8" 2>/dev/null)"; up8="$(fmval updated "$a8" 2>/dev/null)"; fence8="$(fence "$a8" 2>/dev/null)"
+assert "close: rc 0, front matter status done + updated today, body untouched" \
+  "[[ $rc8 -eq 0 && '$st8' == done && '$up8' == '$(date +%F)' && \"\$fence8\" == \"\$fence_want\" ]]"
+rm -f "$f8" "$a8"
+
 if [[ "$fail" -eq 0 ]]; then echo "all worklist lifecycle assertions passed"; else echo "lifecycle FAILED"; exit 1; fi

@@ -54,6 +54,8 @@ file="$(resolve_worklist "$WL_DIR" "$arg")"
 # or a symlinked dir reaches an archived list with no literal `_archive/` in it (BL-591)
 [[ "$(CDPATH= cd -P "$(dirname "$file")" >/dev/null 2>&1 && pwd -P)" == "$(CDPATH= cd -P "$WL_DIR/_archive" >/dev/null 2>&1 && pwd -P)" ]] \
   && { echo "worklist already archived: $file" >&2; exit 2; }
+# no front matter: refused here, before the append, the tick or the stamp below writes anything
+has_front_matter "$file" || { echo "no front matter in $file" >&2; exit 2; }
 today="$(date +%F)"
 # quotes allowed: validate-worklist.py strips them, so `mode: "sweep"` validates and
 # must mean sweep here too, or the queue silently advances past unproven work
@@ -102,7 +104,7 @@ if [[ -n "$append" ]]; then
   else
     printf -- '- [ ] %s   <!-- ref: %s -->\n' "$label" "$kind" >> "$file"
   fi
-  sed -i.bak -E "s/^updated: .*/updated: $today/" "$file" && rm -f "$file.bak"
+  set_front_matter "$file" "updated=$today" || { echo "no front matter in $file" >&2; exit 2; }
 fi
 
 # complete the first unchecked numbered queue item — only on a plain advance
@@ -145,7 +147,7 @@ if [[ "$peek" -eq 0 && -z "$append" ]]; then
       esac
     fi
     sed -i.bak "${head_line}s/\[ \]/[x]/" "$file" && rm -f "$file.bak"
-    sed -i.bak -E "s/^updated: .*/updated: $today/" "$file" && rm -f "$file.bak"
+    set_front_matter "$file" "updated=$today" || { echo "no front matter in $file" >&2; exit 2; }
   fi
 fi
 

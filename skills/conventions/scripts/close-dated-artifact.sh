@@ -62,7 +62,9 @@ elif [[ -f "$DIR/$ARG" ]]; then
   file="$DIR/$ARG"
 else
   # resolve_worklist (in _lib.sh): an exact stem wins, an ambiguous fragment exits 2 (BL-541).
-  file="$(resolve_worklist "$DIR" "$ARG")"  # the resolver strips .md itself (`.md` alone stays a literal fragment)
+  # --keep-reports: the -report filter is for work-list sweep reports, and a request or ADR
+  # slug may itself end in -report.
+  file="$(resolve_worklist --keep-reports "$DIR" "$ARG")"  # the resolver strips .md itself (`.md` alone stays a literal fragment)
 fi
 [[ -n "${file:-}" && -f "$file" ]] || die "$TYPE artifact not found: $ARG"
 case "$file" in */_archive/*) die "already archived: $file" ;; esac
@@ -74,24 +76,14 @@ case "$file" in */_archive/*) die "already archived: $file" ;; esac
 [[ "$(CDPATH= cd -P "$(dirname "$file")" >/dev/null && pwd -P)" == "$(cd "$DIR" >/dev/null && pwd -P)" ]] \
   || die "not a $TYPE artifact (outside $DIR): $file"
 
-today="$(today_iso)"
-sed -i.bak -E "s|^status: .*|status: $STATUS|" "$file" && rm -f "$file.bak"
-sed -i.bak -E "s|^updated: .*|updated: $today|" "$file" && rm -f "$file.bak"
-if [[ -n "$SUPERSEDED_BY" ]]; then
-  if grep -q "^superseded_by:" "$file"; then
-    sed -i.bak -E "s|^superseded_by: .*|superseded_by: $SUPERSEDED_BY|" "$file" && rm -f "$file.bak"
-  else
-    # insert before the closing front-matter delimiter (second ---)
-    awk -v val="$SUPERSEDED_BY" '
-      /^---[[:space:]]*$/ { c++; if (c == 2) print "superseded_by: " val }
-      { print }
-    ' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
-  fi
-fi
-
-mkdir -p "$DIR/_archive"
+# Every refusal before any write: a collision found after the rewrite left a closed-status
+# artifact in the active folder.
 dest="$DIR/_archive/$(basename "$file")"
 [[ -e "$dest" ]] && die "archive collision: $dest already exists"
+fm=("status=$STATUS" "updated=$(today_iso)")
+[[ -z "$SUPERSEDED_BY" ]] || fm+=("superseded_by=$SUPERSEDED_BY")
+set_front_matter "$file" "${fm[@]}" || die "no front matter in $file: nothing changed"
+mkdir -p "$DIR/_archive"
 mv "$file" "$dest"
 ok "closed $TYPE/$(basename "$file") -> _archive/ (status: $STATUS)"
 # `requests`/`decisions` -> the singular cross-ref prefix the anchor is written with.

@@ -141,8 +141,10 @@ render_template() {
   [[ -f "$template" ]] || die "template not found: $template"
   [[ -e "$out" ]] && die "refusing to overwrite existing file: $out"
 
+  # The trailing `x` keeps `$(...)` from eating the template's final newline(s); it
+  # survives the sed loop below (no `}}` follows it) and is dropped on write.
   local content
-  content="$(cat "$template")"
+  content="$(cat "$template"; printf x)"
 
   local kv key val
   for kv in "$@"; do
@@ -155,7 +157,46 @@ render_template() {
     content="$(printf '%s' "$content" | sed "s|{{$key}}|$val|g")"
   done
 
-  printf '%s' "$content" > "$out"
+  printf '%s' "${content%x}" > "$out"
+}
+
+# has_front_matter <file> — 0 when line 1 is `---` and a closing `---` follows; the
+# definition set_front_matter scopes to. Callers that write before stamping check first.
+has_front_matter() {
+  awk 'NR == 1 && !/^---[[:space:]]*$/ { exit } NR > 1 && /^---[[:space:]]*$/ { f = 1; exit } END { exit !f }' "$1"
+}
+
+# set_front_matter <file> KEY=VALUE ... — set each KEY inside the YAML front matter only
+# (line 1 `---` to the next `---`), the value written literally; a KEY the front matter
+# lacks is inserted before its closing delimiter. A file with no front matter returns 1
+# and is left untouched. Values travel through ENVIRON: `awk -v` and sed would both
+# reinterpret `\`, `&` or `|` in them.
+set_front_matter() {
+  local file="$1"; shift
+  local kv i=0 envs=()
+  for kv in "$@"; do
+    envs+=("FM_K$i=${kv%%=*}" "FM_V$i=${kv#*=}"); i=$((i + 1))
+  done
+  env "${envs[@]}" FM_N="$i" awk '
+    BEGIN { n = ENVIRON["FM_N"]; for (i = 0; i < n; i++) { k[i] = ENVIRON["FM_K" i]; v[i] = ENVIRON["FM_V" i] } }
+    NR == 1 { if ($0 !~ /^---[[:space:]]*$/) exit 3; fm = 1; print; next }
+    fm && /^---[[:space:]]*$/ {
+      for (i = 0; i < n; i++) if (!seen[i]) print k[i] ": " v[i]
+      fm = 0; closed = 1; print; next
+    }
+    fm {
+      for (i = 0; i < n; i++) {
+        l = length(k[i]) + 1
+        if (substr($0, 1, l) == k[i] ":" && (length($0) == l || substr($0, l + 1, 1) ~ /[[:space:]]/)) {
+          print k[i] ": " v[i]; seen[i] = 1; next
+        }
+      }
+    }
+    { print }
+    END { if (!closed) exit 3 }
+  ' "$file" > "$file.tmp" || { rm -f "$file.tmp"; return 1; }
+  # copied back, not moved: the file keeps its own mode (a tmp gets the umask's)
+  cat "$file.tmp" > "$file" && rm -f "$file.tmp"
 }
 
 # kebab-case validator
@@ -290,15 +331,17 @@ archive_companions() {
   return 0
 }
 
-# resolve_worklist [--with-archive] <dir> <slug-or-path> — print the one work-list a slug names.
-# Skips -report(.spec).md companions (they sort before `<wl>.md`); an exact stem
+# resolve_worklist [--with-archive] [--keep-reports] <dir> <slug-or-path> — print the one work-list a slug names.
+# Skips -report(.spec).md companions (they sort before `<wl>.md`) unless --keep-reports:
+# requests/ and decisions/ have no sweep reports, and there a slug may end in -report; an exact stem
 # (`<slug>.md` or `YYYY-MM-DD-<slug>.md`) wins over longer names that merely contain the
 # slug; otherwise a slug matching several work-lists is refused (exit 2) instead of
 # taking the first (BL-539). --with-archive also searches <dir>/_archive/. Prints
 # nothing when nothing matches; the caller owns the not-found message.
 resolve_worklist() {
-  local arch=0 dir arg m n f b exact=() re
+  local arch=0 keep=0 dir arg m n f b exact=() re
   [[ "${1:-}" == "--with-archive" ]] && { arch=1; shift; }
+  [[ "${1:-}" == "--keep-reports" ]] && { keep=1; shift; }
   dir="$1"; arg="$2"
   # A path (it has a `/`) is taken as given only inside <dir> or <dir>/_archive/; any
   # other path is refused, or `./notes.md` was closed and archived as a work-list
@@ -327,10 +370,11 @@ resolve_worklist() {
   # the full filename (what every listing prints) globbed as `*<name>.md*.md` and matched nothing
   [[ -n "${arg%.md}" ]] && arg="${arg%.md}"
   if [[ $arch -eq 1 ]]; then
-    m="$(ls "$dir/"*"$arg"*.md "$dir/_archive/"*"$arg"*.md 2>/dev/null | grep -Ev -- '-report(\.spec)?\.md$' || true)"
+    m="$(ls "$dir/"*"$arg"*.md "$dir/_archive/"*"$arg"*.md 2>/dev/null || true)"
   else
-    m="$(ls "$dir/"*"$arg"*.md 2>/dev/null | grep -Ev -- '-report(\.spec)?\.md$' || true)"
+    m="$(ls "$dir/"*"$arg"*.md 2>/dev/null || true)"
   fi
+  [[ $keep -eq 1 ]] || m="$(grep -Ev -- '-report(\.spec)?\.md$' <<<"$m" || true)"
   # A slug with `..` climbs out through the glob: `*` matches the `_archive` entry, so
   # `_archive/../../../../q/...` named another project's list. Every match must resolve,
   # like a path, into <dir> or <dir>/_archive (review of BL-600).
