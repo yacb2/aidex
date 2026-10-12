@@ -24,9 +24,11 @@ HARVEST="h=\"$SCRIPT_DIR/harvest-commit.sh\"; [ -x \"\$h\" ] || h=\$(ls -t \"\$H
 REMOVE=0
 [[ "${1:-}" == "--remove" ]] && REMOVE=1
 
-GIT_DIR="$(git rev-parse --git-dir 2>/dev/null || true)"
-[[ -n "$GIT_DIR" ]] || { echo "error: not inside a git repository" >&2; exit 2; }
-HOOK="$GIT_DIR/hooks/post-commit"
+# --git-path hooks is where git reads hooks from: core.hooksPath when set, the common
+# directory (not the per-worktree one) from a linked worktree.
+HOOKS_DIR="$(git rev-parse --git-path hooks 2>/dev/null || true)"
+[[ -n "$HOOKS_DIR" ]] || { echo "error: not inside a git repository" >&2; exit 2; }
+HOOK="$HOOKS_DIR/post-commit"
 
 if [[ $REMOVE -eq 1 ]]; then
   [[ -f "$HOOK" ]] || { echo "no post-commit hook to clean"; exit 0; }
@@ -49,6 +51,7 @@ block() {
 }
 
 if [[ ! -f "$HOOK" ]]; then
+  mkdir -p "$HOOKS_DIR"
   { printf '#!/usr/bin/env bash\n'; block; } > "$HOOK"
   chmod +x "$HOOK"
   echo "installed post-commit hook at $HOOK"

@@ -775,10 +775,19 @@ PARKED=0; kill -0 "$LATE" 2>/dev/null && ls .context/backlog/*-bl-002-registered
   && ok "B23 a registration that lands during a rebuild keeps its index row" \
   || bad "B23 rc=$RC index rows: $(grep -E '^- \*\*BL-' .context/backlog/00-index.md | tr '\n' ' ')"
 
+# ── B25 · an index write that fails must not report success (BL-798) ──────────
+# Was: `} > "$index_file"` failed (here 00-index.md is a directory) and the next line
+# still printed "Regenerated", so --reindex exited 0 with no index written.
+D="$(fresh b25)"; cd "$D"
+mkdir .context/backlog/00-index.md
+OUT="$(bash "$REG" --reindex 2>&1)"; RC=$?
+[[ $RC -ne 0 ]] && ok "B25 --reindex exits non-zero when the index cannot be written" || bad "B25 exited 0 over an unwritable index"
+[[ "$OUT" != *"Regenerated"* ]] && ok "B25 no Regenerated line for a write that failed" || bad "B25 claimed success: $OUT"
+
 cd /
 echo
 if [[ $FAIL -eq 0 ]]; then
-  echo "OK — register-item regressions: $PASS cells, 23 defects covered"
+  echo "OK — register-item regressions: $PASS cells, 24 defects covered"
   exit 0
 fi
 echo "FAIL — $FAIL of $((PASS+FAIL)) cells"

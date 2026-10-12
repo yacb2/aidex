@@ -747,5 +747,25 @@ OUT="$(RUN_DIR="$G" run --only e2e --from-log "$TMP/forged.log")"; RC=$?
 [[ $RC -eq 2 && "$(grep -c . "$GH")" -eq "$n0" ]] && grep -q "was not written for this checkout at its HEAD" "$TMP/err" \
   && ok "13 from the main checkout a hand-written log is refused, no history row" || bad "13 BL-590 main forged log: rc=$RC $OUT $(cat "$TMP/err")"
 
+# ── 14 · two gates on one root do not score each other's output (backlog-c50) ────
+# The leg log was keyed by leg only: a second gate's `>` header truncated the first one's
+# output and the first scored the second's count. Gate A's leg runs gate B (1284 passed)
+# from inside itself, then prints nothing: A must stay countless, not inherit 1284.
+cat > "$P/bin/s" <<'STUB'
+#!/usr/bin/env bash
+if [ -n "${GATE_INNER:-}" ]; then
+  (cd "$GATE_PROJ" && env -u GATE_INNER GATE_N=1284 NO_COLOR=1 bash "$GATE_BIN" --only suite >/dev/null 2>&1)
+fi
+[ -n "${GATE_N:-}" ] && echo "$GATE_N passed"
+exit 0
+STUB
+chmod +x "$P/bin/s"; profile "suite_cmd: bin/s"
+OUT="$(GATE_INNER=1 GATE_PROJ="$P" GATE_BIN="$GATE" run --only suite)"; RC=$?
+[[ $RC -ne 0 && "$OUT" == *"leg=suite exit=0 count=? "* ]] \
+  && ok "14 a gate that ran nothing stays countless while another gate runs on the same root" || bad "14 scored another run's output: rc=$RC $OUT"
+OUT="$(GATE_N=7 run --only suite)"
+[[ "$OUT" == *"leg=suite exit=0 count=7 "* ]] && ok "14 control: the same stub that prints 7 passed is scored 7" || bad "14 control: $OUT"
+[[ -s "$P/_tmp/sweep-gate/suite.log" ]] && ok "14 the latest leg log is still left at <leg>.log" || bad "14 no suite.log"
+
 [[ $FAIL -eq 0 ]] && { echo "OK — sweep-gate: $PASS cells, countless leg fails, mutation flips it"; exit 0; }
 echo "$FAIL failure(s), $PASS ok"; exit 1

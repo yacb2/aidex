@@ -285,4 +285,28 @@ bash "$SCRIPTS/define-item.sh" "$CBID" --depends "$CAID" --no-index >/dev/null 2
 bash "$SCRIPTS/sweep-kickoff.sh" --dry-run >/dev/null 2>"$TMP/cyc.err"; RC=$?
 [[ $RC -eq 2 ]] && grep -q "cycle among" "$TMP/cyc.err" && ok "a depends cycle is reported before open depends block its members" || bad "hidden cycle: rc=$RC $(cat "$TMP/cyc.err")"
 
+# backlog-c49: contracting a `touches:` cluster must not invent a cycle. BL-1 and BL-3 share a
+# token and BL-1 -> BL-2 -> BL-3, so the contracted graph loops although the items do not.
+# Only that cluster is broken up: BL-4/BL-5 (shared token) stay adjacent and the unrelated
+# MERGE pair BL-6/BL-7 keeps its mark. BL-4 is P1 and BL-5 P3, so only a kept cluster puts
+# them side by side (ungrouped, the P2 items sort between them).
+O="$TMP/c49"; mkdir -p "$O/bl"
+mk49() { printf -- '---\nid: %s\nstatus: open\ntouches: "%s"\ndepends: "%s"\n---\n' "$1" "$2" "$3" > "$O/bl/$1.md"; }
+j49() { local j='{"eligible":[' n a p; for a in "$@"; do n="${a%%:*}"; p="${a#*:}"; [[ "$p" == "$a" ]] && p=P2; j+="{\"id\":\"BL-$n\",\"file\":\"BL-$n.md\",\"priority\":\"$p\",\"estimate\":\"S\",\"title\":\"t$n\"},"; done; printf '%s],"review":[],"needs_decision":[]}' "${j%,}"; }
+mk49 BL-1 shared BL-2; mk49 BL-2 "" BL-3; mk49 BL-3 shared ""; mk49 BL-4 other ""; mk49 BL-5 other ""
+mk49 BL-6 "" "merge:BL-7"; mk49 BL-7 "" ""
+python3 "$SCRIPTS/sweep-order.py" "$O/bl" --format refs <<<"$(j49 1 2 3 4:P1 5:P3 6 7)" > "$TMP/c49.out" 2>"$TMP/c49.err"
+python3 - "$TMP/c49.out" <<'PY' && ok "c49: acyclic items are ordered; only the looping cluster is broken up" || bad "c49: $(cat "$TMP/c49.out") $(cat "$TMP/c49.err")"
+import sys
+rows = [l.rstrip("\n").split("\t") for l in open(sys.argv[1])]
+ids = [r[0] for r in rows]
+assert ids.index("BL-3") < ids.index("BL-2") < ids.index("BL-1"), ids
+assert abs(ids.index("BL-4") - ids.index("BL-5")) == 1, ids
+assert all(r[3] == "MERGE" for r in rows if r[0] in ("BL-6", "BL-7")), rows
+PY
+# a cycle that runs through a MERGE pair cannot be fixed by splitting: refused, pair named
+mk49 BL-8 "" "merge:BL-9, BL-10"; mk49 BL-9 "" ""; mk49 BL-10 "" BL-9
+python3 "$SCRIPTS/sweep-order.py" "$O/bl" --format refs <<<"$(j49 8 9 10)" >/dev/null 2>"$TMP/c49m.err"; RC=$?
+[[ $RC -eq 2 && "$(cat "$TMP/c49m.err")" == *"BL-8/BL-9"* ]] && ok "c49: a cycle through a MERGE pair exits 2 naming the pair" || bad "c49 merge: rc=$RC $(cat "$TMP/c49m.err")"
+
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — sweep kickoff: $PASS cells"; exit 0; }; echo "$FAIL failure(s)"; exit 1

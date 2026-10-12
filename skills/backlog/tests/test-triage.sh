@@ -62,6 +62,11 @@ echo "== ids: a nonconforming id is actionable =="
 item 2026-01-03-gamma.md BL-20260610 open "hand-authored id"
 OUT="$(bash "$TRIAGE" 2>&1)"
 check "nonconforming id fires the ids check" '[[ "$OUT" == *"nonconforming id BL-20260610"* ]]'
+# backlog-c37: migrate-ids.sh skips files that already carry an id, so it cannot fix a
+# duplicate or nonconforming one (and mints nonconforming ids beside it).
+check "c37: the ids fix names renumber-ids.py" '[[ "$OUT" == *"renumber-ids.py"* ]]'
+check "c37: the renumber hint pins the project root" '[[ "$OUT" == *"renumber-ids.py --root \"$TMP\""* || "$OUT" == *"renumber-ids.py --root \"$(pwd -P)\""* ]]'
+check "c37: the ids fix no longer sends the reader to migrate-ids.sh" '[[ "$OUT" != *"migrate-ids.sh"* ]]'
 rm -f .context/backlog/2026-01-03-gamma.md
 
 echo "== archive: a done item left in the active dir =="
@@ -85,6 +90,17 @@ OUT="$(bash "$TRIAGE" 2>&1)"
 check "an item below the contract fires the definition check" '[[ "$OUT" == *"[!]    definition"* ]]'
 check "and the fix names define-item.sh" '[[ "$OUT" == *"define-item.sh"* ]]'
 check "three of four" '[[ "$OUT" == *"3 of 4 checks"* ]]'
+
+echo "== drift: a stale roll-up index gets the reindex fix =="
+# backlog-c45: reconcile exits 1 on a stale plans index too; the fix line used to say only
+# "close the named items", the wrong command for a stale index.
+OUT="$(bash "$TRIAGE" 2>&1)"
+check "c45: before the new plan the drift check is ok" '[[ "$OUT" == *"[ok]   drift"* ]]'
+printf -- '---\ntitle: "p"\nstatus: doing\ncreated: 2026-01-02\nupdated: 2026-01-02\n---\n' > .context/plans/2026-01-02-p.md
+OUT="$(bash "$TRIAGE" --quiet 2>&1)"
+check "c45: the new plan alone makes the drift check fire" '[[ "$OUT" == *"drift: closure that did not propagate"* ]]'
+check "c45: the drift fix names reindex-plans.sh" '[[ "$OUT" == *"drift"* && "$OUT" == *"reindex-plans.sh"* ]]'
+rm -f .context/plans/2026-01-02-p.md
 
 echo "== --quiet suppresses the per-check log, keeps the verdict =="
 OUT="$(bash "$TRIAGE" --quiet 2>&1)"

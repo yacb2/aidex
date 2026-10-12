@@ -849,7 +849,7 @@ write_index() {
     else
       printf '_Archived items: see [`_archive/`](_archive/)._\n'
     fi
-  } > "$index_file"
+  } > "$index_file" || { warn "could not write $index_file"; return 1; }
 
   ok "Regenerated $index_file"
 }

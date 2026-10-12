@@ -25,11 +25,17 @@ def fm(path):
 RANK = {'XS': 0, 'S': 1, 'M': 2, 'L': 3, 'XL': 4}
 
 
-def kahn(nodes, deps, k):
+class Cycle(Exception):
+    """Kahn stalled: .pending is every node it could not place."""
+
+
+def kahn(nodes, deps, k, fatal=True):
     done, pending = [], set(nodes)
     while pending:
         ready = sorted([n for n in pending if not (deps[n] & pending)], key=k)
         if not ready:
+            if not fatal:
+                raise Cycle(pending)
             print('depends: cycle among ' + ', '.join(sorted(pending)), file=sys.stderr)
             sys.exit(2)
         done.append(ready[0])
@@ -89,33 +95,6 @@ def order(part, bdir, inc, exc):
         queue = [i for i in queue if i['id'] not in blocked]
     n_blocked = len(needs) - len(part['needs_decision'])
     by_id = {i['id']: i for i in queue}
-    parent = {i['id']: i['id'] for i in queue}
-
-    def find(x):
-        while parent[x] != x:
-            parent[x] = parent[parent[x]]
-            x = parent[x]
-        return x
-
-    def union(a, b):
-        parent[find(a)] = find(b)
-
-    owner = {}
-    for i in queue:
-        for t in i['touches']:
-            if t in owner:
-                union(i['id'], owner[t])
-            else:
-                owner[t] = i['id']
-    merge_pairs = set()
-    for i in queue:
-        for d in i['depends']:
-            if d.startswith('merge:') and d[6:] in by_id:
-                union(i['id'], d[6:])
-                merge_pairs.add(frozenset((i['id'], d[6:])))
-    clusters = {}
-    for i in queue:
-        clusters.setdefault(find(i['id']), []).append(i)
 
     def key(i):
         return (i['priority'], RANK.get(i['estimate'].upper(), 9), i['file'])
@@ -125,14 +104,67 @@ def order(part, bdir, inc, exc):
         for d in i['depends']:
             if not d.startswith('merge:') and d in by_id:
                 edges[i['id']].add(d)
-    cid = {i['id']: find(i['id']) for i in queue}
-    cl_edges = {c: set() for c in clusters}
-    for a, deps in edges.items():
-        for b in deps:
-            if cid[a] != cid[b]:
-                cl_edges[cid[a]].add(cid[b])
 
-    cl_order = kahn(clusters.keys(), cl_edges, lambda c: min(key(i) for i in clusters[c]))
+    # Clusters are contracted `touches:` groups plus MERGE pairs. Contracting can turn an
+    # acyclic item graph into a cyclic cluster graph (A -> x -> B with A and B sharing a
+    # token), so a cycle is no verdict on the items: break up only the `touches:` clusters
+    # that sit on the stalled cycle and retry. A cycle that survives that runs through a
+    # MERGE pair, which cannot be kept adjacent: refuse, naming the pair.
+    loose = set()
+    while True:
+        parent = {i['id']: i['id'] for i in queue}
+
+        def find(x):
+            while parent[x] != x:
+                parent[x] = parent[parent[x]]
+                x = parent[x]
+            return x
+
+        def union(a, b):
+            parent[find(a)] = find(b)
+
+        owner = {}
+        for i in queue:
+            if i['id'] in loose:
+                continue
+            for t in i['touches']:
+                if t in owner:
+                    union(i['id'], owner[t])
+                else:
+                    owner[t] = i['id']
+        merge_pairs = set()
+        for i in queue:
+            for d in i['depends']:
+                if d.startswith('merge:') and d[6:] in by_id:
+                    union(i['id'], d[6:])
+                    merge_pairs.add(frozenset((i['id'], d[6:])))
+        clusters = {}
+        for i in queue:
+            clusters.setdefault(find(i['id']), []).append(i)
+        cid = {i['id']: find(i['id']) for i in queue}
+        cl_edges = {c: set() for c in clusters}
+        for a, deps in edges.items():
+            for b in deps:
+                if cid[a] != cid[b]:
+                    cl_edges[cid[a]].add(cid[b])
+        try:
+            cl_order = kahn(clusters.keys(), cl_edges, lambda c: min(key(i) for i in clusters[c]), fatal=False)
+            break
+        except Cycle as e:
+            core = set(e.args[0])  # drop what only waits on the cycle: keep nodes something in `core` needs
+            while True:
+                needed = {d for n in core for d in cl_edges[n] & core}
+                if needed == core:
+                    break
+                core = needed
+            members = {i['id'] for c in core for i in clusters[c]}
+            grown = loose | members
+            if grown == loose:
+                pairs = sorted('/'.join(sorted(p)) for p in merge_pairs if p <= members)
+                print('depends: cycle through MERGE pair ' + ', '.join(pairs or sorted(members))
+                      + ' (its twins cannot stay adjacent)', file=sys.stderr)
+                sys.exit(2)
+            loose = grown
     out = []
     for c in cl_order:
         members = {i['id'] for i in clusters[c]}

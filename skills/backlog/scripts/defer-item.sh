@@ -77,15 +77,17 @@ resolve_in() {
     file="$srcdir/$TARGET.md"
   else
     # slug match: one file whose name ends in -<slug>.md, else one whose name contains
-    # the slug. Several in a tier are refused, never the first by date.
+    # the slug (c22 pins this); 00-index.md is never a candidate. Several in a tier are
+    # refused, never the first by date.
     local m=()
-    for f in "$srcdir"/*-"$TARGET".md; do [[ -f "$f" ]] && m+=("$f"); done
+    for f in "$srcdir"/*-"$TARGET".md; do [[ -f "$f" && "$(basename "$f")" != "00-index.md" ]] && m+=("$f"); done
     if [[ ${#m[@]} -eq 0 ]]; then
-      for f in "$srcdir"/*"$TARGET"*.md; do [[ -f "$f" ]] && m+=("$f"); done
+      for f in "$srcdir"/*"$TARGET"*.md; do [[ -f "$f" && "$(basename "$f")" != "00-index.md" ]] && m+=("$f"); done
     fi
     [[ ${#m[@]} -le 1 ]] || die "ambiguous slug '$TARGET' matches: $(for f in "${m[@]}"; do printf '%s ' "$(basename "$f")"; done)"
     file="${m[0]:-}"
   fi
+  [[ "$(basename "${file:-x}")" != "00-index.md" ]] || die "target is the index, not a backlog item: $file"
   printf '%s\n' "$file"
 }
 
@@ -178,8 +180,19 @@ fi
 
 # --- rebuild index ---
 if [[ $NO_INDEX -eq 0 ]]; then
-  bash "$SCRIPT_DIR/register-item.sh" --reindex >/dev/null
-  ok "  index rebuilt"
+  # --reindex also exits 1 AFTER writing the index (id guard); only an unchanged index is stale
+  INDEX_FILE="$BACKLOG_DIR/00-index.md"
+  INDEX_BEFORE="$(cksum <"$INDEX_FILE" 2>/dev/null || true)"
+  IDX_RC=0
+  bash "$SCRIPT_DIR/register-item.sh" --reindex >/dev/null || IDX_RC=$?
+  if [[ $IDX_RC -eq 0 ]]; then
+    ok "  index rebuilt"
+  elif [[ "$(cksum <"$INDEX_FILE" 2>/dev/null || true)" == "$INDEX_BEFORE" ]]; then
+    warn "  index is stale (reindex exit $IDX_RC); rebuild it with: bash $SCRIPT_DIR/register-item.sh --reindex"
+  else
+    warn "  index rebuilt, but reindex reported an id problem (exit $IDX_RC)"; IDX_RC=0
+  fi
 fi
 
 printf '%s\n' "$DEST"
+exit "${IDX_RC:-0}"
