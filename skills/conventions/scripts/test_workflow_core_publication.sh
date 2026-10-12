@@ -60,10 +60,18 @@ globalThis.args = undefined
 globalThis.parallel = (thunks) => Promise.all(thunks.map((t) => t()))
 
 let scenario = null
+let arbiterPrompts = []
 globalThis.agent = async (prompt, opts) => {
   const label = (opts && opts.label) || 'arbiter'
   calls.push(label)
+  if (label === 'arbiter') arbiterPrompts.push(prompt)
   if (label.startsWith('verify:')) return { passed: true, exit_code: 0, evidence: 'gate ran' }
+  if (scenario === 'flaky') { // first arbiter call fails transiently (null), later ones rule STOP
+    return arbiterPrompts.length === 1 ? null : { verdict: 'STOP', reason: 'deny-class' }
+  }
+  if (scenario === 'counter') {
+    return { verdict: 'ASK', reason: 'tier 3', batched_question: `Push now? (ask #${arbiterPrompts.length})` }
+  }
   // The arbiter misfires exactly as observed: STOP on a pending publication.
   if (scenario === 'publication') {
     return { verdict: 'STOP', reason: 'Unpushed commits fall under tier 3 (unauthorized publication)',
@@ -135,6 +143,66 @@ async function main() {
     reachedGate: calls.some((c) => c.startsWith('verify:')),
   }
 
+  // --- plan-exec-c07: a REPORTED trunk merge is a publication, like push ---
+  scenario = 'publication'
+  calls = []
+  const rMerge = await runPhase({ id: 'p-merge', gateCmd: 'true',
+    implement: async () => ({ done: true, summary: 'ok', proof: 'x.txt',
+                              pending_actions: ['merge feature/x into main'] }) }, ctx)
+  out.merge = { asks: rMerge.asks.length, arbiterCalls: calls.filter((c) => c === 'arbiter').length }
+
+  // --- plan-exec-c12: pre-authorization never overrides the deny-set ---
+  scenario = 'deny'
+  calls = []
+  arbiterPrompts = []
+  const destructive = 'git push --force and delete the remote branch'
+  const rPre = await runPhase({ id: 'p-pre', gateCmd: 'true',
+    implement: async () => ({ done: true, summary: 'ok', proof: 'x.txt', pending_actions: [destructive] }) },
+    { ...ctx, preAuthorized: [destructive] })
+  out.preAuthDeny = { passed: rPre.passed, arbiterCalls: calls.filter((c) => c === 'arbiter').length,
+    labelledDeny: /deny-set/.test(arbiterPrompts[0] || ''),
+    noPreAuthSuffix: !/Pre-authorized in the initial phase:/i.test(arbiterPrompts[0] || '') }
+
+  // --- plan-exec-c24: the arbiter is shown what was pre-authorized ---
+  scenario = 'publication'
+  arbiterPrompts = []
+  await runPhase({ id: 'p-show', gateCmd: 'true',
+    implement: async () => ({ done: true, summary: 'ok', proof: 'x.txt', pending_actions: ['git push origin main'] }) },
+    { ...ctx, preAuthorized: ['push to origin'] })
+  out.preAuthShown = arbiterPrompts.some((p) => p.includes('push to origin'))
+
+  // --- plan-exec-c25: the same question reported on every attempt is batched once ---
+  // The arbiter's wording varies per call (counter), so de-duplication must be per action.
+  scenario = 'counter'
+  calls = []
+  arbiterPrompts = []
+  const rDup = await runPhase({ id: 'p-dup', gateCmd: 'true',
+    implement: async (fb, attempt) => attempt < 3
+      ? { done: true, summary: 'ok', pending_actions: ['git push origin main'] }
+      : { done: true, summary: 'ok', proof: 'x.txt', pending_actions: ['git push origin main'] } },
+    { ...ctx, maxRetries: 3 })
+  out.dup = { asks: rDup.asks.length, arbiterCalls: calls.filter((c) => c === 'arbiter').length }
+
+  // --- a transient arbiter failure (null) on a deny action is not remembered as a verdict ---
+  scenario = 'flaky'
+  calls = []
+  arbiterPrompts = []
+  let verifies = 0
+  const origAgent = globalThis.agent
+  globalThis.agent = async (prompt, opts) => {
+    if (((opts && opts.label) || '').startsWith('verify:')) {
+      calls.push(opts.label)
+      return ++verifies === 1 ? { passed: false, exit_code: 1, evidence: 'red' } : { passed: true, exit_code: 0, evidence: 'ok' }
+    }
+    return origAgent(prompt, opts)
+  }
+  const rFlaky = await runPhase({ id: 'p-flaky', gateCmd: 'true',
+    implement: async () => ({ done: true, summary: 'ok', proof: 'x.txt', pending_actions: ['drop the users table'] }) },
+    { ...ctx, maxRetries: 2 })
+  globalThis.agent = origAgent
+  out.flaky = { passed: rFlaky.passed, verdict: rFlaky.escalated && rFlaky.escalated.verdict,
+    arbiterCalls: arbiterPrompts.length }
+
   console.log(JSON.stringify(out))
 }
 main().catch((e) => { console.error(String(e)); process.exit(2) })
@@ -170,6 +238,29 @@ check "the phase does not pass" "$(jqf both.passed)"      "false"
 echo "deny path — a reported destructive action (must stay terminal):"
 check "never reaches the gate"       "$(jqf deny.reachedGate)" "false"
 check "the phase does not pass"      "$(jqf deny.passed)"      "false"
+
+echo "trunk merge — a reported merge into main is a publication (plan-exec-c07):"
+check "reaches the arbiter" "$(jqf merge.arbiterCalls)" "1"
+check "its question is batched" "$(jqf merge.asks)" "1"
+
+echo "pre-authorization never overrides the deny-set (plan-exec-c12):"
+check "a pre-authorized destructive action still reaches the arbiter" "$(jqf preAuthDeny.arbiterCalls)" "1"
+check "and stays terminal" "$(jqf preAuthDeny.passed)" "false"
+
+check "the deny action is labelled deny-set" "$(jqf preAuthDeny.labelledDeny)" "true"
+check "and carries no pre-authorized list" "$(jqf preAuthDeny.noPreAuthSuffix)" "true"
+
+echo "pre-authorization is visible to the arbiter (plan-exec-c24):"
+check "the arbiter prompt carries the pre-authorized list" "$(jqf preAuthShown)" "true"
+
+echo "repeated question across attempts (plan-exec-c25):"
+check "batched once, not once per attempt" "$(jqf dup.asks)" "1"
+check "the arbiter is consulted once per action" "$(jqf dup.arbiterCalls)" "1"
+
+echo "transient arbiter failure on a deny action (null verdict is asked again):"
+check "the phase does not pass" "$(jqf flaky.passed)" "false"
+check "the retry ruled STOP" "$(jqf flaky.verdict)" "STOP"
+check "the arbiter was consulted twice" "$(jqf flaky.arbiterCalls)" "2"
 
 echo ""
 echo "workflow-core publication: $PASS passed, $FAIL failed"
