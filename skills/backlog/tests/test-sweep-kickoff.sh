@@ -146,6 +146,15 @@ grep -qE "^[0-9]+\. \[ \] $SID .*<!-- ref: backlog --> <!-- emergent -->" "$WL" 
   && [[ "$(grep -cE "^[0-9]+\. \[ \] $SID " "$WL")" -eq 1 ]] \
   && ok "--origin sweep --worklist appends the item to the queue as emergent, exactly once" \
   || bad "$SID not appended to the queue: $(grep -nE '^[0-9]+\. ' "$WL" | tail -2)"
+# backlog-c20: a multi-line title reaches the queue flattened, as ONE line. Raw, it broke
+# the sweep-mode append's awk: no queue row, no warning, exit 0.
+ML="$(bash "$SCRIPTS/register-item.sh" --origin sweep --title $'two line\nemergent title' --worklist "$WL" --no-index 2>"$TMP/ml.err")"; RC=$?
+MLID="$(idof "$ML")"
+[[ $RC -eq 0 && "$(grep -c "$MLID" "$WL")" -eq 1 ]] \
+  && grep -qE "^[0-9]+\. \[ \] $MLID — two line emergent title   <!-- ref: backlog --> <!-- emergent -->$" "$WL" \
+  && python3 "$CONV/validate-worklist.py" "$WL" >/dev/null \
+  && ok "a multi-line --title is appended as one flattened queue line that validates" \
+  || bad "multi-line title: rc=$RC lines=$(grep -c "$MLID" "$WL") $(grep -n "$MLID\|emergent title" "$WL") $(cat "$TMP/ml.err")"
 S2="$(bash "$SCRIPTS/register-item.sh" --origin sweep --title "no worklist yet" --no-index 2>/dev/null)"
 [[ -f "$S2" && "$(fm "$S2" origin_ref)" == "" ]] && ok "--origin sweep without --worklist is accepted (empty ref)" || bad "origin sweep bare"
 bash "$SCRIPTS/register-item.sh" --origin bogus --title x --no-index >/dev/null 2>&1; [[ $? -eq 2 ]] && ok "--origin bogus exits 2" || bad "bogus origin accepted"

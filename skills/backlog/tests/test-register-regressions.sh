@@ -602,10 +602,183 @@ list_section "$LISTF" "Awaiting owner (" | grep >/dev/null 'parked mid-sweep'   
 list_section "$LISTF" "P2 —" | grep >/dev/null 'plain doing item'   && bad "B20 --list: a plain doing item was promoted into the P2 section"   || ok "B20 --list: a plain doing item stays out of the priority sections"
 list_section "$LISTF" "Awaiting owner (" | grep >/dev/null 'plain doing item'   && bad "B20 --list: a plain doing item was printed under Awaiting owner"   || ok "B20 --list: only a parked item reaches Awaiting owner"
 
+# ── B21 · parallel escalations against one --source-id keep every link (backlog-c48) ──
+# Was: stamp_escalated_to read escalated_to unlocked and every run wrote the same fixed
+# "$f.tmp". Ten parallel runs left the source at 0 bytes with no links, most runs died
+# and the "successful" ones kept counterparts pointing at the emptied source.
+b21_source() {                 # b21_source -> a BL-005 source item in the cwd's backlog
+  cat > .context/backlog/2026-01-01-bl-005-fanout.md <<'EOF'
+---
+title: "fan me out"
+id: BL-005
+status: open
+created: 2026-01-01
+updated: 2026-01-01
+priority: P2
+escalated_to: ""
+---
+
+# fan me out
+EOF
+  printf '%s' .context/backlog/2026-01-01-bl-005-fanout.md
+}
+D="$(fresh b21)"; cd "$D"; SRC="$(b21_source)"; chmod 640 "$SRC"
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  mkdir -p "$TMP/b21t$i/.context/backlog"
+  ( bash "$REG" --origin manual --title "route $i" --escalate-to "$TMP/b21t$i" --source-id BL-005 \
+      >/dev/null 2>"$TMP/b21.$i.err"; echo $? > "$TMP/b21.$i.rc" ) &
+done
+wait
+# Under load a run may time out on the lock (rc 2, counterpart rolled back): that is the
+# contract, not a failure. A run that exits 0 must have its link in the source, and a
+# run that exits 2 must have left none and no counterpart: rc 0 with a lost link is the bug.
+RC0=""; BAD_RC=""; ORPHAN=""
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  case "$(cat "$TMP/b21.$i.rc")" in
+    0) RC0="$RC0$(printf 'b21t%s/BL-001' "$i")"$'\n' ;;
+    2) [[ -z "$(ls "$TMP/b21t$i/.context/backlog/" | grep -vxE '00-index.md|_claims')" && ! -e "$TMP/b21t$i/.context/backlog/_claims/BL-001" ]] \
+         || ORPHAN="$ORPHAN $i" ;;
+    *) BAD_RC="$BAD_RC $i=$(cat "$TMP/b21.$i.rc")" ;;
+  esac
+done
+[[ -z "$BAD_RC$ORPHAN" ]] && ok "B21 every run exits 0 or times out with its counterpart and its id given back" \
+  || bad "B21 exit codes:$BAD_RC orphan counterparts:$ORPHAN — $(cat "$TMP"/b21.*.err | grep -E 'error' | sort | uniq -c)"
+GOT="$(fm "$SRC" escalated_to | tr -d '"' | sed 's/, /,/g' | tr ',' '\n' | sort | tr '\n' ' ')"
+WANT="$(printf '%s' "$RC0" | sort | tr '\n' ' ')"
+[[ "$(fm "$SRC" id)" == "BL-005" && -n "$WANT" && "$GOT" == "$WANT" ]] && ok "B21 the source keeps its front-matter and the link of every run that exited 0" \
+  || bad "B21 source after the fan-out ($(wc -c < "$SRC") bytes): escalated_to=[$GOT] runs with rc 0=[$WANT]"
+cat "$TMP"/b21.*.err | grep >/dev/null 'taking over' && bad "B21 a run took over the lock of another live run" || ok "B21 no run takes over another's lock"
+[[ "$(stat -c %a "$SRC" 2>/dev/null || stat -f %Lp "$SRC")" == "640" ]] && ok "B21 the rewrite keeps the item's mode" \
+  || bad "B21 mode changed to $(stat -c %a "$SRC" 2>/dev/null || stat -f %Lp "$SRC")"
+LEFT="$(ls -A .context/backlog | grep -vxE '00-index.md|_claims|2026-01-01-bl-005-fanout.md')"
+[[ -z "$LEFT" ]] && ok "B21 no temp file is left behind" || bad "B21 leftovers: $LEFT"
+
+# ── B22 · the backlog lock: each section drops it, a refusal is reported, a live one is never taken ──
+# The stub `mv` parks the run whose mv names $HOLD_MATCH until $HOLD exists (it marks
+# $HOLD.reached first). The stamp renames its temp over the source with `mv` while it
+# holds the backlog lock, so a parked run is a live holder mid-section.
+STUB="$TMP/holdbin"; mkdir -p "$STUB"
+cat > "$STUB/mv" <<EOF
+#!/bin/sh
+case "\$*" in *"\${HOLD_MATCH:-//}"*) if [ -n "\${HOLD:-}" ]; then
+  : > "\$HOLD.reached"; n=0
+  while [ ! -e "\$HOLD" ] && [ \$n -lt 600 ]; do sleep 0.05; n=\$((n+1)); done
+fi ;; esac
+exec $(command -v mv) "\$@"
+EOF
+chmod +x "$STUB/mv"
+reached() { local n=0; while [[ ! -e "$1.reached" && $n -lt 200 ]]; do sleep 0.05; n=$((n+1)); done; [[ -e "$1.reached" ]]; }
+
+# An escalation rebuilds the source index and then the target's; both must list the item.
+D="$(fresh b22)"; cd "$D"; SRC="$(b21_source)"; mkdir -p "$TMP/b22tgt/.context/backlog"
+OUT="$(bash "$REG" --origin manual --title "routed on" --escalate-to "$TMP/b22tgt" --source-id BL-005 2>&1 >/dev/null)"; RC=$?
+[[ $RC -eq 0 ]] && grep -qF '**BL-001** · **[routed on]' "$TMP/b22tgt/.context/backlog/00-index.md" 2>/dev/null \
+  && ok "B22 both indexes are rebuilt after an escalation" || bad "B22 rc=$RC, the target index does not list BL-001: $(cat "$TMP/b22tgt/.context/backlog/00-index.md" 2>&1) out: $OUT"
+
+# A lock that cannot be taken at all (here a symlink at the lock path, which lock_take
+# refuses) leaves the index stale after the entry is written. The run still exits 0, but
+# it must say so and name the rebuild; the escalate path swallowed it silently.
+D="$(fresh b22s)"; cd "$D"; mkdir -p "$TMP/b22stgt/.context/backlog" .context/backlog/_claims
+ln -s "$TMP/b22s-elsewhere" .context/backlog/_claims/.flock
+OUT="$(bash "$REG" --origin manual --title "unlockable" --escalate-to "$TMP/b22stgt" 2>&1 >/dev/null)"; RC=$?
+WARN="$(printf '%s\n' "$OUT" | grep 'not rebuilt')"
+[[ $RC -eq 0 && "$OUT" == *"is a symlink"* && "$WARN" == *"$(pwd -P)/.context/backlog/00-index.md was not rebuilt"*"register-item.sh --reindex"* \
+   && "$WARN" != *b22stgt* ]] && grep -qF '**BL-001**' "$TMP/b22stgt/.context/backlog/00-index.md" 2>/dev/null \
+  && ok "B22 --escalate-to reports the index it could not rebuild, names --reindex, and still rebuilds the other" \
+  || bad "B22 unlockable escalate: rc=$RC target index: $(grep -c 'BL-001' "$TMP/b22stgt/.context/backlog/00-index.md" 2>&1) out: $OUT"
+
+OUT="$(bash "$REG" --origin manual --title "unlockable plain" 2>&1 >/dev/null)"; RC=$?
+[[ $RC -eq 0 && "$OUT" == *"not rebuilt"*"register-item.sh --reindex"* ]] \
+  && ok "B22 a plain registration reports an index it could not rebuild and names --reindex" || bad "B22 unlockable plain: rc=$RC out: $OUT"
+
+# A duplicate id (regen_index rc 1) is the reindex/triage report's business: the rebuild
+# still writes the index, so a registration must not claim it was not rebuilt.
+D="$(fresh b22d)"; cd "$D"; mkdir -p "$TMP/b22dtgt/.context/backlog"
+for dn in one two; do printf -- '---\ntitle: "dup %s"\nid: BL-001\nstatus: open\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\n' "$dn" \
+  > ".context/backlog/2026-01-01-bl-001-dup-$dn.md"; done
+OUT="$(bash "$REG" --origin manual --title "beside a dup" 2>&1 >/dev/null)"; RC=$?
+[[ $RC -eq 0 && "$OUT" == *"duplicate id BL-001"* && "$OUT" != *"not rebuilt"* ]] \
+  && grep -qF '**BL-002** · **[beside a dup]' .context/backlog/00-index.md \
+  && ok "B22 a plain registration beside a duplicate id rebuilds the index and does not call it stale" || bad "B22 dup plain: rc=$RC out: $OUT"
+OUT="$(bash "$REG" --origin manual --title "routed beside a dup" --escalate-to "$TMP/b22dtgt" 2>&1 >/dev/null)"; RC=$?
+[[ $RC -eq 0 && "$OUT" != *"not rebuilt"* ]] && grep -qF '**BL-003** · **[routed beside a dup]' .context/backlog/00-index.md \
+  && ok "B22 an escalation beside a duplicate id rebuilds the index and does not call it stale" || bad "B22 dup escalate: rc=$RC out: $OUT"
+
+# A live holder past the waiter's 10 s: the waiter times out and rolls back, never takes over.
+D="$(fresh b22b)"; cd "$D"; SRC="$(b21_source)"; mkdir -p "$TMP/b22h/.context/backlog" "$TMP/b22w/.context/backlog"
+PATH="$STUB:$PATH" HOLD="$TMP/b22.go" HOLD_MATCH=bl-005-fanout bash "$REG" --origin manual --title "holder" \
+  --escalate-to "$TMP/b22h" --source-id BL-005 >/dev/null 2>"$TMP/b22h.err" & HOLDER=$!
+reached "$TMP/b22.go" || bad "B22 the holder never reached its stamp (the mv stub no longer intercepts it)"
+OUT="$(bash "$REG" --origin manual --title "while held" --escalate-to "$TMP/b22w" --source-id BL-005 2>&1 >/dev/null)"; RC=$?
+: > "$TMP/b22.go"; wait "$HOLDER"; HRC=$?
+[[ $RC -eq 2 && "$OUT" == *"is held by another run (waited 10 s)"* \
+   && "$OUT" == *"error: could not stamp source BL-005 — counterpart BL-001 rolled back"* ]] \
+  && ok "B22 a waiter that times out exits 2 naming the lock and the rollback" || bad "B22 timeout: rc=$RC out: $OUT"
+[[ $HRC -eq 0 && "$(fm "$SRC" escalated_to)" == '"b22h/BL-001"' && -z "$(ls "$TMP/b22w/.context/backlog/" | grep -vxE '00-index.md|_claims')" \
+   && ! -e "$TMP/b22w/.context/backlog/_claims/BL-001" ]] \
+  && ok "B22 the holder keeps its lock and its link; the timed-out waiter leaves no counterpart and gives its id back" \
+  || bad "B22 timeout side effects: holder rc=$HRC escalated_to=$(fm "$SRC" escalated_to) waiter target: $(ls -A "$TMP/b22w/.context/backlog/" "$TMP/b22w/.context/backlog/_claims" 2>&1)"
+
+# ── B24 · a waiter behind a live stamp holder waits (bkb review r1 F1) ──
+# Was: the mkdir lock was judged stale by its age, and a future mtime (clock skew, or a
+# re-create across a second boundary) or a hold past 5 s removed it under a live holder;
+# the holder's rename then wrote over the waiter's link and both runs exited 0.
+D="$(fresh b24)"; cd "$D"; SRC="$(b21_source)"; mkdir -p "$TMP/b24h/.context/backlog" "$TMP/b24w/.context/backlog"
+PATH="$STUB:$PATH" HOLD="$TMP/b24.go" HOLD_MATCH=bl-005-fanout bash "$REG" --origin manual --title "holder" \
+  --escalate-to "$TMP/b24h" --source-id BL-005 >/dev/null 2>"$TMP/b24h.err" & HOLDER=$!
+reached "$TMP/b24.go" || bad "B24 the holder never reached its stamp (the mv stub no longer intercepts it)"
+bash "$REG" --origin manual --title "waiter" --escalate-to "$TMP/b24w" --source-id BL-005 >/dev/null 2>"$TMP/b24w.err" & WAITER=$!
+# The waiter writes its counterpart, then reaches the stamp: from there it must stay parked.
+n=0; while ! ls "$TMP/b24w/.context/backlog/"*-bl-001-waiter.md >/dev/null 2>&1 && [[ $n -lt 200 ]]; do sleep 0.05; n=$((n+1)); done
+n=0; while kill -0 "$WAITER" 2>/dev/null && [[ $n -lt 40 ]]; do sleep 0.05; n=$((n+1)); done
+PARKED=0; kill -0 "$WAITER" 2>/dev/null && ls "$TMP/b24w/.context/backlog/"*-bl-001-waiter.md >/dev/null 2>&1 && PARKED=1
+[[ $PARKED -eq 1 ]] && ok "B24 the waiter is parked on the stamp while the holder is inside" \
+  || bad "B24 the waiter did not wait for the holder (alive: $(kill -0 "$WAITER" 2>/dev/null && echo yes || echo no), target: $(ls "$TMP/b24w/.context/backlog/"))"
+: > "$TMP/b24.go"; wait "$HOLDER"; HRC=$?; wait "$WAITER"; WRC=$?
+GOT="$(fm "$SRC" escalated_to | tr -d '"' | sed 's/, /,/g' | tr ',' '\n' | sort | tr '\n' ' ')"
+[[ $HRC -eq 0 && $WRC -eq 0 && "$GOT" == "b24h/BL-001 b24w/BL-001 " ]] \
+  && ok "B24 a waiter behind a live stamp holder waits; both links survive" \
+  || bad "B24 holder rc=$HRC waiter rc=$WRC escalated_to=[$GOT] $(grep -E 'taking over|error' "$TMP/b24w.err")"
+
+# ── B23 · an index rebuild must not drop a concurrent registration (backlog-c51) ──
+# Was: regen_index scanned the directory, then truncated and rewrote 00-index.md with
+# no lock, so a rebuild whose scan predated a registration wrote last and lost its row.
+# The `rm` stub parks a --reindex between its last scan and its write (the companion
+# table is removed there), which makes the interleave deterministic.
+D="$(fresh b23)"; cd "$D"
+bash "$REG" --origin manual --title "first item" >/dev/null 2>&1
+STUB="$TMP/b23bin"; mkdir -p "$STUB"
+cat > "$STUB/rm" <<EOF
+#!/bin/sh
+case "\$*" in *aidex.*) if [ -n "\${B23_HOLD:-}" ]; then
+  : > "\$B23_HOLD.reached"; n=0
+  while [ ! -e "\$B23_HOLD" ] && [ \$n -lt 200 ]; do sleep 0.05; n=\$((n+1)); done
+fi ;; esac
+exec $(command -v rm) "\$@"
+EOF
+chmod +x "$STUB/rm"
+( PATH="$STUB:$PATH" B23_HOLD="$TMP/b23.go" bash "$REG" --reindex >/dev/null 2>&1 ) & REINDEX=$!
+n=0; while [[ ! -e "$TMP/b23.go.reached" && $n -lt 200 ]]; do sleep 0.05; n=$((n+1)); done
+[[ -e "$TMP/b23.go.reached" ]] || bad "B23 the --reindex never reached the hold point (the stub no longer intercepts its write)"
+( bash "$REG" --origin manual --title "registered meanwhile" >/dev/null 2>&1 ) & LATE=$!
+# The late registration writes its entry, then reaches the rebuild: from there it must
+# stay parked behind the --reindex that holds the lock.
+n=0; while ! ls .context/backlog/*-bl-002-registered-meanwhile.md >/dev/null 2>&1 && [[ $n -lt 200 ]]; do sleep 0.05; n=$((n+1)); done
+n=0; while kill -0 "$LATE" 2>/dev/null && [[ $n -lt 40 ]]; do sleep 0.05; n=$((n+1)); done
+PARKED=0; kill -0 "$LATE" 2>/dev/null && ls .context/backlog/*-bl-002-registered-meanwhile.md >/dev/null 2>&1 && PARKED=1
+[[ $PARKED -eq 1 ]] && ok "B23 the late registration is parked on the rebuild while the --reindex is inside" \
+  || bad "B23 the late registration did not wait for the --reindex (alive: $(kill -0 "$LATE" 2>/dev/null && echo yes || echo no))"
+: > "$TMP/b23.go"; wait "$REINDEX"; wait "$LATE"; RC=$?
+[[ $RC -eq 0 ]] && ls .context/backlog/*-bl-002-registered-meanwhile.md >/dev/null 2>&1 \
+  && grep -qF '**BL-002** · **[registered meanwhile]' .context/backlog/00-index.md \
+  && grep -qF '**BL-001** · **[first item]' .context/backlog/00-index.md \
+  && ok "B23 a registration that lands during a rebuild keeps its index row" \
+  || bad "B23 rc=$RC index rows: $(grep -E '^- \*\*BL-' .context/backlog/00-index.md | tr '\n' ' ')"
+
 cd /
 echo
 if [[ $FAIL -eq 0 ]]; then
-  echo "OK — register-item regressions: $PASS cells, 19 defects covered"
+  echo "OK — register-item regressions: $PASS cells, 23 defects covered"
   exit 0
 fi
 echo "FAIL — $FAIL of $((PASS+FAIL)) cells"
