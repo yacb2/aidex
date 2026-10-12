@@ -50,6 +50,22 @@ done
 # resolve_worklist (in _lib.sh) skips -report companions and exits 2 on an ambiguous slug.
 file="$(resolve_worklist "$WL_DIR" "$arg")"
 [[ -n "${file:-}" && -f "$file" ]] || { echo "worklist not found: $arg" >&2; exit 2; }
+# Every write below is a read-modify-write of the whole file, so two runs at once
+# (register-item.sh --origin sweep appends one per registration) lost rows or emptied the
+# list (c19). One kernel lock per work-list (lock_take, shared with worklist-close.sh)
+# serialises them for the rest of this run, and every read of the list below runs under it:
+# the front matter and `mode: sweep` read before it came from a list another writer was
+# rewriting. It has no stale state: a killed run's lock goes with its process, so there is
+# no age-based takeover (the mkdir lock it replaces let two waiters take one stale lock
+# together and truncated the list). A sweep advance holds it through close-item +
+# start-item (~2 s on a 790-item backlog); --peek reads only. AIDEX_WL_LOCK_WAIT: seconds.
+if [[ -n "$append" || "$peek" -eq 0 ]]; then
+  lock="$(wl_lock_file "$file")" || exit 2
+  lock_take "$lock" "${AIDEX_WL_LOCK_WAIT:-30}" || { echo "error: could not lock $file; nothing written" >&2; exit 2; }
+  # a close that held the lock while this run waited has moved the list away
+  [[ -f "$file" ]] || { echo "worklist was closed/archived while waiting: $file; nothing written" >&2; exit 2; }
+fi
+
 # archived-ness from the RESOLVED directory, never the spelling: `cd _archive && ./x.md`
 # or a symlinked dir reaches an archived list with no literal `_archive/` in it (BL-591)
 [[ "$(CDPATH= cd -P "$(dirname "$file")" >/dev/null 2>&1 && pwd -P)" == "$(CDPATH= cd -P "$WL_DIR/_archive" >/dev/null 2>&1 && pwd -P)" ]] \
@@ -76,6 +92,21 @@ item_where() {  # item_where <BL-id> -> active | archived | deferred | (empty)
   return 0   # no match is an answer (empty), never a failed assignment under set -e
 }
 
+# An emergent that is ALREADY deferred is appended already-deferred (BL-263). It is
+# queued so it is not lost, but it is blocked — cross-repo, waiting on an owner — and
+# nothing downstream should try to work it. Saying so here is what makes the queue line
+# honest at the moment it is written, rather than at the advance that trips over it.
+# Said only once the row is written: a refused append printed it and then "was NOT
+# appended".
+kind="${append%%:*}"; label="${append#*:}"; mark="" said=""
+if [[ -n "$append" && "$sweep" -eq 1 && "$kind" == "backlog" ]]; then
+  aid="$(bl_id "$label")"
+  if [[ -n "$aid" && "$(item_where "$aid")" == "deferred" ]]; then
+    mark=" <!-- deferred -->"
+    said="sweep: $aid is deferred (blocked) — appended to the queue already deferred, it will be ticked past, not worked"
+  fi
+fi
+
 # append a class-(b) emergent item (no prompt, no re-ask). Appending is purely
 # additive — it does NOT complete the current head (distinct semantics).
 #
@@ -84,23 +115,20 @@ item_where() {  # item_where <BL-id> -> active | archived | deferred | (empty)
 # left in the unordered section would be recorded and never worked (found by review
 # 2026-08-27). The report counts the `emergent` markers against queue-size-at-kickoff.
 if [[ -n "$append" ]]; then
-  kind="${append%%:*}"; label="${append#*:}"
   if [[ "$sweep" -eq 1 && "$kind" == "backlog" ]]; then
-    last="$(grep -nE '^[0-9]+\. \[[ x]\] ' "$file" | tail -1 || true)"
+    last="$(wl_queue_grep "$file" "$WL_QUEUE_ITEM" | tail -1)"
+    # no queue item to insert after: the row would be dropped and `updated` stamped over
+    # the loss (c17), or — a numbered line elsewhere — land outside `## Queue` — refuse
+    # before anything is written
+    [[ -n "$last" ]] || { echo "sweep: no numbered queue item in $file to append after — '$label' was NOT appended" >&2; exit 2; }
     line_no="${last%%:*}"; num="${last#*:}"; n=$(( ${num%%.*} + 1 ))
-    # insert after the last numbered line so the queue stays contiguous
-    # An emergent that is ALREADY deferred is appended already-deferred (BL-263). It
-    # is queued so it is not lost, but it is blocked — cross-repo, waiting on an
-    # owner — and nothing downstream should try to work it. Saying so here is what
-    # makes the queue line honest at the moment it is written, rather than at the
-    # advance that trips over it.
-    mark=""
-    aid="$(bl_id "$label")"
-    if [[ -n "$aid" && "$(item_where "$aid")" == "deferred" ]]; then
-      mark=" <!-- deferred -->"
-      echo "sweep: $aid is deferred (blocked) — appended to the queue already deferred, it will be ticked past, not worked" >&2
-    fi
-    awk -v at="$line_no" -v row="$n. [ ] $label   <!-- ref: backlog --> <!-- emergent -->$mark" 'NR==at{print; print row; next} {print}' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
+    # insert after the last numbered line so the queue stays contiguous; a unique temp,
+    # copied back so the work-list keeps its own mode (a temp gets the umask's)
+    tmp="$(mktemp "$file.XXXXXX")"
+    awk -v at="$line_no" -v row="$n. [ ] $label   <!-- ref: backlog --> <!-- emergent -->$mark" 'NR==at{print; print row; next} {print}' "$file" > "$tmp" \
+      || { rm -f "$tmp"; exit 2; }
+    cat "$tmp" > "$file"; rm -f "$tmp"
+    [[ -z "$said" ]] || echo "$said" >&2
   else
     printf -- '- [ ] %s   <!-- ref: %s -->\n' "$label" "$kind" >> "$file"
   fi
@@ -108,9 +136,9 @@ if [[ -n "$append" ]]; then
 fi
 
 # complete the first unchecked numbered queue item — only on a plain advance
-# (not on --peek, not on --append). `|| true`: grep exits 1 when none remain.
+# (not on --peek, not on --append). Read from `## Queue` only (wl_queue_grep).
 if [[ "$peek" -eq 0 && -z "$append" ]]; then
-  head_line="$(grep -nE '^[0-9]+\. \[ \] ' "$file" | sed -n 1p | cut -d: -f1 || true)"
+  head_line="$(wl_queue_grep "$file" "$WL_QUEUE_OPEN" | sed -n 1p | cut -d: -f1)"
   if [[ -n "$head_line" ]]; then
     head_text="$(sed -n "${head_line}p" "$file")"
     # Sweep: the head is closed BEFORE its box is ticked, so a refusal (no proof) leaves
@@ -152,7 +180,7 @@ if [[ "$peek" -eq 0 && -z "$append" ]]; then
 fi
 
 # print the next still-unchecked numbered queue item, or DONE
-next="$(grep -E '^[0-9]+\. \[ \] ' "$file" | sed -n 1p || true)"
+next="$(wl_queue_grep "$file" "$WL_QUEUE_OPEN" | sed -n 1p)"; next="${next#*:}"
 if [[ -n "$next" ]]; then
   # Sweep: opening the next item is the transition to `doing` and, for type: bug, the
   # RED->GREEN route — worklist-advance used to only NAME the next item, and items were
@@ -171,7 +199,8 @@ if [[ -n "$next" ]]; then
       rc=0; bash "$BACKLOG_SCRIPTS/start-item.sh" "$id" >/dev/null || rc=$?
       # a start that failed is not a started item: say so and stop, rather than let
       # the run believe the item is `doing` (found by review 2026-08-27)
-      [[ $rc -eq 0 ]] || { echo "sweep: could not start $id (exit $rc) — the head was closed and ticked; fix the queue line and re-run --peek" >&2; exit 2; }
+      # The advice names start-item.sh: --peek never starts an item (c18).
+      [[ $rc -eq 0 ]] || { echo "sweep: could not start $id (exit $rc) — the head was closed and ticked; fix the queue line, then start that item with backlog/scripts/start-item.sh <its BL-id>" >&2; exit 2; }
     fi
   fi
   echo "$next"

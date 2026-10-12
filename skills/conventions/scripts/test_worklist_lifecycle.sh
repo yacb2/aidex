@@ -138,4 +138,34 @@ assert "close: rc 0, front matter status done + updated today, body untouched" \
   "[[ $rc8 -eq 0 && '$st8' == done && '$up8' == '$(date +%F)' && \"\$fence8\" == \"\$fence_want\" ]]"
 rm -f "$f8" "$a8"
 
+# c16: the advancer reads exactly the queue items validate-worklist.py's QUEUE_ITEM accepts.
+# Its own `^[0-9]+\. \[ \] ` skipped indented / two-space / tab items the validator passed,
+# printed DONE over them and never ticked them. Per form: validator verdict == the advancer
+# sees the line on --peek == a plain advance ticks it == a sweep `--append backlog:` lands
+# as item 2 directly after it (WL_QUEUE_ITEM, the insertion point). And the validator reads
+# only `## Queue`: the same line under `## Deferred / emergent`, with the queue drained, is
+# no queue item — --peek says DONE and an advance ticks nothing (it ticked the nested line).
+mkdir -p "$ROOT/.context/worklists"
+qi=0
+wlfm='---\ntitle: q\nstatus: doing\ncreated: 2026-01-01\nupdated: 2026-01-01\n%bgate-policy:\n  publish: ask\n  destructive: deny\n---\n\n'
+for form in '1. [ ] x' '  1. [ ] x' '1.  [ ] x' $'1.\t[ ] x' $'1. [ ]\tx' '1.[ ] x' '1. [] x'; do
+  qi=$((qi + 1)); fq="$ROOT/.context/worklists/2026-01-01-qform-$qi.md"
+  printf -- "$wlfm"'## Queue\n\n%s   <!-- ref: inline -->\n' '' "$form" > "$fq"
+  v=0; python3 "$DIR/validate-worklist.py" "$fq" >/dev/null && v=1
+  s=0; [[ "$(bash "$DIR/worklist-advance.sh" "$fq" --peek 2>/dev/null)" == "$form   <!-- ref: inline -->" ]] && s=1
+  bash "$DIR/worklist-advance.sh" "$fq" >/dev/null 2>&1 || true
+  t=0; grep -q '\[x\]' "$fq" && t=1
+  printf -- "$wlfm"'## Queue\n\n%s   <!-- ref: inline -->\n\n## Deferred / emergent\n' 'mode: sweep\n' "$form" > "$fq"
+  bash "$DIR/worklist-advance.sh" "$fq" --append "backlog:BL-9 x" >/dev/null 2>&1 || true
+  a=0; [[ "$(awk -v f="$form   <!-- ref: inline -->" 'p {print; exit} $0 == f {p=1}' "$fq")" == "2. [ ] BL-9 x   <!-- ref: backlog --> <!-- emergent -->" ]] \
+    && python3 "$DIR/validate-worklist.py" "$fq" >/dev/null && a=1
+  assert "queue form [${form//$'\t'/<TAB>}]: validator=$v advancer-sees=$s ticked=$t appended-after=$a agree" "[[ $v -eq $s && $v -eq $t && $v -eq $a ]]"
+  printf -- "$wlfm"'## Queue\n\n1. [x] done   <!-- ref: inline -->\n\n## Deferred / emergent\n\n- [ ] follow-up   <!-- ref: inline -->\n%s   <!-- ref: inline -->\n' '' "$form" > "$fq"
+  p="$(bash "$DIR/worklist-advance.sh" "$fq" --peek 2>/dev/null || true)"
+  bash "$DIR/worklist-advance.sh" "$fq" >/dev/null 2>&1 || true
+  assert "queue form [${form//$'\t'/<TAB>}] under Deferred, queue drained: --peek DONE ($p), advance ticks nothing" \
+    "[[ '$p' == DONE && \$(grep -c '\[x\]' '$fq') -eq 1 ]]"
+  rm -f "$fq"
+done
+
 if [[ "$fail" -eq 0 ]]; then echo "all worklist lifecycle assertions passed"; else echo "lifecycle FAILED"; exit 1; fi

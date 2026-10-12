@@ -160,6 +160,28 @@ render_template() {
   printf '%s' "${content%x}" > "$out"
 }
 
+# A work-list queue item, as ERE: validate-worklist.py's QUEUE_ITEM
+# (`^\s*(\d+)\.\s+\[[ x]\]\s+.+`) spelled for grep -E, and its unchecked subset. One
+# definition for every bash reader, or the advancer printed DONE over items the validator
+# passed (conventions-scripts-c16). test_worklist_lifecycle.sh holds both to the validator
+# per queue form: WL_QUEUE_OPEN through --peek and the tick, WL_QUEUE_ITEM through a sweep
+# append's insertion point; test-worklist-close-refusal.sh holds close's owner-row read.
+WL_QUEUE_ITEM='^[[:space:]]*[0-9]+\.[[:space:]]+\[[ x]\][[:space:]]+.'
+WL_QUEUE_OPEN='^[[:space:]]*[0-9]+\.[[:space:]]+\[ \][[:space:]]+.'
+
+# wl_queue_grep <file> <ERE> — `NR:line` for each line of the work-list's `## Queue`
+# section matching ERE (anchored at the line start). The section is the validator's split:
+# from the first line holding `## Queue`, after the front matter, up to the next `## `
+# heading. The regex alone matched numbered lines anywhere, so a nested `1. [ ]` under
+# `## Deferred / emergent` was taken for the head, ticked, or appended after.
+wl_queue_grep() {
+  awk 'NR == 1 && /^---[[:space:]]*$/ { fm = 1; next }
+       fm { if (/^---[[:space:]]*$/) fm = 0; next }
+       !seen && index($0, "## Queue") { seen = 1; s = 1; next }
+       s && /^## / { exit }
+       s { print NR ":" $0 }' "$1" | grep -E "^[0-9]+:${2#^}" || true
+}
+
 # has_front_matter <file> — 0 when line 1 is `---` and a closing `---` follows; the
 # definition set_front_matter scopes to. Callers that write before stamping check first.
 has_front_matter() {
@@ -528,4 +550,21 @@ lock_drop() {
   if (( n > 1 )); then eval "$rec=\"\$lvl \$m \$((n - 1))\""; return 0; fi
   unset "$m" "$rec"
   eval "exec $fd>&-"
+}
+
+# wl_lock_file <work-list> — the lock_take path every writer of one work-list shares
+# (worklist-advance.sh, worklist-close.sh). Keyed by the list's REAL path, so a slug, a
+# `./x.md` and a symlinked `.context` reach one lock. Kept in a per-user 0700 directory, not
+# beside the list: a flock file is never removed and would pile up in worklists/. The same
+# directory as mark_row_escalated's inventory lock (audit/_lib.sh). Prints the path, or
+# returns 2 with one line when the directory is a symlink or not this user's.
+# Limit: the directory follows $TMPDIR, so two processes with different TMPDIR values (or
+# different users) get different lock files and do NOT exclude each other.
+wl_lock_file() {
+  local dir="${TMPDIR:-/tmp}/aidex.locks.$EUID"
+  mkdir -m 700 "$dir" 2>/dev/null || :   # an existing path (or symlink) stays as it is
+  [[ -d "$dir" && ! -L "$dir" && -O "$dir" ]] \
+    || { err "error: the lock directory $dir is a symlink, not a directory or not yours; nothing written"; return 2; }
+  # CDPATH= : an exported CDPATH sent a relative `.context/...` to another project's twin
+  printf '%s/aidex-wl.%s.flock\n' "$dir" "$(printf '%s' "$(CDPATH= cd -P "$(dirname "$1")" && pwd -P)/$(basename "$1")" | path_digest | cut -c1-16)"
 }
