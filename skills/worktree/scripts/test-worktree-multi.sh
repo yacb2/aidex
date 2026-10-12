@@ -237,6 +237,34 @@ err="$( cd "$WS" && AIDEX_WT_INTERNAL=1 bash "$SCRIPT" create --slug d1 --branch
   || fail "base: create without a resolvable default failed -- $err"
 grep -q 'feature-x' <<<"$err" || fail "base: falling back to the ambient checkout must name it (feature-x) -- $err"
 
+# worktree-c22: worktree.sh's own `base ...` line must name what multi forks from.
+# (a) No origin/HEAD and no local main, only origin/main: multi forks from
+#     origin/main, but worktree.sh fell back to the ambient branch and reported
+#     "base feature-y" -- a wrong base, stated as fact.
+# (b) Nothing names a default: the report must say the base is the current
+#     checkout, not present the ambient branch as a chosen base.
+PO="$TMP/oproj"
+git init -q -b main "$TMP/oup"
+git -C "$TMP/oup" -c user.email=t@t -c user.name=t commit -q --allow-empty -m o0
+git clone -q "$TMP/oup" "$PO"
+mkdir -p "$PO/.context/worktrees"; echo 'WT_PARTICIPANTS="."' > "$PO/.context/worktrees/config.env"
+git -C "$PO" checkout -q -b feature-y
+git -C "$PO" -c user.email=t@t -c user.name=t commit -q --allow-empty -m fy1
+git -C "$PO" branch -q -D main; git -C "$PO" remote set-head origin -d
+out="$( cd "$PO" && bash "$WT_SH" new c22a --branch bc22a --no-infra 2>&1 )" || fail "c22: origin-only new failed -- $out"
+[[ "$(git -C "$PO" rev-parse bc22a 2>/dev/null)" == "$(git -C "$PO" rev-parse origin/main)" ]] \
+  || fail "c22 fixture: multi must fork bc22a from origin/main"
+grep -q '^base origin/main ' <<<"$out" || fail "c22: report must name the base actually used, origin/main -- $out"
+
+PN="$TMP/nproj"
+git init -q -b develop "$PN"
+git -C "$PN" -c user.email=t@t -c user.name=t commit -q --allow-empty -m n0
+git -C "$PN" checkout -q -b feature-z
+mkdir -p "$PN/.context/worktrees"; echo 'WT_PARTICIPANTS="."' > "$PN/.context/worktrees/config.env"
+out="$( cd "$PN" && bash "$WT_SH" new c22b --branch bc22b --no-infra 2>&1 )" || fail "c22: no-default new failed -- $out"
+grep '^base ' <<<"$out" | grep -q 'feature-z (current checkout' \
+  || fail "c22: with no default branch the base line must say it is the current checkout -- $out"
+
 # F3: --base is validated in EVERY participant before anything is created.
 for r in pa pb; do
   mkdir -p "$WS/$r"

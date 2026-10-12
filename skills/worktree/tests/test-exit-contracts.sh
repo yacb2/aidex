@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# test-exit-contracts.sh — two exit-code contracts this skill kept breaking.
+# test-exit-contracts.sh — exit-code contracts this skill kept breaking (the
+# third, `up` over a readiness probe that never passes, is worktree-c13).
 #
 # Both defects below were reported green by the full suite, which is the whole
 # reason they are pinned here rather than left to review.
@@ -71,8 +72,36 @@ grep -qE 'assert_services_running "\$DEST" \|\| exit 2' "$WT" \
 grep -qE 'assert_services_running "\$DEST" \|\| parity_rc=3' "$WT" \
   || fail "new's call site must be 'assert_services_running \"\$DEST\" || parity_rc=3'"
 
+# --- 4. up must not report "stack up" over a readiness probe that never passed --
+# worktree-c13. `new` rolls back when WT_READY_CMD never succeeds; `up` ran the
+# same 60-try loop with no failure branch and printed "stack up", exit 0.
+# `sleep` is stubbed in this case's own bin so the 60 tries cost nothing; the
+# docker stub names the declared service so parity passes and the only thing
+# left to fail is the probe.
+UP="$(mktemp -d)"; UP="$(cd "$UP" && pwd -P)"; trap 'rm -rf "$STUB" "$UP"' EXIT
+mkdir -p "$UP/bin" "$UP/slots" "$UP/p/.context/worktrees" "$UP/p/backend"
+printf '#!/bin/sh\nexit 0\n' > "$UP/bin/sleep"
+printf '#!/bin/sh\ncase " $* " in *" --services "*) echo db ;; esac\nexit 0\n' > "$UP/bin/docker"
+chmod +x "$UP/bin/sleep" "$UP/bin/docker"
+cat > "$UP/p/.context/worktrees/config.env" <<'ENV'
+WT_PARTICIPANTS="backend"
+WT_LINKS=""
+WT_SERVICES="db"
+WT_PORT_VARS="DB_PORT=6400"
+WT_READY_CMD='false'
+ENV
+printf 'services:\n  db:\n    image: postgres\n' > "$UP/p/docker-compose.yml"
+( cd "$UP/p/backend" && /usr/bin/git init -q . && /usr/bin/git config user.email t@e.com \
+  && /usr/bin/git config user.name t && echo x > f && /usr/bin/git add -A && /usr/bin/git commit -qm i ) >/dev/null 2>&1
+( cd "$UP/p" && TMPDIR="$UP/slots" PATH="$UP/bin:$PATH" bash "$WT" new r --branch wt/r --no-infra ) >/dev/null 2>&1
+echo 3 > "$UP/p-wt-r/.wt-slot"
+out="$( cd "$UP/p" && TMPDIR="$UP/slots" PATH="$UP/bin:$PATH" bash "$WT" up r 2>&1 )"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "up: a readiness probe that never passed still exited 0: $out"
+grep -q 'stack up' <<<"$out" && fail "up: reported 'stack up' over a probe that never passed: $out"
+grep -q 'WT_READY_CMD' <<<"$out" || fail "up: the failure must name the probe (WT_READY_CMD): $out"
+
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"
   exit 1
 fi
-echo "OK — exit contracts: SKIP pairs with exit 2, and assert_services_running returns at both call sites"
+echo "OK — exit contracts: SKIP pairs with exit 2, assert_services_running returns at both call sites, up fails on a probe that never passes"

@@ -623,7 +623,10 @@ esac
 write_wt_env() {
   local dest="$1" slot="$2" f="$1/.env"
   if [[ -e "$f" || -L "$f" ]] && ! head -1 "$f" 2>/dev/null | grep >/dev/null -F -- "$WT_ENV_MARKER"; then
-    die "$f exists and was not written by worktree.sh — refusing to overwrite it"
+    # A return, not `die`: in `new` this runs after the worktree exists, and an
+    # exit from here skipped rollback (worktree-c12).
+    err "error: $f exists and was not written by worktree.sh — refusing to overwrite it"
+    return 1
   fi
   { echo "$WT_ENV_MARKER"
     echo "COMPOSE_PROJECT_NAME=$CPROJ"
@@ -782,17 +785,21 @@ if [[ "$cmd" == "up" ]]; then
   write_claim "$SLOTDIR" "$SLOT" "$SLUG"
   release_slot_lock "$SLOTDIR"
   echo "$SLOT" > "$DEST/.wt-slot"
-  write_wt_env "$DEST" "$SLOT"
+  write_wt_env "$DEST" "$SLOT" || exit 2
   render_env_files "$DEST" "$SLOT" || exit 2
 
   envs=(COMPOSE_PROJECT_NAME="$CPROJ" "$WT_SUFFIX_VAR=-$SLUG")
   while IFS= read -r line; do [[ -n "$line" ]] && envs+=("$line"); done < <(port_env "$SLOT")
   ( cd "$DEST" && env "${envs[@]}" docker compose up -d ${WT_SERVICES:-} ) || die "stack failed to start"
   if [[ -n "$WT_READY_CMD" ]]; then
+    ready=false
     for i in $(seq 1 60); do
-      ( cd "$DEST" && env "${envs[@]}" bash -c "$WT_READY_CMD" ) >/dev/null 2>&1 && { ok "ready after ${i}s"; break; }
+      ( cd "$DEST" && env "${envs[@]}" bash -c "$WT_READY_CMD" ) >/dev/null 2>&1 && { ready=true; ok "ready after ${i}s"; break; }
       sleep 1
     done
+    # Not a rollback, unlike `new`: `up` is the recovery verb, and the containers
+    # it started are what the reader needs to inspect.
+    $ready || die "WT_READY_CMD never succeeded in 60s ($WT_READY_CMD) — the containers are up but not ready; read 'docker compose logs' in $DEST"
   fi
   assert_services_running "$DEST" || exit 2
   ok "stack up: $CPROJ (slot $SLOT)"
@@ -819,13 +826,20 @@ if [[ "$cmd" == "new" ]]; then
 
   # --- base branch, stated not inherited ---
   first="${REPOS[0]}"
-  default_branch="$(git -C "$ROOT/$first" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')"
-  if [[ -z "$default_branch" ]]; then
-    for _c in main master; do
-      git -C "$ROOT/$first" show-ref --verify --quiet "refs/heads/$_c" && { default_branch="$_c"; break; }
+  # The same candidates, in the same order, as worktree-multi.sh's start point:
+  # this line only REPORTS the base, and a narrower list named the ambient branch
+  # while multi forked from origin/main (worktree-c22).
+  _oh="$(git -C "$ROOT/$first" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')"
+  default_branch="" _ambient=""
+  for _c in $_oh main master; do
+    for _cand in "$_c" "origin/$_c"; do
+      git -C "$ROOT/$first" rev-parse --verify --quiet "$_cand^{commit}" >/dev/null && { default_branch="$_cand"; break 2; }
     done
+  done
+  if [[ -z "$default_branch" ]]; then
+    default_branch="$(git -C "$ROOT/$first" branch --show-current 2>/dev/null)"
+    _ambient=" (current checkout: no origin/HEAD, main or master)"
   fi
-  [[ -n "$default_branch" ]] || default_branch="$(git -C "$ROOT/$first" branch --show-current 2>/dev/null)"
   if [[ -n "$BASE" ]]; then
     for _r in "${REPOS[@]}"; do
       ! git -C "$ROOT/$_r" show-ref --verify --quiet "refs/heads/$BRANCH" \
@@ -837,6 +851,7 @@ if [[ "$cmd" == "new" ]]; then
   if [[ -z "$BASE" ]] && git -C "$ROOT/$first" show-ref --verify --quiet "refs/heads/$BRANCH"; then base_label="$BRANCH"; fi
   _ahead="$(git -C "$ROOT/$first" rev-list --count "$default_branch..$base_label" 2>/dev/null || echo 0)"
   [[ "$base_label" != "$default_branch" && "$_ahead" -gt 0 ]] && base_label="$base_label (+$_ahead over $default_branch)"
+  [[ -z "$BASE" && "$base_label" == "$default_branch" ]] && base_label="$base_label$_ambient"
   info "base $base_label -> worktree $CPROJ · branch $BRANCH · participants: ${REPOS[*]}"
 
   # --- slot RESERVATION -----------------------------------------------------
@@ -912,7 +927,6 @@ if [[ "$cmd" == "new" ]]; then
   CREATED_DIR=false
   rollback() {
     warn "rolling back $CPROJ"
-    if [[ -n "${CLAIM:-}" ]]; then rm -f "$CLAIM"; fi
     if $CREATED_DIR || [[ -d "$DEST" ]]; then
       ( cd "${DEST:-$ROOT}" 2>/dev/null || cd "$ROOT"
         env COMPOSE_PROJECT_NAME="$CPROJ" "$WT_SUFFIX_VAR=-$SLUG" \
@@ -931,6 +945,9 @@ if [[ "$cmd" == "new" ]]; then
       for c in $WT_COPIES; do rbargs+=(--copy "$c"); done
       [[ -d "$DEST" ]] && ( cd "$ROOT" && AIDEX_WT_INTERNAL=1 bash "$MULTI" "${rbargs[@]}" ) >/dev/null 2>&1
     fi
+    # Last, after compose down freed the ports: released first, a concurrent
+    # `new` could be handed this slot while its ports were still bound (worktree-c38).
+    if [[ -n "${CLAIM:-}" ]]; then rm -f "$CLAIM"; fi
     err "$1"
     exit 1
   }
@@ -963,7 +980,7 @@ if [[ "$cmd" == "new" ]]; then
   fi
 
   echo "$SLOT" > "$DEST/.wt-slot"
-  write_wt_env "$DEST" "$SLOT"
+  write_wt_env "$DEST" "$SLOT" || rollback "the slot env file $DEST/.env could not be written"
   render_env_files "$DEST" "$SLOT" || rollback "WT_ENV_RENDER failed"
 
   # --- the isolated stack ---
@@ -1025,8 +1042,10 @@ if [[ "$cmd" == "new" ]]; then
   # so the `info` line below had to re-label it to stay honest.
   attributable="$(
     { docker ps -a  --filter "label=com.docker.compose.project=$CPROJ" --format '{{.Names}}'
-      docker volume ls  --format '{{.Name}}'   | grep -F "$CPROJ" || true
-      docker network ls --format '{{.Name}}'   | grep -F "$CPROJ" || true
+      # <project>_<name> exactly, the boundary orphan-sweep uses: a substring
+      # match counted the resources of a sibling slug, foo-bar for foo (worktree-c04).
+      { docker volume ls --format '{{.Name}}'; docker network ls --format '{{.Name}}'; } \
+        | while IFS= read -r n; do [[ "$n" == "$CPROJ" || "$n" == "$CPROJ"_* ]] && printf '%s\n' "$n"; done
       # No `|| echo 0` here: `grep -c` already prints 0 on empty input, so the
       # fallback could only ever append a SECOND line and make the count
       # malformed.
@@ -1105,7 +1124,11 @@ if [[ "$cmd" == "down" ]]; then
       || warn "WT_PRE_DOWN_CMD failed (exit $?) — continuing with the Docker teardown"
   fi
 
-  ( cd "$COMPOSE_DIR" && env "${envs[@]}" docker compose -p "$CPROJ" --profile '*' down -v --rmi local --remove-orphans )
+  # What could not be verified reclaimed. Any entry withholds the claim and the
+  # exit 0 below (worktree-c02): releasing over it left resources no claim tracks.
+  unreclaimed=""
+  ( cd "$COMPOSE_DIR" && env "${envs[@]}" docker compose -p "$CPROJ" --profile '*' down -v --rmi local --remove-orphans ) \
+    || unreclaimed="compose down failed (exit $?)"
 
   # `--rmi local` cannot reach untagged layers this project built; nothing else
   # ever revisits them. Label-scoped, so only this project can be touched.
@@ -1126,6 +1149,13 @@ if [[ "$cmd" == "down" ]]; then
       [[ "$(awk '{print $2}' "$claim" 2>/dev/null)" == "$SLUG" ]] && { rm -f "$claim"; info "released slot $(basename "$claim" | sed 's/slot-//')"; }
     done
   }
+  claim_held() {  # the same claims release_claim would remove: is there one?
+    local claim
+    for claim in "$(SLOTDIR_FOR)"/slot-*; do
+      [[ -e "$claim" && "$(awk '{print $2}' "$claim" 2>/dev/null)" == "$SLUG" ]] && return 0
+    done
+    return 1
+  }
 
   # A zero exit from compose is not proof; ask.
   # The sweep exits 0 when the daemon is unreachable, by design -- it cannot
@@ -1141,11 +1171,17 @@ if [[ "$cmd" == "down" ]]; then
     [[ $drc -eq 142 ]] && warn "Docker did not answer within ${dt} s."
     warn "Docker daemon unreachable — teardown completed, but nothing could be verified reclaimed."
     warn "Re-run 'orphan-sweep.sh --slug $SLUG' once the daemon is back."
+    unreclaimed="${unreclaimed:+$unreclaimed; }the Docker daemon is unreachable"
   elif bash "$SWEEP" --slug "$SLUG" >/dev/null 2>&1; then
     ok "no Docker resource remains attributable to $CPROJ"
   else
     warn "residue remains:"; bash "$SWEEP" --slug "$SLUG" 2>&1 | sed 's/^/  /'
+    unreclaimed="${unreclaimed:+$unreclaimed; }residue remains (listed above)"
   fi
+  # What is withheld is the CLAIM, so with no claim held (a --no-infra tree, a
+  # slug whose claim is already gone) there is nothing to withhold: the warnings
+  # above are the whole report and the teardown exits as it always did.
+  claim_held || unreclaimed=""
 
   # --- what Docker never owned ------------------------------------------------
   #
@@ -1234,6 +1270,7 @@ if [[ "$cmd" == "down" ]]; then
   # not resume deterministically and `new` refused to recreate.
   if $KEEP_DIR; then
     ok "--keep-dir: $DEST left in place (slot $SLOT still claimed; resume with: worktree.sh up $SLUG)"
+    [[ -z "$unreclaimed" ]] || { err "the Docker teardown is not verified: $unreclaimed"; exit 1; }
     exit 0
   fi
 
@@ -1322,7 +1359,12 @@ if [[ "$cmd" == "down" ]]; then
     describe_holders "$late" >&2
   fi
 
-  release_claim
+  if [[ -z "$unreclaimed" ]]; then
+    release_claim
+  else
+    err "the Docker teardown is not verified: $unreclaimed."
+    err "slot ${SLOT:-(none recorded)} stays claimed so nothing else takes it; re-run 'worktree.sh down $SLUG' once that is resolved."
+  fi
   ok "removed $DEST"
 
   # The branch is the last thing a torn-down worktree leaves behind, and nothing
@@ -1358,8 +1400,10 @@ if [[ "$cmd" == "down" ]]; then
   # failure: 1 is what a FAILED teardown returns (the directory is still there,
   # the slot still claimed, "resume with: worktree.sh up"), and this teardown
   # fully succeeded. What is unfinished is one branch nobody can name.
-  #   1 = the teardown itself failed; the worktree is still there
+  #   1 = the teardown itself failed: the worktree is still there, or its Docker
+  #       resources could not be verified reclaimed; the slot stays claimed
   #   3 = torn down, but --delete-branch could not identify a branch to delete
+  [[ -n "$unreclaimed" ]] && exit 1   # reported where the claim was withheld
   if [[ "${BRANCH_UNRESOLVED:-0}" -ne 0 ]]; then
     err "--delete-branch could not identify the branch; the teardown itself succeeded."
     exit 3
