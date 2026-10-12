@@ -47,12 +47,18 @@ done
 [[ -z "$ESTIMATE" ]] || case "$ESTIMATE" in XS|S|M|L|XL) ;; *) die "invalid estimate: $ESTIMATE" ;; esac
 [[ "$SURFACE" == "behavior" ]] && SURFACE="behaviour"
 [[ -z "$SURFACE" ]] || case "$SURFACE" in internal|behaviour|ui|ops) ;; *) die "invalid surface: $SURFACE (internal|behaviour|ui|ops)" ;; esac
+# Store what was validated: 'merge: BL-002' kept its space and sweep-order never matched
+# the twin. Ids are minted `BL-%03d` (register-item.sh accepts 3-5 digits), so `BL-5` can
+# never name an item and is refused, not padded.
 if [[ $SET_DEPENDS -eq 1 && -n "$DEPENDS" ]]; then
   IFS=',' read -ra _deps <<<"$DEPENDS"
+  _norm=""
   for d in "${_deps[@]}"; do
     d="${d// /}"
-    [[ "$d" =~ ^(merge:)?BL-[0-9]+$ ]] || die "invalid --depends entry '$d' (BL-NNN or merge:BL-NNN, comma-separated)"
+    [[ "$d" =~ ^(merge:)?BL-[0-9]{3,5}$ ]] || die "invalid --depends entry '$d' (BL-NNN or merge:BL-NNN, comma-separated)"
+    _norm="${_norm:+$_norm, }$d"
   done
+  DEPENDS="$_norm"
 fi
 
 ROOT="$(find_project_root)"
@@ -72,12 +78,17 @@ TODAY="$(date +%Y-%m-%d)"
 # One awk pass: rewrite a key where present, insert the absent ones before the closing
 # `---` (the insert-if-missing idiom close-item.sh and stamp_escalated_to already use —
 # a rewrite-only branch is a silent no-op on an item that predates the field).
+# Escaped values go through ENVIRON, never `-v`: awk -v re-reads backslash escapes and
+# undid esc(), so `"` and `\` landed raw in the double-quoted scalar.
+# A private temp next to the item, carrying its mode (cp -p), renamed over it: a shared
+# `$FILE.tmp` let one writer truncate the file another was about to move into place.
+TMPF="$(mktemp "$(dirname "$FILE")/.$(basename "$FILE").XXXXXX")" && cp -p "$FILE" "$TMPF" || { rm -f "$TMPF"; die "could not rewrite $FILE"; }
+DI_VER="$(esc "$VERIFY")" DI_TOU="$(esc "$TOUCHES")" DI_DEP="$(esc "$DEPENDS")" \
 awk -v today="$TODAY" \
     -v est="$ESTIMATE" -v sur="$SURFACE" \
-    -v ver="$(esc "$VERIFY")" -v setver="$SET_VERIFY" \
-    -v tou="$(esc "$TOUCHES")" -v settou="$SET_TOUCHES" \
-    -v dep="$(esc "$DEPENDS")" -v setdep="$SET_DEPENDS" '
-  BEGIN { d=0; s_est=0; s_sur=0; s_ver=0; s_tou=0; s_dep=0 }
+    -v setver="$SET_VERIFY" -v settou="$SET_TOUCHES" -v setdep="$SET_DEPENDS" '
+  BEGIN { d=0; s_est=0; s_sur=0; s_ver=0; s_tou=0; s_dep=0
+          ver=ENVIRON["DI_VER"]; tou=ENVIRON["DI_TOU"]; dep=ENVIRON["DI_DEP"] }
   /^---[[:space:]]*$/ {
     d++
     if (d==2) {
@@ -96,7 +107,7 @@ awk -v today="$TODAY" \
   d==1 && setdep && /^depends:/   { print "depends: \"" dep "\""; s_dep=1; next }
   d==1 && /^updated:/             { print "updated: " today; next }
   { print }
-' "$FILE" > "$FILE.tmp" && [[ -s "$FILE.tmp" ]] && mv "$FILE.tmp" "$FILE" || die "could not rewrite $FILE"
+' "$FILE" > "$TMPF" && [[ -s "$TMPF" ]] && mv -f "$TMPF" "$FILE" || { rm -f "$TMPF"; die "could not rewrite $FILE"; }
 
 ok "Triaged $(read_id "$FILE"): ${ESTIMATE:+estimate=$ESTIMATE }${SURFACE:+surface=$SURFACE }$([[ $SET_VERIFY -eq 1 ]] && printf 'verify ')$([[ $SET_TOUCHES -eq 1 ]] && printf 'touches ')$([[ $SET_DEPENDS -eq 1 ]] && printf 'depends')"
 [[ $NO_INDEX -eq 1 ]] || bash "$SCRIPT_DIR/register-item.sh" --reindex >/dev/null 2>&1 || true

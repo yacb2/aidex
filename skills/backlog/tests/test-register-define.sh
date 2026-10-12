@@ -20,11 +20,11 @@ mkdir -p "$TMP/p/.context/backlog"; cd "$TMP/p"
 echo "register-item.sh leaves an item defined (BL-273):"
 F="$(bash "$REG" --origin manual --title "six fields" --type improvement --priority P2 --estimate S \
       --surface ops --verify "the verdict prints" --touches "scripts/a.sh, scripts/b.sh" \
-      --depends "BL-1, merge:BL-2" --context "Why this matters, in prose long enough to count." \
+      --depends "BL-001, merge:BL-002" --context "Why this matters, in prose long enough to count." \
       --acceptance "first criterion" --acceptance "second criterion" 2>"$TMP/err")"
 [[ -f "$F" ]] && ok "registered; stdout is still the path" || bad "no file: $F"
 [[ "$(fm "$F" touches)" == "scripts/a.sh, scripts/b.sh" ]] && ok "--touches written via define-item.sh" || bad "touches: '$(fm "$F" touches)'"
-[[ "$(fm "$F" depends)" == "BL-1, merge:BL-2" ]] && ok "--depends written via define-item.sh" || bad "depends: '$(fm "$F" depends)'"
+[[ "$(fm "$F" depends)" == "BL-001, merge:BL-002" ]] && ok "--depends written via define-item.sh" || bad "depends: '$(fm "$F" depends)'"
 [[ "$(fm "$F" verify)" == "the verdict prints" && "$(fm "$F" estimate)" == "S" ]] && ok "verify/estimate survive the positional hand-off" || bad "verify/estimate lost"
 grep -q '^Why this matters' "$F" && ok "--context replaces the template prompt" || bad "context not written"
 grep -q '^- first criterion$' "$F" && grep -q '^- second criterion$' "$F" && ok "--acceptance is repeatable, one bullet each" || bad "acceptance bullets missing"
