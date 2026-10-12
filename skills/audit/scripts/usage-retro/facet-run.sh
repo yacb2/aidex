@@ -59,6 +59,17 @@ W_ARGS=(--facet "$FACET" --ledger "$LEDGER")
 read -r FROM TO LABEL < <(python3 "$RETRO/facet_coverage.py" window "${W_ARGS[@]}")
 echo "window: $FROM -> $TO ($LABEL)"
 
+# Any exit before the run is ready removes the run folder and reindexes: new-audit.sh
+# has already indexed the plain slug, and a left-behind folder would make the next
+# same-day run die "facet run already exists".
+RUN_READY=0
+cleanup_run() {
+  [[ "$RUN_READY" -eq 1 ]] && return 0
+  rm -rf "$RUN"
+  bash "$AUDIT_SCRIPTS/reindex-audits.sh" >/dev/null 2>&1 || true
+}
+trap cleanup_run EXIT
+
 # 2. scaffold — new-audit.sh owns the boards and the run layout; the run slug gains
 #    the facet suffix afterwards. When today's weekly run already occupies the plain
 #    slug, only the run folder is rendered (the boards exist by then).
@@ -84,7 +95,6 @@ N_REC="$(grep -c . "$RUN/dataset.jsonl" || true)"
 echo "extract: $N_REC records"
 if [[ "$N_REC" -eq 0 ]]; then
   echo "no records in the window; coverage NOT recorded (nothing was read); run folder removed"
-  rm -rf "$RUN"
   exit 0
 fi
 
@@ -122,5 +132,6 @@ EOF
 
 # 7. record — last, so a failed step above leaves the ledger as it was
 python3 "$RETRO/facet_coverage.py" record --facet "$FACET" --from "$FROM" --to "$TO" --run "$(basename "$RUN")" --ledger "$LEDGER"
+RUN_READY=1
 bash "$AUDIT_SCRIPTS/reindex-audits.sh" >/dev/null 2>&1 || true
 ok "facet run ready: $RUN"

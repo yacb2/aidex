@@ -101,6 +101,96 @@ done
   && ok "the corrupt ledger is not rewritten" \
   || bad "the corrupt ledger was overwritten"
 
+# (6) an unparseable --since is refused, never swallowed (audit-c15) -----------
+# resolve_cutoff fell through to the cursor or the 7-day default on a typo, while
+# --until refused the same input; with --cursor the run then advanced the cursor.
+CUR6="$OUT/cursor6.json"
+printf '{"through": "2026-01-02T00:00:00+00:00"}' > "$CUR6"
+before6="$(shasum "$CUR6")"
+out_s="$(python3 "$EXTRACT" --out "$OUT/s.jsonl" --cursor "$CUR6" --since 2026/08/01 \
+                 --transcripts-root "$TX" 2>&1)"; rc_s=$?
+[[ $rc_s -ne 0 && "$out_s" == *"ERROR"*"--since"* ]] \
+  && ok "an unparseable --since is refused with an ERROR naming the flag" \
+  || bad "--since 2026/08/01 was accepted (rc=$rc_s): $out_s"
+[[ "$(shasum "$CUR6")" == "$before6" ]] \
+  && ok "the cursor is untouched by the refused --since" \
+  || bad "the refused --since rewrote the cursor"
+
+# Synthetic one-session transcripts for (7) and (8): human prompts carry origin.kind
+# like a real transcript so prompt_kinds admits them.
+mk_tx() {  # dir — one session: P1 old, skill fire, P2 old, P3 in window
+  mkdir -p "$1/-Users-user-Documents-projects-demo-ws"
+  python3 - "$1/-Users-user-Documents-projects-demo-ws/w1.jsonl" <<'PYW'
+import json, sys
+def user(ts, text):
+    return {"type": "user", "timestamp": ts, "origin": {"kind": "human"},
+            "message": {"content": text}}
+def skill(ts, name):
+    return {"type": "assistant", "timestamp": ts, "message": {"content": [
+        {"type": "tool_use", "name": "Skill", "id": "t" + ts, "input": {"skill": name}}]}}
+rows = [user("2026-01-01T10:00:00Z", "primer prompt viejo de la sesion"),
+        skill("2026-01-01T10:01:00Z", "aidex:artifact"),
+        user("2026-01-01T11:00:00Z", "segundo prompt viejo de la sesion"),
+        user("2026-02-01T10:00:00Z", "tercer prompt dentro de la ventana")]
+open(sys.argv[1], "w").write("\n".join(json.dumps(r) for r in rows) + "\n")
+PYW
+}
+
+# (7) a skipped prompt resets the adjacency, so the first in-window prompt does not
+#     inherit an out-of-window prompt's Skills (audit-c07) -----------------------
+TX7="$(mktemp -d)"; mk_tx "$TX7"
+python3 "$EXTRACT" --out "$OUT/p7.jsonl" --since 2026-01-15 --transcripts-root "$TX7" >/dev/null 2>&1
+python3 - "$OUT/p7.jsonl" <<'PY7' && ok "the first in-window prompt carries no stale prior_skills" \
+  || bad "stale prior_skills leaked into the first in-window prompt: $(cat "$OUT/p7.jsonl")"
+import json, sys
+r = [json.loads(l) for l in open(sys.argv[1])]
+assert len(r) == 1 and "tercer" in r[0]["prompt"], r
+assert r[0]["prior_skills"] == [], r[0]["prior_skills"]
+PY7
+rm -rf "$TX7"
+
+# (8) the cursor watermark is exclusive: the last prompt of run 1 is not run 2's
+#     first (audit-c44) ---------------------------------------------------------
+TX8="$(mktemp -d)"; mk_tx "$TX8"; CUR8="$OUT/cursor8.json"
+python3 "$EXTRACT" --out "$OUT/r1.jsonl" --all --cursor "$CUR8" --transcripts-root "$TX8" >/dev/null 2>&1
+out_r2="$(python3 "$EXTRACT" --out "$OUT/r2.jsonl" --cursor "$CUR8" --transcripts-root "$TX8" 2>&1)"
+[[ "$(count "$out_r2")" == "0" ]] \
+  && ok "a resumed run does not re-extract the prompt the cursor stands on" \
+  || bad "the cursor's last prompt was extracted twice: $out_r2"
+# a LATER prompt must still come through, and the cursor must advance to it
+python3 - "$TX8/-Users-user-Documents-projects-demo-ws/w1.jsonl" <<'PY8'
+import json, sys
+open(sys.argv[1], "a").write(json.dumps({"type": "user", "timestamp": "2026-03-01T10:00:00Z",
+    "origin": {"kind": "human"}, "message": {"content": "cuarto prompt posterior al cursor"}}) + "\n")
+PY8
+out_r3="$(python3 "$EXTRACT" --out "$OUT/r3.jsonl" --cursor "$CUR8" --transcripts-root "$TX8" 2>&1)"
+thru="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["through"])' "$CUR8")"
+[[ "$(count "$out_r3")" == "1" && "$thru" == "2026-03-01T10:00:00+00:00" ]] \
+  && ok "a prompt after the cursor is extracted and the cursor advances to it" \
+  || bad "resume past the watermark: through=$thru $out_r3"
+# --since stays inclusive: the third prompt sits exactly on the bound
+out_in="$(python3 "$EXTRACT" --out "$OUT/in.jsonl" --since 2026-02-01T10:00:00Z --until 2026-02-02 \
+                 --transcripts-root "$TX8" 2>&1)"
+[[ "$(count "$out_in")" == "1" ]] \
+  && ok "--since includes a prompt exactly on the bound" \
+  || bad "--since excluded the prompt on the bound: $out_in"
+rm -rf "$TX8"
+
+# (9) concurrent ledger writes lose no window, and leave no partial file (audit-c43)
+LED9="$OUT/led9/coverage.json"; mkdir -p "$OUT/led9"
+for i in $(seq 1 16); do
+  python3 "$COVERAGE" record --facet artifacts --ledger "$LED9" \
+          --from 2026-01-01T00:00:00Z --to 2026-01-02T00:00:00Z --run "run$i" >/dev/null 2>&1 &
+done
+wait
+n9="$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["artifacts"]))' "$LED9" 2>&1)"
+[[ "$n9" == "16" ]] \
+  && ok "16 concurrent record calls keep all 16 windows" \
+  || bad "concurrent record lost windows: $n9 of 16"
+[[ "$(ls "$OUT/led9")" == "coverage.json" ]] \
+  && ok "record leaves only the ledger beside itself (no lock or tmp file)" \
+  || bad "stray files beside the ledger: $(ls "$OUT/led9")"
+
 echo
 echo "facet window: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]

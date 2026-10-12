@@ -95,5 +95,23 @@ out="$(cd "$WS" && bash "$RETRO/facet-run.sh" session --since 2020-01-01T00:00:0
   && ok "a zero-record window stops before recording coverage" || bad "empty window: rc=$rc $out"
 [[ ! -e "$AUD/usage-retro/$TODAY-usage-retro-session" ]] && ok "a zero-record run leaves no run folder" || bad "empty window left $TODAY-usage-retro-session behind"
 
+# the index must not keep a row for the plain slug new-audit.sh reindexed before the rename
+! grep -Eq "$TODAY-usage-retro([^-]|\$)|usage-retro-session" "$AUD/00-index.md" \
+  && ok "a zero-record run leaves no dead row in 00-index.md" \
+  || bad "00-index.md still lists the removed run: $(grep -E "$TODAY-usage-retro([^-]|\$)|usage-retro-session" "$AUD/00-index.md")"
+
+# a failed step removes the run folder, so the same-day rerun is not refused
+SHIM="$(mktemp -d)"; REALPY="$(command -v python3)"
+printf '#!/usr/bin/env bash\n[[ "$*" == *extract.py* ]] && { echo "extract boom" >&2; exit 3; }\nexec "%s" "$@"\n' "$REALPY" > "$SHIM/python3"
+chmod +x "$SHIM/python3"
+out="$(cd "$WS" && PATH="$SHIM:$PATH" bash "$RETRO/facet-run.sh" session --since 2025-12-01 --transcripts-root "$TX" 2>&1)"; rc=$?
+[[ $rc -ne 0 && ! -e "$AUD/usage-retro/$TODAY-usage-retro-session" ]] \
+  && ok "a failed extract leaves no run folder behind" || bad "failed extract: rc=$rc folder=$(ls "$AUD/usage-retro" | grep session) $out"
+! grep -Eq "$TODAY-usage-retro([^-]|\$)|usage-retro-session" "$AUD/00-index.md" \
+  && ok "a failed run leaves no dead row in 00-index.md" || bad "index after failed run: $(grep usage-retro "$AUD/00-index.md")"
+out="$(cd "$WS" && bash "$RETRO/facet-run.sh" session --since 2025-12-01 --transcripts-root "$TX" 2>&1)"; rc=$?
+[[ $rc -eq 0 ]] && ok "the same-day rerun after a failed run is accepted" || bad "rerun refused: rc=$rc $out"
+rm -rf "$SHIM"
+
 echo "facet run: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]

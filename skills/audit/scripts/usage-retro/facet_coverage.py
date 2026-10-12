@@ -17,7 +17,7 @@ Usage:
   facet_coverage.py gap    --facet NAME [--ledger PATH]
       -> days since the facet's last `to`, or "never".
 """
-import argparse, datetime, json, os, sys
+import argparse, datetime, fcntl, json, os, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from extract import parse_bound   # one parser for `Nd` / ISO, shared with extract.py
@@ -72,14 +72,30 @@ def cmd_window(a):
     print(f"{frm.isoformat()} {until.isoformat()} {label}")
 
 def cmd_record(a):
-    ledger = load(a.ledger)
     frm, to = bound(a.frm, "--from"), bound(a.to, "--to")
-    ledger.setdefault(a.facet, []).append(
-        {"from": frm.isoformat(), "to": to.isoformat(), "run": a.run})
     d = os.path.dirname(a.ledger)
     if d:
         os.makedirs(d, exist_ok=True)
-    json.dump(ledger, open(a.ledger, "w"), indent=2)
+    # Read-modify-write under an exclusive lock on the ledger's directory (no lock
+    # file left behind), written to a temp file and renamed: two runs finishing
+    # together must both land, and a crash must not truncate the ledger.
+    dirfd = os.open(d or ".", os.O_RDONLY)
+    tmp = f"{a.ledger}.{os.getpid()}.tmp"
+    try:
+        fcntl.flock(dirfd, fcntl.LOCK_EX)
+        ledger = load(a.ledger)
+        ledger.setdefault(a.facet, []).append(
+            {"from": frm.isoformat(), "to": to.isoformat(), "run": a.run})
+        try:
+            with open(tmp, "w") as fh:
+                json.dump(ledger, fh, indent=2)
+            os.replace(tmp, a.ledger)
+        except BaseException:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+            raise
+    finally:
+        os.close(dirfd)
     print(f"recorded {a.facet}: {frm.isoformat()} -> {to.isoformat()} ({a.run}); "
           f"{len(ledger[a.facet])} window(s) on record")
 
