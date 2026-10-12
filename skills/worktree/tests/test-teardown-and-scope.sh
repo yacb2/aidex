@@ -172,12 +172,15 @@ bounded() {  # bounded <label> <command...>: 20 s to finish; prints its output
   for ((i = 0; i < 80; i++)); do kill -0 "$pid" 2>/dev/null || break; sleep 0.25; done
   if kill -0 "$pid" 2>/dev/null; then
     kill -9 "$pid"; pkill -f "$BIN/docker" 2>/dev/null
-    fail "$label: still hung on docker info after 20 s (deadline 2 s)"; return 1
+    fail "$label: still hung on docker info after 20 s (deadline 2 s)"; return 99
   fi
   wait "$pid"
 }
-bounded "#16b down" bash "$S/worktree.sh" down hang --force \
-  && ! grep -q 'did not answer' "$TMP/bounded.out" \
+# Keyed on "did not hang" (99), not on exit 0: down exits non-zero over an
+# unreachable daemon (worktree-c02), and an `&&` on its exit code would skip the
+# warning check without saying so.
+bounded "#16b down" bash "$S/worktree.sh" down hang --force
+[[ $? -ne 99 ]] && ! grep -q 'did not answer' "$TMP/bounded.out" \
   && fail "#16b down: no 'did not answer' warning: $(cat "$TMP/bounded.out")"
 bounded "#16b orphan-sweep" bash "$S/orphan-sweep.sh" --slug hang \
   && ! grep -q 'did not answer' "$TMP/bounded.out" \
@@ -273,6 +276,54 @@ out="$( cd "$TMP/prb" && PATH="$BIN:$PATH" bash "$S/worktree.sh" new rb --branch
 [[ ! -e "$TMP/prb-wt-rb" ]] \
   || fail "rollback: a failed new must leave no \$DEST behind (this run's own copy made it read dirty): $out"
 
+# D. worktree-c12: a slot env file that cannot be written rolls back too.
+# A root participant whose checkout TRACKS .env brings it into $DEST without the
+# marker, and write_wt_env refused with `die` AFTER CREATED_DIR=true: exit 2,
+# no rollback, a registered worktree holding slot 1, and a retry that died on
+# "destination already exists".
+mkdir -p "$TMP/penv/.context/worktrees"
+cat > "$TMP/penv/.context/worktrees/config.env" <<'ENV'
+WT_PARTICIPANTS="."
+WT_LINKS=""
+WT_PORT_VARS="DB_PORT=6400"
+ENV
+printf 'services:\n  app:\n    image: nginx\n' > "$TMP/penv/docker-compose.yml"
+printf 'FOO=bar\n' > "$TMP/penv/.env"
+( cd "$TMP/penv" && /usr/bin/git init -q . && /usr/bin/git config user.email t@e.com \
+  && /usr/bin/git config user.name t && /usr/bin/git add -A && /usr/bin/git commit -qm i ) >/dev/null 2>&1
+mk_docker '#!/bin/sh
+exit 0'
+out="$( cd "$TMP/penv" && PATH="$BIN:$PATH" bash "$S/worktree.sh" new e1 --branch wt/e1 2>&1 )"; rc=$?
+[[ $rc -ne 0 ]] || fail "c12 fixture: new must fail when the tracked .env blocks the slot env file: $out"
+/usr/bin/git -C "$TMP/penv" worktree list | grep >/dev/null "penv-wt-e1" \
+  && fail "c12: the refused slot env file left a registered worktree behind: $out"
+[[ -e "$TMPDIR/aidex-wt-slots-penv/slot-1" ]] \
+  && fail "c12: the refused slot env file left slot 1 claimed: $out"
+out="$( cd "$TMP/penv" && PATH="$BIN:$PATH" bash "$S/worktree.sh" new e1 --branch wt/e1b 2>&1 )"
+grep -q 'destination already exists' <<<"$out" \
+  && fail "c12: the retry of new died on the first run's leftovers: $out"
+
+# E. worktree-c38: rollback frees the ports before it frees the slot. The stub
+# records the claim directory at the moment compose down runs; an empty record
+# means a concurrent `new` could already have been handed slot 1.
+mkdir -p "$TMP/porder/.context/worktrees" "$TMP/porder/backend"
+printf 'WT_PARTICIPANTS="backend"\nWT_LINKS=""\nWT_PORT_VARS="DB_PORT=6400"\n' \
+  > "$TMP/porder/.context/worktrees/config.env"
+printf 'services:\n  backend:\n    image: nginx\n' > "$TMP/porder/docker-compose.yml"
+( cd "$TMP/porder/backend" && /usr/bin/git init -q . && /usr/bin/git config user.email t@e.com \
+  && /usr/bin/git config user.name t && echo x > f && /usr/bin/git add -A && /usr/bin/git commit -qm i ) >/dev/null 2>&1
+mk_docker "#!/bin/sh
+case \" \$* \" in
+  *' up '*) exit 1 ;;
+  *' compose '*' down '*) ls '$TMPDIR/aidex-wt-slots-porder' > '$TMP/order.log' 2>&1 ;;
+esac
+exit 0"
+out="$( cd "$TMP/porder" && PATH="$BIN:$PATH" bash "$S/worktree.sh" new o1 --branch wt/o1 2>&1 )"
+grep -q 'rolling back' <<<"$out" || fail "c38 fixture: compose up failure did not roll back: $out"
+grep -q 'slot-1' "$TMP/order.log" 2>/dev/null \
+  || fail "c38: rollback released slot 1 before compose down freed its ports (claims during down: $(cat "$TMP/order.log" 2>/dev/null))"
+[[ -e "$TMPDIR/aidex-wt-slots-porder/slot-1" ]] && fail "c38: rollback must still release slot 1 in the end"
+
 # --- BL-267. `down` removes a $DEST that is itself a root-repo checkout ------
 # The 2026-08-28 workaround: a project whose root owns .context/, so the
 # worktree's $DEST was made a checkout of the root repo by hand. `down` builds
@@ -357,8 +408,76 @@ out="$( cd "$P268" && PATH="$BIN:$PATH" bash "$S/worktree.sh" down rootco 2>&1 )
 grep -q '(root checkout) .*root-wip.txt' <<<"$out" \
   || fail "BL-267: the refusal must name the root checkout's uncommitted work as such, got: $out"
 
+# --- worktree-c02. an unverified teardown keeps its slot and does not exit 0 --
+# `down` released the claim and exited 0 when compose down failed, when the
+# sweep found residue, and when the daemon could not be asked at all: a driving
+# agent read success, and the leftovers were tracked by no claim. The directory
+# still goes (what is withheld is the CLAIM), so `list` shows MISSING-DIR and a
+# second `down` runs the reclaim again against the project root.
+mk_claimed() {  # mk_claimed <project-dir> <slug>: a worktree holding slot 3
+  mk_branch_fixture "$1" "$2"
+  printf '3\n' > "$1-wt-$2/.wt-slot"
+  mkdir -p "$TMPDIR/aidex-wt-slots-$(basename "$1")"
+  printf '%s %s\n' "$$" "$2" > "$TMPDIR/aidex-wt-slots-$(basename "$1")/slot-3"
+}
+# With no claim held (a --no-infra tree, or a slug whose claim is already gone)
+# there is nothing to withhold: an unverifiable teardown keeps the warning and
+# exits 0 (noinfra: daemon down; nodocker: docker not on PATH at all).
+# A PATH with every directory that holds a `docker` dropped, the stub's included.
+NODOCKER_PATH="$(printf '%s\n' "$PATH" | tr ':' '\n' \
+  | while IFS= read -r d; do [[ -n "$d" && ! -x "$d/docker" ]] && printf '%s:' "$d"; done)"
+NODOCKER_PATH="${NODOCKER_PATH%:}"   # a trailing ':' would put the cwd on PATH
+for cell in daemon composefail residue keepdir clean noinfra nodocker; do
+  P="$TMP/pc02$cell"; C="$TMPDIR/aidex-wt-slots-pc02$cell/slot-3"
+  case "$cell" in
+    noinfra|nodocker) mk_branch_fixture "$P" td >/dev/null 2>&1 ;;
+    *)                mk_claimed "$P" td >/dev/null 2>&1 ;;
+  esac
+  case "$cell" in
+    # Only `docker info` fails: compose down succeeds, so the daemon check is
+    # the one thing that can withhold the claim here.
+    daemon)      mk_docker '#!/bin/sh
+case "$1" in info) exit 1 ;; esac
+exit 0' ;;
+    composefail) mk_docker '#!/bin/sh
+case " $* " in *" compose "*" down "*) exit 1 ;; esac
+exit 0' ;;
+    residue|keepdir) mk_docker "#!/bin/sh
+case \"\$1\" in volume) echo 'pc02$cell-wt-td_pgdata' ;; esac
+exit 0" ;;
+    clean)       mk_docker '#!/bin/sh
+exit 0' ;;
+    noinfra)     mk_docker '#!/bin/sh
+exit 1' ;;
+  esac
+  flags=(--force); [[ "$cell" == keepdir ]] && flags+=(--keep-dir)
+  if [[ "$cell" == nodocker ]]; then
+    out="$( cd "$P" && PATH="$NODOCKER_PATH" "$BASH" "$S/worktree.sh" down td "${flags[@]}" 2>&1 )"; rc=$?
+  else
+    out="$( cd "$P" && PATH="$BIN:$PATH" bash "$S/worktree.sh" down td "${flags[@]}" 2>&1 )"; rc=$?
+  fi
+  case "$cell" in
+    keepdir)
+      # --keep-dir holds the slot anyway; what it must not do is exit 0 over residue.
+      [[ $rc -eq 1 && -d "$P-wt-td" && -e "$C" ]] \
+        || fail "c02 keepdir: --keep-dir over residue must keep dir and slot and exit 1 (rc=$rc): $out" ;;
+    clean)
+      [[ $rc -eq 0 && ! -e "$C" && ! -d "$P-wt-td" ]] \
+        || fail "c02 control: a verified teardown must exit 0, remove the dir and release slot 3 (rc=$rc): $out" ;;
+    noinfra|nodocker)
+      [[ $rc -eq 0 && ! -d "$P-wt-td" ]] \
+        || fail "c02 $cell: with no claim to withhold, an unverifiable teardown must remove the dir and exit 0 (rc=$rc): $out"
+      grep -q 'stays claimed' <<<"$out" && fail "c02 $cell: no claim exists, yet down says one stays claimed: $out" ;;
+    *)
+      [[ $rc -eq 1 ]] || fail "c02 $cell: an unverified teardown must exit 1 (rc=$rc): $out"
+      [[ -e "$C" ]] || fail "c02 $cell: the slot claim was released over an unverified teardown: $out"
+      [[ ! -d "$P-wt-td" ]] || fail "c02 $cell: the directory must still be removed (only the claim is withheld): $out"
+      grep -q 'stays claimed' <<<"$out" || fail "c02 $cell: down must say the slot stays claimed and why: $out" ;;
+  esac
+done
+
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"
   exit 1
 fi
-echo "OK — teardown and scope: blank slot refused, sweep scoped to the workspace, compose failure reported, daemon-down not a clean teardown, recipe bounded to front matter, a root-repo \$DEST removed and its slot released"
+echo "OK — teardown and scope: blank slot refused, sweep scoped to the workspace, compose failure reported, daemon-down not a clean teardown, recipe bounded to front matter, a root-repo \$DEST removed and its slot released, rollback covers the slot env file and frees ports before the slot, an unverified teardown keeps its slot"

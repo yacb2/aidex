@@ -96,6 +96,36 @@ grep -qi 'no Docker resource carries the project label' <<<"$out2" \
 [[ "$rc2" -eq 0 ]] \
   || fail "5: a properly labelled stack must exit 0, got $rc2: $out2"
 
+# --- worktree-c04: a sibling slug's resources are not this stack's ----------
+# The volume/network half of the count matched `grep -F $CPROJ`, a substring, so
+# for slug `foo` the resources of a live sibling `foo-bar` (p3-wt-foo-bar_*)
+# made an unlabelled stack read as attributable and the error never fired.
+mk_project "$TMP/p3"
+mk_docker '#!/bin/sh
+case "$1" in
+  volume)  echo "p3-wt-foo-bar_pgdata" ;;
+  network) echo "p3-wt-foo-bar_default" ;;
+esac
+exit 0'
+out3="$( cd "$TMP/p3" && PATH="$BIN:$PATH" bash "$S/worktree.sh" new foo --branch wt/foo 2>&1 )"; rc3=$?
+grep -qi 'no Docker resource carries the project label' <<<"$out3" \
+  || fail "6: a sibling slug's volume and network were counted as this stack's, got (rc=$rc3): $out3"
+
+# The other side of that boundary: this stack's own `<project>_<name>` volume
+# and network must still count, with no container to carry the count instead
+# (p2 lists one, so a boundary that admits only the bare project name passed it).
+mk_project "$TMP/p4"
+mk_docker '#!/bin/sh
+case "$1" in
+  volume)  echo "p4-wt-foo_pgdata" ;;
+  network) echo "p4-wt-foo_default" ;;
+esac
+exit 0'
+out4="$( cd "$TMP/p4" && PATH="$BIN:$PATH" bash "$S/worktree.sh" new foo --branch wt/foo 2>&1 )"; rc4=$?
+grep -qi 'no Docker resource carries the project label' <<<"$out4" \
+  && fail "7: this stack's own <project>_<name> volume and network were not counted, got (rc=$rc4): $out4"
+[[ "$rc4" -eq 0 ]] || fail "8: a stack attributable by its volume and network alone must exit 0, got $rc4: $out4"
+
 if [[ "$failures" -eq 0 ]]; then
   echo "PASS: test-attributability.sh"
   exit 0
