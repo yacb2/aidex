@@ -122,10 +122,6 @@ find_inventory_for_id() {
   esac
 }
 
-# Digest of stdin (first field) for lock and log file names: shasum, else
-# sha256sum, else cksum — shasum is missing on some Linux images.
-path_digest() { { shasum 2>/dev/null || sha256sum 2>/dev/null || cksum; } | cut -d' ' -f1; }
-
 # Escape a literal string for use inside a grep -E pattern.
 ere_escape() { printf '%s' "$1" | sed 's/[][\\.*^$/+?(){}|]/\\&/g'; }
 
@@ -225,28 +221,15 @@ extract_finding_row() {
 # never rewritten.
 # Usage: mark_row_escalated <inventory> <finding_id> <ref>
 mark_row_escalated() {
-  local inventory="$1" finding_id="$2" link="$3" tmp="" lock age n=0 rc=0
+  local inventory="$1" finding_id="$2" link="$3" tmp="" lock rc=0
   # Two escalations on one inventory (separate sessions, or a backlog and a loop
-  # escalation) each read-modify-write the whole file: serialise them with a
-  # mkdir lock kept outside .context, keyed by the inventory's real path.
-  lock="${TMPDIR:-/tmp}/aidex-inv.$(printf '%s' "$(cd "$(dirname "$inventory")" && pwd -P)/$(basename "$inventory")" | path_digest | cut -c1-16).lock"
-  # The lock is held for milliseconds, so one a few seconds old was left by a
-  # killed run: take it over (same shape as escalate-finding.sh's acquire()).
-  until mkdir "$lock" 2>/dev/null; do
-    if (( ++n > 200 )); then
-      err "error: could not lock $inventory ($lock held for 10 s; remove it if no escalation is running)"
-      return 2
-    fi
-    # GNU first: GNU `stat -f` is filesystem status (prints, exits 1); BSD `stat -c`
-    # prints nothing and exits 1. A future mtime (clock skew) is stale too.
-    age=$(( $(date +%s) - $(stat -c %Y "$lock" 2>/dev/null || stat -f %m "$lock" 2>/dev/null || date +%s) ))
-    if (( age > 5 || age < 0 )); then
-      warn "taking over a stale inventory lock ($lock, ${age}s old)"
-      rmdir "$lock" 2>/dev/null || true
-      continue
-    fi
-    sleep 0.05
-  done
+  # escalation) each read-modify-write the whole file: serialise them under a kernel
+  # lock (lock_take) kept outside .context, keyed by the inventory's real path. The
+  # `.flock` name never meets the `.lock` DIRECTORY the old mkdir lock may have left.
+  lock="${TMPDIR:-/tmp}/aidex-inv.$(printf '%s' "$(cd "$(dirname "$inventory")" && pwd -P)/$(basename "$inventory")" | path_digest | cut -c1-16).flock"
+  # A subshell: the lock goes as it ends.
+  (
+  lock_take "$lock" 10 || { err "error: could not lock $inventory; nothing written"; exit 2; }
   # The temp file sits beside the inventory (atomic rename) and takes its mode
   # (cp -p): mktemp's 0600 must not replace the board's mode.
   if tmp="$(mktemp "$inventory.XXXXXX")" && cp -p "$inventory" "$tmp" && awk -v id="$finding_id" -v link="$link" -v today="$(today_iso)" "$AWK_UNESC"'
@@ -321,9 +304,9 @@ mark_row_escalated() {
   ' "$inventory" > "$tmp" && mv "$tmp" "$inventory"; then
     :
   else
-    rc=$?; rm -f "$tmp"
+    rc=$?; rm -f "$tmp"; exit $rc
   fi
-  rmdir "$lock"
+  ) || rc=$?
   return $rc
 }
 

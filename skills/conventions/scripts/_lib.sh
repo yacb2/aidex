@@ -449,3 +449,80 @@ resolve_profile() {
   if [[ -f "$ctx/$legacy" ]]; then printf '%s\n' "$ctx/$legacy"; return 0; fi
   return 1
 }
+
+# Digest of stdin (first field) for lock and log file names: shasum, else
+# sha256sum, else cksum — shasum is missing on some Linux images.
+path_digest() { { shasum 2>/dev/null || sha256sum 2>/dev/null || cksum; } | cut -d' ' -f1; }
+
+# lock_take <lockfile> <wait-seconds> [fd] / lock_drop [fd] — an exclusive kernel lock
+# (perl flock) on <lockfile>, held through a shell fd (3-9, default 9) until lock_drop
+# closes it or the shell exits. The mkdir locks it replaces took over a lock by its age
+# and lost data both ways: two waiters each removed a lock the other had just taken, and
+# a future mtime deleted a live one. A kernel lock has no stale state, so there is no
+# takeover: a killed holder's lock goes with its process, a live holder keeps it however
+# long it runs. Nothing is ever removed: deleting a flock file reopens an inode race, so
+# the file stays (local filesystem only; flock is unreliable on NFS).
+# Returns 0 held; 75 when <wait-seconds> pass with the lock still taken; 2 on a bad wait
+# or fd, no perl, an unopenable file, or an fd this shell already locks with; each
+# failure prints one line naming <lockfile>.
+# Children inherit the fd: one still running (a hung `docker ps`, a background job) keeps
+# the lock after the shell drops it or dies; start such a child with `9>&-`. Nested locks
+# need distinct fds. fds above 9 are refused: bash 3.2 does not replace an open fd above 9
+# on `exec N>>`, so a second lock there silently re-locked the first file.
+# Re-entrant per lock path: once held, AIDEX_LOCK_<digest>=<fd> is exported. A take of a
+# lock whose marker is set returns 0 at once, instead of waiting on itself, only when that
+# fd in this process still refers to the lock file (a child started with `9>&-` keeps the
+# marker without the lock, so it takes the lock for real). The same shell taking the same
+# lock on the same fd again goes one level deeper and its lock_drop only comes back up; on
+# another fd it is refused (rc 2). A child's re-entrant take has no lock_drop (a no-op).
+#
+# One shape, a section: take, write, drop. Every exit path must drop, or put the section
+# in a subshell, which drops as it ends:
+#     lock_take "$file.flock" 30 || exit $?; ...read, modify, write...; lock_drop
+#     ( lock_take "$lock" 10 || exit $?; cp -p "$f" "$tmp" && awk ... > "$tmp" && mv "$tmp" "$f" ) || rc=$?
+# A whole script is the same call with no lock_drop: the lock lasts until it exits.
+# The per-shell record _AIDEX_LOCK_FD<fd> is "<subshell level> <marker> <depth>": a
+# subshell may reuse its parent's fd (its copy is its own), the same shell may not (that
+# would silently drop the lock the fd holds).
+lock_take() {
+  local lock="$1" wait="$2" fd="${3:-9}" mark rec held lvl m n rc=0
+  [[ "$wait" =~ ^[1-9][0-9]*$ ]] || { err "error: the wait for $lock must be whole seconds, got '$wait'"; return 2; }
+  [[ "$fd" =~ ^[3-9]$ ]] || { err "error: the fd for $lock must be 3-9, got '$fd'"; return 2; }
+  command -v perl >/dev/null 2>&1 || { err "error: perl is required to lock $lock; nothing written"; return 2; }
+  mark="AIDEX_LOCK_$(printf '%s' "$(cd "$(dirname "$lock")" 2>/dev/null && pwd -P)/$(basename "$lock")" | path_digest | cut -c1-16)"
+  rec="_AIDEX_LOCK_FD$fd"
+  held="${!mark:-}"
+  if [[ "$held" =~ ^[3-9]$ ]] && perl -e 'my @f = stat(shift); open(my $h, ">&=", shift) or exit 1;
+       my @d = stat($h); exit(@f && @d && $f[0] == $d[0] && $f[1] == $d[1] ? 0 : 1)' "$lock" "$held" 2>/dev/null; then
+    if [[ "$held" == "$fd" && "${!rec:-}" == "$BASH_SUBSHELL $mark "* ]]; then
+      read -r lvl m n <<<"${!rec}"; eval "$rec=\"\$lvl \$m \$((n + 1))\""
+    else
+      # this shell holds it on another fd: a take here would leave nothing for its
+      # lock_drop to undo but that fd's own lock (a child's take is fine: not ours to drop)
+      m="_AIDEX_LOCK_FD$held"
+      [[ "${!m:-}" != "$BASH_SUBSHELL $mark "* ]] \
+        || { err "error: $lock is held by this shell on fd $held; take it on fd $held, not fd $fd"; return 2; }
+    fi
+    return 0
+  fi
+  [[ "${!rec:-}" != "$BASH_SUBSHELL "* ]] || { err "error: fd $fd already holds a lock in this shell; take $lock on another fd"; return 2; }
+  eval "exec $fd>>\"\$lock\"" 2>/dev/null || { err "error: cannot open the lock file $lock; nothing written"; return 2; }
+  perl -MFcntl=:flock -e 'open(my $h, ">&=", shift) or exit 2; $SIG{ALRM} = sub { exit 75 };
+    alarm shift; exit(flock($h, LOCK_EX) ? 0 : 2)' "$fd" "$wait" || rc=$?
+  case $rc in
+    0)  export "$mark=$fd"; eval "$rec=\"\$BASH_SUBSHELL \$mark 1\"" ;;
+    75) err "error: $lock is held by another run (waited $wait s); nothing written" ;;
+    *)  err "error: could not lock $lock; nothing written"; rc=2 ;;
+  esac
+  [[ $rc -eq 0 ]] || eval "exec $fd>&-"
+  return $rc
+}
+lock_drop() {
+  local fd="${1:-9}" rec lvl m n
+  rec="_AIDEX_LOCK_FD$fd"
+  [[ "${!rec:-}" == "$BASH_SUBSHELL "* ]] || return 0
+  read -r lvl m n <<<"${!rec}"
+  if (( n > 1 )); then eval "$rec=\"\$lvl \$m \$((n - 1))\""; return 0; fi
+  unset "$m" "$rec"
+  eval "exec $fd>&-"
+}
