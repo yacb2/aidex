@@ -3,8 +3,14 @@
 
 Rules: a phase is done when its checkpoint boxes are all ticked; ready when every
 depends_on phase is done; ready phases share a wave only if their **Files:** paths are
-disjoint; at most three per wave; a phase with no **Files:** paths or phase-type hitl-*
-runs alone. Later waves assume every earlier wave completed.
+disjoint (a slashless name in parentheses only clashes with another phase's real path);
+at most three per wave; a phase with no **Files:** paths or phase-type hitl-* runs alone.
+Later waves assume every earlier wave completed. Checkpoint boxes are those under every
+heading naming Checkpoint; a phase without one is judged on every box in the file.
+A phase file is NN-<phase>.md (1-3 digits, not 00-); other digit-led names are skipped and
+named on stderr.
+Refused on stderr with exit 1: no plan directory, no phase files, two phase files with
+one number.
 """
 import re
 import sys
@@ -26,6 +32,19 @@ def norm(s):
     return s.rstrip("/")
 
 
+def paths_of(line):
+    """(token, weak) for each backticked token of one line. A token inside parentheses with
+    no `/` is weak: the canon template's annotation (`ClassName.method`, a field name), or
+    a bare file name ("or extend `api.ts`") that must still clash with a real path."""
+    depth, out = 0, []
+    for tok in re.findall(r"`[^`]+`|[()]", line):
+        if tok in "()":
+            depth = max(depth + (1 if tok == "(" else -1), 0)
+        else:
+            out.append((tok[1:-1], depth > 0 and "/" not in tok))
+    return out
+
+
 def files_of(text):
     """Backticked paths of every line starting with **Files:**, plus its paragraph; if the
     marker line carries nothing, the paragraph after one blank line."""
@@ -41,7 +60,7 @@ def files_of(text):
                 while i < len(lines) and lines[i].strip():
                     block.append(lines[i])
                     i += 1
-            out += [norm(x) for x in re.findall(r"`([^`]+)`", "\n".join(block))]
+            out += [(norm(x), weak) for line in block for x, weak in paths_of(line)]
         else:
             i += 1
     return out
@@ -53,14 +72,34 @@ def dep_entries(fm):
     if not m:
         return []
     raw = re.sub(r"\s+#.*$", "", m.group(1)).strip()
+    if raw.lower() in ("null", "none", "~"):
+        return []
     if raw.startswith("["):
         items = raw.strip("[]").split(",")
     elif raw:
         items = [raw]
     else:
-        items = re.findall(r"^\s*-\s*(.+)$", fm[m.end():].split("\n\n")[0], re.M)
+        items = []
+        for line in fm[m.end():].split("\n")[1:]:
+            if re.match(r"\s*#", line):
+                continue
+            item = re.match(r"\s*-\s*(.+)$", line)
+            if not item:
+                break
+            items.append(item.group(1))
     items = [x.strip().strip("'\"") for x in items if x.strip()]
     return [int(x) if x.isdigit() else x for x in items]
+
+
+def unfenced(text):
+    """The text with every line of a ``` or ~~~ fenced block blanked (same length), so a
+    `# comment` in a code block is not read as a heading."""
+    out, fence = [], False
+    for line in text.split("\n"):
+        marker = re.match(r"\s*(```|~~~)", line)
+        out.append(" " * len(line) if fence or marker else line)
+        fence = fence != bool(marker)
+    return "\n".join(out)
 
 
 def parse_phase(path):
@@ -69,13 +108,20 @@ def parse_phase(path):
     deps = dep_entries(fm)
     ptype = re.search(r"^phase-type:\s*(\S+)", fm, re.M)
     files = files_of(text)
-    ck = text.split("Checkpoint", 1)[-1] if "Checkpoint" in text else ""
+    scan = unfenced(text)
+    heads = list(re.finditer(r"^(#+)\s.*\bCheckpoint\b.*$", scan, re.M))
+    ck = "" if heads else text
+    for head in heads:
+        end = re.search(rf"^#{{1,{len(head.group(1))}}}\s", scan[head.end():], re.M)
+        ck += text[head.end():head.end() + end.start()] if end else text[head.end():]
     boxes = re.findall(r"^\s*- \[([ xX])\]", ck, re.M)
     return {
         "n": int(re.match(r"\d+", path.name).group()),
+        "name": path.name,
         "deps": deps,
         "hitl": bool(ptype and ptype.group(1).startswith("hitl")),
-        "files": [f for f in files if f],
+        "files": [f for f, weak in files if f and not weak],
+        "weak": [f for f, weak in files if f and weak],
         "done": bool(boxes) and all(b != " " for b in boxes),
     }
 
@@ -131,7 +177,8 @@ def clash(a, b):
 
 
 def overlaps(p, q):
-    return any(clash(a, b) for a in p["files"] for b in q["files"])
+    return any(clash(a, b) for a in p["files"] for b in q["files"] + q["weak"]) or any(
+        clash(a, b) for a in p["weak"] for b in q["files"])
 
 
 def alone(p):
@@ -163,9 +210,27 @@ def waves(phases):
     return out, pending
 
 
+def die(msg):
+    sys.exit(f"plan-waves: {msg}")
+
+
 def main():
+    if len(sys.argv) != 2:
+        die("usage: plan-waves.py <plan-dir>")
     plan = Path(sys.argv[1])
-    phases = [parse_phase(f) for f in sorted(plan.glob("[0-9]*.md")) if not f.name.startswith("00-")]
+    if not plan.is_dir():
+        die(f"{plan} is not a directory")
+    named = [f for f in sorted(plan.glob("[0-9]*.md")) if not f.name.startswith("00-")]
+    skipped = [f.name for f in named if not re.match(r"\d{1,3}-", f.name)]
+    if skipped:
+        print("plan-waves: skipped, not NN-<phase>.md: " + ", ".join(skipped), file=sys.stderr)
+    phases = [parse_phase(f) for f in named if f.name not in skipped]
+    if not phases:
+        die(f"{plan} has no phase files")
+    for n in sorted({p["n"] for p in phases}):
+        same = [p["name"] for p in phases if p["n"] == n]
+        if len(same) > 1:
+            die(f"duplicate phase number {n}: " + ", ".join(same))
     out, blocked = waves(phases)
     for i, w in enumerate(out, 1):
         print(f"wave {i}: " + ", ".join(str(p["n"]) for p in w))
