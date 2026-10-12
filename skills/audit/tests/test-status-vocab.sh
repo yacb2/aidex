@@ -13,6 +13,7 @@ fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+export TMPDIR="$TMP/tmp"; mkdir -p "$TMPDIR"  # inventory lock files are kept, never removed
 mkdir -p "$TMP/.context/audits/ux/2026-06-01-first-pass"
 cd "$TMP"
 A=".context/audits"

@@ -17,6 +17,7 @@ fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 export XDG_STATE_HOME="$TMP/state"  # the escalation log must not leak into the real home
+export TMPDIR="$TMP/tmp"; mkdir -p "$TMPDIR"  # inventory lock files are kept, never removed
 mkdir -p "$TMP/.context/audits/ux/2026-06-01-first-pass" "$TMP/.context/backlog" "$TMP/.context/loops"
 cd "$TMP"
 A=".context/audits"
@@ -183,31 +184,70 @@ board "$A/INVENTORY.md" F-001
 got="$( . "$SCRIPTS/_lib.sh"; find_inventory_for_id "$A" F-001 2>&1 )"
 [[ "$got" == "$A/INVENTORY.md" ]] || fail "roots-legacy: a lone INVENTORY.md should resolve, got: $got"
 
-# --- a stale inventory lock (a killed run) is taken over, not waited out ---
-new_project stale
-board "$A/ux/00-inventory.md" F-001
-LOCKDIR="$TMP/stale-tmp"; mkdir -p "$LOCKDIR"
-inv_lock() { printf '%s/aidex-inv.%s.lock' "$1" "$(printf '%s' "$(cd "$(dirname "$2")" && pwd -P)/$(basename "$2")" | shasum | cut -c1-16)"; }
-LOCK="$(inv_lock "$LOCKDIR" "$A/ux/00-inventory.md")"
-mkdir "$LOCK"; touch -t 202601010000 "$LOCK"
-out="$(TMPDIR="$LOCKDIR" bash "$SCRIPTS/escalate-finding.sh" F-001 2>&1)"; rc=$?
-[[ $rc -eq 0 ]] || fail "stale: a stale inventory lock should be taken over, rc $rc: $out"
-row_of "$A/ux/00-inventory.md" F-001 | grep -q '| done |' || fail "stale: F-001 row should be done: $(row_of "$A/ux/00-inventory.md" F-001)"
-[[ "$(backlog_count)" == 1 ]] || fail "stale: expected exactly one backlog file, got $(backlog_count)"
+# --- the inventory lock is a kernel lock (lock_take in conventions/_lib.sh): a killed
+# holder never blocks, a live one is waited for and never taken over. The old mkdir lock
+# took over by age and lost escalations (two waiters both removed it; a future mtime
+# deleted a live lock: wl-review-r2 B1, bkb-review-r1 F1). Its DIRECTORY, at the same
+# name with `.lock`, may be left in TMPDIR by a run of the old code; the new lock file
+# is `.flock` and must not wedge on it.
+# inv_name <tmpdir> <inventory> [digest-cmd] -> the lock name without its suffix
+inv_name() { printf '%s/aidex-inv.%s' "$1" "$(printf '%s' "$(cd "$(dirname "$2")" && pwd -P)/$(basename "$2")" | ${3:-shasum} | cut -c1-16)"; }
+# hold <lockfile> <seconds> [log] — a perl flock holder in the background (HPID); returns
+# once it holds the lock, appends "released" to <log> as it lets go. The fifo is opened
+# first so a holder that dies early ends the read instead of hanging it.
+hold() {
+  local fifo="$TMP/hold.$RANDOM"; mkfifo "$fifo"
+  perl -MFcntl=:flock -e 'my ($lock, $fifo, $secs, $log) = @ARGV;
+    open(R, ">", $fifo) or die; open(H, ">>", $lock) or die; flock(H, LOCK_EX) or die;
+    print R "held\n"; close R; sleep $secs;
+    if ($log) { open(L, ">>", $log); print L "released\n"; close L }' "$1" "$fifo" "$2" "${3:-}" &
+  HPID=$!; read -r _ < "$fifo"; rm -f "$fifo"
+}
+killhold() { kill -9 "$HPID" 2>/dev/null; { wait "$HPID"; } 2>/dev/null; }
 
-# a lock dated in the future (clock skew, touch) is stale too
+# a killed holder and an aged old-style lock dir: ten escalations at once all land
+new_project stale
+LOCKDIR="$TMP/stale-tmp"; mkdir -p "$LOCKDIR"
+INV="$A/ux/00-inventory.md"; mkdir -p "$A/ux"; L="$(inv_name "$LOCKDIR" "$INV")"
+errs="$TMP/stale.err"; : > "$errs"; lost=0
+for r in 1 2 3 4 5; do
+  board "$INV" F-1 F-2 F-3 F-4 F-5 F-6 F-7 F-8 F-9 F-10
+  rm -rf "$L.lock"; mkdir "$L.lock"; touch -t 202601010000 "$L.lock"
+  hold "$L.flock" 600
+  for i in 1 2 3 4 5 6 7 8 9 10; do
+    ( TMPDIR="$LOCKDIR"; . "$SCRIPTS/_lib.sh"; mark_row_escalated "$INV" "F-$i" "backlog/bl-$i" || echo "rc $? on F-$i" >&2 ) 2>>"$errs" &
+  done
+  sleep 0.3; killhold; wait
+  [[ "$(grep -c '| done |' "$INV")" == 10 ]] || lost=$((lost + 1))
+done
+[[ $lost -eq 0 ]] || fail "stale: $lost of 5 rounds lost an escalation behind a killed holder and an old lock dir"
+[[ ! -s "$errs" ]] || fail "stale: every escalation should exit 0 with no takeover, stderr: $(sort "$errs" | uniq -c | head -5)"
+
+# a future-dated old-style lock dir is not a lock: it is neither waited for nor removed
 new_project future
 board "$A/ux/00-inventory.md" F-001
-LOCKDIR="$TMP/future-tmp"; mkdir -p "$LOCKDIR"; LOCK="$(inv_lock "$LOCKDIR" "$A/ux/00-inventory.md")"
-mkdir "$LOCK"; touch -t 203001010000 "$LOCK"
+LOCKDIR="$TMP/future-tmp"; mkdir -p "$LOCKDIR"; L="$(inv_name "$LOCKDIR" "$A/ux/00-inventory.md")"
+mkdir "$L.lock"; touch -t 203001010000 "$L.lock"
+hold "$L.flock" 600; killhold
 out="$(TMPDIR="$LOCKDIR" bash "$SCRIPTS/escalate-finding.sh" F-001 2>&1)"; rc=$?
-[[ $rc -eq 0 ]] || fail "future: a future-dated inventory lock should be taken over, rc $rc: $out"
+[[ $rc -eq 0 ]] || fail "future: a killed holder should not block the escalation, rc $rc: $out"
 row_of "$A/ux/00-inventory.md" F-001 | grep -q '| done |' || fail "future: F-001 row should be done"
 [[ "$(backlog_count)" == 1 ]] || fail "future: expected exactly one backlog file, got $(backlog_count)"
+[[ "$out" != *"taking over"* ]] || fail "future: nothing is taken over any more: $out"
 
-# GNU coreutils: `stat -f` is filesystem status (prints a block, exits 1) and
-# shasum may be missing. Stubs emulate that host; both stale locks (the window
-# lock and the inventory lock) must still be taken over.
+# a fresh old-style lock dir (an old-code run in flight) does not hold the write up
+new_project leftover
+board "$A/ux/00-inventory.md" F-001
+LOCKDIR="$TMP/leftover-tmp"; mkdir -p "$LOCKDIR"; L="$(inv_name "$LOCKDIR" "$A/ux/00-inventory.md")"
+mkdir "$L.lock"
+out="$( TMPDIR="$LOCKDIR"; . "$SCRIPTS/_lib.sh"; mark_row_escalated "$A/ux/00-inventory.md" F-001 backlog/bl-1 2>&1 )"; rc=$?
+[[ $rc -eq 0 && -z "$out" ]] || fail "leftover: an old lock dir should not affect the write, rc $rc: $out"
+row_of "$A/ux/00-inventory.md" F-001 | grep -q '| done |' || fail "leftover: F-001 row should be done"
+[[ -d "$L.lock" ]] || fail "leftover: the old lock dir is not ours to remove"
+
+# GNU coreutils: `stat -f` is filesystem status (prints a block, exits 1) and shasum may
+# be missing. Stubs emulate that host. The stale WINDOW lock (escalate-finding.sh, still
+# mkdir) must be taken over; the inventory lock must be named by the next digest.
 new_project gnu
 board "$A/ux/00-inventory.md" F-001
 STUB="$TMP/gnu-bin"; mkdir -p "$STUB"
@@ -224,24 +264,50 @@ chmod +x "$STUB/stat" "$STUB/shasum"
 # with shasum gone, lock and log names come from the next digest on the host
 digest() { { sha256sum 2>/dev/null || cksum; } | cut -d' ' -f1; }
 LOCKDIR="$TMP/gnu-tmp"; mkdir -p "$LOCKDIR"
-LOCK="$LOCKDIR/aidex-inv.$(printf '%s' "$(cd "$A/ux" && pwd -P)/00-inventory.md" | digest | cut -c1-16).lock"
-mkdir "$LOCK"; touch -t 202601010000 "$LOCK"
+L="$(inv_name "$LOCKDIR" "$A/ux/00-inventory.md" digest)"
+mkdir "$L.lock"; touch -t 202601010000 "$L.lock"
 WLOCK="$XDG_STATE_HOME/aidex/escalation-log/$(printf '%s' "$(pwd -P)" | digest).lock"
 mkdir -p "$WLOCK"; touch -t 202601010000 "$WLOCK"
 out="$(PATH="$STUB:$PATH" TMPDIR="$LOCKDIR" bash "$SCRIPTS/escalate-finding.sh" F-001 2>&1)"; rc=$?
-[[ $rc -eq 0 ]] || fail "gnu: stale locks under GNU stat and no shasum should be taken over, rc $rc: $out"
+[[ $rc -eq 0 ]] || fail "gnu: a stale window lock under GNU stat and no shasum should be taken over, rc $rc: $out"
 row_of "$A/ux/00-inventory.md" F-001 | grep -q '| done |' || fail "gnu: F-001 row should be done"
 [[ "$(backlog_count)" == 1 ]] || fail "gnu: expected exactly one backlog file, got $(backlog_count)"
+[[ -f "$L.flock" ]] || fail "gnu: the inventory lock should be named by the no-shasum digest ($L.flock): $(ls "$LOCKDIR")"
 
-# a FRESH lock is waited for, never taken over
+# a LIVE holder is waited for, never taken over: the write lands after it lets go
 new_project busy
 board "$A/ux/00-inventory.md" F-001
-LOCKDIR="$TMP/busy-tmp"; mkdir -p "$LOCKDIR"; LOCK="$(inv_lock "$LOCKDIR" "$A/ux/00-inventory.md")"
-mkdir "$LOCK"; ( sleep 1; rmdir "$LOCK" ) &
+LOCKDIR="$TMP/busy-tmp"; mkdir -p "$LOCKDIR"; L="$(inv_name "$LOCKDIR" "$A/ux/00-inventory.md")"
+log="$TMP/busy.log"
+hold "$L.flock" 2 "$log"
+out="$( TMPDIR="$LOCKDIR"; . "$SCRIPTS/_lib.sh"; rc=0; mark_row_escalated "$A/ux/00-inventory.md" F-001 backlog/bl-1 2>&1 || rc=$?; echo written >> "$log"; exit $rc )"; rc=$?
+{ wait "$HPID"; } 2>/dev/null
+[[ $rc -eq 0 ]] && row_of "$A/ux/00-inventory.md" F-001 | grep -q '| done |' || fail "busy: the row should be marked once the holder lets go, rc $rc: $out"
+[[ "$(tr '\n' ' ' < "$log")" == "released written " ]] || fail "busy: the write should land after the live holder exits, order: $(tr '\n' ' ' < "$log")"
+[[ "$out" != *"taking over"* ]] || fail "busy: a live lock must not be taken over: $out"
+# nothing in the inventory lock path removes a lock or judges one by age (T6)
+[[ "$(sed -n '/^mark_row_escalated()/,/^}/p' "$SCRIPTS/_lib.sh" | grep -cE 'rmdir|unlink|rm [^"]*"\$lock|stat |taking over')" == 0 ]] \
+  || fail "busy: mark_row_escalated still removes or ages a lock"
+
+# a lock that cannot be taken refuses the write: rc 2, the inventory named, nothing written
+new_project lockedout
+board "$A/ux/00-inventory.md" F-001
+LOCKDIR="$TMP/lockedout-tmp"; mkdir -p "$LOCKDIR"; L="$(inv_name "$LOCKDIR" "$A/ux/00-inventory.md")"
+mkdir "$L.flock"; before="$(cksum < "$A/ux/00-inventory.md")"
 out="$( TMPDIR="$LOCKDIR"; . "$SCRIPTS/_lib.sh"; mark_row_escalated "$A/ux/00-inventory.md" F-001 backlog/bl-1 2>&1 )"; rc=$?
-wait
-[[ $rc -eq 0 ]] && row_of "$A/ux/00-inventory.md" F-001 | grep -q '| done |' || fail "busy: the row should be marked once the lock is released, rc $rc: $out"
-[[ "$out" != *"taking over"* ]] || fail "busy: a fresh lock must not be taken over: $out"
+[[ $rc -eq 2 && "$out" == *"could not lock $A/ux/00-inventory.md"* ]] || fail "lockedout: should refuse with rc 2 naming the inventory, rc $rc: $out"
+[[ "$(cksum < "$A/ux/00-inventory.md")" == "$before" ]] || fail "lockedout: the inventory was written without the lock"
+[[ "$(ls "$A/ux")" == 00-inventory.md ]] || fail "lockedout: a temp file was left: $(ls "$A/ux" | tr '\n' ' ')"
+
+# a write that fails under the lock reports it and leaves the board as it was
+new_project rofail
+board "$A/ux/00-inventory.md" F-001
+LOCKDIR="$TMP/rofail-tmp"; mkdir -p "$LOCKDIR"
+before="$(cksum < "$A/ux/00-inventory.md")"; chmod 555 "$A/ux"
+out="$( TMPDIR="$LOCKDIR"; . "$SCRIPTS/_lib.sh"; mark_row_escalated "$A/ux/00-inventory.md" F-001 backlog/bl-1 2>&1 )"; rc=$?
+chmod 755 "$A/ux"
+[[ $rc -ne 0 ]] || fail "rofail: a failed write (no temp file possible) should not exit 0: $out"
+[[ "$(cksum < "$A/ux/00-inventory.md")" == "$before" ]] || fail "rofail: the board changed"
 
 # --- the methodology part of a qualified id is a folder name, never a path ---
 new_project qual
