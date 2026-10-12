@@ -485,5 +485,41 @@ out="$( . "$SCRIPTS/_lib.sh"; mark_row_escalated "$INV" F-001 backlog/bl-1 2>&1 
 [[ "$(cksum < "$INV")" == "$before" ]] || fail "dropped-mark: the dropped row was rewritten"
 [[ -z "$(ls "$A"/ux/00-inventory.md.* 2>/dev/null)" ]] || fail "dropped-mark: a temp file was left: $(ls "$A"/ux)"
 
+# --- audit-c28: --loop refuses a row that is already done and keeps its backlog marker ---
+new_project loop-done
+mkdir -p "$A/ux"; printf "$BOARD_HEAD"'| F-001 | bug | app | Old | done | P2 | 2026-06-01 | backlog/2026-06-01-old | — |\n' > "$A/ux/00-inventory.md"
+before="$(cksum < "$A/ux/00-inventory.md")"
+out="$(bash "$SCRIPTS/escalate-finding-to-loop.sh" F-001 --loop 2>&1)"; rc=$?
+[[ $rc -eq 2 && "$out" == *"already done"* && "$out" == *"nothing was escalated"* ]] || fail "loop-done: a done row should be refused with rc 2, rc $rc: $out"
+[[ -z "$(ls .context/loops/*.md 2>/dev/null)" ]] || fail "loop-done: a loop spec was scaffolded"
+[[ "$(cksum < "$A/ux/00-inventory.md")" == "$before" ]] || fail "loop-done: the backlog marker was replaced"
+
+# --- BL-797: a mark that fails AFTER the loop spec was scaffolded (the row changed between
+# the pre-check and the mark) exits 4 naming the spec, as escalate-finding.sh does ---
+new_project loop-mark-fails
+board "$A/ux/00-inventory.md" F-001
+SK="$TMP/loop-mark-fails-skills"; mkdir -p "$SK"
+cp -R "$SCRIPTS/../../audit" "$SCRIPTS/../../loop" "$SCRIPTS/../../conventions" "$SK/"
+mv "$SK/loop/scripts/new-loop-spec.sh" "$SK/loop/scripts/real-new-loop-spec.sh"
+cat > "$SK/loop/scripts/new-loop-spec.sh" <<WRAP
+#!/usr/bin/env bash
+f="\$("$SK/loop/scripts/real-new-loop-spec.sh" "\$@")" || exit \$?
+sed -i.bak 's/| open |/| dropped |/' "$TMP/loop-mark-fails/$A/ux/00-inventory.md" && rm -f "$TMP/loop-mark-fails/$A/ux/00-inventory.md.bak"
+printf '%s\n' "\$f"
+WRAP
+chmod +x "$SK/loop/scripts/new-loop-spec.sh"
+out="$(bash "$SK/audit/scripts/escalate-finding-to-loop.sh" F-001 --loop 2>&1)"; rc=$?
+LOOP_FILE="$(ls .context/loops/*.md 2>/dev/null | grep -v STATE | sed -n 1p)"
+[[ -n "$LOOP_FILE" ]] || fail "loop-mark-fails: the wrapper did not scaffold a spec"
+[[ $rc -eq 4 && "$out" == *"$LOOP_FILE"* && "$out" == *"was not marked"* ]] \
+  || fail "loop-mark-fails: a mark failing after the scaffold should exit 4 naming the spec ($LOOP_FILE), rc $rc: $out"
+
+# --- BL-799: the lock name does not depend on CDPATH ---
+new_project cdpath
+mkdir -p "$A/ux" "$TMP/cdpath-decoy/.context/audits/ux"; board "$A/ux/00-inventory.md" F-001
+plain="$( . "$SCRIPTS/_lib.sh"; inventory_lock_path ".context/audits/ux/00-inventory.md" )"
+viacd="$( . "$SCRIPTS/_lib.sh"; CDPATH="$TMP/cdpath-decoy" inventory_lock_path ".context/audits/ux/00-inventory.md" )"
+[[ -n "$plain" && "$plain" == "$viacd" ]] || fail "cdpath: a set CDPATH changed the lock path: [$plain] vs [$viacd]"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — canon markers, methodology-scoped origin_ref, loop back-link, base vocab + ISO, qualified ids, escaped pipes, whole-token runs, concurrent marks, per-user 0700 lock dir, symlinked lock dir refused"

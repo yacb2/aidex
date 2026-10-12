@@ -66,10 +66,10 @@ if [[ "$LAYOUT" -eq 1 ]]; then
 
   iso_dates() {  # stdin filter: bare YYYYMMDD words -> YYYY-MM-DD (BSD sed has no \b; prefer perl)
     if command -v perl >/dev/null 2>&1; then
-      perl -pe 's/\b(20\d{2})(\d{2})(\d{2})\b/$1-$2-$3/g'
+      perl -pe 's/\b(20\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])\b/$1-$2-$3/g'
     else
-      sed -E -e 's/(^|[^0-9-])(20[0-9]{2})([0-9]{2})([0-9]{2})($|[^0-9])/\1\2-\3-\4\5/g' \
-             -e 's/(^|[^0-9-])(20[0-9]{2})([0-9]{2})([0-9]{2})($|[^0-9])/\1\2-\3-\4\5/g'
+      sed -E -e 's/(^|[^0-9-])(20[0-9]{2})(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])($|[^0-9])/\1\2-\3-\4\5/g' \
+             -e 's/(^|[^0-9-])(20[0-9]{2})(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])($|[^0-9])/\1\2-\3-\4\5/g'
     fi
   }
 
@@ -118,7 +118,11 @@ if [[ "$LAYOUT" -eq 1 ]]; then
         src=""
         [[ -f "$AUDITS_DIR/$modern" ]] && src="$AUDITS_DIR/$modern"
         [[ -z "$src" && -f "$AUDITS_DIR/$legacy" ]] && src="$AUDITS_DIR/$legacy"
+        [[ -n "$src" && -e "$AUDITS_DIR/$METH/$modern" ]] \
+          && { warn "audits/$METH/$modern exists: $(basename "$src") stays in place, merge it by hand"; continue; }
         [[ -n "$src" ]] && act "move $(basename "$src") -> audits/$METH/$modern" mv "$src" "$AUDITS_DIR/$METH/$modern"
+        [[ "$src" == "$AUDITS_DIR/$modern" && -f "$AUDITS_DIR/$legacy" ]] \
+          && warn "$legacy stays in place beside $modern, merge it by hand"
       done
     fi
   fi
@@ -134,10 +138,12 @@ if [[ "$LAYOUT" -eq 1 ]]; then
     new_base="$base"
     [[ "$base" =~ ^[0-9]{8}- ]] && new_base="$(iso_name "$base")"
     dest_parent="$parent"
-    if [[ "$parent" == "$AUDITS_DIR" && "$has_root_boards" -eq 1 && -n "$METH" ]]; then
+    if [[ "$parent" == "$AUDITS_DIR" && -n "$METH" && ( "$has_root_boards" -eq 1 || -e "$AUDITS_DIR/$METH/$new_base" ) ]]; then
       dest_parent="$AUDITS_DIR/$METH"
     fi
-    if [[ "$dest_parent/$new_base" != "$run" ]]; then
+    if [[ "$dest_parent/$new_base" != "$run" && -e "$dest_parent/$new_base" ]]; then
+      warn "${dest_parent#"$AUDITS_DIR"/}/$new_base exists: run $base stays in place, merge it by hand"
+    elif [[ "$dest_parent/$new_base" != "$run" ]]; then
       [[ "$APPLY" -eq 1 ]] && mkdir -p "$dest_parent"
       act "move run $base -> ${dest_parent#"$AUDITS_DIR"/}/$new_base" mv "$run" "$dest_parent/$new_base"
     fi
