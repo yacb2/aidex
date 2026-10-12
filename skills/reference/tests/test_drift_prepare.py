@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "scripts", "drift"))
@@ -128,8 +129,9 @@ class PrepareTest(unittest.TestCase):
                 self.assertEqual(sorted(self.kept(m)), want)
 
     def test_covers_header_with_a_file_path_keeps_unit(self):
+        # A route item (leading `/`) is never a path as written, even when `pay/` exists (c12).
         m = self.run_prepare(
-            {"code/billing/pay.py": PAD, "code/auth/login.py": PAD},
+            {"code/billing/pay.py": PAD, "code/auth/login.py": PAD, "pay/x.py": PAD},
             {"a.md": '---\ncovers: "routes:/pay, apps: code/auth/login.py"\n---\nBody.\n'}, budget=150)
         k = self.kept(m)
         self.assertEqual(sorted(k), ["code/auth"])
@@ -246,25 +248,47 @@ class PrepareTest(unittest.TestCase):
         self.assertEqual(self.kept(m)["code/billing"]["references"],
                          [".context/references/topic/00-index.md"])
 
-    def test_slug_collision_between_kept_units_aborts(self):
-        code = {"code/a-b/x.py": PAD, "code/a/b/y.py": PAD, "code/a/c/z.py": PAD}
-        refs = {"r.md": "code/a-b/x.py code/a/b/y.py\n"}
-        with self.assertRaises(SystemExit) as cm:
-            self.run_prepare(code, refs, budget=150)
-        self.assertIn("slug collision", str(cm.exception))
-        self.assertFalse(os.path.exists(self.work))  # nothing written
+    def test_ids_that_differ_only_in_punctuation_or_markers_get_distinct_slugs(self):
+        rows = [
+            ("dash against slash", {"code/a-b/x.py": PAD, "code/a/b/y.py": PAD, "code/a/c/z.py": PAD},
+             "code/a-b/x.py code/a/b/y.py", ["code/a-b", "code/a/b"]),
+            ("underscore against dash", {"my_app/a.py": PAD, "my-app/b.py": PAD},
+             "my_app/a.py my-app/b.py", ["my-app", "my_app"]),
+            ("root files marker against a files directory", {"top.py": PAD, "files/a.py": PAD},
+             "top.py files/a.py", ["./(files)", "files"]),
+            ("nested files marker against a files directory",
+             {"src/top.py": PAD, "src/files/a.py": PAD}, "src/top.py src/files/a.py",
+             ["src/(files)", "src/files"]),
+            ("numbered marker against a files-1 directory",
+             {"t1.py": PAD, "t2.py": PAD, "files-1/a.py": PAD}, "t1.py t2.py files-1/a.py",
+             ["./(files-1)", "./(files-2)", "files-1"]),
+        ]
+        for name, code, ref, want in rows:
+            with self.subTest(name):
+                self.fresh()
+                m = self.run_prepare(code, {"r.md": ref + "\n"}, budget=150)
+                self.assertEqual(sorted(self.kept(m)), want)
+                slugs = [u["slug"] for u in m["units"]]
+                self.assertEqual(len(set(slugs)), len(slugs), slugs)
+                self.assertEqual(sorted(os.listdir(os.path.join(self.work, "units"))),
+                                 sorted(f"{s}{x}" for s in slugs for x in (".txt", ".refs.txt")))
+
+    def test_root_unit_gets_a_visible_stable_slug(self):
+        m = self.run_prepare({"app.py": PAD}, {"r.md": "See app.py.\n"})
+        self.assertEqual([(u["unit"], u["slug"]) for u in m["units"]], [(".", "_root")])
+        self.assertEqual(sorted(os.listdir(os.path.join(self.work, "units"))),
+                         ["_root.refs.txt", "_root.txt"])
 
     def test_collision_exit_removes_the_old_manifest(self):
+        # Real ids never share a slug; the backstop is reached by forcing one.
         write(self.work, "manifest.json", "old")
-        with self.assertRaises(SystemExit):
-            self.run_prepare({"code/a-b/x.py": PAD, "code/a/b/y.py": PAD, "code/a/c/z.py": PAD},
-                             {"r.md": "code/a-b/x.py code/a/b/y.py\n"}, budget=150)
+        write(self.work, "units/stale.txt", "old\n")
+        with self.assertRaises(SystemExit) as cm, mock.patch.object(prepare, "slug", lambda uid: "same"):
+            self.run_prepare({"code/a/x.py": PAD, "code/b/y.py": PAD},
+                             {"r.md": "code/a/x.py code/b/y.py\n"}, budget=150)
+        self.assertIn("slug collision", str(cm.exception))
         self.assertFalse(os.path.exists(os.path.join(self.work, "manifest.json")))
-
-    def test_uncovered_slug_collision_is_ignored(self):
-        code = {"code/a-b/x.py": PAD, "code/a/b/y.py": PAD, "code/a/c/z.py": PAD}
-        m = self.run_prepare(code, {"r.md": "code/a-b/x.py\n"}, budget=150)
-        self.assertEqual(list(self.kept(m)), ["code/a-b"])
+        self.assertEqual(os.listdir(os.path.join(self.work, "units")), ["stale.txt"])  # nothing written
 
     def test_unit_files_stay_within_budget_and_oversize_file_is_dropped(self):
         code = {f"code/big/f{i}.py": PAD for i in range(4)}
@@ -287,6 +311,98 @@ class PrepareTest(unittest.TestCase):
         self.assertEqual(m["units"], [])
         self.assertEqual(m["skipped"], [{"unit": "code/data/rows.json", "reason": "data-like",
                                          "references": [".context/references/r.md"]}])
+
+    def test_bare_top_level_directory_name_in_prose_is_not_a_cite(self):
+        # A top-level directory is cited as `name/`, as a path below it, or as `name` in backticks.
+        rows = [("prose", "The backend talks to the frontend over REST.", []),
+                ("trailing slash", "Lives in backend/ today.", ["backend"]),
+                ("file path", "See backend/app.py.", ["backend"]),
+                ("backticked name", "The `backend` service.", ["backend"])]
+        for name, text, want in rows:
+            with self.subTest(name):
+                self.fresh()
+                m = self.run_prepare({"backend/app.py": PAD, "frontend/ui.js": PAD},
+                                     {"a.md": text + "\n"}, budget=150)
+                self.assertEqual(sorted(self.kept(m)), want)
+        with self.subTest("prose against a nested repo's (files) unit"):
+            self.fresh()
+            m = self.run_prepare({"backend/app.py": PAD, "backend/sub/x.py": PAD},
+                                 {"a.md": "The backend talks to the frontend.\n"},
+                                 budget=150, repos=["backend"])
+            self.assertEqual(sorted(self.kept(m)), [])
+        with self.subTest("a bare root-level data file is still a cite"):
+            self.fresh()
+            m = self.run_prepare({"rows.json": PAD, "app.py": PAD},
+                                 {"a.md": "See rows.json.\n"}, budget=150)
+            self.assertEqual([u["unit"] for u in m["skipped"]], ["rows.json"])
+
+    def test_work_dir_above_the_root_or_with_tracked_units_elsewhere_is_refused(self):
+        code, refs = {"code/billing/pay.py": PAD}, {"r.md": "code/billing/pay.py\n"}
+        with self.subTest("work dir is the parent of a root named units"):
+            self.root = os.path.join(os.path.dirname(self.root), "x", "units")
+            with self.assertRaises(SystemExit) as cm, contextlib.redirect_stderr(io.StringIO()):
+                self.run_prepare(code, refs, work=os.path.dirname(self.root))
+            self.assertEqual(cm.exception.code, 2)
+            self.assertTrue(os.path.exists(os.path.join(self.root, "code/billing/pay.py")))
+        with self.subTest("work dir is another repo with tracked units/"):
+            self.fresh()
+            other = os.path.join(os.path.dirname(self.root), "other")
+            write(other, "units/keep.txt", "keep\n")
+            g = ["git", "-C", other, "-c", "user.email=t@t", "-c", "user.name=t"]
+            subprocess.run([*g, "init", "-q"], check=True)
+            subprocess.run([*g, "add", "-A"], check=True)
+            subprocess.run([*g, "commit", "-qm", "c"], check=True, capture_output=True)
+            with self.assertRaises(SystemExit) as cm, contextlib.redirect_stderr(io.StringIO()):
+                self.run_prepare(code, refs, work=other)
+            self.assertEqual(cm.exception.code, 2)
+            self.assertTrue(os.path.exists(os.path.join(other, "units/keep.txt")))
+
+    def test_project_that_is_a_git_worktree_is_mapped_and_nested_worktrees_are_not(self):
+        main = self.root
+        self.run_prepare({"src/a.py": PAD, "lib/b.py": PAD},
+                         {"r.md": "See src/a.py and inner/src/a.py.\n"}, budget=150)
+        wt = os.path.join(os.path.dirname(main), "wt")
+        subprocess.run(["git", "-C", main, "worktree", "add", "-q", wt], check=True, capture_output=True)
+        subprocess.run(["git", "-C", main, "worktree", "add", "-q", "--detach", os.path.join(wt, "inner")],
+                       check=True, capture_output=True)
+        m = prepare.prepare(wt, self.work, 150)
+        self.assertEqual(sorted(self.kept(m)), ["src"])
+
+    def test_participant_worktree_of_a_repo_outside_the_root_is_mapped(self):
+        # A `<project>-wt-<name>` sibling: no root .git, participants are worktrees of outside repos.
+        g = ["-c", "user.email=t@t", "-c", "user.name=t"]
+        def repo(d, rel, content):
+            write(d, rel, content)
+            subprocess.run(["git", "-C", d, *g, "init", "-q"], check=True)
+            subprocess.run(["git", "-C", d, *g, "add", "-A"], check=True)
+            subprocess.run(["git", "-C", d, *g, "commit", "-qm", "c"], check=True, capture_output=True)
+        def worktree(main, dest):
+            subprocess.run(["git", "-C", main, "worktree", "add", "-q", "--detach", dest],
+                           check=True, capture_output=True)
+        outside = os.path.join(os.path.dirname(self.root), "outside")
+        repo(outside, "src/a.py", PAD)
+        worktree(outside, os.path.join(self.root, "app"))
+        repo(os.path.join(self.root, "lib"), "b.py", PAD)
+        worktree(os.path.join(self.root, "lib"), os.path.join(self.root, "libwt"))
+        write(self.root, ".context/references/r.md", "See app/src/a.py, lib/b.py and libwt/b.py.\n")
+        m = prepare.prepare(self.root, self.work, 150)
+        self.assertEqual(sorted(self.kept(m)), ["app", "lib"])
+
+    def test_project_with_no_tracked_files_is_refused(self):
+        for name in ("no repo", "repo tracking only excluded or binary files"):
+            with self.subTest(name):
+                self.fresh()
+                write(self.work, "manifest.json", "old")
+                code = {"logo.png": "x\n", "migrations/0001.py": PAD}
+                refs = {"r.md": "See logo.png.\n"}
+                with self.assertRaises(SystemExit) as cm:
+                    if name == "no repo":
+                        write(self.root, ".context/references/r.md", refs["r.md"])
+                        prepare.prepare(self.root, self.work, 150)
+                    else:
+                        self.run_prepare(code, refs, budget=150)
+                self.assertIn("no tracked files", str(cm.exception))
+                self.assertFalse(os.path.exists(os.path.join(self.work, "manifest.json")))
 
     def test_previous_run_output_is_replaced(self):
         write(self.work, "units/stale.txt", "old\n")
