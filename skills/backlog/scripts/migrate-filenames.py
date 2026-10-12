@@ -12,8 +12,8 @@ Three things gate an item, all reported rather than silently skipped:
     surface nothing can rewrite, so those items stay where they are.
   * a duplicate id anywhere in the project — `--reindex` would fail afterwards.
 
-Reference rewriting is literal on the stem, which also covers extension-less
-`backlog/<stem>` refs and `[[wiki]]` links. Where a stem collides with the name of
+Reference rewriting matches the stem at name boundaries (never inside a longer stem),
+which also covers extension-less `backlog/<stem>` refs and `[[wiki]]` links. Where a stem collides with the name of
 some other artifact, the match is anchored on a `backlog/` prefix instead.
 
 Usage:
@@ -30,7 +30,8 @@ import tarfile
 import time
 from pathlib import Path
 
-CONFORMING = re.compile(r"^BL-\d{3}$")
+CONFORMING = re.compile(r"^BL-\d{3,5}$")  # register-item.sh mints 3-5 digits
+DATE_PREFIX = re.compile(r"^\d{4}-\d{2}-\d{2}-")
 ID_FIELD = re.compile(r'^\s*id:\s*"?([^"\s]+)"?\s*$', re.M)
 SCAN_SUFFIXES = {".md", ".html", ".json", ".txt", ".yml", ".yaml"}
 SCAN_NAMES = {".aidex-waivers"}
@@ -60,7 +61,17 @@ def memory_dir(root: Path):
 
 
 def commit_message_corpus(root: Path) -> str:
+    """All commit messages under root. A git failure in a repo at depth <= 1 (root or direct child) raises (an
+    empty corpus would silently disable the commit-citation guard); a nested repo only warns."""
     out = []
+
+    def fail(git, why):
+        # the root repo and its direct children (depth <= 1: backend/, frontend/) hold the
+        # citing commits and must be readable; deeper vendored checkouts are not ours
+        if git.parent == root or git.parent.parent == root:
+            raise RuntimeError(f"git log failed in {git.parent}: {why}")
+        print(f"warning: git log failed in {git.parent}: {why} (skipped)", file=sys.stderr)
+
     for git in root.rglob(".git"):
         if "node_modules" in str(git):
             continue
@@ -69,9 +80,13 @@ def commit_message_corpus(root: Path) -> str:
                 ["git", "-C", str(git.parent), "log", "--all", "--format=%B"],
                 capture_output=True, text=True, timeout=180,
             )
-            out.append(r.stdout)
-        except Exception:
-            pass
+        except Exception as e:
+            fail(git, str(e))
+            continue
+        if r.returncode != 0:
+            fail(git, r.stderr.strip())
+            continue
+        out.append(r.stdout)
     return "\n".join(out)
 
 
@@ -154,7 +169,11 @@ def main():
                     all_ids.setdefault(i, []).append(f)
     dupes = {k for k, v in all_ids.items() if len(v) > 1}
 
-    corpus = commit_message_corpus(root)
+    try:
+        corpus = commit_message_corpus(root)
+    except RuntimeError as e:
+        print(f"{e}\ncannot check commit citations; nothing renamed", file=sys.stderr)
+        return 1
     rename, skipped = {}, []
     for f in items:
         i = read_id(f)
@@ -166,6 +185,9 @@ def main():
             continue
         if f.stem in corpus:
             skipped.append((f.name, "filename cited in a git commit message"))
+            continue
+        if not DATE_PREFIX.match(f.name):
+            skipped.append((f.name, "no YYYY-MM-DD- filename prefix"))
             continue
         seg = i.lower()
         date, rest = f.name[:10], f.name[11:]
@@ -187,6 +209,11 @@ def main():
     # longest first so no stem can be rewritten inside another
     ordered = sorted(stem_map, key=len, reverse=True)
     anchored = {s for s in ordered if s in collide}
+    # a stem ends at a non-name character, so `…-auth` never matches inside `…-auth-tokens`
+    bare = {s: re.compile(r"(?<![A-Za-z0-9-])" + re.escape(s) + r"(?![A-Za-z0-9_-])")
+            for s in ordered}
+    pref = {s: re.compile(r"(backlog/(?:_archive/|_deferred/)?)" + re.escape(s)
+                          + r"(?![A-Za-z0-9_-])") for s in anchored}
 
     targets = scan_targets(root, ctx)
     edits = {}
@@ -195,17 +222,17 @@ def main():
             txt = p.read_text(errors="replace")
         except Exception:
             continue
-        new = txt
+        new, n = txt, 0
         for s in ordered:
             if s not in new:
                 continue
             if s in anchored:
-                new = re.sub(r"(backlog/(?:_archive/|_deferred/)?)" + re.escape(s),
-                             lambda m: m.group(1) + stem_map[s], new)
+                new, k = pref[s].subn(lambda m: m.group(1) + stem_map[s], new)
             else:
-                new = new.replace(s, stem_map[s])
+                new, k = bare[s].subn(lambda m: stem_map[s], new)
+            n += k
         if new != txt:
-            edits[p] = (txt, new, sum(txt.count(s) for s in ordered if s in txt))
+            edits[p] = (txt, new, n)
 
     total_refs = sum(v[2] for v in edits.values())
     print(f"\nreferences: {total_refs} occurrence(s) across {len(edits)} file(s)")
