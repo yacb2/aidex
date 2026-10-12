@@ -90,5 +90,17 @@ mkdir "$TMP/restore" && tar -xzf "$TAR" -C "$TMP/restore"
 check "backup holds the pre-renumber ids" \
   'grep -q "^id: BL-20260705$" "$TMP/restore/.context/backlog/2026-06-02-bravo.md"'
 
+echo "== c03: 4-digit ids count toward the high mark and are not renumbered =="
+rm -rf "$TMP/c03"; mkdir -p "$TMP/c03/.context/backlog/_archive"; cd "$TMP/c03"
+mk _archive 2026-05-01-a.md BL-999  "A"
+mk _archive 2026-05-02-b.md BL-1000 "B"
+mk _archive 2026-05-03-c.md BL-10000 "C"
+mk . 2026-06-01-active.md BL-1001 "Active"
+mk . 2026-06-02-legacy.md BL-20260705 "Legacy"
+python3 "$REN" --root "$TMP/c03" --apply > "$TMP/c03.txt" 2>&1
+check "active BL-1001 kept" 'grep -q "^id: BL-1001$" .context/backlog/2026-06-01-active.md'
+check "legacy id minted above the 4-digit high mark" 'grep -q "^id: BL-10001$" .context/backlog/2026-06-02-legacy.md'
+
+
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [[ $FAIL -eq 0 ]]
