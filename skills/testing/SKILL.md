@@ -35,7 +35,7 @@ one-sentence reason with the test.
 ## Shape
 
 Read the project's `.context/profiles/testing.md`, take `testing_packs`, and open each
-pack's `${CLAUDE_PLUGIN_ROOT}/skills/<pack>/SKILL.md`: its "Question -> file" table names
+pack's `~/.claude/skills/<pack>/SKILL.md`: its "Question -> file" table names
 the test-shapes reference for the layer at hand. Follow the project's existing tests
 next to the code. No profile, or a pack that is not installed: say so and follow
 `${CLAUDE_PLUGIN_ROOT}/skills/coverage/SKILL.md` § Resolving the stack packs — never

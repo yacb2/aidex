@@ -42,7 +42,7 @@ prof="$TMP/p/.context/profiles/testing.md"
 for kv in "project_slug: demo_app" "project_kebab: demo-app" "db_port: 5600" "db_user: demo_user" \
           "dev_frontend_port: 3600" "dev_backend_port: 8600" "e2e_frontend_port: 3610" "e2e_backend_port: 8610" \
           "e2e_service: backend-test" "seed_e2e_bootstrap_cmd: bootstrap_e2e_data" \
-          "backend_test_cmd: docker compose exec backend pytest {path}" "e2e_test_cmd: ./test-e2e.sh {spec}" \
+          "backend_test_cmd: docker compose exec -T backend pytest {path}" "e2e_test_cmd: ./test-e2e.sh {spec}" \
           "helpers_dir: frontend/tests/e2e/helpers" "ui_stack: reka-ui" \
           "testing_packs: testing-django testing-vue testing-playwright-app"; do
   grep -qxF "$kv" "$prof" || fail "missing '$kv' in profile:
@@ -107,7 +107,10 @@ if out="$(python3 "$SCRIPT" --check "$TMP/n")"; then fail "--check with no profi
 # recognised pack gets the core plus suite_cmd and nothing about ports, Vite or E2E.
 python3 "$SCRIPT" --print "$TMP/w" | grep >/dev/null -E "^(db_port|backend_test_cmd|seed_bootstrap_cmd|dev_backend_port):" \
   && fail "web fixture must carry no Django/Postgres key: $(python3 "$SCRIPT" --print "$TMP/w")"
-python3 "$SCRIPT" --print "$TMP/w" | grep >/dev/null -x "frontend_test_cmd: " || fail "web fixture must still carry the frontend keys"
+# The web fixture's vitest sits in the ROOT package.json (no lockfile): the command runs
+# there, with no `cd frontend` (LOOP-013 coverage-c09).
+python3 "$SCRIPT" --print "$TMP/w" | grep >/dev/null -x "frontend_test_cmd: npm exec vitest run {path}" \
+  || fail "web fixture: vitest in the root package.json must seed the root command: $(python3 "$SCRIPT" --print "$TMP/w" | grep frontend_test_cmd)"
 mkdir -p "$TMP/bare"; printf 'echo tests\n' > "$TMP/bare/run-all.sh"
 bare="$(python3 "$SCRIPT" --print "$TMP/bare")"
 grep -qx "suite_cmd: " <<<"$bare" || fail "a project with no pack must carry suite_cmd: $bare"
@@ -137,5 +140,145 @@ mkdir -p "$TMP/lg/.context"; printf 'legacy\n' > "$TMP/lg/.context/testing-profi
 if out="$(python3 "$SCRIPT" "$TMP/lg" 2>&1)"; then fail "seeding over a legacy-root profile must refuse: $out"; fi
 [[ "$out" == *"$TMP/lg/.context/testing-profile.md"* ]] || fail "the refusal must name the legacy file: $out"
 [[ ! -e "$TMP/lg/.context/profiles" ]] || fail "the refusal still wrote profiles/"
+
+# --- LOOP-013 module review (coverage-c01..c13): one case per confirmed finding ---
+
+# c01: a tracked repo-root testing-profile.md is a profile too (BL-289). Seeding refuses
+# instead of writing a blank .context/ profile that would shadow the curated one.
+mkdir -p "$TMP/rt"; printf -- '---\nproject_slug: curated\n---\n' > "$TMP/rt/testing-profile.md"
+if out="$(python3 "$SCRIPT" "$TMP/rt" 2>&1)"; then fail "seeding over a root testing-profile.md must refuse: $out"; fi
+[[ "$out" == *"$TMP/rt/testing-profile.md"* ]] || fail "the refusal must name the root profile: $out"
+[[ ! -e "$TMP/rt/.context" ]] || fail "the refusal still wrote .context/"
+# ...and it must not send the reader to --force, which writes a second profile that wins.
+[[ "$out" == *"--force would write a second one"* && "$out" != *"(use --force)"* ]] \
+  || fail "the refusal must say --force would shadow the root profile: $out"
+
+# c02: a `---` rule in the body must not hide the prose above it from --check.
+mkdir -p "$TMP/hr/.context/profiles"
+printf -- '---\nproject_slug: foo\n---\n\n## Rules\n\nprose.\n\n---\n\nFooter note.\n' > "$TMP/hr/.context/profiles/testing.md"
+if out="$(python3 "$SCRIPT" --check "$TMP/hr")"; then fail "a body rule hid the prose section from --check: $out"; fi
+[[ "$out" == *"prose section '## Rules'"* ]] || fail "--check must name the section above the body rule: $out"
+
+# c03: dev_backend_port comes from the backend service, never from whichever service
+# maps a port first (Postgres listed before backend gave 5432).
+mkdir -p "$TMP/c3/backend"; printf '[tool.pytest.ini_options]\n' > "$TMP/c3/backend/pyproject.toml"
+printf 'services:\n  db:\n    image: postgres\n    ports:\n      - "5432:5432"\n  backend:\n    ports:\n      - "8000:8000"\n' > "$TMP/c3/docker-compose.yml"
+python3 "$SCRIPT" --print "$TMP/c3" | grep >/dev/null -x "dev_backend_port: 8000" \
+  || fail "dev_backend_port must come from the backend service: $(python3 "$SCRIPT" --print "$TMP/c3" | grep dev_backend_port)"
+printf 'services:\n  redis:\n    ports:\n      - "6379:6379"\n  backend:\n    build: .\n' > "$TMP/c3/docker-compose.yml"
+python3 "$SCRIPT" --print "$TMP/c3" | grep >/dev/null -x "dev_backend_port: " \
+  || fail "a backend service with no port leaves dev_backend_port blank: $(python3 "$SCRIPT" --print "$TMP/c3" | grep dev_backend_port)"
+
+# c08: backend_test_cmd names a compose service that exists and a runner the files
+# declare; otherwise it stays blank. (`manage.py test` cannot take a file path.)
+mkdir -p "$TMP/c8/backend"; printf '[tool.pytest.ini_options]\n' > "$TMP/c8/backend/pyproject.toml"
+printf 'services:\n  api:\n    build: .\n' > "$TMP/c8/docker-compose.yml"
+python3 "$SCRIPT" --print "$TMP/c8" | grep >/dev/null -x "backend_test_cmd: " \
+  || fail "no backend service in compose: backend_test_cmd must stay blank: $(python3 "$SCRIPT" --print "$TMP/c8" | grep backend_test_cmd)"
+printf 'services:\n  backend:\n    build: .\n' > "$TMP/c8/docker-compose.yml"
+printf '[project]\nname = "x"  # tests: pytest some day\n' > "$TMP/c8/backend/pyproject.toml"
+python3 "$SCRIPT" --print "$TMP/c8" | grep >/dev/null -x "backend_test_cmd: " \
+  || fail "no declared runner (pytest only in a comment): backend_test_cmd must stay blank: $(python3 "$SCRIPT" --print "$TMP/c8" | grep backend_test_cmd)"
+
+# c09: the frontend command follows the package.json that declares vitest, and pnpm
+# follows a pnpm lockfile at that package or at the repo root.
+mkdir -p "$TMP/c9"; : > "$TMP/c9/pnpm-lock.yaml"
+printf '{"dependencies":{"vue":"^3","reka-ui":"^2"},"devDependencies":{"vitest":"^4"}}\n' > "$TMP/c9/package.json"
+c9="$(python3 "$SCRIPT" --print "$TMP/c9")"
+grep -qx "frontend_test_cmd: pnpm vitest run {path}" <<<"$c9" || fail "root vue+vitest with a root pnpm lock: $c9"
+grep -qx "ui_stack: reka-ui" <<<"$c9" || fail "ui_stack must read the package that declares it: $c9"
+rm "$TMP/c9/package.json"; mkdir -p "$TMP/c9/frontend"
+printf '{"dependencies":{"vue":"^3"},"devDependencies":{"vitest":"^4"}}\n' > "$TMP/c9/frontend/package.json"
+python3 "$SCRIPT" --print "$TMP/c9" | grep >/dev/null -x "frontend_test_cmd: cd frontend && pnpm vitest run {path}" \
+  || fail "frontend vitest under a root pnpm lock must use pnpm: $(python3 "$SCRIPT" --print "$TMP/c9" | grep frontend_test_cmd)"
+
+# c13: packs come from dependency keys, never from a token anywhere in package.json.
+mkdir -p "$TMP/c13/frontend"
+printf '{"name":"x","keywords":["vue","payload"],"dependencies":{"react":"^18"}}\n' > "$TMP/c13/frontend/package.json"
+python3 "$SCRIPT" --print "$TMP/c13" | grep >/dev/null -x "testing_packs: " \
+  || fail "a keyword is not a dependency: $(python3 "$SCRIPT" --print "$TMP/c13" | grep testing_packs)"
+
+# c10: the profile and the script's output are UTF-8 whatever the locale (the note and
+# the report carry an em dash). PYTHONIOENCODING is unset so stdout gets the locale's
+# ASCII, the finding's own scenario.
+mkdir -p "$TMP/c10"
+ascii() { env -u PYTHONIOENCODING LC_ALL=C PYTHONCOERCECLOCALE=0 PYTHONUTF8=0 python3 "$SCRIPT" "$@"; }
+ascii "$TMP/c10" >/dev/null 2>"$TMP/c10.err" \
+  || fail "seeding under an ASCII locale must exit 0: $(tail -1 "$TMP/c10.err")"
+ascii --print "$TMP/c10" >/dev/null 2>"$TMP/c10.err" \
+  || fail "--print under an ASCII locale must exit 0: $(tail -1 "$TMP/c10.err")"
+grep -q "package.json —" "$TMP/c10/.context/profiles/testing.md" || fail "the written profile lost its note"
+
+# c11: the slug regexes accept the ${VAR:-default} form the port and user regexes do.
+mkdir -p "$TMP/c11a" "$TMP/c11b"
+printf 'export DB_E2E="${DB_E2E:-myapp_e2e}"\n' > "$TMP/c11a/test-e2e.sh"
+printf 'DB_TEMPLATE="${DB_TEMPLATE:-other_e2e_template}"\n' > "$TMP/c11b/test-e2e.sh"
+python3 "$SCRIPT" --print "$TMP/c11a" | grep >/dev/null -x "project_slug: myapp" \
+  || fail "DB_E2E=\${DB_E2E:-myapp_e2e} must give the slug: $(python3 "$SCRIPT" --print "$TMP/c11a" | grep project_slug)"
+python3 "$SCRIPT" --print "$TMP/c11b" | grep >/dev/null -x "project_slug: other" \
+  || fail "DB_TEMPLATE=\${DB_TEMPLATE:-other_e2e_template} must give the slug: $(python3 "$SCRIPT" --print "$TMP/c11b" | grep project_slug)"
+
+# c12: an empty profile is reported as empty, not as missing.
+mkdir -p "$TMP/c12/.context/profiles"; : > "$TMP/c12/.context/profiles/testing.md"
+if out="$(python3 "$SCRIPT" --check "$TMP/c12")"; then fail "--check on an empty profile must exit 1: $out"; fi
+[[ "$out" == *"empty"* && "$out" != *"no profile at"* ]] || fail "an empty profile must be reported as empty, not missing: $out"
+
+# c08/c09 branches, one row each (review of the first fix: no row could go red).
+# (a) frontend/ and the root both declare vitest: frontend/ wins.
+mkdir -p "$TMP/v2/frontend"
+printf '{"dependencies":{"vue":"^3"},"devDependencies":{"vitest":"^4"}}\n' > "$TMP/v2/frontend/package.json"
+printf '{"devDependencies":{"vitest":"^4"}}\n' > "$TMP/v2/package.json"
+python3 "$SCRIPT" --print "$TMP/v2" | grep >/dev/null -x "frontend_test_cmd: cd frontend && npm exec vitest run {path}" \
+  || fail "frontend/ must win over the root: $(python3 "$SCRIPT" --print "$TMP/v2" | grep frontend_test_cmd)"
+# (b) cms/ and web/ both declare vitest, no frontend/: nothing decides, so blank.
+mkdir -p "$TMP/v3/cms" "$TMP/v3/web"
+printf '{"dependencies":{"vue":"^3"},"devDependencies":{"vitest":"^4"}}\n' > "$TMP/v3/cms/package.json"
+printf '{"devDependencies":{"vitest":"^4"}}\n' > "$TMP/v3/web/package.json"
+python3 "$SCRIPT" --print "$TMP/v3" | grep >/dev/null -x "frontend_test_cmd: " \
+  || fail "two non-frontend vitest packages must leave the key blank: $(python3 "$SCRIPT" --print "$TMP/v3" | grep frontend_test_cmd)"
+# (c) poetry dev group and (d) a PEP 621 optional-dependencies array declare pytest.
+mkdir -p "$TMP/py/backend"; printf 'services:\n  backend:\n    build: .\n' > "$TMP/py/docker-compose.yml"
+for decl in '[tool.poetry.group.dev.dependencies]\npytest = "^8"\n' '[project.optional-dependencies]\ndev = ["pytest>=8"]\n'; do
+  printf "$decl" > "$TMP/py/backend/pyproject.toml"
+  python3 "$SCRIPT" --print "$TMP/py" | grep >/dev/null -x "backend_test_cmd: docker compose exec -T backend pytest {path}" \
+    || fail "pytest declared as $(head -1 "$TMP/py/backend/pyproject.toml"): $(python3 "$SCRIPT" --print "$TMP/py" | grep backend_test_cmd)"
+done
+
+# service_block(): one row per compose shape. Columns: label | compose (printf format) |
+# expected dev_backend_port | `y` when backend_test_cmd is the pytest command, `-` when
+# blank. The pyproject declares pytest in every row, so the command turns on the service.
+mkdir -p "$TMP/sb/backend"; printf '[tool.pytest.ini_options]\n' > "$TMP/sb/backend/pyproject.toml"
+while IFS='|' read -r label compose port cmd; do
+  printf "$compose" > "$TMP/sb/docker-compose.yml"
+  sb="$(python3 "$SCRIPT" --print "$TMP/sb")"
+  want=""; if [[ "$cmd" == y ]]; then want="docker compose exec -T backend pytest {path}"; fi
+  grep -qxF "dev_backend_port: $port" <<<"$sb" && grep -qxF "backend_test_cmd: $want" <<<"$sb" \
+    || fail "service_block row '$label': want port '$port', cmd '$want'; got $(grep -E '^(dev_backend_port|backend_test_cmd):' <<<"$sb" | paste -sd';' -)"
+done <<'ROWS'
+anchor after the key|services:\n  backend: &be\n    ports:\n      - "8000:8000"\n|8000|y
+trailing comment after the key|services:\n  backend:  # django\n    ports:\n      - "8001:8001"\n|8001|y
+quoted key|services:\n  "backend":\n    ports:\n      - "8002:8002"\n|8002|y
+comment after services:|services: # all\n  backend:\n    ports:\n      - "8003:8003"\n|8003|y
+column-4 comment first under services:|services:\n    # a column-4 comment\n  backend:\n    ports:\n      - "8004:8004"\n|8004|y
+column-0 comment inside services:|services:\n  db:\n    image: postgres\n# a column-0 comment\n  backend:\n    ports:\n      - "8005:8005"\n|8005|y
+block stops at the next service|services:\n  backend:\n    build: .\n  db:\n    ports:\n      - "5432:5432"\n||y
+a backend key outside services:|networks:\n  backend:\n    driver: bridge\nservices:\n  api:\n    ports:\n      - "8000:8000"\n||-
+exact key, not a prefix|services:\n  backend-test:\n    ports:\n      - "8610:8600"\n  backend:\n    build: .\n||y
+UTF-8 BOM before services:|\xef\xbb\xbfservices:\n  backend:\n    ports:\n      - "8000:8000"\n|8000|y
+ROWS
+
+# deps(): a UTF-8 BOM is still JSON, and a top-level array is not a package.
+mkdir -p "$TMP/bom/frontend"
+printf '\xef\xbb\xbf{"dependencies":{"vue":"^3"}}\n' > "$TMP/bom/frontend/package.json"
+python3 "$SCRIPT" --print "$TMP/bom" | grep >/dev/null -x "testing_packs: testing-vue" \
+  || fail "a BOM-prefixed package.json must still be read: $(python3 "$SCRIPT" --print "$TMP/bom" 2>&1 | grep -E 'testing_packs|Error')"
+printf '[]\n' > "$TMP/bom/frontend/package.json"
+out="$(python3 "$SCRIPT" --print "$TMP/bom" 2>&1)" || fail "a top-level [] package.json must not crash: $(tail -1 <<<"$out")"
+grep -qx "testing_packs: " <<<"$out" || fail "a top-level [] declares no dependency: $out"
+
+# c12 edge: a profile of blank lines is empty too.
+printf '\n  \n\n' > "$TMP/c12/.context/profiles/testing.md"
+if out="$(python3 "$SCRIPT" --check "$TMP/c12")"; then fail "--check on a whitespace-only profile must exit 1: $out"; fi
+[[ "$out" == *"empty"* ]] || fail "a whitespace-only profile must be reported as empty: $out"
 
 echo "OK — profile-init: facts read, blanks stay blank, overwrite refused, --print is read-only, --check finds prose and tripwire"
