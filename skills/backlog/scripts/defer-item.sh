@@ -12,7 +12,7 @@
 #   --no-index          skip index regeneration
 #
 # defer:      active root → _deferred/  · sets blocked_by · stamps updated
-# reactivate: _deferred/  → active root · stamps updated (blocked_by left as-is for trail)
+# reactivate: _deferred/  → active root · clears blocked_by · stamps updated
 
 set -euo pipefail
 
@@ -76,12 +76,30 @@ resolve_in() {
   elif [[ -f "$srcdir/$TARGET.md" ]]; then
     file="$srcdir/$TARGET.md"
   else
-    # slug match: any active/deferred file whose name ends in -<slug>.md
-    for f in "$srcdir"/*"$TARGET".md "$srcdir"/*"$TARGET"*.md; do
-      [[ -f "$f" ]] && { file="$f"; break; }
-    done
+    # slug match: one file whose name ends in -<slug>.md, else one whose name contains
+    # the slug. Several in a tier are refused, never the first by date.
+    local m=()
+    for f in "$srcdir"/*-"$TARGET".md; do [[ -f "$f" ]] && m+=("$f"); done
+    if [[ ${#m[@]} -eq 0 ]]; then
+      for f in "$srcdir"/*"$TARGET"*.md; do [[ -f "$f" ]] && m+=("$f"); done
+    fi
+    [[ ${#m[@]} -le 1 ]] || die "ambiguous slug '$TARGET' matches: $(for f in "${m[@]}"; do printf '%s ' "$(basename "$f")"; done)"
+    file="${m[0]:-}"
   fi
   printf '%s\n' "$file"
+}
+
+# YAML double-quoted scalar body; passed to awk through ENVIRON, never `-v` (awk -v
+# re-reads backslash escapes, so `C:\new` became a newline inside the front matter).
+esc() { printf '%s' "$1" | tr '\n\r\t' '   ' | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'; }
+
+# Rewrite item $1 with awk (remaining args) through a private temp next to it that
+# carries its mode (cp -p), renamed over it: a shared `$FILE.tmp` let one writer
+# truncate the file another was about to move into place.
+rewrite() {
+  local file="$1" tmp=""; shift
+  tmp="$(mktemp "$(dirname "$file")/.$(basename "$file").XXXXXX")" && cp -p "$file" "$tmp" \
+    && awk "$@" "$file" > "$tmp" && mv -f "$tmp" "$file" || { rm -f "$tmp"; die "could not rewrite $file"; }
 }
 
 TODAY="$(date +%Y-%m-%d)"
@@ -91,11 +109,13 @@ if [[ "$ACTION" == "defer" ]]; then
   FILE="$(resolve_in "$BACKLOG_DIR")"
   [[ -n "$FILE" && -f "$FILE" ]] || die "cannot resolve active backlog item: $TARGET"
   [[ "$(dirname "$FILE")" == "$BACKLOG_DIR" ]] || die "target is not an active backlog item: $FILE"
+  DEST="$DEFERRED_DIR/$(basename "$FILE")"
+  [[ -e "$DEST" ]] && die "_deferred collision: $DEST already exists"
 
   # set/append blocked_by + stamp updated; status → open (a `doing` item deferred
   # mid-sweep is not being worked any more — it kept `doing` on 2026-08-28)
-  awk -v today="$TODAY" -v reason="$REASON" '
-    BEGIN { d=0; infm=0; seen_blocked=0 }
+  DI_REASON="$(esc "$REASON")" rewrite "$FILE" -v today="$TODAY" '
+    BEGIN { d=0; infm=0; seen_blocked=0; reason=ENVIRON["DI_REASON"] }
     d==1 && /^status:[[:space:]]*"?doing"?[[:space:]]*$/ { print "status: open"; next }
     /^---[[:space:]]*$/ {
       d++
@@ -105,7 +125,19 @@ if [[ "$ACTION" == "defer" ]]; then
     infm==1 {
       if ($0 ~ /^updated:/) { print "updated: " today; next }
       if ($0 ~ /^blocked_by:/) {
-        val=$0; sub(/^blocked_by:[[:space:]]*/,"",val); gsub(/"/,"",val)
+        # a quoted value is already escaped: drop only its wrapping quotes
+        val=$0; sub(/^blocked_by:[[:space:]]*/,"",val); sub(/[[:space:]]+$/,"",val)
+        # (a raw inner quote left by an older writer is escaped, not carried)
+        if (val ~ /^".*"$/) {
+          val=substr(val, 2, length(val)-2); out=""
+          for (i=1; i<=length(val); i++) {
+            c=substr(val, i, 1)
+            if (c=="\\" && i<length(val)) { out=out c substr(val, i+1, 1); i++ }
+            else if (c=="\\" || c=="\"") out=out "\\" c
+            else out=out c
+          }
+          val=out
+        } else gsub(/"/,"",val)
         gsub(/^[[:space:]]+|[[:space:]]+$/,"",val)
         if (val=="") print "blocked_by: \"" reason "\""
         else         print "blocked_by: \"" val "; " reason "\""
@@ -114,11 +146,9 @@ if [[ "$ACTION" == "defer" ]]; then
       print; next
     }
     { print }
-  ' "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE"
+  '
 
   mkdir -p "$DEFERRED_DIR"
-  DEST="$DEFERRED_DIR/$(basename "$FILE")"
-  [[ -e "$DEST" ]] && die "_deferred collision: $DEST already exists"
   mv "$FILE" "$DEST"
   ok "Deferred $(basename "$FILE") → _deferred/ · blocked_by: \"$REASON\""
 
@@ -127,9 +157,11 @@ elif [[ "$ACTION" == "reactivate" ]]; then
   FILE="$(resolve_in "$DEFERRED_DIR")"
   [[ -n "$FILE" && -f "$FILE" ]] || die "cannot resolve deferred item: $TARGET"
   [[ "$(dirname "$FILE")" == "$DEFERRED_DIR" ]] || die "target is not a deferred item: $FILE"
+  DEST="$BACKLOG_DIR/$(basename "$FILE")"
+  [[ -e "$DEST" ]] && die "active collision: $DEST already exists"
 
   # clear blocked_by + stamp updated (status already open)
-  awk -v today="$TODAY" '
+  rewrite "$FILE" -v today="$TODAY" '
     BEGIN { d=0; infm=0 }
     /^---[[:space:]]*$/ { d++; if (d<=1) { infm=1 } else { infm=0 }; print; next }
     infm==1 {
@@ -138,10 +170,8 @@ elif [[ "$ACTION" == "reactivate" ]]; then
       print; next
     }
     { print }
-  ' "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE"
+  '
 
-  DEST="$BACKLOG_DIR/$(basename "$FILE")"
-  [[ -e "$DEST" ]] && die "active collision: $DEST already exists"
   mv "$FILE" "$DEST"
   ok "Reactivated $(basename "$FILE") → active queue"
 fi
