@@ -51,6 +51,8 @@ today="$(date +%F)"
 # or a symlinked dir reaches an archived list with no literal `_archive/` in it (BL-591)
 [[ "$(CDPATH= cd -P "$(dirname "$file")" >/dev/null 2>&1 && pwd -P)" == "$(CDPATH= cd -P "$WL_DIR/_archive" >/dev/null 2>&1 && pwd -P)" ]] \
   && { echo "worklist already archived: $file" >&2; exit 2; }
+# no front matter: refused here, before the --force line or the stamp below writes anything
+has_front_matter "$file" || { echo "no front matter in $file" >&2; exit 2; }
 
 # --- the two refusals, BEFORE any mutation — SWEEP work-lists only ---
 # A plain work-list (audit kickoff, a chain of plans) keeps its old close: its emergent
@@ -102,8 +104,8 @@ if [[ $sweep -eq 1 && ( -n "$owner_open" || -n "$unreconciled" ) ]]; then
     printf '\n'; } >> "$file"
 fi
 
-sed -i.bak -E "s/^status: .*/status: $status/" "$file" && rm -f "$file.bak"
-sed -i.bak -E "s/^updated: .*/updated: $today/" "$file" && rm -f "$file.bak"
+# front matter only: a whole-file sed also rewrote `status:`/`updated:` lines in the body
+set_front_matter "$file" "status=$status" "updated=$today" || { echo "no front matter in $file" >&2; exit 2; }
 
 # surface any still-open upstream refs for manual closure propagation.
 # `|| true`: grep exits 1 when a queue has only inline refs — without it,
