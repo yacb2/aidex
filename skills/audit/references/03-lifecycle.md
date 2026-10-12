@@ -21,7 +21,7 @@ modifiers live in their own columns, never embedded in the status.
 | `open` | Observed, not yet acted on. Triage (severity assigned, decision pending) is a **sub-state**: stays `open`, note in the `Notes` column. |
 | `doing` | An active plan is executing on this finding. |
 | `done` | Terminal-and-tracked: either verified fixed (verifying commit / re-test run in `Notes`) **or** escalated — the work is now tracked elsewhere and the `Escalated To` column carries the marker (`backlog/<…>`, `plan/<…>`, or `loop/<…>` for a bulk machine-checkable finding via `escalate --loop`). |
-| `dropped` | Won't fix; documented reason in `Notes`. |
+| `dropped` | Won't fix; documented reason in `Notes`. Escalation refuses it until the row is reopened (`open`). |
 
 All status values are plain lowercase text — no emojis, no decorations.
 
@@ -42,6 +42,7 @@ open --plan starts--> doing --verify--> done (verifying ref in Notes)
 open --escalate-----> done + Escalated To: backlog/<…> | loop/<…>
 open --remediate----> doing + Escalated To: loop/<…>   (run-level, whole run)
 any  --won't fix----> dropped (reason in Notes)
+dropped --reopen----> open (reason in Notes)
 
 done --regression--> new REGRESSION-<parent>-<n> row (status: open, links to parent)
 ```
@@ -70,6 +71,7 @@ done --regression--> new REGRESSION-<parent>-<n> row (status: open, links to par
   `Closed: <commit|run> — <one line>` (canon `audit-conventions.md` §Notes
   discipline).
 - **any → dropped:** reason in `Notes`.
+- **dropped → open (reopen):** reason in `Notes`. Escalation refuses a `dropped` row until it is reopened.
 - **done → regression:** don't re-open the original row. New row with ID
   `REGRESSION-<parent-id>-<n>`, type `regression`, `Notes` linking the parent.
   The original stays `done`.

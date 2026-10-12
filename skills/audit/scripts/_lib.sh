@@ -232,7 +232,8 @@ inventory_lock_path() {
 
 # Would mark_row_escalated rewrite the finding's row? Runs the same awk program with its
 # output discarded: 0 yes; 4 no, the row it selects is already done (done, legacy
-# escalated or closed: audit-conventions.md §Status map); 3 no, no row it could rewrite
+# escalated or closed: audit-conventions.md §Status map); 5 no, the row is dropped (a
+# won't-fix verdict, never overwritten with done); 3 no, no row it could rewrite
 # (a comment on the row, a status outside the known lowercase words, fewer than 9
 # columns). Escalation asks it before filing anything.
 # Usage: finding_row_markable <inventory> <finding_id>
@@ -245,8 +246,8 @@ finding_row_markable() {
 # Updated -> today (ISO), today appended to Audit Runs (deduped), "Escalated To"
 # cell set to <ref> — a canon MARKER like backlog/<filename> or loop/<filename>,
 # never a markdown link. Skips HTML comment blocks so template EXAMPLE rows are
-# never rewritten. Writes nothing and returns 4 when the row is already done, 3 when no
-# row was rewritten.
+# never rewritten. Writes nothing and returns 4 when the row is already done, 5 when it is
+# dropped, 3 when no row was rewritten.
 # Usage: mark_row_escalated <inventory> <finding_id> <ref>
 mark_row_escalated() {
   local inventory="$1" finding_id="$2" link="$3" tmp="" lock rc=0
@@ -262,6 +263,7 @@ mark_row_escalated() {
     rc=$?; rm -f "$tmp"
     [[ $rc -ne 3 ]] || err "error: no finding row $finding_id in $inventory could be marked escalated; nothing written"
     [[ $rc -ne 4 ]] || err "error: finding $finding_id in $inventory is already done (escalated); nothing written"
+    [[ $rc -ne 5 ]] || err "error: finding $finding_id in $inventory was dropped (won't fix); reopen its row (status open) first if you want to escalate it; nothing written"
     exit $rc
   fi
   ) || rc=$?
@@ -269,6 +271,7 @@ mark_row_escalated() {
 }
 
 # awk program for mark_row_escalated and finding_row_markable (-v id, link, today).
+# Exit: 4 the selected row is done, 5 it is dropped, 3 no row to rewrite; the first two write nothing.
 AWK_MARK="$AWK_UNESC"'
     BEGIN { in_comment = 0 }
     {
@@ -318,6 +321,7 @@ AWK_MARK="$AWK_UNESC"'
         print $0; next
       }
       if (s ~ /^(done|escalated|closed)$/) { closed = 1; print $0; next }
+      if (s == "dropped") { dropped = 1; print $0; next }
 
       # Update fields (canon: done + escalated_to modifier, never a status word)
       c_runs = wide ? 10 : 8
@@ -340,7 +344,7 @@ AWK_MARK="$AWK_UNESC"'
       print unesc(out)
       hit = 1
     }
-    END { if (closed) exit 4; if (!hit) exit 3 }
+    END { if (closed) exit 4; if (dropped) exit 5; if (!hit) exit 3 }
 '
 
 # Compute the relative path from a base file's directory to a target file.

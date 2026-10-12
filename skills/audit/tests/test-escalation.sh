@@ -456,5 +456,34 @@ for c in sym comment; do
   [[ "$(cksum < "$A/ux/00-inventory.md")" == "$before" ]] || fail "loop-pre-$c: the inventory was written"
 done
 
+# --- Q17: a `dropped` row (a won't-fix verdict) is refused by both escalations, before
+# anything is filed or scaffolded; the verdict is never overwritten with done ---
+for c in backlog loop; do
+  new_project "dropped-$c"
+  mkdir -p "$A/ux"; printf "$BOARD_HEAD"'| F-001 | bug | app | Wontfix | dropped | P2 | 2026-06-01 | — | — |\n' > "$A/ux/00-inventory.md"
+  before="$(cksum < "$A/ux/00-inventory.md")"
+  if [[ $c == backlog ]]; then out="$(bash "$SCRIPTS/escalate-finding.sh" F-001 2>&1)"; rc=$?
+  else out="$(bash "$SCRIPTS/escalate-finding-to-loop.sh" F-001 --loop 2>&1)"; rc=$?; fi
+  [[ $rc -eq 2 && "$out" == *"was dropped (won't fix)"* && "$out" == *"nothing was escalated"* ]] \
+    || fail "dropped-$c: a dropped row should be refused with rc 2, rc $rc: $out"
+  [[ "$(backlog_count)" == 0 ]] || fail "dropped-$c: a backlog item was filed for a dropped row"
+  [[ -z "$(ls .context/loops/*.md 2>/dev/null)" ]] || fail "dropped-$c: a loop spec was scaffolded"
+  [[ "$(cksum < "$A/ux/00-inventory.md")" == "$before" ]] || fail "dropped-$c: the dropped row was rewritten"
+done
+# the dry run previews the same escalation, so it refuses the same row
+new_project dropped-dry
+mkdir -p "$A/ux"; printf "$BOARD_HEAD"'| F-001 | bug | app | Wontfix | dropped | P2 | 2026-06-01 | — | — |\n' > "$A/ux/00-inventory.md"
+out="$(bash "$SCRIPTS/escalate-finding-to-loop.sh" F-001 --loop --dry-run 2>&1)"; rc=$?
+[[ $rc -eq 2 && "$out" == *"was dropped (won't fix)"* ]] || fail "dropped-dry: --dry-run on a dropped row should be refused with rc 2, rc $rc: $out"
+
+# mark_row_escalated itself returns 5 on a dropped row: message, nothing written, no temp file left
+new_project dropped-mark
+mkdir -p "$A/ux"; printf "$BOARD_HEAD"'| F-001 | bug | app | Wontfix | dropped | P2 | 2026-06-01 | — | — |\n' > "$A/ux/00-inventory.md"
+INV="$A/ux/00-inventory.md"; before="$(cksum < "$INV")"
+out="$( . "$SCRIPTS/_lib.sh"; mark_row_escalated "$INV" F-001 backlog/bl-1 2>&1 )"; rc=$?
+[[ $rc -eq 5 && "$out" == *"was dropped"* ]] || fail "dropped-mark: mark_row_escalated should return 5 naming 'was dropped', rc $rc: $out"
+[[ "$(cksum < "$INV")" == "$before" ]] || fail "dropped-mark: the dropped row was rewritten"
+[[ -z "$(ls "$A"/ux/00-inventory.md.* 2>/dev/null)" ]] || fail "dropped-mark: a temp file was left: $(ls "$A"/ux)"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — canon markers, methodology-scoped origin_ref, loop back-link, base vocab + ISO, qualified ids, escaped pipes, whole-token runs, concurrent marks, per-user 0700 lock dir, symlinked lock dir refused"
