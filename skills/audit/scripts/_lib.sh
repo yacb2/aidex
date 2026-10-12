@@ -213,32 +213,63 @@ extract_finding_row() {
   ' "$inventory"
 }
 
+# The lock file that serialises writes to <inventory> (prints its path). Two escalations
+# on one inventory (separate sessions, or a backlog and a loop escalation) each
+# read-modify-write the whole file: they take a kernel lock (lock_take) kept outside
+# .context, keyed by the inventory's real path. The `.flock` name never meets the `.lock`
+# DIRECTORY the old mkdir lock may have left. The lock sits in a per-user 0700
+# directory, never the shared temp namespace (/tmp on Linux), where another user could
+# plant a symlink at the lock's guessable name: such a directory returns 2. A caller that
+# files something before marking the row asks this first, so a refusal leaves nothing.
+# Usage: inventory_lock_path <inventory>
+inventory_lock_path() {
+  local inventory="$1" lock_dir="${TMPDIR:-/tmp}/aidex.locks.$EUID"
+  mkdir -m 700 "$lock_dir" 2>/dev/null || :   # an existing path (or symlink) stays as it is
+  [[ -d "$lock_dir" && ! -L "$lock_dir" && -O "$lock_dir" ]] \
+    || { err "error: the lock directory $lock_dir is a symlink, not a directory or not yours; nothing written"; return 2; }
+  printf '%s/aidex-inv.%s.flock\n' "$lock_dir" "$(printf '%s' "$(cd "$(dirname "$inventory")" && pwd -P)/$(basename "$inventory")" | path_digest | cut -c1-16)"
+}
+
+# Would mark_row_escalated rewrite the finding's row? Runs the same awk program with its
+# output discarded: 0 yes; 4 no, the row it selects is already done (done, legacy
+# escalated or closed: audit-conventions.md §Status map); 3 no, no row it could rewrite
+# (a comment on the row, a status outside the known lowercase words, fewer than 9
+# columns). Escalation asks it before filing anything.
+# Usage: finding_row_markable <inventory> <finding_id>
+finding_row_markable() {
+  awk -v id="$2" -v link=x -v today=x "$AWK_MARK" "$1" > /dev/null
+}
+
 # Rewrite a finding's inventory row in place on escalation, per the CANON model
 # (base vocab + ISO dates + <type>/<filename> markers): status -> done, Last
 # Updated -> today (ISO), today appended to Audit Runs (deduped), "Escalated To"
 # cell set to <ref> — a canon MARKER like backlog/<filename> or loop/<filename>,
 # never a markdown link. Skips HTML comment blocks so template EXAMPLE rows are
-# never rewritten.
+# never rewritten. Writes nothing and returns 4 when the row is already done, 3 when no
+# row was rewritten.
 # Usage: mark_row_escalated <inventory> <finding_id> <ref>
 mark_row_escalated() {
-  local inventory="$1" finding_id="$2" link="$3" tmp="" lock lock_dir rc=0
-  # Two escalations on one inventory (separate sessions, or a backlog and a loop
-  # escalation) each read-modify-write the whole file: serialise them under a kernel
-  # lock (lock_take) kept outside .context, keyed by the inventory's real path. The
-  # `.flock` name never meets the `.lock` DIRECTORY the old mkdir lock may have left.
-  # The lock sits in a per-user 0700 directory, never the shared temp namespace (/tmp on
-  # Linux), where another user could plant a symlink at the lock's guessable name.
-  lock_dir="${TMPDIR:-/tmp}/aidex.locks.$EUID"
-  mkdir -m 700 "$lock_dir" 2>/dev/null || :   # an existing path (or symlink) stays as it is
-  [[ -d "$lock_dir" && ! -L "$lock_dir" && -O "$lock_dir" ]] \
-    || { err "error: the lock directory $lock_dir is a symlink, not a directory or not yours; nothing written"; return 2; }
-  lock="$lock_dir/aidex-inv.$(printf '%s' "$(cd "$(dirname "$inventory")" && pwd -P)/$(basename "$inventory")" | path_digest | cut -c1-16).flock"
+  local inventory="$1" finding_id="$2" link="$3" tmp="" lock rc=0
+  lock="$(inventory_lock_path "$inventory")" || return 2
   # A subshell: the lock goes as it ends.
   (
   lock_take "$lock" 10 || { err "error: could not lock $inventory; nothing written"; exit 2; }
   # The temp file sits beside the inventory (atomic rename) and takes its mode
   # (cp -p): mktemp's 0600 must not replace the board's mode.
-  if tmp="$(mktemp "$inventory.XXXXXX")" && cp -p "$inventory" "$tmp" && awk -v id="$finding_id" -v link="$link" -v today="$(today_iso)" "$AWK_UNESC"'
+  if tmp="$(mktemp "$inventory.XXXXXX")" && cp -p "$inventory" "$tmp" && awk -v id="$finding_id" -v link="$link" -v today="$(today_iso)" "$AWK_MARK" "$inventory" > "$tmp" && mv "$tmp" "$inventory"; then
+    :
+  else
+    rc=$?; rm -f "$tmp"
+    [[ $rc -ne 3 ]] || err "error: no finding row $finding_id in $inventory could be marked escalated; nothing written"
+    [[ $rc -ne 4 ]] || err "error: finding $finding_id in $inventory is already done (escalated); nothing written"
+    exit $rc
+  fi
+  ) || rc=$?
+  return $rc
+}
+
+# awk program for mark_row_escalated and finding_row_markable (-v id, link, today).
+AWK_MARK="$AWK_UNESC"'
     BEGIN { in_comment = 0 }
     {
       # Track whether the CURRENT line is inside a multi-line HTML comment.
@@ -283,9 +314,10 @@ mark_row_escalated() {
       # Verify this is a real finding row (status column has a known marker,
       # base vocab or legacy read-tolerated)
       s = cells[6]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", s)
-      if (s !~ /open|doing|done|dropped|triaged|escalated|in-progress|closed/) {
+      if (s !~ /^(open|doing|done|dropped|triaged|escalated|in-progress|closed)$/) {
         print $0; next
       }
+      if (s ~ /^(done|escalated|closed)$/) { closed = 1; print $0; next }
 
       # Update fields (canon: done + escalated_to modifier, never a status word)
       c_runs = wide ? 10 : 8
@@ -306,14 +338,9 @@ mark_row_escalated() {
       out = cells[1]
       for (i = 2; i <= n; i++) out = out "|" cells[i]
       print unesc(out)
+      hit = 1
     }
-  ' "$inventory" > "$tmp" && mv "$tmp" "$inventory"; then
-    :
-  else
-    rc=$?; rm -f "$tmp"; exit $rc
-  fi
-  ) || rc=$?
-  return $rc
-}
+    END { if (closed) exit 4; if (!hit) exit 3 }
+'
 
 # Compute the relative path from a base file's directory to a target file.
