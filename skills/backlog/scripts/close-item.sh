@@ -79,11 +79,22 @@ elif [[ -f "$TARGET" ]]; then
   FILE="$TARGET"
 elif [[ -f "$BACKLOG_DIR/$TARGET" ]]; then
   FILE="$BACKLOG_DIR/$TARGET"
+elif [[ -f "$BACKLOG_DIR/$TARGET.md" ]]; then
+  FILE="$BACKLOG_DIR/$TARGET.md"
 else
-  die "cannot resolve target: $TARGET"
+  # a slug: the item whose name is <date>-bl-<n>-<slug>.md with exactly this slug (never
+  # 00-index.md, never a partial word); several are refused, never the first by date
+  m=()
+  for f in "$BACKLOG_DIR"/*.md; do
+    [[ "$(basename "$f")" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}-bl-[0-9]+-(.*)\.md$ && "${BASH_REMATCH[1]}" == "$TARGET" ]] && m+=("$f")
+  done
+  [[ ${#m[@]} -le 1 ]] || die "ambiguous slug '$TARGET' matches: $(for f in "${m[@]}"; do printf '%s ' "$(basename "$f")"; done)"
+  [[ ${#m[@]} -eq 1 ]] || die "cannot resolve target: $TARGET"
+  FILE="${m[0]}"
 fi
 
 [[ "$(dirname "$FILE")" == "$BACKLOG_DIR" ]] || die "target is not an active backlog item: $FILE"
+[[ "$(basename "$FILE")" != "00-index.md" ]] || die "target is the index, not a backlog item: $FILE"
 
 TODAY="$(date +%Y-%m-%d)"
 COMMITS_STR="${COMMITS[*]:-}"
@@ -341,10 +352,12 @@ if [[ $NO_INDEX -eq 0 ]]; then
     ok "  index rebuilt"
   else
     # --reindex also exits non-zero AFTER writing the index when the id guard finds a
-    # problem; only an index that was NOT rewritten is stale. Exit code stays main's.
+    # problem; only an index that was NOT rewritten is stale. The path is printed either way
+    # (the item is archived); the exit code stays main's.
     if [[ "$(cksum <"$INDEX_FILE" 2>/dev/null || true)" == "$INDEX_BEFORE" ]]; then
       echo "close-item: $(basename "$DEST") was archived but the index is stale; rebuild it with: bash $SCRIPT_DIR/register-item.sh --reindex" >&2
     fi
+    printf '%s\n' "$DEST"
     exit "$RC"
   fi
 fi

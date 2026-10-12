@@ -241,6 +241,84 @@ check "malformed id still renders on its line" 'grep -q "^- \*\*BL-20260610\*\* 
 check "nonconforming guard still warns" '[[ "$MALFORMED_OUT" == *"nonconforming id BL-20260610"* ]]'
 check "nonconforming guard still fails --reindex" '[[ "$MALFORMED_RC" -eq 1 ]]'
 
+echo "== a duplicate id elsewhere must not abort a transition (backlog-c24) =="
+# --reindex exits 1 AFTER writing the index when any id is duplicated. start/defer/sweep
+# ran it bare under set -e, so the item was already rewritten but the banner, the path on
+# stdout and the exit code were lost. close-item.sh already guards the same call.
+DUP="$TMP/dup"; mkdir -p "$DUP/.context/backlog" "$DUP/.context/plans"
+cd "$DUP"
+  B1="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "dup start bug" --priority P1 --type bug 2>/dev/null)"
+  T1="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "dup defer task" --priority P2 2>/dev/null)"
+  D1="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "dup done item" --priority P2 2>/dev/null)"
+  sed -i.bak 's/^status: open/status: done/' "$D1" && rm -f "$D1.bak"
+  X1="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "dup defer target" --priority P2 2>/dev/null)"
+  cp "$T1" .context/backlog/2026-01-01-dup-copy.md   # same id as T1
+  DUP_RC=0; DUP_OUT="$(bash "$SCRIPTS/start-item.sh" BL-001 2>&1)" || DUP_RC=$?
+  check "start-item still exits 0 with a duplicate id elsewhere" '[[ $DUP_RC -eq 0 ]]'
+  check "start-item still prints the bug route" '[[ "$DUP_OUT" == *"RED->GREEN procedure now"* ]]'
+  DEF_RC=0; DEF_OUT="$(bash "$SCRIPTS/defer-item.sh" defer "$X1" --reason "x" 2>/dev/null)" || DEF_RC=$?
+  check "defer-item still exits 0 with a duplicate id elsewhere" '[[ $DEF_RC -eq 0 ]]'
+  check "defer-item still prints the destination on stdout" '[[ "$DEF_OUT" == *"/_deferred/"* ]]'
+  SW_RC=0; SW_OUT="$(bash "$SCRIPTS/sweep.sh" --apply 2>&1)" || SW_RC=$?
+  check "sweep.sh --apply still exits 0 and reports the archive" '[[ $SW_RC -eq 0 && "$SW_OUT" == *"item(s) archived"* ]]'
+  D2="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "dup close target" --priority P2 2>/dev/null)"
+  CL_RC=0; CL_OUT="$(bash "$SCRIPTS/close-item.sh" "$D2" --status dropped 2>/dev/null)" || CL_RC=$?
+  check "close-item (exit stays 1 by contract) archives and prints the destination with a duplicate id elsewhere" '[[ "$CL_OUT" == *"/_archive/"* && -f "$CL_OUT" ]]'
+cd "$TMP"
+
+echo "== an index that cannot be written is reported, never "rebuilt" (BL-798 through the callers) =="
+STALE="$TMP/stale"; mkdir -p "$STALE/.context/backlog" "$STALE/.context/plans"
+cd "$STALE"
+SB="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "stale bug" --priority P1 --type bug 2>/dev/null)"
+SD="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "stale defer" --priority P2 2>/dev/null)"
+SX="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "stale done" --priority P2 2>/dev/null)"
+sed -i.bak 's/^status: open/status: done/' "$SX" && rm -f "$SX.bak"
+chmod 444 .context/backlog/00-index.md
+S_RC=0; S_OUT="$(bash "$SCRIPTS/start-item.sh" "$SB" 2>&1)" || S_RC=$?
+check "start-item: no 'index rebuilt', names the stale index, fails" '[[ "$S_OUT" != *"index rebuilt"* && "$S_OUT" == *"stale"* && $S_RC -ne 0 ]]'
+check "start-item: the bug route and path are still printed" '[[ "$S_OUT" == *"RED->GREEN procedure now"* && "$S_OUT" == *"$SB"* ]]'
+D_RC=0; D_OUT="$(bash "$SCRIPTS/defer-item.sh" defer "$SD" --reason x 2>&1)" || D_RC=$?
+check "defer-item: no 'index rebuilt', names the stale index, fails" '[[ "$D_OUT" != *"index rebuilt"* && "$D_OUT" == *"stale"* && $D_RC -ne 0 ]]'
+check "defer-item: the destination is still printed" '[[ "$D_OUT" == *"/_deferred/"* ]]'
+W_RC=0; W_OUT="$(bash "$SCRIPTS/sweep.sh" --apply 2>&1)" || W_RC=$?
+check "sweep.sh: no 'index rebuilt', names the stale index, fails" '[[ "$W_OUT" != *"index rebuilt"* && "$W_OUT" == *"stale"* && $W_RC -ne 0 ]]'
+chmod 644 .context/backlog/00-index.md
+cd "$TMP"
+
+echo "== a slug resolves to its item (backlog-c36) =="
+SLUGP="$TMP/slug"; mkdir -p "$SLUGP/.context/backlog" "$SLUGP/.context/plans"
+cd "$SLUGP"
+S1="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "fix the parser" --priority P2 --type bug --no-index 2>/dev/null)"
+S2="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "fix the parser" --priority P2 --no-index 2>/dev/null)"   # same slug, other id
+S3="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "second thing" --priority P2 --no-index 2>/dev/null)"
+bash "$SCRIPTS/register-item.sh" --reindex >/dev/null 2>&1
+S_RC=0; bash "$SCRIPTS/start-item.sh" second-thing --no-index >/dev/null 2>&1 || S_RC=$?
+check "start-item accepts the bare slug" '[[ $S_RC -eq 0 ]] && grep -q "^status: doing$" "$S3"'
+S_RC=0; A_OUT="$(bash "$SCRIPTS/start-item.sh" fix-the-parser --no-index 2>&1)" || S_RC=$?
+check "an ambiguous exact slug exits 2 naming 'ambiguous', both items unchanged" '[[ $S_RC -eq 2 && "$A_OUT" == *"ambiguous"* ]] && ! grep -q "^status: doing$" "$S1" "$S2"'
+S_RC=0; bash "$SCRIPTS/start-item.sh" parser --no-index >/dev/null 2>&1 || S_RC=$?
+check "a partial word is not a slug" '[[ $S_RC -eq 2 ]] && ! grep -q "^status: doing$" "$S1"'
+C_RC=0; bash "$SCRIPTS/close-item.sh" second-thing --no-index >/dev/null 2>&1 || C_RC=$?
+check "close-item accepts the bare slug" '[[ $C_RC -eq 0 && -f ".context/backlog/_archive/$(basename "$S3")" ]]'
+IDX_SUM="$(cksum < .context/backlog/00-index.md)"
+C_RC=0; bash "$SCRIPTS/close-item.sh" index --no-index >/dev/null 2>&1 || C_RC=$?
+check "close-item never takes 00-index.md for a slug" '[[ $C_RC -ne 0 && -f .context/backlog/00-index.md && "$(cksum < .context/backlog/00-index.md)" == "$IDX_SUM" ]]'
+# the index is not an item under any spelling: rejected by the basename guard, file untouched
+for t in 00-index.md 00-index; do
+  for sc in start-item.sh close-item.sh "defer-item.sh defer"; do
+    G_RC=0; if [[ "$sc" == defer-item.sh* ]]; then bash "$SCRIPTS/defer-item.sh" defer "$t" --reason x --no-index >/dev/null 2>&1 || G_RC=$?
+    else bash "$SCRIPTS/$sc" "$t" --no-index >/dev/null 2>&1 || G_RC=$?; fi
+    check "$sc $t: rc 2, 00-index.md untouched and active" '[[ $G_RC -eq 2 && "$(cksum < .context/backlog/00-index.md)" == "$IDX_SUM" && ! -e .context/backlog/_deferred/00-index.md && ! -e .context/backlog/_archive/00-index.md ]]'
+  done
+done
+DS="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "fix the parser two" --priority P2 --no-index 2>/dev/null)"
+bash "$SCRIPTS/register-item.sh" --reindex >/dev/null 2>&1; IDX_SUM="$(cksum < .context/backlog/00-index.md)"
+G_RC=0; bash "$SCRIPTS/defer-item.sh" defer index --reason x --no-index >/dev/null 2>&1 || G_RC=$?
+check "defer-item: 'index' is not a slug" '[[ $G_RC -ne 0 && "$(cksum < .context/backlog/00-index.md)" == "$IDX_SUM" && ! -e .context/backlog/_deferred/00-index.md ]]'
+G_RC=0; bash "$SCRIPTS/defer-item.sh" defer fix-the-parser-two --reason x --no-index >/dev/null 2>&1 || G_RC=$?
+check "defer-item: the exact slug still defers" '[[ $G_RC -eq 0 && -f ".context/backlog/_deferred/$(basename "$DS")" ]]'
+cd "$TMP"
+
 echo
 echo "lifecycle: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]
