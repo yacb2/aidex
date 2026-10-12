@@ -51,12 +51,16 @@ block against this canonical one and fails on any mismatch.
 - **Publication/deny actually gated in batch** — implementers are told to *report*
   pub/deny actions in `pending_actions` (never perform them); `runPhase` routes each
   through `checkAction`: pre-authorized → proceed, `ASK` → batched question collected
-  while the phase continues, `STOP` → escalate.
+  while the phase continues, `STOP` → escalate. The publication set is push, publish, deploy,
+  release and merge; pre-authorization (exact match) never covers a deny-set action, and the
+  arbiter is shown the pre-authorized list. A question repeated across attempts is kept once.
 - **No proof artifact, no phase pass** — a passed result additionally requires the
   implementer's `WORK_SCHEMA.proof`: a reference to the evidence artifact (test output,
   payload capture, screenshot, `proof_links` entry) produced before the phase commit. A green
   gate with no artifact is retried for the artifact, never passed — this is the mechanical
-  carrier of the `proof_links` mandate, which prose alone left at 7.6% adoption.
+  carrier of the `proof_links` mandate, which prose alone left at 7.6% adoption. A report with
+  `done=false` is retried the same way, and the arbiter's exhaustion ruling is told which
+  of the two (or a failed gate) the last attempt was.
 - **Reported out-of-scope bugs survive the phase** — an implementer that finds a bug outside
   its phase reports it as an `OUT-OF-SCOPE BUG: ...` line in `summary` instead of patching it;
   `runPhase` collects those lines from every attempt and returns them as `outOfScopeBugs` on
@@ -148,6 +152,13 @@ async function runPhase(phase, ctx) {
   let feedback = ''
   let directed = 0
   const asks = []
+  // The same question reported on several attempts is one question for the owner.
+  const ask = (q) => { if (!asks.includes(q)) asks.push(q) }
+  // One arbiter consultation per reported action: its wording varies call to call, so
+  // consulting again on every attempt would batch the same question several times.
+  const verdicts = new Map()
+  // Why the last attempt did not pass: the arbiter is told the truth about it.
+  let lastFailure = 'failed its machine gate'
   // Bugs the implementer reported instead of patching (an `OUT-OF-SCOPE BUG: ...` summary
   // line), from EVERY attempt, returned on EVERY path: the orchestrator routes them to a
   // bugfix run, so a line dropped here is a bug nobody routes.
@@ -172,13 +183,15 @@ async function runPhase(phase, ctx) {
         attempt--
         continue
       }
-      return { phaseId: phase.id, passed: false, attempts: attempt, escalated: v || { verdict: 'ASK', reason: 'arbiter unavailable on blocked implementer' }, asks, outOfScopeBugs }
+      return { phaseId: phase.id, passed: false, attempts: attempt, escalated: v || { verdict: 'ASK', reason: 'arbiter unavailable on blocked implementer', unavailable: true }, asks, outOfScopeBugs }
     }
     // Publication/deny path: actions the implementer REPORTED instead of performing.
     for (const action of (work && work.pending_actions) || []) {
-      const c = await checkAction(action, ctx)
+      // Only a real verdict is remembered: a null (transient arbiter failure) is asked again.
+      let c = verdicts.get(action)
+      if (!c) { c = await checkAction(action, ctx); if (c) verdicts.set(action, c) }
       if (c && c.verdict === 'STOP') return { phaseId: phase.id, passed: false, attempts: attempt, escalated: c, asks, outOfScopeBugs }
-      if (c && c.verdict === 'ASK') asks.push(c.batched_question || `Authorize: ${action}?`)
+      if (c && c.verdict === 'ASK') ask(c.batched_question || `Authorize: ${action}?`)
       // CONTINUE: pre-authorized or outside pub/deny — nothing to gate.
     }
     let proof = await verify(phase.id, phase.gateCmd)
@@ -189,7 +202,17 @@ async function runPhase(phase, ctx) {
       // payload, screenshot path, proof_links entry) BEFORE the phase commit.
       // 10 user-caught defects in one measured week arrived after the first
       // commit; proof_links adoption by prose mandate alone sat at 7.6%.
-      if (!(work && typeof work.proof === 'string' && work.proof.trim())) {
+      // A report of done=false is unfinished work whatever the gate says.
+      if (!(work && work.done === true)) {
+        lastFailure = !work ? 'passed its machine gate but the implementer returned no report'
+          : `passed its machine gate but its report said done=false${work.blocked_reason ? ` (blocked_reason: ${work.blocked_reason})` : ''}`
+        feedback = `The gate passed but your report is missing or says done=false. Finish the phase's work and ` +
+          `re-report done=true with its proof, or return blocked_reason if you are genuinely blocked.`
+        log(`gate ${phase.id}: attempt ${attempt} green but report not done — retrying`)
+        continue
+      }
+      if (!(typeof work.proof === 'string' && work.proof.trim())) {
+        lastFailure = 'passed its machine gate but its report carried no proof artifact'
         feedback = `The gate passed but your report carries no proof artifact. Re-report with ` +
           `proof = a path or reference to the evidence (test output, payload capture, screenshot, ` +
           `proof_links entry). Do not re-implement; produce and name the artifact.`
@@ -198,11 +221,12 @@ async function runPhase(phase, ctx) {
       }
       return { phaseId: phase.id, passed: true, attempts: attempt, proof, work, asks, outOfScopeBugs }
     }
+    lastFailure = 'failed its machine gate'
     feedback = `Attempt ${attempt} failed the gate (exit ${proof ? proof.exit_code : 'n/a'}). Fix the root cause:\n${proof ? proof.evidence : 'verifier unavailable'}`
     log(`gate ${phase.id}: attempt ${attempt} failed (exit ${proof ? proof.exit_code : 'n/a'})`)
   }
   const v = await arbiter(
-    `Phase ${phase.id} failed its machine gate ${K + 1} times. Decide STOP (clean halt) or ASK (escalate).`,
+    `Phase ${phase.id} did not pass in ${K + 1} attempts; the last attempt ${lastFailure}. Decide STOP (clean halt) or ASK (escalate).`,
     ctx.autonomySurface
   )
   return { phaseId: phase.id, passed: false, attempts: K + 1, escalated: v, asks, outOfScopeBugs }
@@ -211,11 +235,16 @@ async function runPhase(phase, ctx) {
 // Publication/deny trigger (decision Q2): consult the arbiter ONLY when a pending action
 // crosses the publication-set (and is not pre-authorized) or the deny-set; else CONTINUE.
 async function checkAction(action, ctx) {
-  const pub = /\b(push|publish|deploy|release)\b/i.test(action)
+  const pub = /\b(push|publish|deploy|release|merge)\b/i.test(action)
   const deny = /\b(drop|delete|destroy|truncate|rm -rf)\b/i.test(action)
   if (!pub && !deny) return { verdict: 'CONTINUE' }
-  if (pub && (ctx.preAuthorized || []).includes(action)) return { verdict: 'CONTINUE' }
-  const v = await arbiter(`Pending action "${action}" crosses ${pub ? 'publication' : 'deny'}-set.`, ctx.autonomySurface)
+  // Pre-authorization never covers the deny-set: a destructive action stays the arbiter's call.
+  if (pub && !deny && (ctx.preAuthorized || []).includes(action)) return { verdict: 'CONTINUE' }
+  // Actions are free text, so the exact match above rarely hits: the arbiter sees the list
+  // (never for a deny-set action: pre-authorization does not cover it).
+  const authorized = !deny && (ctx.preAuthorized || []).length
+    ? ` Pre-authorized in the initial phase: ${JSON.stringify(ctx.preAuthorized)}.` : ''
+  const v = await arbiter(`Pending action "${action}" crosses the ${deny ? 'deny' : 'publication'}-set.${authorized}`, ctx.autonomySurface)
   // A publication the implementer REPORTED instead of performing is a question, never a
   // halt. Nothing was published — declining and reporting is the behaviour CORE asks for —
   // and in a run whose surface is "local commits only" an unpushed commit is the DESIRED
