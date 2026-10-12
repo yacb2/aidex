@@ -105,24 +105,43 @@ wait
 done56="$(grep -cE '^\| F-[56] .*\| done \|' "$A/ux/00-inventory.md")"
 [[ "$done56" == "1" ]] || fail "two concurrent singles: exactly one should escalate, got $done56"
 [[ "$(cat "$TMP/r5.out" "$TMP/r6.out")" == *"/aidex:artifact"* ]] || fail "the loser should be refused naming /aidex:artifact"
-LOGF="$(ls "$STATE"/* 2>/dev/null | grep -v '\.lock$' | sed -n 1p)"
+LOGF="$(ls "$STATE"/* 2>/dev/null | grep -vE '\.f?lock$' | sed -n 1p)"
 [[ -n "$LOGF" ]] || fail "log should live under XDG state"
 [[ -z "$(ls "$A"/.escalation-log 2>/dev/null)" ]] || fail "log must not live in the committed tree"
-[[ ! -d "$LOGF.lock" ]] || fail "lock must be released"
 
-# lock: a fresh planted lock refuses (row untouched); one aged past 60 s is taken over
-mkdir "$LOGF.lock"
-out="$(bash "$SCRIPTS/escalate-finding.sh" F-7 2>&1)"; rc=$?
-[[ $rc -ne 0 && "$out" == *"could not take the escalation lock"* ]] || fail "fresh planted lock should refuse (rc=$rc): $out"
-grep -qE '^\| F-7 .*\| open \|' "$A/ux/00-inventory.md" || fail "refused-by-lock must leave F-7 open"
-touch -t 202001010000 "$LOGF.lock"
+# the window lock is a kernel lock (lock_take): an old-style mkdir lock DIRECTORY left by
+# a run of the old code is neither waited for, nor taken over, nor removed
 seed_old() { date +%s | awk '{print $1-900 " seed"}' > "$LOGF"; }
 seed_old
+mkdir "$LOGF.lock"
 out="$(bash "$SCRIPTS/escalate-finding.sh" F-7 2>&1)"; rc=$?
-[[ $rc -eq 0 && "$out" == *"stale escalation lock"* ]] || fail "stale lock should be taken over with a message (rc=$rc): $out"
-grep -qE '^\| F-7 .*\| done \|' "$A/ux/00-inventory.md" || fail "F-7 should escalate after the takeover"
-[[ ! -d "$LOGF.lock" ]] || fail "lock must be released after the takeover"
+[[ $rc -eq 0 && "$out" != *"taking over"* ]] || fail "an old-style lock dir should not hold the escalation up (rc=$rc): $out"
+grep -qE '^\| F-7 .*\| done \|' "$A/ux/00-inventory.md" || fail "F-7 should escalate past an old-style lock dir"
+[[ -d "$LOGF.lock" ]] || fail "the old-style lock dir is not ours to remove"
 sed -i.bak 's/^\(| F-7 .*\)| done |/\1| open |/' "$A/ux/00-inventory.md"; rm -f "$A"/ux/*.bak
+# a LIVE holder of the window lock is waited for, never taken over: the escalation lands
+# after it lets go
+seed_old
+fifo="$TMP/hold.fifo"; mkfifo "$fifo"; hlog="$TMP/hold.log"; : > "$hlog"
+perl -MFcntl=:flock -e 'open(R, ">", $ARGV[1]) or die; open(H, ">>", $ARGV[0]) or die; flock(H, LOCK_EX) or die;
+  print R "held\n"; close R; sleep 2; open(L, ">>", $ARGV[2]); print L "released\n"; close L' "$LOGF.flock" "$fifo" "$hlog" &
+HPID=$!; read -r _ < "$fifo"; rm -f "$fifo"
+out="$(bash "$SCRIPTS/escalate-finding.sh" F-7 2>&1)"; rc=$?; echo escalated >> "$hlog"
+{ wait "$HPID"; } 2>/dev/null
+[[ $rc -eq 0 && "$out" != *"taking over"* ]] || fail "a live window-lock holder should be waited for (rc=$rc): $out"
+[[ "$(tr '\n' ' ' < "$hlog")" == "released escalated " ]] || fail "the escalation should land after the live holder lets go, order: $(tr '\n' ' ' < "$hlog")"
+sed -i.bak 's/^\(| F-7 .*\)| done |/\1| open |/' "$A/ux/00-inventory.md"; rm -f "$A"/ux/*.bak
+# a holder that outlasts the 10 s wait (lock_take rc 75) refuses: rc 2, nothing filed
+seed_old; before_bl="$(backlog_count)"
+fifo="$TMP/hold.fifo"; mkfifo "$fifo"
+perl -MFcntl=:flock -e 'open(R, ">", $ARGV[1]) or die; open(H, ">>", $ARGV[0]) or die; flock(H, LOCK_EX) or die;
+  print R "held\n"; close R; sleep 30' "$LOGF.flock" "$fifo" &
+HPID=$!; read -r _ < "$fifo"; rm -f "$fifo"
+out="$(bash "$SCRIPTS/escalate-finding.sh" F-7 2>&1)"; rc=$?
+kill "$HPID" 2>/dev/null; { wait "$HPID"; } 2>/dev/null
+[[ $rc -eq 2 && "$out" == *"held by another escalation"* ]] || fail "a window lock held past the wait should refuse with rc 2 (rc=$rc): $out"
+[[ "$(backlog_count)" == "$before_bl" ]] || fail "a refused-by-lock escalation filed a backlog item"
+grep -qE '^\| F-7 .*\| open \|' "$A/ux/00-inventory.md" || fail "a refused-by-lock escalation must leave F-7 open"
 
 # duplicate ids are one finding: "F-1 F-1 F-2 --page" escalates both rows
 bash "$SCRIPTS/escalate-finding.sh" F-1 F-1 F-2 --page page.html >/dev/null 2>&1 || fail "duplicate ids with a page should be accepted"
@@ -147,6 +166,80 @@ bash "$SCRIPTS/escalate-finding.sh" F-7 >/dev/null 2>&1 || fail "single escalati
 grep -qE '^\| F-7 .*\| done \|' "$A/ux/00-inventory.md" || fail "F-7 should be escalated"
 
 bash "$SCRIPTS/validate-audit.sh" "$A" >/dev/null 2>&1 || fail "tree should still validate"
+
+# Rows below get their own project: the window log above is per project root.
+batch_project() { # <name> -> $TMP/<name> with ux/00-inventory.md holding F-1..F-3, cd into it
+  mkdir -p "$TMP/$1/.context/audits/ux/2026-06-01-run" "$TMP/$1/.context/backlog"; cd "$TMP/$1" || exit 1
+  printf '| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |\n|---|---|---|---|---|---|---|---|---|\n' > "$A/ux/00-inventory.md"
+  local i; for i in 1 2 3; do printf '| F-%s | bug | app | Row %s | open | P2 | 2026-06-01 | — | — |\n' "$i" "$i" >> "$A/ux/00-inventory.md"; done
+  printf '# Findings\n\n- **F-1** a\n- **F-2** b\n- **F-3** c\n' > "$A/ux/2026-06-01-run/findings.md"
+}
+
+# --- audit-c41: two concurrent escalations of the same id (each with a page) file ONE
+# backlog item: the done check is repeated under the lock that spans the filing ---
+batch_project c41
+kit_page page.html F-1
+bash "$SCRIPTS/escalate-finding.sh" F-1 --page page.html >"$TMP/c41a.out" 2>&1 & pa=$!
+bash "$SCRIPTS/escalate-finding.sh" F-1 --page page.html >"$TMP/c41b.out" 2>&1 & pb=$!
+wait $pa; ra=$?; wait $pb; rb=$?
+[[ "$(backlog_count)" == 1 ]] || fail "c41: two concurrent escalations of F-1 filed $(backlog_count) backlog items, want 1"
+[[ "$ra $rb" == "0 2" || "$ra $rb" == "2 0" ]] || fail "c41: one run should succeed and one be refused with rc 2, got rc $ra and $rb"
+[[ "$(cat "$TMP/c41a.out" "$TMP/c41b.out")" == *"already done"* ]] || fail "c41: the loser should be refused as already done: $(cat "$TMP/c41a.out" "$TMP/c41b.out")"
+
+# --- audit-c46: a batch validates every id first: one row that cannot be marked refuses
+# the whole batch, nothing filed ---
+batch_project c46
+sed -i.bak 's/^\(| F-2 .*\)| — |$/\1| seen <!-- recheck --> |/' "$A/ux/00-inventory.md"; rm -f "$A"/ux/*.bak
+kit_page page.html F-1 F-2
+out="$(bash "$SCRIPTS/escalate-finding.sh" F-1 F-2 --page page.html 2>&1)"; rc=$?
+[[ $rc -eq 2 && "$out" == *"F-2"*"cannot be marked escalated"* ]] || fail "c46: a batch with an unmarkable F-2 should be refused up front, rc $rc: $out"
+[[ "$(backlog_count)" == 0 ]] || fail "c46: the refused batch filed $(backlog_count) backlog item(s)"
+grep -qE '^\| F-1 .*\| open \|' "$A/ux/00-inventory.md" || fail "c46: F-1 must stay open when the batch is refused"
+# a filing that fails midway (a directory planted at G-1's inventory lock file makes its
+# mark fail AFTER filing; no chmod, so it holds as root too) exits 4 and names the filed
+# item; the batch lists G-1 as filed-not-marked, never as "not escalated" (a rerun of
+# the not-escalated ids must not file it twice); the window log counts the filed item
+batch_project c46-mid
+mkdir -p "$A/a11y/2026-06-01-run"
+printf '| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |\n|---|---|---|---|---|---|---|---|---|\n| G-1 | bug | app | Gee | open | P2 | 2026-06-01 | — | — |\n' > "$A/a11y/00-inventory.md"
+printf '# Findings\n\n- **G-1** g\n' > "$A/a11y/2026-06-01-run/findings.md"
+kit_page page.html F-1 G-1 F-3
+mkdir "$( . "$SCRIPTS/_lib.sh"; inventory_lock_path "$A/a11y/00-inventory.md" )"
+out="$(bash "$SCRIPTS/escalate-finding.sh" F-1 G-1 F-3 --page page.html 2>&1)"; rc=$?
+[[ $rc -eq 4 ]] || fail "c46-mid: a batch whose second mark fails after filing should exit 4, got $rc"
+[[ "$out" == *"BL-002 ("*"was filed for G-1"*"do not rerun"* ]] || fail "c46-mid: the failure should name the filed BL-002 for G-1: $out"
+[[ "$out" == *"already escalated: F-1"* && "$out" == *"filed, row not marked: G-1"* && "$out" == *"not escalated: F-3"* && "$out" != *"not escalated: G-1"* ]] \
+  || fail "c46-mid: the output should name F-1 escalated, G-1 filed-not-marked, F-3 not escalated: $out"
+logf="$XDG_STATE_HOME/aidex/escalation-log/$( . "$SCRIPTS/_lib.sh"; printf '%s' "$(pwd -P)" | path_digest )"
+[[ "$(wc -l < "$logf" | tr -d ' ')" == 2 ]] || fail "c46-mid: the window log should count both filed items (F-1, G-1), got: $(cat "$logf" 2>/dev/null)"
+grep -qE '^\| F-1 .*\| done \|' "$A/ux/00-inventory.md" && grep -qE '^\| F-3 .*\| open \|' "$A/ux/00-inventory.md" \
+  || fail "c46-mid: F-1 should be done and F-3 untouched"
+
+# a failure once register-item.sh has started (it may have written the entry) is
+# maybe-filed: rc 4, the id named with "check the backlog before rerunning", never under
+# "not escalated", and the window counts it. Here the LAST id fails, so nothing is left:
+# "not escalated: none". The scripts run from a copy whose register-item.sh is a stub.
+SK="$TMP/stub-skills/skills"; mkdir -p "$SK/audit" "$SK/conventions" "$SK/backlog/scripts"
+cp -R "$SCRIPTS" "$SK/audit/scripts"; cp -R "$SCRIPTS/../../conventions/scripts" "$SK/conventions/scripts"
+cat > "$SK/backlog/scripts/register-item.sh" <<'STUB'
+#!/bin/bash
+# writes the entry, then fails for F-2 (as a failing post-write step would)
+while [[ $# -gt 0 ]]; do [[ $1 == --finding ]] && f="$2"; shift; done
+n=$(( $(ls .context/backlog | wc -l) + 1 )); file="$PWD/.context/backlog/2026-06-01-bl-00$n-x.md"
+printf -- '---\nid: BL-00%s\n---\n' "$n" > "$file"
+[[ $f == F-2 ]] && exit 1
+echo "$file"
+STUB
+chmod +x "$SK/backlog/scripts/register-item.sh"
+batch_project maybe-filed
+kit_page page.html F-1 F-2
+out="$(bash "$SK/audit/scripts/escalate-finding.sh" F-1 F-2 --page page.html 2>&1)"; rc=$?
+[[ $rc -eq 4 ]] || fail "maybe-filed: a register failure after it started should exit 4, got $rc: $out"
+[[ "$out" == *"F-2"*"check the backlog before rerunning"* ]] || fail "maybe-filed: the failure should name F-2 and say to check the backlog: $out"
+[[ "$out" == *"already escalated: F-1"* && "$out" == *"filed, row not marked: F-2"* && "$out" == *"not escalated: none"* ]] \
+  || fail "maybe-filed: F-1 escalated, F-2 maybe filed, nothing left (none): $out"
+logf="$XDG_STATE_HOME/aidex/escalation-log/$( . "$SCRIPTS/_lib.sh"; printf '%s' "$(pwd -P)" | path_digest )"
+[[ "$(wc -l < "$logf" | tr -d ' ')" == 2 ]] || fail "maybe-filed: the window log should count F-1 and the maybe-filed F-2, got: $(cat "$logf" 2>/dev/null)"
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — batch gate: kit stamp, board refused, tokens, done ids, missing value, concurrency, window, log location"

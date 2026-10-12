@@ -92,6 +92,16 @@ GOAL_TEXT="$SUMMARY"
 PROV_TEXT="_Escalated from audit finding ${FINDING_ID} (run ${AUDIT_RUN}${SEVERITY:+, severity ${SEVERITY}})._"
 GATE_TEXT="**TODO (operator):** write the exact machine-checkable gate for this finding — the concrete command that must exit 0 (e.g. a lint/contrast/type-clean check). The loop must NOT run until this is a real pass/fail signal, not prose."
 
+# Refuse before scaffolding what the mark would refuse after it (an unusable lock
+# directory, a row it cannot rewrite), so a refusal leaves no orphan loop spec (BL-779);
+# before the dry run too, which previews the same escalation.
+inventory_lock_path "$INVENTORY" > /dev/null || exit 2
+finding_row_markable "$INVENTORY" "$FINDING_ID" || case $? in
+  4) die "finding $FINDING_ID is already done (escalated); nothing was escalated" ;;
+  5) die "finding $FINDING_ID was dropped (won't fix); reopen its row (status open) first if you want to escalate it; nothing was escalated" ;;
+  *) die "finding $FINDING_ID's row in $INVENTORY cannot be marked escalated (a comment on the row, a status outside open/doing/done/dropped and the legacy words, or fewer than 9 columns): fix the row first; nothing was escalated" ;;
+esac
+
 if [[ "$DRY_RUN" -eq 1 ]]; then
   WOULD_BE="$ROOT/.context/loops/$(today_iso)-$SLUG.md"
   info "[dry-run] escalate $FINDING_ID --loop"

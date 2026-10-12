@@ -46,7 +46,30 @@ else
   ls .context/backlog/*bad-depends* >/dev/null 2>&1 && bad "the rejected entry survived on disk" || ok "the rejected entry is rolled back"
 fi
 
-D="$(bash "$REG" --origin manual --title "done on arrival" --status done 2>"$TMP/err4")"
+D="$(bash "$REG" --origin manual --title "done on arrival" --status done 2>"$TMP/err4")"; RC=$?
 grep -q 'definition:' "$TMP/err4" && bad "a done item got a verdict (define-check only scans open/doing)" || ok "no verdict for a done/dropped registration"
+# backlog-c25: a closed-on-arrival item lands in _archive/ (D-10), where the index's
+# Closed section lists it; in the active root the index skipped it entirely.
+for st in done dropped; do
+  [[ $st == dropped ]] && { D="$(bash "$REG" --origin manual --title "dropped on arrival" --status dropped 2>/dev/null)"; RC=$?; }
+  DID="$(fm "$D" id)"
+  [[ $RC -eq 0 && "$D" == "$(pwd -P)/.context/backlog/_archive/"*"-$(printf '%s' "$DID" | tr 'A-Z' 'a-z')-$st-on-arrival.md" && -f "$D" ]] \
+    && grep -qF -- "- **$DID** · [$st on arrival](_archive/$(basename "$D")) — $st" .context/backlog/00-index.md \
+    && ok "--status $st registers into _archive/ and the index lists it under Closed" \
+    || bad "--status $st: rc=$RC path=$D index: $(grep -n "on arrival" .context/backlog/00-index.md)"
+  # The --escalate-to source stub carries the same status, so it is archived the same way.
+  mkdir -p "$TMP/tgt-$st/.context/backlog"
+  OUT="$(bash "$REG" --origin manual --title "routed $st" --status "$st" --escalate-to "$TMP/tgt-$st" 2>/dev/null)"; RC=$?
+  E="$(printf '%s\n' "$OUT" | sed -n 1p)"; EID="$(fm "$E" id)"
+  [[ $RC -eq 0 && "$E" == "$(pwd -P)/.context/backlog/_archive/"*"-$(printf '%s' "$EID" | tr 'A-Z' 'a-z')-routed-$st.md" && -f "$E" ]] \
+    && grep -qF -- "- **$EID** · [routed $st](_archive/$(basename "$E")) — $st → tgt-$st/BL-001" .context/backlog/00-index.md \
+    && ok "--escalate-to --status $st puts the source stub in _archive/, listed under Closed with its link" \
+    || bad "--escalate-to --status $st: rc=$RC source=$E index: $(grep -n "routed" .context/backlog/00-index.md)"
+  # --touches/--depends hand the new path to define-item.sh: an _archive/ path is written too.
+  T="$(bash "$REG" --origin manual --title "closed with fields $st" --status "$st" --touches "scripts/a.sh" --depends "BL-001" 2>/dev/null)"; RC=$?
+  [[ $RC -eq 0 && "$T" == "$(pwd -P)/.context/backlog/_archive/"* && "$(fm "$T" touches)" == "scripts/a.sh" && "$(fm "$T" depends)" == "BL-001" ]] \
+    && ok "--status $st with --touches/--depends writes both fields on the _archive/ item" \
+    || bad "--status $st with --touches/--depends: rc=$RC path=$T touches='$(fm "$T" touches 2>&1)' depends='$(fm "$T" depends 2>&1)'"
+done
 
 echo "passed=$PASS failed=$FAIL"; [[ $FAIL -eq 0 ]]

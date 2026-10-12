@@ -1,7 +1,7 @@
 ---
 name: backlog-reader
 description: Launched by /aidex:backlog detect-resolved; not for direct use. Reads one backlog item and the paths and commits it cites, and returns a verdict (resolved / partially / not) with a cited path or commit. Read-only; never closes or edits an item.
-model: haiku
+model: sonnet
 tools: Read, Grep, Glob, Bash
 effort: low
 user-invocable: false
@@ -20,6 +20,16 @@ agent replaces.
 ## Question
 
 *Does the current code satisfy this item's acceptance?*
+
+## The verdict scale
+
+- `resolved`: every acceptance line that code can show is met by the code as it stands now.
+- `partially`: at least one such line is met and at least one is not.
+- `not`: none is met.
+
+Count a line as met only when the code was written for that line. Infrastructure that
+already existed, or related work that no acceptance line asks for, does not count. Judge
+the item's own acceptance, not the nearest feature that sounds like it.
 
 ## Return
 

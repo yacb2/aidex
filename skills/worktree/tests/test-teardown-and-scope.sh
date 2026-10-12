@@ -186,6 +186,19 @@ bounded "#16b orphan-sweep" bash "$S/orphan-sweep.sh" --slug hang \
   && ! grep -q 'did not answer' "$TMP/bounded.out" \
   && fail "#16b orphan-sweep: no 'did not answer' line: $(cat "$TMP/bounded.out")"
 
+# --- #16c. the deadline stops a docker that ignores SIGALRM ----------------
+# The real docker CLI (a Go binary) ignores SIGALRM, so `alarm; exec docker`
+# signalled a process that kept running: down still hung past its deadline. The
+# stub here ignores ALRM the same way; down must give up within the deadline.
+mk_docker '#!/bin/sh
+[ "$1" = info ] && { trap "" ALRM; exec sleep 300; }
+exit 0'
+( cd "$TMP/p5" && bash "$S/worktree.sh" new hang2 --branch wt/hang2 --no-infra ) >/dev/null 2>&1 \
+  || fail "#16c: fixture: worktree new failed"
+bounded "#16c down" bash "$S/worktree.sh" down hang2 --force
+[[ $? -ne 99 ]] && ! grep -q 'did not answer within 2 s' "$TMP/bounded.out" \
+  && fail "#16c down: no 'did not answer within 2 s' warning: $(cat "$TMP/bounded.out")"
+
 # --- #19. the eval'd recipe must come from the FRONT MATTER only -----------
 mkdir -p "$TMP/p19/.context/worktrees"
 cat > "$TMP/p19/.context/worktrees/00-index.md" <<'MD'
@@ -422,15 +435,16 @@ mk_claimed() {  # mk_claimed <project-dir> <slug>: a worktree holding slot 3
 }
 # With no claim held (a --no-infra tree, or a slug whose claim is already gone)
 # there is nothing to withhold: an unverifiable teardown keeps the warning and
-# exits 0 (noinfra: daemon down; nodocker: docker not on PATH at all).
+# exits 0 (noinfra: daemon down). claimnodocker: docker not on PATH at all while
+# a claim IS held -- compose down exits 127, and that is unverified, not clean.
 # A PATH with every directory that holds a `docker` dropped, the stub's included.
 NODOCKER_PATH="$(printf '%s\n' "$PATH" | tr ':' '\n' \
   | while IFS= read -r d; do [[ -n "$d" && ! -x "$d/docker" ]] && printf '%s:' "$d"; done)"
 NODOCKER_PATH="${NODOCKER_PATH%:}"   # a trailing ':' would put the cwd on PATH
-for cell in daemon composefail residue keepdir clean noinfra nodocker; do
+for cell in daemon composefail residue keepdir clean noinfra claimnodocker; do
   P="$TMP/pc02$cell"; C="$TMPDIR/aidex-wt-slots-pc02$cell/slot-3"
   case "$cell" in
-    noinfra|nodocker) mk_branch_fixture "$P" td >/dev/null 2>&1 ;;
+    noinfra) mk_branch_fixture "$P" td >/dev/null 2>&1 ;;
     *)                mk_claimed "$P" td >/dev/null 2>&1 ;;
   esac
   case "$cell" in
@@ -451,7 +465,7 @@ exit 0' ;;
 exit 1' ;;
   esac
   flags=(--force); [[ "$cell" == keepdir ]] && flags+=(--keep-dir)
-  if [[ "$cell" == nodocker ]]; then
+  if [[ "$cell" == claimnodocker ]]; then
     out="$( cd "$P" && PATH="$NODOCKER_PATH" "$BASH" "$S/worktree.sh" down td "${flags[@]}" 2>&1 )"; rc=$?
   else
     out="$( cd "$P" && PATH="$BIN:$PATH" bash "$S/worktree.sh" down td "${flags[@]}" 2>&1 )"; rc=$?
@@ -464,7 +478,7 @@ exit 1' ;;
     clean)
       [[ $rc -eq 0 && ! -e "$C" && ! -d "$P-wt-td" ]] \
         || fail "c02 control: a verified teardown must exit 0, remove the dir and release slot 3 (rc=$rc): $out" ;;
-    noinfra|nodocker)
+    noinfra)
       [[ $rc -eq 0 && ! -d "$P-wt-td" ]] \
         || fail "c02 $cell: with no claim to withhold, an unverifiable teardown must remove the dir and exit 0 (rc=$rc): $out"
       grep -q 'stays claimed' <<<"$out" && fail "c02 $cell: no claim exists, yet down says one stays claimed: $out" ;;
@@ -475,6 +489,105 @@ exit 1' ;;
       grep -q 'stays claimed' <<<"$out" || fail "c02 $cell: down must say the slot stays claimed and why: $out" ;;
   esac
 done
+
+# --- worktree-c36. down releases only the claim it resolved -------------------
+# release_claim ran without the slot lock and removed EVERY claim naming the
+# slug. A `new` of the same slug that starts once $DEST is gone reaps down's
+# claim and reserves the slot afresh; down's release then deleted that live
+# reservation, and the slot was handed out twice. The concurrent `new` is played
+# by an `lsof` stub: the first call after the directory is removed (the second
+# holders pass, just before the release) rewrites slot 3 the way `new` would.
+P="$TMP/pc36"; C="$TMPDIR/aidex-wt-slots-pc36/slot-3"
+mk_claimed "$P" td >/dev/null 2>&1
+mk_docker '#!/bin/sh
+exit 0'
+LBIN="$TMP/lsofbin"; mkdir -p "$LBIN"
+printf '#!/bin/sh\n[ -d %q ] || { [ -e %q.done ] || { rm -f %q; printf "424242 td\\n" > %q; : > %q.done; }; }\nexit 0\n' \
+  "$P-wt-td" "$C" "$C" "$C" "$C" > "$LBIN/lsof"; chmod +x "$LBIN/lsof"
+out="$( cd "$P" && PATH="$LBIN:$BIN:$PATH" bash "$S/worktree.sh" down td --force 2>&1 )"; rc=$?
+[[ $rc -eq 0 ]] || fail "c36: a verified teardown must exit 0 (rc=$rc): $out"
+[[ "$(cat "$C" 2>/dev/null)" == "424242 td" ]] \
+  || fail "c36: down deleted the fresh reservation a concurrent new made on slot 3: $out"
+grep -q 'released slot 3' <<<"$out" && fail "c36: down reports releasing a claim that was not its own: $out"
+
+# --- worktree-c36. the release waits for the slot lock `new` allocates under --
+# The compare-and-delete is only atomic if `new` cannot run its reaper and
+# reserve between the compare and the rm. With a live run holding the slot lock,
+# down must not release around it: it waits, then exits 2 with slot 3 kept.
+LIB="$DIR/../../conventions/scripts/_lib.sh"
+P="$TMP/pc36lock"; C="$TMPDIR/aidex-wt-slots-pc36lock/slot-3"
+mk_claimed "$P" td >/dev/null 2>&1
+mk_docker '#!/bin/sh
+exit 0'
+mkfifo "$TMP/held36"
+( trap - EXIT; exec bash -c '. "$1"; lock_take "$2" 5 || exit 1; echo held > "$3"; exec sleep 60' _ "$LIB" "${C%/*}/.flock" "$TMP/held36" ) &
+H36=$!
+read -t 10 -r _ <> "$TMP/held36" || fail "c36 lock fixture: the holder never took the slot lock"
+out="$( cd "$P" && PATH="$BIN:$PATH" AIDEX_WT_LOCK_WAIT=1 bash "$S/worktree.sh" down td --force 2>&1 )"; rc=$?
+kill "$H36" 2>/dev/null; wait "$H36" 2>/dev/null
+[[ $rc -eq 2 ]] || fail "c36 lock: down must exit 2 when the slot lock stays held, got $rc: $out"
+[[ "$(cat "$C" 2>/dev/null)" == "$$ td" ]] || fail "c36 lock: down released slot 3 without the slot lock: $out"
+grep -q "error: ${C%/*}/.flock is held by another run" <<<"$out" || fail "c36 lock: the refusal must name the held lock: $out"
+
+# --- r2 F6. down's release refuses a symlinked slot directory ----------------
+# `new` and `up` refuse one (ensure_slotdir); the release in `down` took the lock
+# through the bare path, followed the link and created `.flock` in its target.
+# Refused before anything is torn down: the worktree directory stays (r3).
+P="$TMP/pslink"; SLD="$TMPDIR/aidex-wt-slots-pslink"; TGT="$TMP/slink-target"
+mk_branch_fixture "$P" td >/dev/null 2>&1
+printf '3\n' > "$P-wt-td/.wt-slot"
+mkdir -p "$TGT"; printf '%s td\n' "$$" > "$TGT/slot-3"; ln -s "$TGT" "$SLD"
+mk_docker '#!/bin/sh
+exit 0'
+out="$( cd "$P" && PATH="$BIN:$PATH" bash "$S/worktree.sh" down td --force 2>&1 )"; rc=$?
+[[ $rc -eq 2 ]] || fail "F6: down must refuse a symlinked slot directory, exit 2, got $rc: $out"
+grep -q "error: refusing slot directory $SLD: it is a symlink" <<<"$out" || fail "F6: the refusal must name the symlinked slot directory: $out"
+[[ ! -e "$TGT/.flock" ]] || fail "F6: down followed the symlink and created $TGT/.flock"
+[[ -e "$TGT/slot-3" ]] || fail "F6: down released a claim through a symlinked slot directory"
+[[ -d "$P-wt-td" ]] || fail "F6: down removed $P-wt-td before refusing the slot directory"
+
+# --- r2 F7. a claim on a slot down did not resolve is reported, not released --
+# .wt-slot says 3, the slug's claim is on slot 5. down releases only the slot it
+# resolved (c36), and slot 5 then stayed claimed with nothing said. It is still
+# not released (it may be a concurrent run's), but down names it and the way out.
+P="$TMP/pother"; SO="$TMPDIR/aidex-wt-slots-pother"
+mk_branch_fixture "$P" td >/dev/null 2>&1
+printf '3\n' > "$P-wt-td/.wt-slot"
+( trap - EXIT; exit 0 ) & deadp=$!; wait "$deadp" 2>/dev/null
+mkdir -p "$SO"; printf '%s td\n' "$deadp" > "$SO/slot-5"
+mk_docker '#!/bin/sh
+exit 0'
+out="$( cd "$P" && PATH="$BIN:$PATH" bash "$S/worktree.sh" down td --force 2>&1 )"; rc=$?
+[[ $rc -eq 0 ]] || fail "F7: down must still exit 0, got $rc: $out"
+[[ -e "$SO/slot-5" ]] || fail "F7: down released a claim on a slot it did not resolve: $out"
+grep -q "'td' also holds slot 5" <<<"$out" || fail "F7: down must name the other slot the slug holds: $out"
+grep -q "rm $SO/slot-5" <<<"$out" || fail "F7: down must say how to free slot 5: $out"
+
+# --- worktree-c36 (control) and wta-r2 A. a sibling slug's claim is not ours --
+# The slug boundary: .wt-slot names slot 3, but slot 3 is claimed by `td-2`.
+# `down td` over an unreachable daemon must neither withhold nor release it.
+P="$TMP/pc36sib"; C="$TMPDIR/aidex-wt-slots-pc36sib/slot-3"
+mk_branch_fixture "$P" td >/dev/null 2>&1
+printf '3\n' > "$P-wt-td/.wt-slot"
+mkdir -p "$(dirname "$C")"; printf '%s td-2\n' "$$" > "$C"
+mk_docker '#!/bin/sh
+case "$1" in info) exit 1 ;; esac
+exit 0'
+out="$( cd "$P" && PATH="$BIN:$PATH" bash "$S/worktree.sh" down td --force 2>&1 )"; rc=$?
+[[ $rc -eq 0 ]] || fail "wta-r2 A: down td withheld td-2's claim as its own (rc=$rc): $out"
+[[ "$(cat "$C" 2>/dev/null)" == "$$ td-2" ]] || fail "wta-r2 A: down td touched td-2's claim on slot 3: $out"
+grep -q 'stays claimed' <<<"$out" && fail "wta-r2 A: down td says a slot stays claimed, but td holds none: $out"
+
+# --- wta-r2 D. --keep-dir with no claim does not say a slot is still claimed ---
+P="$TMP/pkeepnc"
+mk_branch_fixture "$P" td >/dev/null 2>&1
+mk_docker '#!/bin/sh
+exit 0'
+out="$( cd "$P" && PATH="$BIN:$PATH" bash "$S/worktree.sh" down td --force --keep-dir 2>&1 )"; rc=$?
+[[ $rc -eq 0 ]] || fail "keep-dir no claim: must exit 0 (rc=$rc): $out"
+grep -q "keep-dir: $P-wt-td left in place (no slot claimed; resume with: worktree.sh up td)" <<<"$out" \
+  || fail "keep-dir no claim: must say no slot is claimed: $out"
+grep -q 'still claimed' <<<"$out" && fail "keep-dir no claim: claims a slot is still claimed with none held: $out"
 
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"
