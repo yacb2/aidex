@@ -64,6 +64,7 @@ for id in "${IDS[@]}"; do
   # the same comments and read the same cells.
   finding_row_markable "$inv" "${id#*/}" || case $? in
     4) die "finding $id is already done (escalated); nothing was escalated" ;;
+    5) die "finding $id was dropped (won't fix); reopen its row (status open) first if you want to escalate it; nothing was escalated" ;;
     *) die "finding $id's row in $inv cannot be marked escalated (a comment on the row, a status outside open/doing/done/dropped and the legacy words, or fewer than 9 columns): fix the row first; nothing was escalated" ;;
   esac
   inventory_lock_path "$inv" > /dev/null || exit 2
