@@ -46,6 +46,13 @@ done
 # resolve_worklist (in _lib.sh) skips -report companions and exits 2 on an ambiguous slug.
 file="$(resolve_worklist "$WL_DIR" "$arg")"
 [[ -n "${file:-}" && -f "$file" ]] || { echo "worklist not found: $arg" >&2; exit 2; }
+# worklist-advance.sh's lock, held to exit: the --force line, the stamp (set_front_matter's
+# fixed `$file.tmp`) and the move must not interleave with an append's read-modify-write.
+# AIDEX_WL_LOCK_WAIT: seconds, as in worklist-advance.sh.
+lock="$(wl_lock_file "$file")" || exit 2
+lock_take "$lock" "${AIDEX_WL_LOCK_WAIT:-30}" || { echo "error: could not lock $file; nothing written" >&2; exit 2; }
+# another close that held the lock while this one waited has moved the list away
+[[ -f "$file" ]] || { echo "worklist was closed/archived while waiting: $file; nothing written" >&2; exit 2; }
 today="$(date +%F)"
 # archived-ness from the RESOLVED directory, never the spelling: `cd _archive && ./x.md`
 # or a symlinked dir reaches an archived list with no literal `_archive/` in it (BL-591)
@@ -53,6 +60,9 @@ today="$(date +%F)"
   && { echo "worklist already archived: $file" >&2; exit 2; }
 # no front matter: refused here, before the --force line or the stamp below writes anything
 has_front_matter "$file" || { echo "no front matter in $file" >&2; exit 2; }
+# archive collision: refused here too, or the --force line and the stamp were already written
+dest="$WL_DIR/_archive/$(basename "$file")"
+[[ -e "$dest" ]] && { echo "archive collision: $dest already exists" >&2; exit 2; }
 
 # --- the two refusals, BEFORE any mutation — SWEEP work-lists only ---
 # A plain work-list (audit kickoff, a chain of plans) keeps its old close: its emergent
@@ -84,7 +94,7 @@ while IFS= read -r line; do
       l=$0; sub(/^\|/,"",l); sub(/\|[[:space:]]*$/,"",l); n=split(l,c,"|")
       for(i=1;i<=n;i++){gsub(/^[[:space:]]+|[[:space:]]+$/,"",c[i])}
       if (c[1]=="owner") printf "%s\037%s\n", c[2], c[3] }' "$f")
-done < <(grep -E '^[0-9]+\. \[[ x]\] .*<!-- ref: backlog -->' "$file" || true)
+done < <(wl_queue_grep "$file" "$WL_QUEUE_ITEM.*<!-- ref: backlog -->")
 # `[[ -n ]]`-free: an empty section is fine; an unchecked deferral with no BL-NNN / CLOSE: is not
 unreconciled="$(awk '/^## Deferred/{s=1; next} /^## /{s=0} s && /^- \[ \]/' "$file" | grep -v -E 'BL-[0-9]+|CLOSE:' || true)"
 if [[ $sweep -eq 1 && ( -n "$owner_open" || -n "$unreconciled" ) ]]; then
@@ -115,7 +125,5 @@ open_refs="$( (grep -oE '<!-- ref: (backlog|plan|audit) -->' "$file" || true) | 
 
 # archive on close (D-10): the `worklist/<file>` cross-ref keeps resolving via _archive/
 mkdir -p "$WL_DIR/_archive"
-dest="$WL_DIR/_archive/$(basename "$file")"
-[[ -e "$dest" ]] && { echo "archive collision: $dest already exists" >&2; exit 2; }
 mv "$file" "$dest"
 echo "CLOSED $dest"

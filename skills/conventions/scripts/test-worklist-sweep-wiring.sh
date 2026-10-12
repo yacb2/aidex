@@ -15,6 +15,7 @@ bad() { printf '  FAIL: %s\n' "$1" >&2; FAIL=$((FAIL+1)); }
 fm()  { awk -v k="$2" '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1==k":" {sub(/^[^:]*:[[:space:]]*/,""); gsub(/^"|"$/,""); print; exit}' "$1"; }
 
 TMP="$(mktemp -d)"; TMP="$(cd "$TMP" && pwd -P)"; trap 'rm -rf "$TMP"' EXIT
+export TMPDIR="$TMP/tmp"; mkdir -p "$TMPDIR"   # work-list lock files are kept, never removed: keep them here
 P="$TMP/proj"; mkdir -p "$P/.context/backlog"; cd "$P"
 reg() { bash "$BL/register-item.sh" --origin manual "$@" 2>/dev/null; }
 idof() { awk '/^---/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2}' "$1"; }
@@ -75,6 +76,27 @@ python3 "$DIR/validate-worklist.py" "$WL" >/dev/null && ok "queue still validate
 bash "$DIR/worklist-advance.sh" "$WL" --append "inline:tidy later" >/dev/null 2>&1
 grep -q "^- \[ \] tidy later" "$WL" && ok "a non-backlog append still goes to the emergent section" || bad "inline append"
 
+# 6e · a sweep backlog append with NO numbered queue line to follow (hand-emptied queue)
+# is refused with nothing written: the insert point came out empty, awk inserted nothing,
+# `updated` was stamped anyway and the run exited 0 with the emergent row lost.
+WL7="$P/.context/worklists/2026-01-01-emptied.md"
+printf -- '---\ntitle: e\nstatus: doing\ncreated: 2026-01-01\nupdated: 2026-01-01\nmode: sweep\n---\n\n## Queue (in execution order)\n\n## Deferred / emergent\n' > "$WL7"
+sum7="$(cksum < "$WL7")"
+bash "$DIR/worklist-advance.sh" "$WL7" --append "backlog:BL-9 — lost" >/dev/null 2>"$TMP/err"; RC=$?
+[[ $RC -eq 2 && "$(cksum < "$WL7")" == "$sum7" ]] && grep -q "was NOT appended" "$TMP/err" \
+  && ok "6e a sweep backlog append with no queue line to follow is refused, file untouched" \
+  || bad "6e emptied-queue append: rc=$RC rows=$(grep -c 'BL-9' "$WL7") $(grep '^updated' "$WL7") $(cat "$TMP/err")"
+# 6e' · the same, with a numbered line NESTED under Deferred: it is no queue item (the
+# validator reads only `## Queue`), so it is no insertion point either — the row landed
+# inside Deferred, rc 0, and the file then failed the validator (queue-empty).
+WL8="$P/.context/worklists/2026-01-01-emptied-nested.md"
+printf -- '---\ntitle: e\nstatus: doing\ncreated: 2026-01-01\nupdated: 2026-01-01\nmode: sweep\n---\n\n## Queue (in execution order)\n\n## Deferred / emergent\n\n- [ ] follow-up   <!-- ref: inline -->\n  1. [ ] check the docs\n' > "$WL8"
+sum8="$(cksum < "$WL8")"
+bash "$DIR/worklist-advance.sh" "$WL8" --append "backlog:BL-9 — nested" >/dev/null 2>"$TMP/err"; RC=$?
+[[ $RC -eq 2 && "$(cksum < "$WL8")" == "$sum8" ]] && grep -q "was NOT appended" "$TMP/err" \
+  && ok "6e' a numbered line under Deferred is no insertion point: refused, file untouched" \
+  || bad "6e' nested-line append: rc=$RC $(grep -n 'BL-9' "$WL8") $(cat "$TMP/err")"
+
 # 6b · a head closed OUT OF BAND is ticked past, not wedged; a deferred head likewise
 prove "$C" "tests/test_c.py"
 bash "$BL/close-item.sh" "$CID" --sweep --no-index >/dev/null 2>&1      # out of band
@@ -116,12 +138,23 @@ grep -qi 'deferred' "$TMP/err" \
 python3 "$DIR/validate-worklist.py" "$WL5" >/dev/null \
   && ok "6d a queue line carrying the deferred marker still validates" \
   || bad "6d validate rejects the marker: $(python3 "$DIR/validate-worklist.py" "$WL5")"
+# 6d' · "appended to the queue already deferred" is said only when the row is written: a
+# refused append (no queue line) printed it, then "was NOT appended" — two contradictory
+# lines for one call. The refusal comes after the lock, so a message said before the lock
+# (or before any later refusal) turns this red too.
+bash "$DIR/worklist-advance.sh" "$WL7" --append "backlog:$IID — deferred emergent" >/dev/null 2>"$TMP/err"; RC=$?
+[[ $RC -eq 2 ]] && ! grep -q "already deferred" "$TMP/err" \
+  && ok "6d' a refused deferred append does not claim it was appended" || bad "6d' refused: rc=$RC $(cat "$TMP/err")"
 
 # 6c · a next item that cannot be started is an error, not a silent success
 H="$(reg --title "h")"; HID="$(idof "$H")"; prove "$H" "t"
 WL4="$(bash "$DIR/worklist-new.sh" --title "Start fail" --mode sweep --ref "backlog:$HID — h" --ref "backlog:BL-777 — ghost")"
 bash "$DIR/worklist-advance.sh" "$WL4" >/dev/null 2>"$TMP/err"; RC=$?
 [[ $RC -eq 2 ]] && grep -q "could not start BL-777" "$TMP/err" && ok "a next item that does not exist fails the advance (exit 2)" || bad "ghost start: rc=$RC $(cat "$TMP/err")"
+# c18: the recovery advice must name a command that starts the item. It said "re-run
+# --peek", and --peek never starts anything, so the fixed item stayed `open`.
+grep -q "start-item.sh" "$TMP/err" && ! grep -q "re-run --peek" "$TMP/err" \
+  && ok "6c the start-failure advice names start-item.sh, not --peek" || bad "6c advice: $(grep 'could not start' "$TMP/err")"
 # and a quoted mode line still means sweep
 sed -i.bak 's/^mode: sweep$/mode: "sweep"/' "$WL4" && rm -f "$WL4.bak"
 bash "$DIR/worklist-advance.sh" "$WL4" >/dev/null 2>"$TMP/err"; RC=$?

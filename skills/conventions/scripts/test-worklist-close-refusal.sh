@@ -9,6 +9,7 @@ PASS=0 FAIL=0
 ok()  { printf '  ok: %s\n' "$1"; PASS=$((PASS+1)); }
 bad() { printf '  FAIL: %s\n' "$1" >&2; FAIL=$((FAIL+1)); }
 TMP="$(mktemp -d)"; TMP="$(cd "$TMP" && pwd -P)"; trap 'rm -rf "$TMP"' EXIT
+export TMPDIR="$TMP/tmp"; mkdir -p "$TMPDIR"   # work-list lock files are kept, never removed: keep them here
 P="$TMP/proj"; mkdir -p "$P/.context/backlog"; cd "$P"
 reg() { bash "$BL/register-item.sh" --origin manual --no-index "$@" 2>/dev/null; }
 idof() { awk '/^---/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2}' "$1"; }
@@ -229,7 +230,7 @@ archived_refused "advance of a literal _archive/ path" bash "$DIR/worklist-advan
 # 8 · a work-list slug skips its -report companion: `foo` names foo-bar.md, never ambiguous
 # with foo-bar-report.md (resolve_worklist's sweep-report filter).
 F4="$TMP/f4"; mkdir -p "$F4/.context/worklists"
-printf -- '---\nstatus: doing\nupdated: 2026-01-01\n---\n1. [ ] head of foo-bar\n' > "$F4/.context/worklists/2026-01-01-foo-bar.md"
+printf -- '---\nstatus: doing\nupdated: 2026-01-01\n---\n## Queue\n1. [ ] head of foo-bar\n' > "$F4/.context/worklists/2026-01-01-foo-bar.md"
 printf -- '---\nstatus: done\n---\nreport\n' > "$F4/.context/worklists/2026-01-01-foo-bar-report.md"
 OUT="$(cd "$F4" && bash "$DIR/worklist-advance.sh" foo --peek 2>&1)"; RC=$?
 [[ $RC -eq 0 && "$OUT" == "1. [ ] head of foo-bar" ]] \
@@ -246,5 +247,58 @@ printf '1. [ ] a\n2. [ ] b\n' > "$NF"; nsum="$(cksum < "$NF")"
 (cd "$F6" && bash "$DIR/worklist-advance.sh" nofm >/dev/null 2>"$TMP/err"); RC=$?
 [[ $RC -eq 2 && "$(cksum < "$NF")" == "$nsum" ]] \
   && ok "advance of a work-list with no front matter is refused, file untouched" || bad "advance no front matter: rc=$RC $(cat "$TMP/err")"
+
+# 10 · an archive collision is refused BEFORE any write: the check ran after the --force
+# override line and the status/updated stamp, so the refused list was left half-closed.
+# `updated` is backdated so a stamp cannot rewrite the file byte-identical.
+WL10="$(bash "$DIR/worklist-new.sh" --title "Collide" --slug collide-ten --mode sweep --ref "inline:c1")"
+bash "$DIR/worklist-advance.sh" "$WL10" --append "inline:loose end" >/dev/null 2>&1
+sed -i.bak 's/^updated: .*/updated: 2026-01-01/' "$WL10" && rm -f "$WL10.bak"
+mkdir -p .context/worklists/_archive; echo "an older run" > ".context/worklists/_archive/$(basename "$WL10")"
+csum="$(cksum < "$WL10")"
+bash "$DIR/worklist-close.sh" "$WL10" --force >/dev/null 2>"$TMP/err"; RC=$?
+[[ $RC -eq 2 && "$(cksum < "$WL10")" == "$csum" ]] && grep -q "archive collision" "$TMP/err" \
+  && ok "an archive collision is refused, active file byte-identical (no --force line, no stamp)" \
+  || bad "archive collision: rc=$RC $(cat "$TMP/err"); tail: $(tail -2 "$WL10")"
+
+# 11 · an INDENTED queue item is still a queue item (validate-worklist.py's QUEUE_ITEM, c16):
+# close read only column-0 `N. [ ]` lines, so the owner row of an indented backlog item went
+# unread and the run closed over it.
+F="$(reg --title "indented owner")"; FID="$(idof "$F")"; row "$F" test "t" "1 passed"; row "$F" owner "tone of the email" ""
+WL11="$(bash "$DIR/worklist-new.sh" --title "Indented" --slug indented-eleven --mode sweep --ref "backlog:$FID — f")"
+sed -i.bak 's/^1\. \[ \] /  1. [ ] /' "$WL11" && rm -f "$WL11.bak"
+python3 "$DIR/validate-worklist.py" "$WL11" >/dev/null || bad "11 fixture: the indented work-list does not validate"
+isum="$(cksum < "$WL11")"
+bash "$DIR/worklist-close.sh" "$WL11" >/dev/null 2>"$TMP/err"; RC=$?
+[[ $RC -eq 2 && -f "$WL11" && "$(cksum < "$WL11")" == "$isum" ]] && grep -q "$FID: tone of the email" "$TMP/err" \
+  && ok "an indented backlog item's unanswered owner row refuses the close, file unchanged" \
+  || bad "indented owner row: rc=$RC $(cat "$TMP/err")"
+
+# 12 · ...and close counts exactly the lines the validator counts: a numbered backlog line
+# OUTSIDE `## Queue` (here under Needs decision) is no queue item, so its owner row is not
+# the run's to answer. Close read every numbered line of the file.
+G="$(reg --title "outside the queue")"; GID="$(idof "$G")"; row "$G" test "t" "1 passed"; row "$G" owner "name of the flag" ""
+WL12="$P/.context/worklists/2026-01-01-outside-twelve.md"
+printf -- '---\ntitle: o\nstatus: doing\ncreated: 2026-01-01\nupdated: 2026-01-01\nmode: sweep\ngate-policy:\n  publish: ask\n  destructive: deny\n---\n\n## Queue (in execution order)\n\n1. [x] done   <!-- ref: inline -->\n\n## Needs decision (kickoff)\n\n1. [ ] %s — g   <!-- ref: backlog -->\n\n## Deferred / emergent\n' "$GID" > "$WL12"
+python3 "$DIR/validate-worklist.py" "$WL12" >/dev/null || bad "12 fixture does not validate"
+OUT="$(bash "$DIR/worklist-close.sh" "$WL12" 2>"$TMP/err")"; RC=$?
+[[ $RC -eq 0 && "$OUT" == CLOSED* ]] && ! grep -q "$GID" "$TMP/err" \
+  && ok "a numbered backlog line outside ## Queue is not read as a queue item by close" \
+  || bad "outside-queue line: rc=$RC $(cat "$TMP/err")"
+
+# 13 · an item PARKED by a sweep advance (the real path, not close-item.sh alone) is ticked
+# `[x] ... <!-- parked: awaiting owner -->`: close must still read its owner row. Every cell
+# above parks with close-item.sh directly, leaving the line `[ ]`, so close reading only
+# unchecked lines passed them all.
+H="$(reg --title "parked by the walk")"; HID="$(idof "$H")"; row "$H" test "t" "1 passed"; row "$H" owner "copy of the banner" ""
+WL13="$(bash "$DIR/worklist-new.sh" --title "Parked" --slug parked-thirteen --mode sweep --ref "backlog:$HID — h")"
+bash "$DIR/worklist-advance.sh" "$WL13" >/dev/null 2>&1
+grep -qE "^1\. \[x\] .*$HID.*<!-- parked: awaiting owner -->" "$WL13" \
+  || bad "13 fixture: the advance did not tick the head as parked: $(grep -E '^1\.' "$WL13")"
+psum="$(cksum < "$WL13")"
+bash "$DIR/worklist-close.sh" "$WL13" >/dev/null 2>"$TMP/err"; RC=$?
+[[ $RC -eq 2 && -f "$WL13" && "$(cksum < "$WL13")" == "$psum" ]] && grep -q "$HID: copy of the banner" "$TMP/err" \
+  && ok "a head parked and ticked by a sweep advance still refuses the close, file unchanged" \
+  || bad "parked by advance: rc=$RC $(cat "$TMP/err")"
 
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — worklist close refusal: $PASS cells"; exit 0; }; echo "$FAIL failure(s)"; exit 1
