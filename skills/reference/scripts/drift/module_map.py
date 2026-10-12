@@ -23,19 +23,33 @@ def run_git(repo, *args):
     return r.stdout.decode("utf-8", "replace")
 
 
+def common_dir(path):
+    """The git common dir (the main checkout's `.git`) of the repo at path, or None."""
+    r = subprocess.run(["git", "-C", path, "rev-parse", "--path-format=absolute", "--git-common-dir"],
+                       capture_output=True, text=True)
+    return os.path.realpath(r.stdout.strip()) if r.returncode == 0 else None
+
+
 def find_repos(root):
-    """Absolute paths of every git repo at or below root (worktrees skipped)."""
+    """Absolute paths of every git repo at or below root. A worktree below root is skipped
+    when its main checkout is mapped too (under root, or the root's own repo)."""
     repos = []
+    top = os.path.realpath(root) + os.sep
+    own = common_dir(root) if os.path.exists(os.path.join(root, ".git")) else None
     for dp, dns, fns in os.walk(root):
         dns[:] = sorted(d for d in dns if d not in SKIP_DIRS)
         g = os.path.join(dp, ".git")
-        if os.path.isdir(g):
+        if os.path.isdir(g) or dp == root and os.path.isfile(g):  # a worktree root maps like a checkout
             repos.append(dp)
         elif os.path.isfile(g):
             with open(g, errors="replace") as f:
                 if "/worktrees/" not in f.read():
                     repos.append(dp)  # submodule-style checkout
-            dns[:] = []  # a worktree is never mapped, its main repo is
+                else:
+                    c = common_dir(dp)
+                    if c and c != own and not c.startswith(top):
+                        repos.append(dp)  # its main checkout is outside root, so nothing else maps it
+            dns[:] = []
     return sorted(repos)
 
 
