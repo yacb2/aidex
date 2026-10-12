@@ -229,37 +229,51 @@ ensure_slotdir() {
 write_claim() {  # write_claim <slotdir> <slot> <slug>
   local f="$1/slot-$2"
   [[ -L "$f" ]] && die "refusing claim $f: it is a symlink, not a claim file"
-  printf '%s %s\n' "$$" "$3" > "$f"
+  printf '%s %s %s\n' "$$" "$3" "$(proc_start "$$")" > "$f"
+}
+# A claim is `<pid> <slug> <start>`. The PID alone is not the run: once it exits
+# the PID is reused, and a bare `kill -0` then kept an abandoned claim alive for
+# as long as the unrelated process lived (worktree-c40). One token, because `ps`
+# pads the date differently across platforms. In UTC: `ps` prints local time, and
+# a claim written in one zone read as dead in another, so a live run was reaped.
+proc_start() { ( exec 9>&-; TZ=UTC LC_ALL=C ps -o lstart= -p "$1" 2>/dev/null | tr -d ' ' ); }
+claim_live() {  # claim_live <pid> <start>: is the run that wrote the claim still running?
+  kill -0 "$1" 2>/dev/null || return 1
+  # A two-field claim written before the start time was recorded: the PID is all there is.
+  [[ -z "$2" || "$(proc_start "$1")" == "$2" ]]
 }
 slot_taken() { [[ -e "$1/slot-$2" || -L "$1/slot-$2" ]]; }
 
-# A PID-anchored symlink publishes the lock's name and its owner in one atomic
-# step, so no trap is needed and a lock left by a dead process self-heals. The
-# previous form was a bare `mkdir` directory carrying no owner: one interrupted
-# `new` wedged slot allocation for the project until somebody removed it by hand.
-acquire_slot_lock() {  # acquire_slot_lock <slotdir>
-  # 300 x 0.1s = the 30s wait. Overridable ONLY so the regression test can assert
-  # "a live owner is not stolen from" without spending 30s of a suite whose whole
-  # design point is running in seconds with Docker closed. Never set in normal use.
-  local lock="$1/.lock" owner="" _ tries="${AIDEX_WT_LOCK_TRIES:-300}"
-  for _ in $(seq 1 "$tries"); do
-    ln -s "$$" "$lock" 2>/dev/null && return 0
-    if [[ -d "$lock" && ! -L "$lock" ]]; then
-      # A legacy ownerless `mkdir` lock. It cannot be attributed to anyone, which
-      # is the defect; reclaim it rather than wait out a lock nobody may hold.
-      warn "reclaiming a legacy ownerless slot lock at $lock"
-      rmdir "$lock" 2>/dev/null
-      continue
-    fi
-    owner="$(readlink "$lock" 2>/dev/null || true)"
-    if [[ -n "$owner" ]] && ! kill -0 "$owner" 2>/dev/null; then
-      rm -f "$lock"; continue
-    fi
-    sleep 0.1
-  done
-  die "could not acquire the slot lock at $lock after 30s (held by PID ${owner:-unknown})"
+# A kernel lock (`lock_take`, perl flock) on `<slotdir>/.flock`, one section at a
+# time: take, decide, write the claim, drop. Its two predecessors each had a
+# stale state to recover from. The bare `mkdir` carried no owner, so one
+# interrupted `new` wedged allocation until somebody removed it by hand; the
+# PID-anchored symlink after it reclaimed a dead owner's lock, and every reclaim
+# (a bare `rm`, then a second "ticket" link) let two contenders both end up
+# holding it (worktree-c32). A flock dies with its holder: nothing is reclaimed,
+# so there is nothing to race over. A new file name, because `>>` on a dangling
+# `.lock -> <pid>` left by the old scheme would create a file named after the PID.
+# The section is held only around the reservation, never across the stack start
+# (a whole-run lock was the earlier defect). Anything that may outlive this
+# script must not inherit fd 9, or it keeps the lock after the script is killed.
+# In a `$( )` the subshell itself holds fd 9, so `cmd 9>&-` is not enough there:
+# the substitution runs `exec 9>&-` first (and `exec cmd 9>&-` does not close it
+# on bash 3.2, which saves fd 9 without close-on-exec). Direct children (lsof)
+# take a plain `9>&-`. The reaper's `docker ps` is also bounded (with_timeout).
+# AIDEX_WT_LOCK_WAIT (seconds, default 30) exists ONLY so the regression tests can
+# assert "a live holder is waited for" in a second. Never set in normal use.
+# with_timeout <seconds> <cmd...>: run cmd as a child; at the deadline TERM it
+# and exit 142 (what an alarm-killed process returns). `alarm; exec cmd` only
+# sent SIGALRM to cmd, and the docker CLI (a Go binary) ignores SIGALRM: a
+# wedged daemon kept `docker` running long past its deadline.
+with_timeout() {
+  perl -e '$t=shift; $p=fork; exec @ARGV or exit 127 if !$p; $SIG{ALRM}=sub{kill "TERM",$p; waitpid $p,0; exit 142};
+    alarm $t; waitpid $p,0; exit($?&127 ? 128+($?&127) : $?>>8)' "$@"
 }
-release_slot_lock() { rm -f "$1/.lock"; }
+acquire_slot_lock() {  # acquire_slot_lock <slotdir>
+  lock_take "$1/.flock" "${AIDEX_WT_LOCK_WAIT:-30}" || exit 2
+}
+release_slot_lock() { lock_drop; }
 CLAIMED_SLOT() {  # slug -> slot number held in the claim files, or ""
   local sl f
   for f in "$(SLOTDIR_FOR)"/slot-*; do
@@ -768,8 +782,17 @@ if [[ "$cmd" == "up" ]]; then
   # file lives in the worktree (linked), so the derivation reads the same one
   # the `up` below will.
   assert_services_declared "$DEST" || exit 2
-  SLOT="${SLOT:-$(cat "$DEST/.wt-slot" 2>/dev/null || CLAIMED_SLOT "$SLUG" || echo '')}"
-  [[ -n "$SLOT" ]] || die "no slot recorded for $SLUG (missing .wt-slot and no claim) — pass --slot N"
+  # Read the way `down` reads it: `cat` on an EMPTY .wt-slot (what --no-infra
+  # writes) succeeds, which stopped the fall-back to the claim. And checked the
+  # way --slot is: the value reaches `$(( ))` in port_env, where 0 is the main
+  # tree's ports and an array subscript executes (worktree-c08).
+  if [[ -z "$SLOT" ]]; then
+    SLOT_FROM="$DEST/.wt-slot"; SLOT="$(cat "$DEST/.wt-slot" 2>/dev/null || true)"
+    [[ -n "$SLOT" ]] || { SLOT_FROM="the slot claim"; SLOT="$(CLAIMED_SLOT "$SLUG" || true)"; }
+    [[ -n "$SLOT" ]] || die "no slot recorded for $SLUG (missing .wt-slot and no claim) — pass --slot N"
+    [[ "$SLOT" =~ ^[0-9]+$ ]] && [[ "$SLOT" -ge 1 && "$SLOT" -le "$WT_MAX_SLOTS" ]] \
+      || die "invalid slot '$SLOT' in $SLOT_FROM: must be an integer in 1..$WT_MAX_SLOTS (slot 0 is the main tree)"
+  fi
 
   # Re-assert the claim: the slot is ours again while the stack is up.
   #
@@ -778,15 +801,34 @@ if [[ "$cmd" == "up" ]]; then
   # claim to N, `new` writes over it, and two worktrees hold one slot with only
   # one of them named. The lock is held only around the three lines that decide,
   # never across the stack start.
-  SLOTDIR="$(ensure_slotdir)"
+  # `|| exit 2`: ensure_slotdir's `die` ends only the `$( )` subshell, and the
+  # empty SLOTDIR then sent the lock to `/.lock` for a 30 s wait (worktree-c37).
+  SLOTDIR="$(ensure_slotdir)" || exit 2
   acquire_slot_lock "$SLOTDIR"
+  # `up` resumes a worktree on the slot it holds; it does not move one. A claim
+  # for this slug on another slot made `--slot M` write a second claim and never
+  # release the first, a slot lost until `down` (worktree-c35).
+  for f in "$SLOTDIR"/slot-*; do
+    [[ -e "$f" && "$f" != "$SLOTDIR/slot-$SLOT" && "$(awk '{print $2}' "$f" 2>/dev/null)" == "$SLUG" ]] || continue
+    release_slot_lock "$SLOTDIR"
+    die "'$SLUG' already holds slot ${f##*/slot-} — up resumes a worktree on the slot it holds, not slot $SLOT"
+  done
   other="$(awk '{print $2}' "$SLOTDIR/slot-$SLOT" 2>/dev/null)"
   [[ -n "$other" && "$other" != "$SLUG" ]] && { release_slot_lock "$SLOTDIR"; die "slot $SLOT is held by '$other' — free it first"; }
+  fresh_claim=true; [[ "$other" == "$SLUG" ]] && fresh_claim=false
   write_claim "$SLOTDIR" "$SLOT" "$SLUG"
   release_slot_lock "$SLOTDIR"
+  # A refusal below leaves no claim THIS run made; one it found held is a resume
+  # of a worktree whose directory exists, and stays.
+  undo_claim() {
+    $fresh_claim || return 0
+    acquire_slot_lock "$SLOTDIR"
+    [[ "$(awk '{print $1}' "$SLOTDIR/slot-$SLOT" 2>/dev/null)" == "$$" ]] && rm -f "$SLOTDIR/slot-$SLOT"
+    release_slot_lock "$SLOTDIR"
+  }
   echo "$SLOT" > "$DEST/.wt-slot"
-  write_wt_env "$DEST" "$SLOT" || exit 2
-  render_env_files "$DEST" "$SLOT" || exit 2
+  write_wt_env "$DEST" "$SLOT" || { undo_claim; exit 2; }
+  render_env_files "$DEST" "$SLOT" || { undo_claim; exit 2; }
 
   envs=(COMPOSE_PROJECT_NAME="$CPROJ" "$WT_SUFFIX_VAR=-$SLUG")
   while IFS= read -r line; do [[ -n "$line" ]] && envs+=("$line"); done < <(port_env "$SLOT")
@@ -829,13 +871,28 @@ if [[ "$cmd" == "new" ]]; then
   # The same candidates, in the same order, as worktree-multi.sh's start point:
   # this line only REPORTS the base, and a narrower list named the ambient branch
   # while multi forked from origin/main (worktree-c22).
-  _oh="$(git -C "$ROOT/$first" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')"
-  default_branch="" _ambient=""
-  for _c in $_oh main master; do
-    for _cand in "$_c" "origin/$_c"; do
-      git -C "$ROOT/$first" rev-parse --verify --quiet "$_cand^{commit}" >/dev/null && { default_branch="$_cand"; break 2; }
+  default_of() {  # default_of <repo>: origin/HEAD's name, main, master (local first), or fail
+    local _oh _c _cand
+    _oh="$(git -C "$ROOT/$1" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')"
+    for _c in $_oh main master; do
+      for _cand in "$_c" "origin/$_c"; do
+        git -C "$ROOT/$1" rev-parse --verify --quiet "$_cand^{commit}" >/dev/null && { printf '%s' "$_cand"; return 0; }
+      done
     done
-  done
+    return 1
+  }
+  # A fork from the ambient checkout is refused, in EVERY participant, by
+  # worktree-multi.sh's rule: a wrong base is expensive to undo (owner,
+  # 2026-10-12). Here, before any slot or directory exists: checking only the
+  # first let multi refuse a later one after a slot was reserved. An existing
+  # branch is used at its own tip and needs no base.
+  if [[ -z "$BASE" ]]; then
+    for _r in "${REPOS[@]}"; do
+      git -C "$ROOT/$_r" show-ref --verify --quiet "refs/heads/$BRANCH" || default_of "$_r" >/dev/null \
+        || die "$_r: no default branch found (no origin/HEAD, main or master) to fork $BRANCH from — pass --base <commit-ish>, or create $BRANCH in $_r first (git -C $_r branch $BRANCH <commit>); nothing created"
+    done
+  fi
+  default_branch="$(default_of "$first")" _ambient=""
   if [[ -z "$default_branch" ]]; then
     default_branch="$(git -C "$ROOT/$first" branch --show-current 2>/dev/null)"
     _ambient=" (current checkout: no origin/HEAD, main or master)"
@@ -868,7 +925,7 @@ if [[ "$cmd" == "new" ]]; then
   # claim file — the claim is what makes the choice visible to the next process
   # before this one has bound anything.
   if ! $NO_INFRA && [[ -n "$WT_PORT_VARS" ]]; then
-    SLOTDIR="$(ensure_slotdir)"
+    SLOTDIR="$(ensure_slotdir)" || exit 2   # worktree-c37, as in `up`
     acquire_slot_lock "$SLOTDIR"
 
     # Reap claims whose owner is gone. A claim carries the PID of the process
@@ -880,11 +937,18 @@ if [[ "$cmd" == "new" ]]; then
     # hands off; a dead one with nothing on disk means genuinely abandoned.
     for claim in "$SLOTDIR"/slot-*; do
       [[ -e "$claim" ]] || continue
-      read -r cpid cs < "$claim" 2>/dev/null
+      read -r cpid cs cstart < "$claim" 2>/dev/null
       [[ -z "${cs:-}" ]] && { rm -f "$claim"; continue; }
-      kill -0 "${cpid:-0}" 2>/dev/null && continue          # owner still running
+      claim_live "${cpid:-0}" "${cstart:-}" && continue     # owner still running
+      # Only a listing that SUCCEEDED proves no container is left. The empty
+      # output of a failed `docker ps` (daemon down) reaped the claim `down`
+      # had just withheld for exactly that reason, one `new` later. A wedged
+      # daemon makes it hang under the lock: bounded by AIDEX_DOCKER_TIMEOUT
+      # seconds, and a timeout is a failure.
       if [[ ! -d "$(DEST_FOR "$cs")" ]] \
-         && [[ -z "$(docker ps -aq --filter "label=com.docker.compose.project=$(PROJ_FOR "$cs")" 2>/dev/null)" ]]; then
+         && cids="$(exec 9>&-; with_timeout "${AIDEX_DOCKER_TIMEOUT:-30}" \
+                      docker ps -aq --filter "label=com.docker.compose.project=$(PROJ_FOR "$cs")" 2>/dev/null)" \
+         && [[ -z "$cids" ]]; then
         rm -f "$claim"
       fi
     done
@@ -905,7 +969,7 @@ if [[ "$cmd" == "new" ]]; then
         busy=0
         while IFS= read -r line; do
           p="${line##*=}"
-          lsof -nP -ti :"$p" >/dev/null 2>&1 && { busy=1; break; }
+          lsof -nP -ti :"$p" >/dev/null 2>&1 9>&- && { busy=1; break; }
         done < <(port_env "$cand")
         [[ "$busy" -eq 0 ]] && { SLOT="$cand"; break; }
       done
@@ -1092,6 +1156,18 @@ if [[ "$cmd" == "down" ]]; then
   SLOT="$(cat "$DEST/.wt-slot" 2>/dev/null || true)"
   [[ "$SLOT" =~ ^[0-9]+$ ]] || SLOT="$(CLAIMED_SLOT "$SLUG" || true)"
   [[ "$SLOT" =~ ^[0-9]+$ ]] || SLOT=""
+  # The claim this teardown is for, as it reads NOW. It is released only if slot
+  # $SLOT still holds exactly this: a `new` of the same slug that starts once
+  # $DEST is gone reaps it and reserves afresh, and deleting every claim naming
+  # the slug took that live reservation with it (worktree-c36).
+  # The checks `new` and `up` make, before anything is torn down: a symlinked or
+  # foreign slot dir is refused, never followed to take a lock or delete a claim
+  # in its target. Only when one exists: a --no-infra tree has none to create.
+  if [[ -e "$(SLOTDIR_FOR)" || -L "$(SLOTDIR_FOR)" ]]; then ensure_slotdir >/dev/null || exit 2; fi
+  CLAIM_SEEN=""
+  if [[ -n "$SLOT" && "$(awk '{print $2}' "$(SLOTDIR_FOR)/slot-$SLOT" 2>/dev/null)" == "$SLUG" ]]; then
+    CLAIM_SEEN="$(cat "$(SLOTDIR_FOR)/slot-$SLOT" 2>/dev/null)"
+  fi
 
   envs=(COMPOSE_PROJECT_NAME="$CPROJ" "$WT_SUFFIX_VAR=-$SLUG")
   if [[ -n "$SLOT" ]]; then
@@ -1142,19 +1218,17 @@ if [[ "$cmd" == "down" ]]; then
     docker rmi $dangling >/dev/null 2>&1
   fi
 
-  release_claim() {
-    local claim
-    for claim in "$(SLOTDIR_FOR)"/slot-*; do
-      [[ -e "$claim" ]] || continue
-      [[ "$(awk '{print $2}' "$claim" 2>/dev/null)" == "$SLUG" ]] && { rm -f "$claim"; info "released slot $(basename "$claim" | sed 's/slot-//')"; }
-    done
+  claim_held() {  # does slot $SLOT still hold the claim this teardown read?
+    [[ -n "$CLAIM_SEEN" && "$(cat "$(SLOTDIR_FOR)/slot-$SLOT" 2>/dev/null)" == "$CLAIM_SEEN" ]]
   }
-  claim_held() {  # the same claims release_claim would remove: is there one?
-    local claim
-    for claim in "$(SLOTDIR_FOR)"/slot-*; do
-      [[ -e "$claim" && "$(awk '{print $2}' "$claim" 2>/dev/null)" == "$SLUG" ]] && return 0
-    done
-    return 1
+  release_claim() {  # compare-and-delete, under the lock `new` allocates under
+    local sd
+    [[ -n "$CLAIM_SEEN" ]] || return 0
+    # Checked again at the release: the preamble's check is minutes old by now.
+    sd="$(ensure_slotdir)" || exit 2
+    acquire_slot_lock "$sd"
+    claim_held && { rm -f "$sd/slot-$SLOT"; info "released slot $SLOT"; }
+    release_slot_lock "$sd"
   }
 
   # A zero exit from compose is not proof; ask.
@@ -1166,7 +1240,7 @@ if [[ "$cmd" == "down" ]]; then
   # the CLAIM, not the teardown.
   # A wedged Docker Desktop accepts the socket and never answers; 30 s covers a cold start.
   dt="${AIDEX_DOCKER_TIMEOUT:-30}" drc=0
-  perl -e 'alarm shift; exec @ARGV' "$dt" docker info >/dev/null 2>&1 || drc=$?
+  with_timeout "$dt" docker info >/dev/null 2>&1 || drc=$?
   if [[ $drc -ne 0 ]]; then
     [[ $drc -eq 142 ]] && warn "Docker did not answer within ${dt} s."
     warn "Docker daemon unreachable — teardown completed, but nothing could be verified reclaimed."
@@ -1269,7 +1343,7 @@ if [[ "$cmd" == "down" ]]; then
   # the way out left a directory with no stack and no slot — a limbo `up` could
   # not resume deterministically and `new` refused to recreate.
   if $KEEP_DIR; then
-    ok "--keep-dir: $DEST left in place (slot $SLOT still claimed; resume with: worktree.sh up $SLUG)"
+    ok "--keep-dir: $DEST left in place ($(claim_held && echo "slot $SLOT still claimed" || echo "no slot claimed"); resume with: worktree.sh up $SLUG)"
     [[ -z "$unreclaimed" ]] || { err "the Docker teardown is not verified: $unreclaimed"; exit 1; }
     exit 0
   fi
@@ -1361,6 +1435,12 @@ if [[ "$cmd" == "down" ]]; then
 
   if [[ -z "$unreclaimed" ]]; then
     release_claim
+    # Only the resolved slot is released (c36); a claim this slug holds on any
+    # other slot may be a concurrent run's, so it is reported, not removed.
+    for f in "$(SLOTDIR_FOR)"/slot-*; do
+      [[ -e "$f" && "$f" != "$(SLOTDIR_FOR)/slot-$SLOT" && "$(awk '{print $2}' "$f" 2>/dev/null)" == "$SLUG" ]] || continue
+      warn "'$SLUG' also holds slot ${f##*/slot-}, not the slot this teardown resolved (${SLOT:-none}); it stays claimed. If no worktree.sh run for '$SLUG' is in flight, free it with: rm $f"
+    done
   else
     err "the Docker teardown is not verified: $unreclaimed."
     err "slot ${SLOT:-(none recorded)} stays claimed so nothing else takes it; re-run 'worktree.sh down $SLUG' once that is resolved."

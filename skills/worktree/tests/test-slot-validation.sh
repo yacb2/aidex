@@ -84,8 +84,45 @@ run_wt list
 [[ ! -e "$PROJ/pwned2" ]] || fail "claim: a planted claim FILENAME executed — $PROJ/pwned2 was created"
 rm -f "$slots"/slot-*
 
+# --- 5. worktree-c08: `up` validates the slot it READS, not only --slot ------
+# `up` took $DEST/.wt-slot (or the claim) as-is: 0 handed the worktree dev's own
+# ports and wrote a slot-0 claim, an array-subscript payload executed, and an
+# EMPTY file -- what `new --no-infra` writes -- suppressed the claim fallback.
+# Docker is stubbed: the valid case starts a (stub) stack and must exit 0.
+UPBIN="$TMP/upbin"; mkdir -p "$UPBIN"
+printf '#!/bin/sh\nexit 0\n' > "$UPBIN/docker"; chmod +x "$UPBIN/docker"
+SD="$TMP/slots/aidex-wt-slots-slotproj"; mkdir -p "$SD"
+D="$TMP/slotproj-wt-rs"; mkdir -p "$D"
+run_up() { out="$( cd "$PROJ" && TMPDIR="$TMP/slots" PATH="$UPBIN:$PATH" bash "$WT" up rs 2>&1 )"; RC=$?; }
+
+echo 0 > "$D/.wt-slot"
+run_up
+[[ "$RC" -eq 2 ]] || fail "up .wt-slot=0: must exit 2, got $RC: $out"
+grep -q "error: invalid slot '0' in $D/.wt-slot: must be an integer in 1\.\.4" <<<"$out" \
+  || fail "up .wt-slot=0: must be refused naming the file and the range: $out"
+[[ ! -e "$SD/slot-0" ]] || fail "up .wt-slot=0: a slot-0 claim was written for the main tree's ports"
+
+printf '%s\n' 'WT_PORT_STRIDE[$(touch pwned3)]' > "$D/.wt-slot"
+run_up
+[[ ! -e "$PROJ/pwned3" ]] || fail "up .wt-slot payload: it EXECUTED -- $PROJ/pwned3 was created"
+[[ "$RC" -eq 2 ]] || fail "up .wt-slot payload: must exit 2, got $RC: $out"
+grep -q "error: invalid slot 'WT_PORT_STRIDE\[" <<<"$out" || fail "up .wt-slot payload: must be refused as an invalid slot: $out"
+
+echo 5 > "$D/.wt-slot"   # above WT_MAX_SLOTS=4: the upper bound, not only 0
+run_up
+[[ "$RC" -eq 2 ]] || fail "up .wt-slot=5: must exit 2, got $RC: $out"
+grep -q "error: invalid slot '5' in $D/.wt-slot: must be an integer in 1\.\.4" <<<"$out" \
+  || fail "up .wt-slot=5: must be refused against WT_MAX_SLOTS=4: $out"
+[[ ! -e "$SD/slot-5" ]] || fail "up .wt-slot=5: a claim beyond WT_MAX_SLOTS was written"
+
+: > "$D/.wt-slot"; printf '%s rs\n' "$$" > "$SD/slot-2"
+run_up
+[[ "$RC" -eq 0 ]] || fail "up empty .wt-slot: must fall back to the claim and exit 0, got $RC: $out"
+grep -q 'stack up: slotproj-wt-rs (slot 2)' <<<"$out" || fail "up empty .wt-slot: must resume on the claimed slot 2: $out"
+rm -f "$SD"/slot-*
+
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"
   exit 1
 fi
-echo "OK — slot validation: 0 and out-of-range refused, and no non-numeric slot reaches arithmetic"
+echo "OK — slot validation: 0 and out-of-range refused, no non-numeric slot reaches arithmetic, and up validates the slot it reads"

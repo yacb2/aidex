@@ -226,16 +226,27 @@ done
 n_ex="$(grep -cx '\.wt-slot' "$PX/.git/info/exclude" 2>/dev/null)"
 [[ "$n_ex" == 1 ]] || fail "exclude: .wt-slot appears $n_ex times in the shared info/exclude, want 1"
 
-# With no --base, no origin/HEAD and no main/master, the fallback to the ambient
-# checkout used to be silent: the branch forked from feature-x and nothing said so.
+# With no --base, no origin/HEAD and no main/master, create forked from the
+# ambient checkout (feature-x), first silently, then with a warning. A wrong base
+# is expensive to undo, so it refuses and asks for --base (owner, 2026-10-12 Q4),
+# before anything exists: `backend` comes first and has a main, `pd` has none.
 mkdir -p "$WS/pd"
 git -C "$WS/pd" init -q -b develop
 git -C "$WS/pd" -c user.email=t@t -c user.name=t commit -q --allow-empty -m d0
 git -C "$WS/pd" checkout -q -b feature-x
 git -C "$WS/pd" -c user.email=t@t -c user.name=t commit -q --allow-empty -m fx1
-err="$( cd "$WS" && AIDEX_WT_INTERNAL=1 bash "$SCRIPT" create --slug d1 --branch bd1 --repo pd --dest "$TMP/ws-wt-d1" 2>&1 >/dev/null )" \
-  || fail "base: create without a resolvable default failed -- $err"
-grep -q 'feature-x' <<<"$err" || fail "base: falling back to the ambient checkout must name it (feature-x) -- $err"
+err="$( cd "$WS" && AIDEX_WT_INTERNAL=1 bash "$SCRIPT" create --slug d1 --branch bd1 --repo backend --repo pd --dest "$TMP/ws-wt-d1" 2>&1 >/dev/null )"; rc=$?
+[[ "$rc" -eq 2 ]] || fail "base: create with no --base and no default branch must exit 2, got $rc -- $err"
+grep -q 'pd: no default branch.*pass --base' <<<"$err" || fail "base: the refusal must name the repo and ask for --base -- $err"
+grep -q 'or create bd1 in pd first (git -C pd branch bd1 <commit>)' <<<"$err" \
+  || fail "base: the refusal must also offer creating the branch in pd -- $err"
+[[ ! -e "$TMP/ws-wt-d1" ]] || fail "base: a refused create left $TMP/ws-wt-d1"
+git -C "$WS/backend" show-ref --verify --quiet refs/heads/bd1 && fail "base: a refused create made branch bd1 in backend"
+git -C "$WS/pd" show-ref --verify --quiet refs/heads/bd1 && fail "base: a refused create made branch bd1 in pd"
+# An existing branch needs no base: it is used at its own tip.
+git -C "$WS/pd" branch -q bd2 feature-x
+( cd "$WS" && AIDEX_WT_INTERNAL=1 bash "$SCRIPT" create --slug d2 --branch bd2 --repo pd --dest "$TMP/ws-wt-d2" >/dev/null 2>&1 ) \
+  || fail "base: an existing branch with no default branch must still be created"
 
 # worktree-c22: worktree.sh's own `base ...` line must name what multi forks from.
 # (a) No origin/HEAD and no local main, only origin/main: multi forks from
@@ -261,9 +272,31 @@ git init -q -b develop "$PN"
 git -C "$PN" -c user.email=t@t -c user.name=t commit -q --allow-empty -m n0
 git -C "$PN" checkout -q -b feature-z
 mkdir -p "$PN/.context/worktrees"; echo 'WT_PARTICIPANTS="."' > "$PN/.context/worktrees/config.env"
-out="$( cd "$PN" && bash "$WT_SH" new c22b --branch bc22b --no-infra 2>&1 )" || fail "c22: no-default new failed -- $out"
-grep '^base ' <<<"$out" | grep >/dev/null 'feature-z (current checkout' \
-  || fail "c22: with no default branch the base line must say it is the current checkout -- $out"
+# Q4: nothing names a default and no --base: `new` refuses before anything exists.
+out="$( cd "$PN" && bash "$WT_SH" new c22b --branch bc22b --no-infra 2>&1 )"; rc=$?
+[[ "$rc" -eq 2 ]] || fail "Q4: new with no --base and no default branch must exit 2, got $rc -- $out"
+grep -q 'no default branch.*pass --base' <<<"$out" || fail "Q4: the refusal must ask for --base -- $out"
+grep -q 'or create bc22b in \. first (git -C \. branch bc22b <commit>)' <<<"$out" \
+  || fail "Q4: the refusal must also offer creating the branch -- $out"
+[[ ! -e "$TMP/nproj-wt-c22b" ]] || fail "Q4: a refused new left $TMP/nproj-wt-c22b"
+git -C "$PN" show-ref --verify --quiet refs/heads/bc22b && fail "Q4: a refused new made branch bc22b"
+# Q4 (r2 F2): every participant, not only the first. `a` has main, `b` only
+# develop: `new` reserved a slot, multi refused on b, and the rollback exited 1.
+# Refused up front instead, naming b, with no slot claim, no dir, no branch in a.
+PQ="$TMP/q4proj"
+mkdir -p "$PQ/.context/worktrees"
+printf 'WT_PARTICIPANTS="a b"\nWT_PORT_VARS="DB_PORT=6700"\n' > "$PQ/.context/worktrees/config.env"
+git init -q -b main "$PQ/a"; git -C "$PQ/a" -c user.email=t@t -c user.name=t commit -q --allow-empty -m a0
+git init -q -b develop "$PQ/b"; git -C "$PQ/b" -c user.email=t@t -c user.name=t commit -q --allow-empty -m b0
+QBIN="$TMP/q4bin"; mkdir -p "$QBIN" "$TMP/q4slots"; printf '#!/bin/sh\nexit 0\n' > "$QBIN/docker"; chmod +x "$QBIN/docker"
+out="$( cd "$PQ" && TMPDIR="$TMP/q4slots" PATH="$QBIN:$PATH" bash "$WT_SH" new q4m --branch feat/q4m 2>&1 )"; rc=$?
+[[ "$rc" -eq 2 ]] || fail "Q4 multi: new must refuse a second participant with no default branch, exit 2, got $rc -- $out"
+grep -q 'b: no default branch.*pass --base' <<<"$out" || fail "Q4 multi: the refusal must name b and ask for --base -- $out"
+grep -q 'or create feat/q4m in b first (git -C b branch feat/q4m <commit>)' <<<"$out" \
+  || fail "Q4 multi: the refusal must also offer creating the branch in b -- $out"
+[[ -z "$(ls "$TMP/q4slots/aidex-wt-slots-q4proj" 2>/dev/null | grep '^slot-')" ]] || fail "Q4 multi: a slot was reserved before the refusal"
+[[ ! -e "$TMP/q4proj-wt-q4m" ]] || fail "Q4 multi: a refused new left $TMP/q4proj-wt-q4m"
+git -C "$PQ/a" show-ref --verify --quiet refs/heads/feat/q4m && fail "Q4 multi: a refused new made feat/q4m in a"
 
 # F3: --base is validated in EVERY participant before anything is created.
 for r in pa pb; do
