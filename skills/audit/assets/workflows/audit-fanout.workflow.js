@@ -282,7 +282,7 @@ const FINDING_SCHEMA = {
         properties: {
           id: { type: 'string' },
           title: { type: 'string' },
-          severity: { enum: ['P1', 'P2', 'P3'] },
+          severity: { enum: ['P0', 'P1', 'P2', 'P3'] },
           evidence: { type: 'string' },
           dimension: { type: 'string' },
         },
@@ -304,6 +304,12 @@ const perDim = await parallel(
   )
 )
 
+// An analyst that returned nothing (null after its retries) is a coverage gap, not a clean
+// dimension: name it, and tell the critic only about the dimensions that answered.
+const dimensions = cfg.dimensions || []
+const failedDimensions = dimensions.filter((d, i) => !perDim[i]).map((d) => d.id)
+const coveredDimensions = dimensions.filter((d, i) => perDim[i]).map((d) => d.id)
+if (failedDimensions.length) log(`analysts failed: [${failedDimensions.join(', ')}]`)
 const found = perDim.filter(Boolean).flatMap((r) => r.findings)
 
 // Barrier: dedup findings by `${dimension}::${title}` key (plain JS, not an agent).
@@ -323,7 +329,7 @@ phase('Synthesize')
 
 // Completeness critic: identifies under-covered or missing dimensions.
 const critic = await agent(
-  `Audit completeness check. Covered dimensions: ${(cfg.dimensions || []).map((d) => d.id).join(', ')}. Deduped findings: ${JSON.stringify(deduped)}. Name any dimension that was not covered or looks under-covered.`,
+  `Audit completeness check. Covered dimensions: ${coveredDimensions.join(', ')}.${failedDimensions.length ? ` Analyst failed, NOT covered: ${failedDimensions.join(', ')}.` : ''} Deduped findings: ${JSON.stringify(deduped)}. Name any dimension that was not covered or looks under-covered.`,
   {
     label: 'completeness',
     phase: 'Synthesize',
@@ -339,10 +345,10 @@ const critic = await agent(
     effort: 'low',
   }
 )
-log(`completeness: missing [${(critic.missing || []).join(', ')}]`)
+log(critic ? `completeness: missing [${(critic.missing || []).join(', ')}]` : 'completeness: critic returned nothing')
 
 // Escalate gate: arbiter at the escalate-to-backlog boundary (mandated step -> CONTINUE).
 const esc = await checkAction(cfg.escalateAction || 'escalate confirmed findings to backlog', ctx)
-log(`escalate gate: ${esc.verdict}`)
+log(`escalate gate: ${esc ? esc.verdict : 'no ruling'}`)
 
-return { findings: deduped, completeness: critic, escalate: esc }
+return { findings: deduped, completeness: critic, escalate: esc, failedDimensions }

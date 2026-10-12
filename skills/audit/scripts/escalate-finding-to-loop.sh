@@ -10,6 +10,10 @@
 #   held by more than one methodology's inventory is refused, naming each.
 #   --loop      accepted and ignored (the dispatcher passes it through)
 #   --dry-run   print what would happen; scaffold nothing, mutate nothing
+#
+# Exit: 0 escalated; 2 refused before scaffolding (unknown or ambiguous id, done or dropped
+#   row, unusable lock dir); 4 the loop spec was scaffolded but its row could not be marked
+#   (the message names the spec; mark the row by hand, do not rerun).
 
 set -euo pipefail
 . "$(dirname "$0")/_lib.sh"
@@ -164,7 +168,10 @@ fi
 
 # Canon cross-ref MARKER (D-03), never a markdown relative link.
 MARKER="loop/$(basename "$LOOP_FILE" .md)"
-mark_row_escalated "$INVENTORY" "$FINDING_ID" "$MARKER"
+# The row was checked markable above, but not under the lock: a mark that still fails
+# exits 4 (scaffolded, not marked) naming the spec, as escalate-finding.sh does.
+mark_row_escalated "$INVENTORY" "$FINDING_ID" "$MARKER" \
+  || { err "error: loop-spec $LOOP_FILE was scaffolded for $FINDING_ID, but its row in $INVENTORY was not marked: set it to done with Escalated To $MARKER by hand, or delete the spec; do not rerun (it would scaffold a second spec)"; exit 4; }
 
 ok "$FINDING_ID escalated to loop-spec"
 printf '  loop-spec    : %s\n' "$LOOP_FILE" >&2
