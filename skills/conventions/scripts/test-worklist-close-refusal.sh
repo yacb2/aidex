@@ -226,4 +226,25 @@ rm -f .context/worklists/arch
 archived_refused "advance ./x.md from inside _archive/" in_archive bash "$DIR/worklist-advance.sh" "./$ARN"
 archived_refused "advance of a literal _archive/ path" bash "$DIR/worklist-advance.sh" ".context/worklists/_archive/$ARN"
 
+# 8 · a work-list slug skips its -report companion: `foo` names foo-bar.md, never ambiguous
+# with foo-bar-report.md (resolve_worklist's sweep-report filter).
+F4="$TMP/f4"; mkdir -p "$F4/.context/worklists"
+printf -- '---\nstatus: doing\nupdated: 2026-01-01\n---\n1. [ ] head of foo-bar\n' > "$F4/.context/worklists/2026-01-01-foo-bar.md"
+printf -- '---\nstatus: done\n---\nreport\n' > "$F4/.context/worklists/2026-01-01-foo-bar-report.md"
+OUT="$(cd "$F4" && bash "$DIR/worklist-advance.sh" foo --peek 2>&1)"; RC=$?
+[[ $RC -eq 0 && "$OUT" == "1. [ ] head of foo-bar" ]] \
+  && ok "a slug resolves to the work-list, skipping its -report companion" || bad "advance foo --peek: rc=$RC $OUT"
+
+# 9 · a work-list with no front matter is refused BEFORE any write: close --force appended
+# its override line and advance ticked the box, and only then did the front-matter stamp fail.
+F6="$TMP/f6"; mkdir -p "$F6/.context/worklists"; NF="$F6/.context/worklists/2026-01-01-nofm.md"
+printf 'mode: sweep\n1. [ ] a\n2. [ ] b\n\n## Deferred / emergent\n- [ ] loose end\n' > "$NF"; nsum="$(cksum < "$NF")"
+(cd "$F6" && bash "$DIR/worklist-close.sh" nofm --force >/dev/null 2>"$TMP/err"); RC=$?
+[[ $RC -eq 2 && "$(cksum < "$NF")" == "$nsum" && ! -e "$F6/.context/worklists/_archive/2026-01-01-nofm.md" ]] \
+  && ok "close --force of a work-list with no front matter is refused, file untouched" || bad "close no front matter: rc=$RC $(cat "$TMP/err")"
+printf '1. [ ] a\n2. [ ] b\n' > "$NF"; nsum="$(cksum < "$NF")"
+(cd "$F6" && bash "$DIR/worklist-advance.sh" nofm >/dev/null 2>"$TMP/err"); RC=$?
+[[ $RC -eq 2 && "$(cksum < "$NF")" == "$nsum" ]] \
+  && ok "advance of a work-list with no front matter is refused, file untouched" || bad "advance no front matter: rc=$RC $(cat "$TMP/err")"
+
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — worklist close refusal: $PASS cells"; exit 0; }; echo "$FAIL failure(s)"; exit 1

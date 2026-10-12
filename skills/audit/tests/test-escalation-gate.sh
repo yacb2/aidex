@@ -13,6 +13,7 @@ fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+export TMPDIR="$TMP/tmp"; mkdir -p "$TMPDIR"  # inventory lock files are kept, never removed
 export XDG_STATE_HOME="$TMP/state"
 PROJ="$TMP/proj"
 mkdir -p "$PROJ/.context/audits/ux/2026-06-01-first-pass" "$PROJ/.context/backlog"

@@ -3,21 +3,24 @@
 Usage: python3 prepare.py <project_root> <work_dir>
 Writes <work_dir>/manifest.json (`units`: one entry per kept unit with unit, slug, files,
 references, tokens_est; `skipped`: covered units too large or data-like to extract, with
-unit, references, reason) and <work_dir>/units/<slug>.txt (the unit's file list) and units/<slug>.refs.txt (its covering references). Both are
+unit, references, reason) and <work_dir>/units/<slug>.txt (the unit's file list; the root unit `.` is `_root`) and units/<slug>.refs.txt (its covering references). Both are
 replaced on every run. The Workflow gets its unit slugs from the manifest, never recomputes them. Stdlib only.
 
 Every `.md` under <root>/.context/references/ is a reference, except `00-profile.md`, the
 root `00-index.md` and any reference whose front-matter says `status: dropped`. A reference covers a unit when it:
   - cites the path of one of the unit's files, or the unit's directory path, either from the
     project root or relative to the unit's own git repo (that form needs a `/`, so a bare
-    `types` never matches), or as the `@/` alias of a `src/` path;
+    `types` never matches), or as the `@/` alias of a `src/` path. A top-level directory
+    counts only as `name/` or `` `name` ``: the bare word is prose ("the backend");
   - cites in backticks an identifier defined in the unit (4+ characters), when that
     identifier is defined in at most 3 units (a name defined everywhere says nothing);
   - declares it in the front-matter `covers:` header. Entries are `axis: item` (parsed by
     docs-census.py `load_ownership`); the item is expanded through the profile's `paths:`
-    template for that axis (docs-census.py `load_profile`) and also taken as a path as written.
+    template for that axis (docs-census.py `load_profile`) and also taken as a path as written,
+    unless it starts with `/` (a route such as `/api`; paths are written project-relative).
     A path equal to a file or directory of the unit, or above it, covers it.
 """
+import hashlib
 import importlib.util
 import json
 import os
@@ -54,7 +57,12 @@ def compound(name):
 
 
 def slug(uid):
-    return re.sub(r"^-|-$", "", re.sub(r"[^A-Za-z0-9]+", "-", uid))
+    """`code/billing` -> `code-billing`. An id that the dashes do not spell back (`my_app`,
+    `code/a-b`, `src/(files)`) gets `_` and a hash of the id, so no two ids share a slug."""
+    if uid == ".":
+        return "_root"  # no `_<8 hex>` ends this, so no other id reaches it
+    s = re.sub(r"^-|-$", "", re.sub(r"[^A-Za-z0-9]+", "-", uid))
+    return s if s.replace("-", "/") == uid else f"{s}_{hashlib.sha1(uid.encode()).hexdigest()[:8]}"
 
 
 def cites(text, path):
@@ -91,7 +99,7 @@ def declared_paths(root, refs):
     out = {r: set() for r in refs}
     for axis, items in owners.items():
         for item, docs in items.items():
-            cands = {item.strip("/")}
+            cands = set() if item.startswith("/") else {item.strip("/")}  # `/api` is a route, not a path
             if axis in template:
                 cands.add(template[axis].replace("{item}", item).strip("/"))
             for d in docs:
@@ -108,6 +116,9 @@ def forms(unit):
     repo_rel = [p for p in repo_rel if "/" in p]
     alias = ["@/" + p[4:] for p in
              [p[len(strip):] for p in root_rel if p.startswith(strip)] if p.startswith("src/")]
+    d = unit["path"]
+    if "/" not in d and d not in unit["files"] + ["."]:  # a bare top-level directory is a prose word
+        root_rel = [p for p in root_rel if p != d] + [d + "/", f"`{d}`"]
     return root_rel, repo_rel + alias
 
 
@@ -121,24 +132,26 @@ def declares(path, unit):
 
 def refuse_tracked_work(root, work):
     """The work dir's `units/` is deleted on every run: never the project root or tracked files."""
-    if work == root:
-        print(f"prepare: work dir {work} is the project root", file=sys.stderr)
+    if work == root or work in root.parents:
+        print(f"prepare: work dir {work} is the project root or above it", file=sys.stderr)
         sys.exit(2)
-    if root in work.parents:
-        near = work
-        while not near.exists():
-            near = near.parent
-        r = subprocess.run(["git", "-C", str(near), "ls-files", "--", str(work)],
-                           capture_output=True, text=True)
-        if r.stdout.strip():
-            print(f"prepare: work dir {work} holds files git tracks", file=sys.stderr)
-            sys.exit(2)
+    near = work
+    while not near.exists():
+        near = near.parent
+    r = subprocess.run(["git", "-C", str(near), "ls-files", "--", str(work)],
+                       capture_output=True, text=True)
+    if r.stdout.strip():
+        print(f"prepare: work dir {work} holds files git tracks", file=sys.stderr)
+        sys.exit(2)
 
 
 def prepare(root, work, budget=BUDGET):
     root, work = Path(root).resolve(), Path(work).resolve()
     refuse_tracked_work(root, work)
+    (work / "manifest.json").unlink(missing_ok=True)  # a failed run leaves no old selection
     _, _, files = module_map.collect(str(root))
+    if not files:  # "0 covered units" must never mean nothing was examined
+        sys.exit(f"prepare: no tracked files under {root}")
     all_units = module_map.build_units(files, budget)
 
     defined = {}  # identifier -> ids of the units defining it
@@ -174,7 +187,6 @@ def prepare(root, work, budget=BUDGET):
             skipped.append({"unit": u["id"], "references": covering,
                             "reason": "oversize" if u["oversize"] else "data-like"})
 
-    (work / "manifest.json").unlink(missing_ok=True)  # a failed run leaves no old selection
     seen = {}
     for k in kept:
         if seen.setdefault(k["slug"], k["unit"]) != k["unit"]:

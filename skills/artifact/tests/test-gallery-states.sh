@@ -359,5 +359,61 @@ assert (ident, "needs-changes", save_reply.GALLERY_NEEDS_DUTY) in d, d
 assert save_reply.gallery_duties_for(head + "\n- Reposo\n- Hover\n- Cargando\n- Deshabilitado\n\nperfecto así\n", states=st) == []
 PY
 
+# BL-762: a duty-mode save appends a paste that answered a REBUILT page while
+# answered.html stays round 1's, so each appended chunk is read against the
+# states its own separator recorded, never answered.html's. Round 1: Reposo/
+# Hover/Cargando, partial tick (and an unchanged review row keeps a duty
+# outstanding, so round 2 is appended in duty mode). Round 2 renames Cargando
+# to Deshabilitado (id disabled). (a) is the gate: a mark on the renamed state
+# made the whole chunk unreadable. (b) is the gate's own gallery call: a false
+# needs-changes on a rebuilt row is never a gate FAIL (the row differs from
+# answered.html), so it is asserted on the duties the gate computes. (c) is the
+# other direction: a round-1 paste that names the renamed-away state is read
+# with answered.html's states by the gate AND by the duties save-reply prints.
+sed 's/"loading", "label": "Cargando", "capture": "shots\/loading.png"/"disabled", "label": "Deshabilitado", "capture": "shots\/disabled.png"/' \
+  "$TMP/spec/rows2.json" > "$TMP/spec/rows4.json"
+sed 's/rows="st.json"/rows="rows4.json"/' "$TMP/spec/s.spec.md" > "$TMP/spec/r2.spec.md"
+( cd "$TMP/spec" && python3 "$BUILD" r2.spec.md -o r2.html > "$TMP/r2.out" 2>&1 ) \
+  || fail "the renamed-states spec did not build: $(tail -3 "$TMP/r2.out")"
+python3 - "$SKILL/scripts/dash" "$TMP/spec/m.html" "$TMP/spec/r2.html" "$TMP/rn" "$ID" <<'PY' && ok "duty-append across a renamed state set: each chunk is read with its own separator's states, the first with answered.html's, at the gate and in save-reply's duties (no unreadable, all ticked owes nothing, partial still owes)" || fail "an appended chunk was read against answered.html's states, not the page it answered"
+import os, shutil, sys
+sys.path.insert(0, sys.argv[1])
+import check_artifact as ca, save_reply
+r1, r2, root, ident = sys.argv[2:6]
+rev = "btn-page-light-desktop"
+assert 'data-id="%s"' % rev in open(r1).read() and 'data-label="Deshabilitado"' in open(r2).read()
+first = ("## B · Botón\n### %s · btn · save · light-desktop\n\n- Hover\n\n"
+         "### %s · btn · page · light-desktop\n\n- Necesita cambios\n\nel borde\n" % (ident, rev))
+def run(tag, second, first=first):
+    d = os.path.join(root, tag)
+    os.makedirs(d)
+    page = os.path.join(d, "p.html")
+    shutil.copy(r1, page)
+    save_reply.save_reply(page, first)
+    with open(page, "w") as fh:        # same asset folder: only the states row changed
+        fh.write(open(r2).read().replace("r2-assets/", "m-assets/"))
+    printed, _, _, mode = save_reply.save_reply(page, "## B · Botón\n%s" % second)
+    assert mode == "duty", mode
+    prev = os.path.join(d, ".aidex-artifact-prev")
+    paste = open(os.path.join(prev, "p.reply.md")).read()
+    answered = open(os.path.join(prev, "p.answered.html")).read()
+    gallery = save_reply.gallery_duties_for(
+        paste, ca.ordinary_item_ids(open(page).read()) | ca.ordinary_item_ids(answered),
+        save_reply.states_in_page(answered))
+    return ca.check_marker_duties(page), [(i, t) for i, t, _ in gallery], [(i, t) for i, t, _ in printed]
+row = "### %s · btn · save · light-desktop\n\n" % ident
+(fails, warns), tags, _ = run("full", row + "- Reposo\n- Hover\n- Deshabilitado\n\n[mark disabled 10.0,10.0 20.0x20.0] gris\n")
+assert not [w for w in warns if "could not be read" in w[2]], warns          # (a)
+assert (ident, "needs-changes") not in tags and (ident, "region-marks") in tags, tags   # (b)
+assert ("(gallery)", "unreadable") not in tags, tags
+(fails, warns), tags, _ = run("part", row + "- Reposo\n- Deshabilitado\n")     # control
+assert (ident, "needs-changes") in tags, tags
+old = ("## B · Botón\n" + row + "- Reposo\n- Hover\n- Cargando\n\n[mark loading 10.0,10.0 20.0x20.0] spinner\n\n"
+       "### %s · btn · page · light-desktop\n\n- Necesita cambios\n\nel borde\n" % rev)
+(fails, warns), _, printed = run("old", "### %s · btn · page · light-desktop\n\n- Necesita cambios\n\nsigue\n" % rev, old)
+assert not [w for w in warns if "could not be read" in w[2]], warns          # (c) the gate
+assert ("(gallery)", "unreadable") not in printed and (ident, "region-marks") in printed, printed   # (c) save-reply
+PY
+
 if [[ $failures -gt 0 ]]; then echo "FAILED: $failures"; exit 1; fi
 echo "ok: gallery states row, reply, refusals and page"

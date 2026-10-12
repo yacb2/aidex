@@ -38,12 +38,16 @@ else
 fi
 
 [[ -d "$AUDITS_DIR" ]] || die "no audits directory at $AUDITS_DIR"
-AUDITS_DIR="${AUDITS_DIR%/}"
+# Absolute (logical pwd, so a symlinked path keeps its name), so `ux` from inside
+# audits/ or `.` inside a run folder can climb.
+AUDITS_DIR="$(cd "$AUDITS_DIR" && pwd)"
 
-# If user passed a run/methodology sub-folder, resolve up to the audits root.
-while [[ "$(basename "$(dirname "$AUDITS_DIR")")" == "audits" ]]; do
-  AUDITS_DIR="$(dirname "$AUDITS_DIR")"
-done
+# If user passed a run/methodology sub-folder, resolve up to the audits root:
+# the nearest ancestor named `audits` (a run folder sits two levels below it).
+# A path with no such ancestor is validated as given.
+d="$AUDITS_DIR"
+while [[ "$(basename "$d")" != "audits" && "$d" != "/" ]]; do d="$(dirname "$d")"; done
+[[ "$(basename "$d")" == "audits" ]] && AUDITS_DIR="$d"
 
 CONTEXT_DIR="$(dirname "$AUDITS_DIR")"
 PROJECT_ROOT="$(dirname "$CONTEXT_DIR")"
@@ -55,7 +59,8 @@ standalone_runs=0
 methodologies=0
 findings_in_inventory=0
 f_open=0; f_doing=0; f_done=0; f_dropped=0; f_legacy=0
-inventory_ids=""   # newline-separated "<id>" across all methodologies
+inventory_ids=""   # newline-separated "<scope>/<id>": ids are scoped to a methodology
+methodology_names=()
 
 # Whitespace trim without xargs (xargs dies on unbalanced quotes in cell text —
 # same field bug class as the backlog --list apostrophe crash).
@@ -90,9 +95,15 @@ field()   { printf '%s' "${1%%$US*}"; }                       # rule
 f_path()  { local r="${1#*$US}"; printf '%s' "${r%%$US*}"; }  # path
 f_msg()   { printf '%s' "${1##*$US}"; }                       # message
 
+# id_seen <scope> <id>: is <id> on <scope>'s inventory? An empty scope means on
+# any inventory (the backlog back-reference check, which predates the scoping).
 id_seen() {
-  local needle="$1"
-  [[ -n "$inventory_ids" ]] && printf '%s\n' "$inventory_ids" | grep >/dev/null -xF "$needle"
+  [[ -n "$inventory_ids" ]] || return 1
+  if [[ -n "$1" ]]; then
+    printf '%s\n' "$inventory_ids" | grep >/dev/null -xF "$1/$2"
+  else
+    printf '%s\n' "$inventory_ids" | awk -F/ -v id="$2" '$NF == id { f = 1 } END { exit !f }'
+  fi
 }
 
 # Strip HTML comment blocks from a file (multi-line safe).
@@ -201,10 +212,10 @@ validate_inventory() {
     # A canonical row has every column present: 9 cols = 10 pipes, 11 cols = 12.
     [[ "$pipe_count" -ge 10 ]] || continue
 
-    if id_seen "$id"; then
+    if id_seen "$scope" "$id"; then
       add_violation audit-duplicate-id "$inv" "duplicate ID in $scope inventory: $id"
     fi
-    inventory_ids="$inventory_ids"$'\n'"$id"
+    inventory_ids="$inventory_ids"$'\n'"$scope/$id"
     findings_in_inventory=$((findings_in_inventory+1))
     parsed_here=$((parsed_here+1))
 
@@ -347,14 +358,38 @@ for entry in "$AUDITS_DIR"/*/; do
   [[ -f "$entry/00-inventory.md" ]] && validate_inventory "$entry/00-inventory.md" "$name"
   validate_methodology_runs "${entry%/}" "$name"
 
-  # Orphan references: IDs in this methodology's run findings must exist somewhere.
+  methodology_names+=("$name")
+done
+
+# Orphan references, after EVERY inventory is read so the result never depends on
+# folder order. Same resolution as find_inventory_for_id (_lib.sh): ids are scoped
+# to a methodology, so `<methodology>/<id>` must be on that methodology's inventory
+# only; a bare id resolves against the citing methodology first, else against the
+# one other inventory that holds it (a cross-methodology citation is legitimate),
+# and is reported when two or more others hold it. A prefix that is not a
+# methodology folder (an origin_ref `audit/ux/<run>/<id>`, `proofs/<id>/`) is
+# prose around a bare id, not a qualifier.
+for name in ${methodology_names[@]+"${methodology_names[@]}"}; do
+  entry="$AUDITS_DIR/$name"
   while IFS= read -r findings_file; do
-    while IFS= read -r mentioned_id; do
-      [[ -z "$mentioned_id" ]] && continue
-      if ! id_seen "$mentioned_id"; then
-        rel="${findings_file#"$AUDITS_DIR"/}"
-        add_violation audit-orphan-finding-ref "$findings_file" "$rel references $mentioned_id which is not in any inventory"
+    while IFS= read -r mentioned; do
+      [[ -z "$mentioned" ]] && continue
+      mentioned_id="${mentioned##*/}"
+      [[ "$mentioned_id" =~ ^(BL|D|CWE)-[0-9]+$ ]] && continue
+      rel="${findings_file#"$AUDITS_DIR"/}"
+      ref_scope="${mentioned%/*}"
+      if [[ "$mentioned" == */* ]] && printf '%s\n' "${methodology_names[@]}" | grep >/dev/null -xF "$ref_scope"; then
+        id_seen "$ref_scope" "$mentioned_id" || \
+          add_violation audit-orphan-finding-ref "$findings_file" "$rel references $mentioned which is not in the $ref_scope inventory"
+        continue
       fi
+      id_seen "$name" "$mentioned_id" && continue
+      holders="$(printf '%s\n' "$inventory_ids" | awk -F/ -v id="$mentioned_id" '$NF == id { print $1 }' | sort -u)"
+      case "$(printf '%s' "$holders" | grep -c .)" in
+        0) add_violation audit-orphan-finding-ref "$findings_file" "$rel references $mentioned_id which is not in any inventory" ;;
+        1) ;;
+        *) add_violation audit-orphan-finding-ref "$findings_file" "$rel references $mentioned_id which is not in the $name inventory and is in more than one other ($(printf '%s' "$holders" | tr '\n' ',' | sed 's/,/, /g')): qualify it as <methodology>/$mentioned_id" ;;
+      esac
     # `BL-<n>` (backlog), `D-<n>` (ADR) and `CWE-<n>` (the weakness catalogue) are ids of
     # SIBLING VOCABULARIES. A findings narrative cites them constantly ("unmeasured
     # (BL-166)", "stays English (D-04)", "maps to CWE-1236"), and none can ever appear in
@@ -366,8 +401,8 @@ for entry in "$AUDITS_DIR"/*/; do
     # re-anchored after the first dash and reported `FE-CATALOG-01` for
     # `SEC-FE-CATALOG-01` — an id in no inventory because it does not exist. One real
     # security run produced ~39 such violations, all frontend, all false.
-    done < <(strip_html_comments "$findings_file" | grep -oE '\b[A-Z]+(-[A-Z0-9]+)*-[0-9]+\b' 2>/dev/null \
-             | grep -vE '^(BL|D|CWE)-[0-9]+$' | sort -u)
+    done < <(strip_html_comments "$findings_file" \
+             | grep -oE '(\b[a-z0-9][a-z0-9_-]*/)?\b[A-Z]+(-[A-Z0-9]+)*-[0-9]+\b' 2>/dev/null | sort -u)
   done < <(find "${entry%/}" -type f -name findings.md -path '*/[0-9]*-*/findings.md' 2>/dev/null)
 done
 
@@ -391,7 +426,7 @@ if [[ -d "$BACKLOG_DIR" ]]; then
     ref_id="${ref##*/}"
     ref_id="$(trim "$ref_id")"
     if [[ "$seg_count" -ge 4 || "$seg_count" -eq 2 ]]; then
-      if ! id_seen "$ref_id"; then
+      if ! id_seen "" "$ref_id"; then
         rel="${bl_entry#"$(dirname "$AUDITS_DIR")"/}"
         add_violation audit-backlog-orphan-ref "$bl_entry" "backlog entry $rel cites audit finding $ref_id which is not in any inventory"
       fi
@@ -421,7 +456,9 @@ fi
 # ---------- Roll-up index freshness (non-fatal warning) ----------
 REINDEX_AUDITS="$SKILL_DIR/scripts/reindex-audits.sh"
 if [[ -x "$REINDEX_AUDITS" ]]; then
-  drift_msg="$(NO_COLOR=1 bash "$REINDEX_AUDITS" --check 2>&1)" || \
+  # reindex-audits.sh takes no path: it resolves its project from the cwd, so run
+  # it from the project this validation is about, not from wherever we were called.
+  drift_msg="$(cd "$PROJECT_ROOT" && NO_COLOR=1 bash "$REINDEX_AUDITS" --check 2>&1)" || \
     add_warning audit-index-stale "$AUDITS_DIR/00-index.md" "${drift_msg:-00-index.md stale — run /aidex:audit reindex}"
 fi
 

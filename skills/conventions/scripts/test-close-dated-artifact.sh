@@ -134,6 +134,67 @@ rc=0; err="$( cd "$G/.context/requests" && bash "$SCRIPT" requests ext/../req-sy
   || fail "a symlinked folder plus .. inside requests/ let an outside file through (rc=$rc): $err"
 rm -rf "$G"
 
+# --- c05: only the front matter is rewritten, values go in literally, failures exit non-zero ----
+# The rewrites were whole-file `sed s|^status: .*|...|`: a fenced yaml example in the body
+# was rewritten too, a bare `superseded_by:` was never filled, `|`/`&` in --superseded-by
+# broke sed (rc 0, hidden by `&&`), and a file with no status line closed without one.
+H="$(mktemp -d)"; mkdir -p "$H/.context/requests" "$H/.context/decisions"
+body=$'Example:\n\n```yaml\nstatus: accepted\nupdated: 2026-01-01\nsuperseded_by: ""\n```\n'
+printf -- '---\ntitle: "t"\nstatus: accepted\nstatus_note: keep\nupdated: 2026-01-01\nsuperseded_by:\n---\n%s' "$body" \
+  > "$H/.context/decisions/2026-06-01-fm.md"
+ref='decision/x|y&z\1'
+rc=0; ( cd "$H" && bash "$SCRIPT" decisions fm --status superseded --superseded-by "$ref" >/dev/null 2>&1 ) || rc=$?
+want="$(printf -- '---\ntitle: "t"\nstatus: superseded\nstatus_note: keep\nupdated: %s\nsuperseded_by: %s\n---\n%sx' "$(date +%F)" "$ref" "$body")"
+got="$(cat "$H/.context/decisions/_archive/2026-06-01-fm.md" 2>/dev/null; printf x)"
+[[ $rc -eq 0 && "$got" == "$want" ]] \
+  || fail "c05: front matter not rewritten alone and literally (rc=$rc), got: ${got%x}"
+# A request with no status line gets one, inside the front matter.
+printf -- '---\ntitle: "t"\nupdated: 2026-01-01\n---\nstatus: body prose\n' > "$H/.context/requests/2026-06-02-nostatus.md"
+( cd "$H" && bash "$SCRIPT" requests nostatus >/dev/null 2>&1 )
+got="$(cat "$H/.context/requests/_archive/2026-06-02-nostatus.md" 2>/dev/null)"
+[[ "$got" == "$(printf -- '---\ntitle: "t"\nupdated: %s\nstatus: done\n---\nstatus: body prose' "$(date +%F)")" ]] \
+  || fail "c05: a request with no status line was not given one in its front matter, got: $got"
+# A file with no front matter is refused and left untouched.
+printf 'status: open\nno front matter\n' > "$H/.context/requests/2026-06-03-nofm.md"
+rc=0; ( cd "$H" && bash "$SCRIPT" requests nofm >/dev/null 2>&1 ) || rc=$?
+[[ $rc -ne 0 && "$(cat "$H/.context/requests/2026-06-03-nofm.md")" == $'status: open\nno front matter' \
+   && ! -e "$H/.context/requests/_archive/2026-06-03-nofm.md" ]] \
+  || fail "c05: a file with no front matter was closed or changed (rc=$rc)"
+# An opening `---` with no closing one is no front matter either: nothing to scope to.
+printf -- '---\nstatus: open\nbody\nstatus: x\n' > "$H/.context/requests/2026-06-07-unclosed.md"
+before="$(cksum < "$H/.context/requests/2026-06-07-unclosed.md")"
+rc=0; ( cd "$H" && bash "$SCRIPT" requests unclosed >/dev/null 2>&1 ) || rc=$?
+[[ $rc -eq 2 && "$(cksum < "$H/.context/requests/2026-06-07-unclosed.md")" == "$before" \
+   && ! -e "$H/.context/requests/_archive/2026-06-07-unclosed.md" ]] \
+  || fail "c05: an unclosed front matter was not refused untouched (rc=$rc)"
+# The rewrite keeps the file's mode: a 0600 request stays 0600 once closed.
+printf -- '---\nstatus: open\nupdated: 2026-01-01\n---\n' > "$H/.context/requests/2026-06-08-private.md"
+chmod 600 "$H/.context/requests/2026-06-08-private.md"
+( cd "$H" && bash "$SCRIPT" requests private >/dev/null 2>&1 )
+mode="$(ls -l "$H/.context/requests/_archive/2026-06-08-private.md" 2>/dev/null | cut -c1-10)"
+[[ "$mode" == "-rw-------" ]] || fail "c05: a 0600 request was closed with mode '$mode', not -rw-------"
+
+# --- c30: an archive collision is refused before anything is written ---------------------
+printf -- '---\nstatus: accepted\nupdated: 2026-01-01\n---\nbody\n' > "$H/.context/decisions/2026-06-04-twin.md"
+mkdir -p "$H/.context/decisions/_archive"
+cp "$H/.context/decisions/2026-06-04-twin.md" "$H/.context/decisions/_archive/"
+before="$(cksum < "$H/.context/decisions/2026-06-04-twin.md")"
+rc=0; ( cd "$H" && bash "$SCRIPT" decisions twin --status dropped >/dev/null 2>&1 ) || rc=$?
+[[ $rc -eq 2 && "$(cksum < "$H/.context/decisions/2026-06-04-twin.md")" == "$before" ]] \
+  || fail "c30: archive collision exited rc=$rc or rewrote the active file before refusing"
+
+# --- c31: a request or ADR whose own slug ends in -report resolves by slug ------------------
+# The slug fallback reused resolve_worklist, whose sweep-report filter dropped these names.
+printf -- '---\nstatus: open\nupdated: 2026-01-01\n---\n' > "$H/.context/requests/2026-06-05-quarterly-report.md"
+printf -- '---\nstatus: accepted\nupdated: 2026-01-01\n---\n' > "$H/.context/decisions/2026-06-06-weekly-report.md"
+rc=0; ( cd "$H" && bash "$SCRIPT" requests quarterly-report >/dev/null 2>&1 ) || rc=$?
+[[ $rc -eq 0 && -f "$H/.context/requests/_archive/2026-06-05-quarterly-report.md" ]] \
+  || fail "c31: 'requests quarterly-report' did not close 2026-06-05-quarterly-report.md (rc=$rc)"
+rc=0; ( cd "$H" && bash "$SCRIPT" decisions weekly-report --status dropped >/dev/null 2>&1 ) || rc=$?
+[[ $rc -eq 0 && -f "$H/.context/decisions/_archive/2026-06-06-weekly-report.md" ]] \
+  || fail "c31: 'decisions weekly-report' did not close 2026-06-06-weekly-report.md (rc=$rc)"
+rm -rf "$H"
+
 # The gate. Without it this file ended on an unconditional `echo`, so it printed OK and
 # exited 0 with failures on screen — a suite that cannot fail, which is worse than no
 # suite because the sweep that runs it reports green. Found 2026-09-07 while adding the

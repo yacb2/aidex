@@ -22,6 +22,7 @@ check(){ if eval "$2"; then ok "$1"; else bad "$1"; fi; }
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+export TMPDIR="$TMP/tmp"; mkdir -p "$TMPDIR"  # inventory lock files are kept, never removed
 
 board() {  # board <dir> <width>
   local d="$1" w="$2"

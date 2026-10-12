@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # escalate-finding.sh — move an audit finding to the backlog.
 # Usage: escalate-finding.sh <finding-id>... [--page <consultation-page>]
+# A finding id may be qualified as <methodology>/<id> (e.g. ux/F-1); a bare id
+# held by more than one methodology's inventory is refused, naming each.
 # A batch (several ids, or a second escalation within 10 min of the last one)
 # is refused without --page: an existing .html/.md page citing every id (USAGE-30).
 
@@ -41,15 +43,16 @@ AUDITS_DIR="$ROOT/.context/audits"
 
 # Resolve every id and refuse already-done rows BEFORE escalating anything.
 for id in "${IDS[@]}"; do
-  inv="$(find_inventory_for_id "$AUDITS_DIR" "$id")" \
-    || die "finding $id not found in any audits/<methodology>/00-inventory.md (or legacy root inventory)"
-  st="$(awk -F'|' -v id="$id" '{ k=$2; gsub(/^[ \t]+|[ \t]+$/, "", k); if (k == id) { v=$6; gsub(/^[ \t]+|[ \t]+$/, "", v); print v; exit } }' "$inv")"
+  inv="$(find_inventory_for_id "$AUDITS_DIR" "$id")" || { [[ $? -eq 2 ]] && exit 2
+    die "finding $id not found in any audits/<methodology>/00-inventory.md (or legacy root inventory)"; }
+  # An escaped \| inside a cell is not a column boundary (validate-audit.sh convention).
+  st="$(awk -v id="${id#*/}" '{ r=$0; gsub(/\\[|]/, "\037", r); split(r, c, "|"); k=c[2]; gsub(/^[ \t]+|[ \t]+$/, "", k); if (k == id) { v=c[6]; gsub(/^[ \t]+|[ \t]+$/, "", v); print v; exit } }' "$inv")"
   [[ "$st" != "done" ]] || die "finding $id is already done (escalated); nothing was escalated"
 done
 
 # Escalation log lives outside the committed tree, one file per project root.
 LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/aidex/escalation-log"
-LOG="$LOG_DIR/$(printf '%s' "$ROOT" | shasum | cut -d' ' -f1)"
+LOG="$LOG_DIR/$(printf '%s' "$ROOT" | path_digest)"
 mkdir -p "$LOG_DIR"
 
 # A consultation page: the artifact kit's stamp plus at least one consult-group,
@@ -67,10 +70,6 @@ page_is_consultation() {
     && grep -qE '<meta[^>]+name=["'"'"']?artifact-kit' "$html" \
     && grep -qE 'class=["'"'"'][^"'"'"']*consult-group' "$html"
 }
-page_cites() { # whole-token match, never a substring (F-1 must not match F-10 or F-1.2)
-  local esc; esc="$(printf '%s' "$2" | sed 's/[][\\.*^$/+?(){}|]/\\&/g')"
-  grep -qE "(^|[^A-Za-z0-9_-])${esc}(\$|[^A-Za-z0-9_.-]|\.([^A-Za-z0-9_-]|\$))" "$1"
-}
 
 # Check-and-reserve the 10-minute window atomically (mkdir lock), so two
 # concurrent single escalations cannot both pass. The reservation is appended
@@ -83,7 +82,7 @@ acquire() { # take the mkdir lock; a lock older than 60 s is stale and taken ove
     if mkdir "$LOCK" 2>/dev/null; then HELD=1; return 0; fi
     sleep 0.1
   done
-  age=$(( $(date +%s) - $(stat -f %m "$LOCK" 2>/dev/null || stat -c %Y "$LOCK" 2>/dev/null || date +%s) ))
+  age=$(( $(date +%s) - $(stat -c %Y "$LOCK" 2>/dev/null || stat -f %m "$LOCK" 2>/dev/null || date +%s) ))
   if (( age > 60 )); then
     echo "escalate-finding.sh: taking over a stale escalation lock ($LOCK, ${age}s old)" >&2
     rmdir "$LOCK" 2>/dev/null || true
@@ -119,7 +118,7 @@ if (( ${#IDS[@]} + RECENT > 1 )); then
     die "escalating more than one finding in one batch (or within 10 min of the last escalation) needs a consultation page: pass --page <.html built by /aidex:artifact (kit stamp and a consult-group) or its .spec.md, citing the finding ids>. Build one with /aidex:artifact first (USAGE-30)."
   fi
   for id in "${IDS[@]}"; do
-    page_cites "$PAGE_HTML" "$id" || die "page $PAGE does not cite finding $id"
+    cites_id "$PAGE_HTML" "${id#*/}" || die "page $PAGE does not cite finding $id"
   done
 fi
 if [[ ${#IDS[@]} -gt 1 ]]; then
@@ -134,8 +133,9 @@ unlock
 FINDING_ID="${IDS[0]}"
 # Canon layout: the finding lives in some audits/<methodology>/00-inventory.md
 # (legacy root boards still accepted read-only).
-INVENTORY="$(find_inventory_for_id "$AUDITS_DIR" "$FINDING_ID")" \
-  || die "finding $FINDING_ID not found in any audits/<methodology>/00-inventory.md (or legacy root inventory)"
+INVENTORY="$(find_inventory_for_id "$AUDITS_DIR" "$FINDING_ID")" || { [[ $? -eq 2 ]] && exit 2
+  die "finding $FINDING_ID not found in any audits/<methodology>/00-inventory.md (or legacy root inventory)"; }
+FINDING_ID="${FINDING_ID#*/}"  # the inventory is resolved; everything below takes the bare id
 
 # Methodology = the inventory's parent folder; empty for legacy root boards.
 METHODOLOGY=""

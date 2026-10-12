@@ -67,16 +67,31 @@ else
   LABEL="ORPHAN"
 fi
 
-# in_scope IDENT — true if IDENT is the scoped project name or clearly derives
-# from it (a compose volume/image/network is the project name plus a separator
-# suffix). Anchored at the start: never a substring match.
+PREFIX="${WS_NAME}-wt-"
+
+# owner_slug IDENT — the slug IDENT belongs to, by the boundary the tool creates:
+# project <ws>-wt-<slug>; volume/network <project>_<name>; compose v2 image
+# <project>-<service>. A slug never contains "_" (or ":"), so the text before the
+# first one is the slug exactly. A bare "-" suffix is ambiguous by name alone
+# (ws-wt-foo-bar-backend: foo's "bar-backend" or foo-bar's "backend"?), so it
+# goes to the LONGEST slug known to exist -- never a prefix sibling (worktree-c03).
+owner_slug() {
+  local rest="${1#"$PREFIX"}" head best="" c
+  head="${rest%%[_:]*}"
+  if [[ "$head" != "$rest" ]]; then printf '%s\n' "$head"; return; fi
+  for c in "${candidates[@]:-}"; do
+    [[ -z "$c" || ${#c} -le ${#best} ]] && continue
+    [[ "$rest" == "$c" || "$rest" == "$c"-* ]] && best="$c"
+  done
+  printf '%s\n' "${best:-$rest}"
+}
+
+# in_scope IDENT — true if IDENT carries this workspace's prefix and, under
+# --slug, belongs to exactly that slug. Anchored at the start: never a substring.
 in_scope() {
-  local ident="$1"
-  if [[ -n "$SLUG" ]]; then
-    case "$ident" in "$SCOPE"|"$SCOPE"_*|"$SCOPE"-*|"$SCOPE":*) return 0 ;; esac
-    return 1
-  fi
-  [[ "$ident" == "$SCOPE"* ]]
+  [[ "$1" == "$PREFIX"* ]] || return 1
+  [[ -z "$SLUG" ]] && return 0
+  [[ "$(owner_slug "$1")" == "$SLUG" ]]
 }
 
 # --- build the set of KNOWN live compose-project names, i.e. worktrees that
@@ -101,17 +116,15 @@ if [[ -d "$WS_ROOT/_worktrees" ]]; then
   done < <(find "$WS_ROOT/_worktrees" -mindepth 1 -maxdepth 1 -type d 2>/dev/null)
 fi
 
-# is_known IDENT — true if IDENT is (or clearly derives from) a known live
-# worktree. Under --slug the question is not liveness but attribution, so
-# nothing counts as known: the caller wants the full inventory for that slug.
+# is_known IDENT — true if IDENT belongs to a known live worktree. Under --slug
+# the question is not liveness but attribution, so nothing counts as known: the
+# caller wants the full inventory for that slug.
 is_known() {
   [[ -n "$SLUG" ]] && return 1
-  local ident="$1" p
+  local owner p
+  owner="$PREFIX$(owner_slug "$1")"
   for p in "${known_projects[@]:-}"; do
-    [[ -z "$p" ]] && continue
-    case "$ident" in
-      "$p"|"$p"_*|"$p"-*|"$p":*) return 0 ;;
-    esac
+    [[ "$owner" == "$p" ]] && return 0
   done
   return 1
 }
@@ -130,6 +143,29 @@ if [[ $drc -ne 0 ]]; then
   exit 0
 fi
 
+# --- inventory, fetched once up front: owner_slug needs every slug known to
+#     exist before it can resolve a bare "-" suffix to the right one. ---
+compose_projects="$(docker ps -a --format '{{.Label "com.docker.compose.project"}}' 2>/dev/null | sort -u || true)"
+volumes="$(docker volume ls --format '{{.Name}}' 2>/dev/null | sort -u || true)"
+images="$(docker images --format '{{.Repository}}' 2>/dev/null | sort -u || true)"
+dangling_projects="$(
+  docker images -f dangling=true -q 2>/dev/null | while IFS= read -r id; do
+    [[ -z "$id" ]] && continue
+    docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' "$id" 2>/dev/null
+  done | sort -u | grep -v '^$' || true
+)"
+networks="$(docker network ls --format '{{.Name}}' 2>/dev/null | sort -u || true)"
+
+# Candidate slugs: worktrees on disk, compose project labels (exact names),
+# volume/network heads, and the slug asked about.
+candidates=()
+[[ -n "$SLUG" ]] && candidates+=("$SLUG")
+while IFS= read -r ident; do
+  [[ "$ident" == "$PREFIX"?* ]] || continue
+  ident="${ident#"$PREFIX"}"
+  candidates+=("${ident%%[_:]*}")
+done < <(printf '%s\n' "${known_projects[@]:-}" "$compose_projects" "$dangling_projects" "$volumes" "$networks")
+
 orphans_found=0
 
 if [[ -n "$SLUG" ]]; then
@@ -139,7 +175,6 @@ else
 fi
 
 # --- compose projects ---
-compose_projects="$(docker ps -a --format '{{.Label "com.docker.compose.project"}}' 2>/dev/null | sort -u || true)"
 while IFS= read -r proj; do
   [[ -z "$proj" ]] && continue
   in_scope "$proj" || continue
@@ -151,7 +186,6 @@ while IFS= read -r proj; do
 done <<< "$compose_projects"
 
 # --- volumes ---
-volumes="$(docker volume ls --format '{{.Name}}' 2>/dev/null | sort -u || true)"
 while IFS= read -r vol; do
   [[ -z "$vol" ]] && continue
   in_scope "$vol" || continue
@@ -163,7 +197,6 @@ while IFS= read -r vol; do
 done <<< "$volumes"
 
 # --- images (tagged) ---
-images="$(docker images --format '{{.Repository}}' 2>/dev/null | sort -u || true)"
 while IFS= read -r img; do
   [[ -z "$img" ]] && continue
   in_scope "$img" || continue
@@ -183,12 +216,6 @@ done <<< "$images"
 # worktree E2E runs. They stay attributable: compose stamps
 # com.docker.compose.project on the image itself, so each dangling layer can be
 # traced back to the exact worktree that built it and reclaimed by ID.
-dangling_projects="$(
-  docker images -f dangling=true -q 2>/dev/null | while IFS= read -r id; do
-    [[ -z "$id" ]] && continue
-    docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' "$id" 2>/dev/null
-  done | sort -u | grep -v '^$' || true
-)"
 while IFS= read -r proj; do
   [[ -z "$proj" ]] && continue
   in_scope "$proj" || continue
@@ -208,7 +235,6 @@ done <<< "$dangling_projects"
 # attached. A container from a second stack joined to it (an E2E runner, say)
 # leaves the network behind, and once that container dies the network is a
 # 0-container orphan no teardown will ever revisit.
-networks="$(docker network ls --format '{{.Name}}' 2>/dev/null | sort -u || true)"
 while IFS= read -r net; do
   [[ -z "$net" ]] && continue
   in_scope "$net" || continue

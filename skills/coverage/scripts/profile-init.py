@@ -2,7 +2,8 @@
 """profile-init.py — seed <project>/.context/profiles/testing.md from what is on disk.
 
 Reads test-e2e.sh (ports, database, e2e service), docker-compose.yml (service names),
-backend/pyproject.toml (pytest vs manage.py test) and frontend/package.json (vitest).
+backend/pyproject.toml (pytest) and the dependencies of package.json in frontend/, the
+root, cms/, web/ and site/ (packs, vitest, UI libraries).
 Every value is a FACT read from a file; nothing is invented — a key the files do not
 answer is left blank for the owner to fill. Refuses to overwrite unless --force.
 
@@ -63,7 +64,7 @@ def keys_for(packs):
 
 def read(path):
     try:
-        return open(path, encoding="utf-8", errors="ignore").read()
+        return open(path, encoding="utf-8-sig", errors="ignore").read()  # -sig: drop a BOM
     except OSError:
         return ""
 
@@ -71,6 +72,43 @@ def read(path):
 def first(pattern, text, flags=re.M):
     m = re.search(pattern, text, flags)
     return m.group(1) if m else ""
+
+
+def deps(path):
+    """The dependency names a package.json declares (dependencies + devDependencies)."""
+    try:
+        data = json.load(open(path, encoding="utf-8-sig"))  # -sig: a BOM is still JSON
+    except (OSError, ValueError):
+        return set()
+    if not isinstance(data, dict):
+        return set()
+    return set(data.get("dependencies") or {}) | set(data.get("devDependencies") or {})
+
+
+def service_block(compose, name):
+    """The lines of compose service `name`, or "" when `services:` declares no such service.
+
+    Comment and blank lines never open or close a level; the key may be quoted and carry
+    an `&anchor` or a trailing comment."""
+    out, ind, in_services = [], None, False
+    for line in compose.splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        depth = len(line) - len(line.lstrip())
+        if depth == 0:
+            if out:
+                break
+            in_services = re.match(r"services:\s*(#.*)?$", line) is not None
+        elif in_services:
+            ind = depth if ind is None else ind
+            if depth == ind:
+                if out:
+                    break
+                if re.match(rf"""\s*["']?{re.escape(name)}["']?:\s*(&\S+\s*)?(#.*)?$""", line):
+                    out.append(line)
+            elif out:
+                out.append(line)
+    return "\n".join(out) + "\n" if out else ""
 
 
 TRIPWIRE = 2500        # words; reference/references/03-shaping.md
@@ -100,9 +138,9 @@ def check(root):
     if missing:
         return [missing]
     text = read(prof)
-    if not text:
-        return [f"no profile at {prof}"]
-    body = text.split("\n---", 2)[-1] if text.startswith("---") else text
+    if not text.strip():
+        return [f"profile at {prof} is empty or unreadable"]
+    body = re.split(r"^---[ \t]*$", text, maxsplit=2, flags=re.M)[-1] if text.startswith("---") else text
     for h in re.findall(r"^##+\s+(.+)$", body, re.M):
         out.append(f"profile carries a prose section '## {h.strip()}' — the profile is facts "
                    f"only; a rule or a guide lives in references/testing/ (14-testing-profile.md)")
@@ -124,6 +162,8 @@ def check(root):
 
 
 def main():
+    for stream in (sys.stdout, sys.stderr):  # the report and --print carry an em dash
+        stream.reconfigure(encoding="utf-8")
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     force, show = "--force" in sys.argv, "--print" in sys.argv
     root = os.path.abspath(args[0] if args else ".")
@@ -134,25 +174,30 @@ def main():
             print(f"WARN {f}")
         print("profile check: " + (f"{len(findings)} finding(s)" if findings else "ok — facts only, every testing module under the tripwire"))
         sys.exit(1 if findings else 0)
-    existing = profiles.resolve_profile(os.path.join(root, ".context"), "testing")
+    existing = resolve_profile(root)[0]  # the repo-root fallback counts too (BL-289)
     if existing and not force and not show:
-        sys.exit(f"refusing to overwrite {existing} (use --force)")
+        if existing == out:
+            sys.exit(f"refusing to overwrite {existing} (use --force)")
+        sys.exit(f"refusing: {existing} is this project's testing profile; --force would write "
+                 f"a second one at {out} that wins over it")
     e2e = read(os.path.join(root, "test-e2e.sh"))
     compose = read(os.path.join(root, "docker-compose.yml"))
     pyproject = read(os.path.join(root, "backend", "pyproject.toml"))
-    pkg = read(os.path.join(root, "frontend", "package.json"))
-    root_pkg = "".join(read(os.path.join(root, d, "package.json")) for d in ("", "cms", "web", "site"))
+    pkg_dirs = ("frontend", "", "cms", "web", "site")
+    pkg = {d: deps(os.path.join(root, d, "package.json")) for d in pkg_dirs}
+    anypkg = set().union(*pkg.values())
     v = dict.fromkeys(KEYS, "")
     vite = read(os.path.join(root, "frontend", "vite.config.ts"))
-    v["project_slug"] = first(r'^(?:export\s+)?DB_E2E=["\']?([a-z0-9_]+?)_e2e', e2e) \
-        or first(r'^(?:export\s+)?DB_TEMPLATE=["\']?([a-z0-9_]+?)_(?:e2e|test)_template', e2e)
+    v["project_slug"] = first(r'^(?:export\s+)?DB_E2E=["\']?(?:\$\{DB_E2E:-)?([a-z0-9_]+?)_e2e', e2e) \
+        or first(r'^(?:export\s+)?DB_TEMPLATE=["\']?(?:\$\{DB_TEMPLATE:-)?([a-z0-9_]+?)_(?:e2e|test)_template', e2e)
     v["project_kebab"] = v["project_slug"].replace("_", "-")
     v["db_port"] = first(r'^(?:export\s+)?DB_PORT=["\']?\$\{DB_PORT:-(\d+)\}', e2e) or first(r'^(?:export\s+)?DB_PORT=["\']?(\d+)', e2e)
     v["db_user"] = first(r'^(?:export\s+)?DB_USER=["\']?\$\{DB_USER:-([a-z0-9_]+)', e2e) or first(r'^(?:export\s+)?DB_USER=["\']?([a-z0-9_]+)', e2e)
     v["db_password_env"] = "DB_PASSWORD" if "DB_PASSWORD" in e2e else ""
     v["e2e_frontend_port"] = first(r'E2E_FRONTEND_PORT:-(\d+)', e2e)
     v["e2e_backend_port"] = first(r'E2E_(?:BACKEND|API)_PORT:-(\d+)', e2e)
-    v["dev_backend_port"] = first(r'\$\{BACKEND_PORT:-(\d+)\}:\d+', compose) or first(r'^\s+- "?(\d{4}):\d{4}"?', compose)
+    backend = service_block(compose, "backend")
+    v["dev_backend_port"] = first(r'\$\{BACKEND_PORT:-(\d+)\}:\d+', compose) or first(r'^\s+- "?(\d{4}):\d{4}"?', backend)
     v["e2e_backend_port"] = v["e2e_backend_port"] or first(r'\$\{E2E_BACKEND_PORT:-(\d+)\}:\d+', compose)
     v["dev_frontend_port"] = first(r'port:\s*(\d{4})', vite)
     if v["db_name"] == "" and v["project_slug"]:
@@ -160,34 +205,37 @@ def main():
     v["e2e_service"] = first(r'^\s{2}([a-z0-9-]*backend[a-z0-9-]*test[a-z0-9-]*):\s*$', compose)
     v["seed_bootstrap_cmd"] = "bootstrap_data" if "bootstrap_data" in e2e else ""
     v["seed_e2e_bootstrap_cmd"] = "bootstrap_e2e_data" if "bootstrap_e2e_data" in e2e else ""
-    if pyproject:
-        runner = "pytest" if "[tool.pytest" in pyproject or "pytest" in pyproject else "python manage.py test"
-        v["backend_test_cmd"] = f"docker compose exec backend {runner} {{path}}"
-    if '"vitest"' in pkg:
-        pm = "pnpm" if os.path.exists(os.path.join(root, "frontend", "pnpm-lock.yaml")) else "npm exec"
-        v["frontend_test_cmd"] = f"cd frontend && {pm} vitest run {{path}}"
+    # A service compose declares and a runner pyproject declares, or blank: `manage.py
+    # test` takes no file path, so it never answers the single-file form.
+    if backend and re.search(r'\[tool\.pytest|["\']pytest\b|^pytest[\w-]*\s*=', pyproject, re.M):
+        v["backend_test_cmd"] = "docker compose exec -T backend pytest {path}"
+    # The package that declares vitest: frontend/ first, else the only other one.
+    vdirs = [d for d in pkg_dirs if "vitest" in pkg[d]]
+    if vdirs and (vdirs[0] == "frontend" or len(vdirs) == 1):
+        d = vdirs[0]
+        lock = any(os.path.exists(os.path.join(root, x, "pnpm-lock.yaml")) for x in (d, ""))
+        v["frontend_test_cmd"] = ("cd " + d + " && " if d else "") + ("pnpm" if lock else "npm exec") + " vitest run {path}"
     if e2e:
         v["e2e_test_cmd"] = "./test-e2e.sh {spec}"
     for d in ("frontend/tests/e2e/helpers", "frontend/tests/helpers", "frontend/e2e/helpers"):
         if os.path.isdir(os.path.join(root, d)):
             v["helpers_dir"] = d
             break
-    ui = [n for n in ("shadcn-vue", "reka-ui", "vue-sonner", "ag-grid-vue3", "primevue") if f'"{n}"' in pkg]
+    ui = [n for n in ("shadcn-vue", "reka-ui", "vue-sonner", "ag-grid-vue3", "primevue") if n in anypkg]
     v["ui_stack"] = " ".join(ui)
     # Stack packs: the framework-specific content coverage resolves by name from
-    # ${CLAUDE_PLUGIN_ROOT}/skills/<pack>/. Derived from dependency markers only; blank means "no pack
+    # ~/.claude/skills/<pack>/. Derived from dependency markers only; blank means "no pack
     # recognised", never a default.
-    anypkg = pkg + root_pkg
     packs = []
     if pyproject or os.path.exists(os.path.join(root, "backend", "manage.py")):
         packs.append("testing-django")
-    if '"payload"' in anypkg:
+    if "payload" in anypkg:
         packs.append("testing-payload")
-    if '"vue"' in anypkg:
+    if "vue" in anypkg:
         packs.append("testing-vue")
-    if '"svelte"' in anypkg or '"@sveltejs/kit"' in anypkg or '"astro"' in anypkg:
+    if anypkg & {"svelte", "@sveltejs/kit", "astro"}:
         packs.append("testing-svelte")
-    if '"@playwright/test"' in anypkg or e2e:
+    if "@playwright/test" in anypkg or e2e:
         packs.append("testing-playwright-app" if "testing-django" in packs else "testing-playwright-web")
     v["testing_packs"] = " ".join(packs)
     mm = ".context/audits/test-coverage/module-map.json"
@@ -205,7 +253,7 @@ def main():
         print(text, end="")
         return
     os.makedirs(os.path.dirname(out), exist_ok=True)
-    open(out, "w").write(text)
+    open(out, "w", encoding="utf-8").write(text)
     blank = [k for k in keys if not v[k]]
     print(f"wrote {out}" + (f" — blank: {', '.join(blank)}" if blank else ""))
 

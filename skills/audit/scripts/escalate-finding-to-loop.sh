@@ -6,6 +6,8 @@
 # (escalate-finding.sh). Never auto-loop.
 #
 # Usage: escalate-finding-to-loop.sh <finding-id> [--loop] [--dry-run]
+#   <finding-id> may be qualified as <methodology>/<id> (e.g. ux/F-1); a bare id
+#   held by more than one methodology's inventory is refused, naming each.
 #   --loop      accepted and ignored (the dispatcher passes it through)
 #   --dry-run   print what would happen; scaffold nothing, mutate nothing
 
@@ -42,8 +44,9 @@ ROOT="$(find_project_root)"
 AUDITS_DIR="$ROOT/.context/audits"
 # Canon layout: the finding lives in some audits/<methodology>/00-inventory.md
 # (legacy root boards still accepted read-only).
-INVENTORY="$(find_inventory_for_id "$AUDITS_DIR" "$FINDING_ID")" \
-  || die "finding $FINDING_ID not found in any audits/<methodology>/00-inventory.md (or legacy root inventory)"
+INVENTORY="$(find_inventory_for_id "$AUDITS_DIR" "$FINDING_ID")" || { [[ $? -eq 2 ]] && exit 2
+  die "finding $FINDING_ID not found in any audits/<methodology>/00-inventory.md (or legacy root inventory)"; }
+FINDING_ID="${FINDING_ID#*/}"  # the inventory is resolved; everything below takes the bare id
 
 METHODOLOGY=""
 INV_PARENT="$(dirname "$INVENTORY")"

@@ -75,19 +75,61 @@ resolve_inventory() {
 }
 
 # Locate which inventory holds a finding id under the CANON layout: searches each
-# audits/<methodology>/00-inventory.md, then the legacy root boards. Prints the
-# inventory path (methodology derivable from its parent), or returns 1.
-# Usage: find_inventory_for_id <audits_dir> <finding_id>
+# audits/<methodology>/00-inventory.md (skipping the folders validate-audit.sh
+# skips: _archive, methodology, _deferred), then the legacy root boards. The two
+# root boards count as ONE board: an id on both resolves to 00-inventory.md
+# (validate-audit's preference), an id only in INVENTORY.md (half-migrated) still
+# resolves there. Prints the inventory path (methodology derivable from its
+# parent), or returns 1.
+# Ids are methodology-scoped (02-id-conventions.md), so the default F-NNN collides
+# across methodologies: a bare id held by more than one inventory is refused
+# (stderr names each, return 2) instead of picking the first in glob order. A
+# qualified id <methodology>/<id> searches only that methodology's inventory; its
+# methodology part is a folder name, so empty, ".", ".." or a second "/" is
+# refused (return 2), as is an empty id part.
+# Usage: find_inventory_for_id <audits_dir> <finding_id|methodology/finding_id>
 find_inventory_for_id() {
-  local audits_dir="$1" finding_id="$2" inv
-  for inv in "$audits_dir"/*/00-inventory.md "$audits_dir/00-inventory.md" "$audits_dir/INVENTORY.md"; do
+  local audits_dir="$1" finding_id="$2" inv m root_hit=0 candidates=() hits=()
+  if [[ "$finding_id" == */* ]]; then
+    m="${finding_id%%/*}"; finding_id="${finding_id#*/}"
+    if [[ -z "$m" || "$m" == . || "$m" == .. || "$finding_id" == */* || -z "$finding_id" ]]; then
+      err "error: '$2' is not <methodology>/<id>: the methodology must be a folder name under audits/"
+      return 2
+    fi
+    candidates=("$audits_dir/$m/00-inventory.md")
+  else
+    for inv in "$audits_dir"/*/00-inventory.md; do
+      case "$(basename "$(dirname "$inv")")" in _archive|methodology|_deferred) continue ;; esac
+      candidates+=("$inv")
+    done
+    candidates+=("$audits_dir/00-inventory.md" "$audits_dir/INVENTORY.md")
+  fi
+  for inv in "${candidates[@]}"; do
     [[ -f "$inv" ]] || continue
-    if grep -qE "^\|[[:space:]]*${finding_id}[[:space:]]*\|" "$inv"; then
-      printf '%s\n' "$inv"
-      return 0
+    # INVENTORY.md is the same root board as 00-inventory.md: one hit, not two.
+    [[ "$inv" == "$audits_dir/INVENTORY.md" && $root_hit -eq 1 ]] && continue
+    if grep -qE "^\|[[:space:]]*$(ere_escape "$finding_id")[[:space:]]*\|" "$inv"; then
+      hits+=("$inv")
+      [[ "$inv" == "$audits_dir/00-inventory.md" ]] && root_hit=1
     fi
   done
-  return 1
+  case ${#hits[@]} in
+    0) return 1 ;;
+    1) printf '%s\n' "${hits[0]}" ;;
+    *) err "error: finding $finding_id is in more than one inventory; qualify it as <methodology>/$finding_id:"
+       printf '  %s\n' "${hits[@]}" >&2
+       return 2 ;;
+  esac
+}
+
+# Escape a literal string for use inside a grep -E pattern.
+ere_escape() { printf '%s' "$1" | sed 's/[][\\.*^$/+?(){}|]/\\&/g'; }
+
+# Whole-token match of a finding id in a file, never a substring: F-1 must not
+# match F-10 or F-1.2 (a trailing sentence period still counts as F-1).
+# Usage: cites_id <file> <finding_id>
+cites_id() {
+  grep -qE "(^|[^A-Za-z0-9_-])$(ere_escape "$2")(\$|[^A-Za-z0-9_.-]|\.([^A-Za-z0-9_-]|\$))" "$1"
 }
 
 # Find which audit run folder recorded a finding. Prints the run folder basename;
@@ -97,7 +139,7 @@ find_audit_run() {
   local audits_dir="$1" finding_id="$2" audit_run="" f
   if compgen -G "$audits_dir/[0-9]*-*/findings.md" > /dev/null; then
     while IFS= read -r f; do
-      if grep -q "$finding_id" "$f"; then
+      if cites_id "$f" "$finding_id"; then
         audit_run="$(basename "$(dirname "$f")")"
         break
       fi
@@ -110,13 +152,23 @@ find_audit_run() {
   printf '%s\n' "$audit_run"
 }
 
+# awk function: restore the US placeholders back to the markdown escape \|. Built
+# by concatenation, never a gsub replacement: backslashes in a gsub replacement
+# are read differently by BSD awk and gawk.
+AWK_UNESC='function unesc(s,   out, i) {
+  out = ""
+  while ((i = index(s, "\037")) > 0) { out = out substr(s, 1, i - 1) "\\|"; s = substr(s, i + 1) }
+  return out s
+}
+'
+
 # Extract "<summary>\t<severity>" for a finding row from the inventory.
 # Prints empty if not found. Skips HTML comment blocks so template example rows
 # never pollute the match. Summary is cell 5, status cell 6, severity cell 7.
 # Usage: extract_finding_row <inventory> <finding_id>
 extract_finding_row() {
   local inventory="$1" finding_id="$2"
-  awk -v id="$finding_id" '
+  awk -v id="$finding_id" "$AWK_UNESC"'
     BEGIN { in_comment = 0 }
     {
       line = $0
@@ -137,12 +189,16 @@ extract_finding_row() {
           line = before substr(after, end + 3)
         }
       }
-      # Parse as pipe-delimited row
+      # Parse as pipe-delimited row. A literal pipe inside a cell is escaped as
+      # \| (validate-audit.sh convention): swap it for US before splitting and
+      # restore it in the summary, or every later column shifts right by one.
       if (line !~ /^\|/) next
+      gsub(/\\[|]/, "\037", line)
       n = split(line, cells, "|")
       if (n < 11) next
       gsub(/^[[:space:]]+|[[:space:]]+$/, "", cells[2])
       if (cells[2] == id) {
+        cells[5] = unesc(cells[5])
         gsub(/^[[:space:]]+|[[:space:]]+$/, "", cells[5])
         gsub(/^[[:space:]]+|[[:space:]]+$/, "", cells[6])
         gsub(/^[[:space:]]+|[[:space:]]+$/, "", cells[7])
@@ -165,9 +221,24 @@ extract_finding_row() {
 # never rewritten.
 # Usage: mark_row_escalated <inventory> <finding_id> <ref>
 mark_row_escalated() {
-  local inventory="$1" finding_id="$2" link="$3" tmp
-  tmp="$(mktemp "${TMPDIR:-/tmp}/aidex.XXXXXX")"
-  awk -v id="$finding_id" -v link="$link" -v today="$(today_iso)" '
+  local inventory="$1" finding_id="$2" link="$3" tmp="" lock lock_dir rc=0
+  # Two escalations on one inventory (separate sessions, or a backlog and a loop
+  # escalation) each read-modify-write the whole file: serialise them under a kernel
+  # lock (lock_take) kept outside .context, keyed by the inventory's real path. The
+  # `.flock` name never meets the `.lock` DIRECTORY the old mkdir lock may have left.
+  # The lock sits in a per-user 0700 directory, never the shared temp namespace (/tmp on
+  # Linux), where another user could plant a symlink at the lock's guessable name.
+  lock_dir="${TMPDIR:-/tmp}/aidex.locks.$EUID"
+  mkdir -m 700 "$lock_dir" 2>/dev/null || :   # an existing path (or symlink) stays as it is
+  [[ -d "$lock_dir" && ! -L "$lock_dir" && -O "$lock_dir" ]] \
+    || { err "error: the lock directory $lock_dir is a symlink, not a directory or not yours; nothing written"; return 2; }
+  lock="$lock_dir/aidex-inv.$(printf '%s' "$(cd "$(dirname "$inventory")" && pwd -P)/$(basename "$inventory")" | path_digest | cut -c1-16).flock"
+  # A subshell: the lock goes as it ends.
+  (
+  lock_take "$lock" 10 || { err "error: could not lock $inventory; nothing written"; exit 2; }
+  # The temp file sits beside the inventory (atomic rename) and takes its mode
+  # (cp -p): mktemp's 0600 must not replace the board's mode.
+  if tmp="$(mktemp "$inventory.XXXXXX")" && cp -p "$inventory" "$tmp" && awk -v id="$finding_id" -v link="$link" -v today="$(today_iso)" "$AWK_UNESC"'
     BEGIN { in_comment = 0 }
     {
       # Track whether the CURRENT line is inside a multi-line HTML comment.
@@ -196,9 +267,11 @@ mark_row_escalated() {
         next
       }
 
-      # Parse as pipe-delimited
+      # Parse as pipe-delimited, with each escaped \| held as US so a cell that
+      # quotes a pipe stays one cell; restored on reassembly.
       if ($0 !~ /^\|/) { print $0; next }
-      n = split($0, cells, "|")
+      row = $0; gsub(/\\[|]/, "\037", row)
+      n = split(row, cells, "|")
       # 9 columns -> n == 11 with the empty edges; the pre-2026-08-06 11-column
       # schema -> n == 13. Both are written; the offsets below shift by two.
       if (n < 11) { print $0; next }
@@ -232,10 +305,15 @@ mark_row_escalated() {
       # Reassemble
       out = cells[1]
       for (i = 2; i <= n; i++) out = out "|" cells[i]
-      print out
+      print unesc(out)
     }
-  ' "$inventory" > "$tmp"
-  mv "$tmp" "$inventory"
+  ' "$inventory" > "$tmp" && mv "$tmp" "$inventory"; then
+    :
+  else
+    rc=$?; rm -f "$tmp"; exit $rc
+  fi
+  ) || rc=$?
+  return $rc
 }
 
 # Compute the relative path from a base file's directory to a target file.

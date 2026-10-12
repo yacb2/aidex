@@ -70,7 +70,7 @@ records which plan phase produced each file.
    `python3 ${CLAUDE_PLUGIN_ROOT}/skills/coverage/scripts/profile-init.py <project>` (never
    `--force` over an existing one; blank keys are unanswered, not zero).
 2. Take `testing_packs` — a space-separated list of skill names — and read each pack's
-   `${CLAUDE_PLUGIN_ROOT}/skills/<pack>/SKILL.md`; its "Question -> file" table says which of its
+   `~/.claude/skills/<pack>/SKILL.md`; its "Question -> file" table says which of its
    references answers the question at hand. Read with Read; a pack is never invoked as a
    skill (`disable-model-invocation: true`), so nothing fires on its own.
 3. Apply the doctrine here first — layer, selection, gate — then the pack's shape. When
@@ -120,7 +120,7 @@ This skill writes into two places in a project, and each has one shape
   `NN-execution-groups.md` and the index a new row.
 - **`cross_deps_ref` may name a folder or several modules**, not one file — a single
   named file is where every later workflow gets appended until it is a monolith.
-- `python3 scripts/profile-init.py --check <project>` is the tripwire in script form: it
+- `python3 ${CLAUDE_PLUGIN_ROOT}/skills/coverage/scripts/profile-init.py --check <project>` is the tripwire in script form: it
   warns on a prose section in the profile and on any `references/testing/*.md` over
   2,500 words. Run it at the close of any phase that touched either.
 

@@ -22,8 +22,8 @@ the HTML, not the builder's reasoning. A builder who grades its own page approve
 `render-probe.sh` runs before the grader and fails on geometry (text over text, svg text
 outside its svg, svg text drawn under 11 px at 390 px, an unfilled outline whose stroke
 crosses figure text, a spill or cut, a fixed control over text, sideways scroll, a raster
-of 800 px or more drawn under half its width at 390 px: `raster-shrunk`, fixed by cropping to
-the region that matters or putting the image in a zoomable figure; a table that scrolls
+of 800 px or more drawn under half its width at 390 px: `raster-shrunk`, fixed by putting the
+image in a zoomable figure (cropping only a single-element shot, never a context shot: `figures.md`); a table that scrolls
 sideways with no visible written notice under it: `table-scroll-no-cue`, fixed by using the
 kit's `.tw` wrapper, whose composer adds "desliza →" while it scrolls, since the fade alone is
 not a cue) and on the
@@ -46,7 +46,7 @@ line 3 below is where a figure in a foreign font loses its point.
 |---|---|---|---|
 | 1 | The first screen answers the request | 2 | The title restates the topic instead of the finding; the reader has to scroll to learn what the page concludes; a consultation's questions are not visible as questions |
 | 2 | Every figure reads without its table | 2 | Ticks at data extremes instead of round values; no labelled zero on a mixed-sign axis; no value on bars whose magnitudes differ by 10x or more, so small bars vanish; no axis title or unit; legend far from the marks |
-| 3 | Diagrams are drawn for the page | 1 | Text larger than body text, or a different font family; a decision node much wider than its text; a flow stacked vertically when it fits across; boxes of wildly different sizes for equal-weight steps; an edge label far from its edge |
+| 3 | Diagrams are drawn for the page | 1 | Text larger than body text, or a different font family; a decision node much wider than its text; a flow stacked vertically when it fits across; boxes of wildly different sizes for equal-weight steps; an edge label far from its edge; a screenshot cropped when the page or shell around the thing was the point (the full capture plus an outline on the changed part is the fix, `figures.md`) |
 | 4 | Nothing overlaps, is cut, or scrolls sideways | 2 | (A line cut at a screenshot tile's edge is not a defect: the next tile repeats it whole. A fixed or sticky element appears on every tile, where a scrolled reader sees it: that is one element, not a repeated defect.) Any text over other text; any label cut at a figure's or card's edge; a fixed control over body text; horizontal scroll on mobile. Each distinct instance costs 1, capped at 2 |
 | 5 | Mobile reads as well as desktop | 1 | Figure text under about 11 px at 390 px; tables that need sideways scroll with no visible cue; a composer or bar covering content. When the handoff carries the profile line `viewports: desktop`, this line is a full point marked `n/a (desktop-only profile)`; line 4 still checks the 390 tiles for overlap, cut text and sideways scroll |
 | 6 | Hierarchy and density | 1 | Walls of prose where a table or list would read faster; more than three facts of one shape in a paragraph; headings that do not say what the section found; decorative elements with no meaning |
