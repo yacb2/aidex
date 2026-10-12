@@ -122,6 +122,14 @@ if [[ -z "$NEWLOOP" ]]; then
   die "loop script not found. Run './install.sh --update' to install it."
 fi
 
+# Refuse before scaffolding what the mark would refuse after it (an unusable lock
+# directory, a row it cannot rewrite), so a refusal leaves no orphan loop spec (BL-779).
+inventory_lock_path "$INVENTORY" > /dev/null || exit 2
+finding_row_markable "$INVENTORY" "$FINDING_ID" || case $? in
+  4) die "finding $FINDING_ID is already done (escalated); nothing was escalated" ;;
+  *) die "finding $FINDING_ID's row in $INVENTORY cannot be marked escalated (a comment on the row, a status outside open/doing/done/dropped and the legacy words, or fewer than 9 columns): fix the row first; nothing was escalated" ;;
+esac
+
 info "Scaffolding loop-spec for $FINDING_ID via loop"
 LOOP_FILE="$("$NEWLOOP" new "$SLUG")"
 
