@@ -205,16 +205,29 @@ def main():
 
     per = {}
     unknown_shapes = Counter()
+    missing, bad_lines = set(), {}   # per file, not per item: sessions are shared
     for k, sessions in targets.items():
         proj, slug = k
         files = [f for d in M.tx_dirs_for(proj) for f in glob.glob(d + "*.jsonl")
                  if os.path.basename(f) in sessions]
+        missing |= sessions - {os.path.basename(f) for f in files}
         ev = []
         for f in files:
+            objs = []
+            bad_lines[f] = 0
             try:
-                objs = [json.loads(l) for l in open(f, errors='replace') if l.strip()]
-            except Exception:
+                fh = open(f, errors='replace')
+            except OSError:   # pruned between glob and open
+                missing.add(os.path.basename(f))
                 continue
+            for l in fh:
+                if not l.strip():
+                    continue
+                try:
+                    objs.append(json.loads(l))
+                except ValueError:
+                    bad_lines[f] += 1
+            fh.close()
             pending = {}          # tool_use_id -> ('test'|'commit', ts)
             for o in objs:
                 ts = o.get("timestamp", "")
@@ -276,6 +289,8 @@ def main():
     v = list(per.values())
     print(f"items analysed (real-usage, >={args.min_edits} edits" +
           (f", since {args.since}" if args.since else "") + f"): {n}")
+    print(f"  skipped {sum(bad_lines.values())} unparseable line(s) (the line only, never the session)")
+    print(f"  skipped {len(missing)} missing transcript file(s)")
     print(f"\n--- did any automated test run at all while working the item?")
     ran = sum(1 for x in v if x['ran_tests'])
     print(f"  items where a test command ran: {ran}/{n} = {ran/n*100:.0f}%")

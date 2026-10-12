@@ -181,7 +181,9 @@ def resolve_cutoff(args):
     now = datetime.datetime.now(datetime.timezone.utc)
     if args.since:
         t = parse_bound(args.since)
-        if t: return t, "set by --since"
+        if not t:
+            raise SystemExit(f"ERROR: --since {args.since!r} is neither <N>d nor ISO.")
+        return t, "set by --since"
     # BL-183. `--all` used to mean only "ignore the cursor", so with no --since it
     # fell through to `now - days` and the flag named for the whole corpus was the
     # one path that guaranteed the narrowest default window: 323 records where the
@@ -235,6 +237,9 @@ def main():
     now = datetime.datetime.now(datetime.timezone.utc)
     until = resolve_until(args)
     cutoff, window_label = resolve_cutoff(args)
+    # The cursor stands on the last prompt the previous run wrote; resuming from
+    # it is exclusive so that prompt is not extracted twice. --since stays inclusive.
+    resumed = window_label == "resumed from cursor"
     records, max_ts = [], cutoff
     skipped_machine = skipped_unparseable = 0
 
@@ -309,8 +314,12 @@ def main():
                 # defined. Anything reaching this line has already passed
                 # prompt_kinds, which is the one classifier that decides this.
                 ts = parse_ts(o.get("timestamp", ""))
-                if not ts or ts < cutoff: continue
-                if until and ts >= until: continue
+                # A human prompt outside the window still ends the adjacency: the
+                # next in-window prompt must not inherit its predecessor's Skills.
+                if (not ts or ts < cutoff or (resumed and ts == cutoff)
+                        or (until and ts >= until)):
+                    prior, prior_sk = "", []
+                    continue
                 fired, agents = [], []
                 for j in range(i + 1, n):
                     # boundary = the next PROMPT of any kind. Using the old

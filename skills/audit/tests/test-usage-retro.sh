@@ -783,6 +783,60 @@ PYV
 [[ "$out_v" == *PYOK* ]] || fail "(v) miss? lookback: $out_v"
 rm -rf "$MISSDIR"
 
+# ---------------------------------------------------------------------------
+# (w) THE SKILL ADMISSION GATE SEES PLUGIN-NAMESPACED NAMES (audit-c08).
+#     Transcripts record `aidex:backlog`; the facet files list `backlog`. The
+#     intersection compared the raw names, so a plugin-invoked skill never admitted
+#     a prompt whose text matched no lexicon (here "gracias"). Bare name = control.
+# ---------------------------------------------------------------------------
+out_w="$(cd "$RETRO" && python3 - 2>&1 <<'PYW'
+import facets
+t = facets.compiled()
+def ok(**kw): return facets.facets_for(dict(prompt="gracias", **kw), t)
+assert "backlog" in ok(skills_fired=["backlog"]), "control: bare name admits"
+assert "backlog" in ok(skills_fired=["aidex:backlog"]), "namespaced skills_fired admits"
+assert "backlog" in ok(prior_skills=["aidex:backlog"]), "namespaced prior_skills admits"
+assert ok(skills_fired=["other:backlog"]) == [], "a foreign namespace is not stripped"
+print("PYOK")
+PYW
+)"
+[[ "$out_w" == *PYOK* ]] || fail "(w) namespaced skill admission: $out_w"
+
+# ---------------------------------------------------------------------------
+# (x) mine_verification: ONE TRUNCATED LINE SKIPS THE LINE, NOT THE SESSION
+#     (audit-c12). The parse was a list comprehension under `except: continue`,
+#     so a truncated final record dropped the session's test run with no counter.
+# ---------------------------------------------------------------------------
+VTX="$(mktemp -d)"; VOUT="$(mktemp -d)"; VPROJ="$(mktemp -d)"
+mkdir -p "$VTX/-Users-user-Documents-projects-demo-ws"
+python3 - "$VTX/-Users-user-Documents-projects-demo-ws/sx.jsonl" "$VOUT/spans.jsonl" <<'PYX'
+import json, sys
+rows = [
+ {"type": "assistant", "timestamp": "2026-01-01T00:00:01Z", "message": {"content": [
+   {"type": "tool_use", "name": "Bash", "id": "t1", "input": {"command": "pytest -q"}}]}},
+ {"type": "user", "timestamp": "2026-01-01T00:00:02Z", "message": {"content": [
+   {"type": "tool_result", "tool_use_id": "t1", "content": "1 failed, 2 passed"}]}},
+]
+with open(sys.argv[1], "w") as f:
+    f.write("\n".join(json.dumps(r) for r in rows) + "\n" + '{"type":"user","mes')
+# two items share each session: sx.jsonl (one truncated line) and gone.jsonl (not on
+# disk, as when Claude Code prunes it); each defect must be counted once, not per item
+with open(sys.argv[2], "w") as f:
+    for slug, sess in (("2026-01-01-x", "sx.jsonl"), ("2026-01-01-x2", "sx.jsonl"),
+                       ("2026-01-02-y", "gone.jsonl"), ("2026-01-02-y2", "gone.jsonl")):
+        f.write(json.dumps({"project": "demo_ws", "slug": slug, "session": sess, "edits": 5,
+                            "first": "2026-01-01T00:00:00Z", "last": "2026-01-01T00:00:03Z"}) + "\n")
+PYX
+out_x="$(python3 "$RETRO/mine_verification.py" --projects-root "$VPROJ" \
+  --transcripts-root "$VTX" --data-dir "$VOUT" --min-edits 1 2>&1)"
+grep -q 'test runs: fail=2 pass=0' <<<"$out_x" \
+  || fail "(x) a truncated trailing line discarded the session's test run: $out_x"
+grep -q 'skipped 1 unparseable line' <<<"$out_x" \
+  || fail "(x) a bad line shared by two items must be counted ONCE: $out_x"
+grep -q 'skipped 1 missing transcript file(s)' <<<"$out_x" \
+  || fail "(x) a missing file shared by two items must be counted ONCE: $out_x"
+rm -rf "$VTX" "$VOUT" "$VPROJ"
+
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 
