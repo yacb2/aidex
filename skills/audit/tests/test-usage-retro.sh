@@ -784,8 +784,8 @@ PYV
 rm -rf "$MISSDIR"
 
 # ---------------------------------------------------------------------------
-# (w) THE SKILL ADMISSION GATE SEES PLUGIN-NAMESPACED NAMES (audit-c08).
-#     Transcripts record `aidex:backlog`; the facet files list `backlog`. The
+# (w) THE SKILL ADMISSION GATE SEES PLUGIN-NAMESPACED NAMES (audit-c08, BL-800).
+#     Transcripts record `aidex:backlog` (pre-plugin: `aidex-backlog`); the facet files list `backlog`. The
 #     intersection compared the raw names, so a plugin-invoked skill never admitted
 #     a prompt whose text matched no lexicon (here "gracias"). Bare name = control.
 # ---------------------------------------------------------------------------
@@ -797,6 +797,9 @@ assert "backlog" in ok(skills_fired=["backlog"]), "control: bare name admits"
 assert "backlog" in ok(skills_fired=["aidex:backlog"]), "namespaced skills_fired admits"
 assert "backlog" in ok(prior_skills=["aidex:backlog"]), "namespaced prior_skills admits"
 assert ok(skills_fired=["other:backlog"]) == [], "a foreign namespace is not stripped"
+# BL-800: pre-plugin transcripts record the legacy `aidex-` prefix.
+assert "backlog" in ok(skills_fired=["aidex-backlog"]), "legacy aidex- skills_fired admits"
+assert ok(skills_fired=["xaidex-backlog"]) == [], "only a leading aidex- is stripped"
 print("PYOK")
 PYW
 )"
@@ -847,6 +850,10 @@ rm -rf "$VTX" "$VOUT" "$VPROJ"
 #          unparseable --since is refused with a message, not a TypeError traceback.
 #     (y3) audit-c16  tx_dirs_for does not hand a project the transcripts of a sibling
 #          project whose name merely extends it (`dash` vs `dash-template-ws`).
+#     (y3b) BL-801   build_registry files a git worktree's items (gitdir link or symlinked
+#          `.context`) under its parent, by the same detector: one entry per slug, the
+#          parent's copy, BL id and pages win, worktree-only items kept, dedupe scoped
+#          to the parent (another project's slug or id is no collision); dash-template-ws stays.
 #     (y4) audit-c17  TOKEN reads ids past BL-999.
 #     (y5) audit-c33  mine_slow_tests survives a corpus of 0-second runs.
 YTX="$(mktemp -d)"
@@ -888,6 +895,24 @@ mkdir -p "$YP/dash-wt-wrap"; ln -s "$YP/dash/.context" "$YP/dash-wt-wrap/.contex
 # relative gitdir link
 mkdir -p "$YP/dash/.git/worktrees/rel" "$YP/dash-wt-rel/.context"
 printf 'gitdir: ../dash/.git/worktrees/rel\n' > "$YP/dash-wt-rel/.git"
+# BL-801: one dated item per entry; dash-wt-wrap sees dash's through its symlink.
+for e in dash dash-template-ws dash-wt-x dash-wt-rel; do
+  mkdir -p "$YP/$e/.context/backlog"
+  printf -- '---\nid: BL-1\ntitle: t\n---\nbody\n' > "$YP/$e/.context/backlog/2026-01-01-$e-item.md"
+done
+# Same slug in parent and worktree (dash-wt-x sorts BEFORE dash/): the parent copy
+# wins. A branch-only item whose id collides with the parent's loses the id.
+printf -- '---\nid: BL-700\ntitle: parent\n---\nb\n' > "$YP/dash/.context/backlog/2026-01-02-shared.md"
+printf -- '---\nid: BL-700\ntitle: branch\n---\nb\n' > "$YP/dash-wt-x/.context/backlog/2026-01-02-shared.md"
+printf -- '---\nid: BL-700\ntitle: branch-only\n---\nb\n' > "$YP/dash-wt-rel/.context/backlog/2026-01-03-branch-only.md"
+# Dedupe and id-drop are scoped to the parent project: a worktree slug or id that
+# only ANOTHER project has is kept. A worktree page whose slug is a parent item is
+# not added to that item's `pages`.
+printf -- '---\nid: BL-1\ntitle: t\n---\nb\n' > "$YP/dash-wt-rel/.context/backlog/2026-01-01-dash-template-ws-item.md"
+printf -- '---\nid: BL-701\ntitle: t\n---\nb\n' > "$YP/dash-template-ws/.context/backlog/2026-01-01-dash-template-ws-item.md"
+printf -- '---\nid: BL-701\ntitle: branch-new\n---\nb\n' > "$YP/dash-wt-rel/.context/backlog/2026-01-04-branch-new.md"
+mkdir -p "$YP/dash-wt-x/.context/reports"
+printf '<title>s</title>\n' > "$YP/dash-wt-x/.context/reports/2026-01-02-shared.html"
 YT2="$(mktemp -d)"
 mkdir -p "$YT2/-Users-alice-Documents-projects-dash" \
          "$YT2/-Users-alice-Documents-projects-dash-template-ws" \
@@ -902,12 +927,31 @@ import mine_items as M
 M.configure(argparse.Namespace(projects_root=sys.argv[2], transcripts_root=sys.argv[3]))
 print(sorted(os.path.basename(d.rstrip("/")).split("projects-")[-1] for d in M.tx_dirs_for("dash")))
 print(M.TOKEN.findall("close BL-1001 and BL-042"))
+reg = M.build_registry()
+def owners(slug): return sorted(it["project"] for it in reg if it["slug"] == slug)
+bad = []
+if sorted({it["project"] for it in reg}) != ["dash", "dash-template-ws"]: bad.append("projects")
+for slug in ("2026-01-01-dash-item", "2026-01-01-dash-wt-x-item", "2026-01-01-dash-wt-rel-item",
+             "2026-01-02-shared", "2026-01-03-branch-only"):
+    if owners(slug) != ["dash"]: bad.append(f"{slug} -> {owners(slug)}")
+shared = [it for it in reg if it["slug"] == "2026-01-02-shared"]
+if [it["title"] for it in shared] != ["parent"]: bad.append(f"shared copy: {[it['title'] for it in shared]}")
+holders = [it["title"] for it in reg if it["project"] == "dash" and it["id"] == "BL-700"]
+if holders != ["parent"]: bad.append(f"BL-700 holders: {holders}")
+if owners("2026-01-01-dash-template-ws-item") != ["dash", "dash-template-ws"]:
+    bad.append(f"other project's slug -> {owners('2026-01-01-dash-template-ws-item')}")
+new_ids = [it["id"] for it in reg if it["slug"] == "2026-01-04-branch-new"]
+if new_ids != ["BL-701"]: bad.append(f"branch-new ids: {new_ids}")
+if any(it.get("pages") for it in shared): bad.append(f"shared pages: {[it.get('pages') for it in shared]}")
+print("REG", "OK" if not bad else bad)
 PYY
 )"
 grep -qF "['dash', 'dash-sub', 'dash-wt-rel', 'dash-wt-wrap', 'dash-wt-x']" <<<"$out_y3" \
   || fail "(y3) tx_dirs_for(dash) must keep its own, subdir and git-worktree sessions but drop the separate project dash-template-ws: $out_y3"
 grep -qF "['BL-1001', 'BL-042']" <<<"$out_y3" \
   || fail "(y4) TOKEN must match ids past BL-999: $out_y3"
+grep -qF "REG OK" <<<"$out_y3" \
+  || fail "(y3b) build_registry must file a git worktree's items (gitdir link or symlinked .context) under its parent, once, the parent's copy and id winning, and keep the separate project dash-template-ws: $out_y3"
 
 YT3="$(mktemp -d)"
 mkdir -p "$YT3/-Users-alice-Documents-projects-demo-ws"
