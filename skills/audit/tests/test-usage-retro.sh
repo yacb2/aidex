@@ -838,6 +838,113 @@ grep -q 'skipped 1 missing transcript file(s)' <<<"$out_x" \
 rm -rf "$VTX" "$VOUT" "$VPROJ"
 
 
+# ---------------------------------------------------------------------------
+# (y) LOOP-013 w1-ur2: the mine_* scripts do not crash or mislabel on real input.
+#     Layer: script (subprocess) over a synthetic transcript root under mktemp.
+#     (y1) audit-c13  mine_errors labels a project by the generic `-projects-` prefix,
+#          not the author's literal `-Users-user-`.
+#     (y2) audit-c14  one non-UTF-8 byte in a transcript does not crash the run, and an
+#          unparseable --since is refused with a message, not a TypeError traceback.
+#     (y3) audit-c16  tx_dirs_for does not hand a project the transcripts of a sibling
+#          project whose name merely extends it (`dash` vs `dash-template-ws`).
+#     (y4) audit-c17  TOKEN reads ids past BL-999.
+#     (y5) audit-c33  mine_slow_tests survives a corpus of 0-second runs.
+YTX="$(mktemp -d)"
+YD="$YTX/-Users-alice-Documents-projects-demo-ws"
+mkdir -p "$YD"
+python3 - "$YD/s.jsonl" <<'PYY'
+import json, sys
+a = {"type": "assistant", "timestamp": "2026-10-01T00:00:00Z", "message": {"content": [
+    {"type": "tool_use", "id": "t1", "name": "Bash", "input": {"command": "x"}}]}}
+u = {"type": "user", "timestamp": "2026-10-01T00:00:01Z", "message": {"content": [
+    {"type": "tool_result", "tool_use_id": "t1", "is_error": True, "content": "boom failure"}]}}
+with open(sys.argv[1], "wb") as fh:
+    fh.write((json.dumps(a) + "\n").encode())
+    fh.write(b'{"type":"x","note":"bad byte \xff here"}\n')
+    fh.write((json.dumps(u) + "\n").encode())
+PYY
+YD2="$YTX/-Users-u-Documents-projects--projects-data"
+mkdir -p "$YD2"
+LC_ALL=C sed 's/boom failure/second boom/' "$YD/s.jsonl" > "$YD2/s.jsonl"
+out_y1="$(python3 "$RETRO/mine_errors.py" --since 2026-01-01 --top 3 --transcripts-root "$YTX" 2>&1)"
+grep -qF '] data :: ' <<<"$out_y1" \
+  || fail "(y1) a name holding '-projects-' twice must be cut at the LAST one: $out_y1"
+grep -q 'boom failure' <<<"$out_y1" \
+  || fail "(y2) a transcript with one non-UTF-8 byte crashed or lost its errors: $out_y1"
+grep -qF '] demo-ws :: ' <<<"$out_y1" \
+  || fail "(y1) the project label must be the name after '-projects-', not the encoded path: $out_y1"
+out_y2="$(python3 "$RETRO/mine_errors.py" --since 2026/08/01 --transcripts-root "$YTX" 2>&1)"
+grep -q 'Traceback' <<<"$out_y2" \
+  && fail "(y2) an unparseable --since must be refused with a message, not a traceback: $out_y2"
+grep -q -- '--since' <<<"$out_y2" \
+  || fail "(y2) the refusal must name --since: $out_y2"
+
+YP="$(mktemp -d)"
+mkdir -p "$YP/dash/.context" "$YP/dash/.git/worktrees/x" "$YP/dash-template-ws/.context" \
+         "$YP/dash-template-ws/.git" "$YP/dash-wt-x/.context"
+printf 'gitdir: %s/dash/.git/worktrees/x\n' "$YP" > "$YP/dash-wt-x/.git"
+# wrapper worktree: `.context` is a symlink to the parent's, no root .git
+mkdir -p "$YP/dash-wt-wrap"; ln -s "$YP/dash/.context" "$YP/dash-wt-wrap/.context"
+# relative gitdir link
+mkdir -p "$YP/dash/.git/worktrees/rel" "$YP/dash-wt-rel/.context"
+printf 'gitdir: ../dash/.git/worktrees/rel\n' > "$YP/dash-wt-rel/.git"
+YT2="$(mktemp -d)"
+mkdir -p "$YT2/-Users-alice-Documents-projects-dash" \
+         "$YT2/-Users-alice-Documents-projects-dash-template-ws" \
+         "$YT2/-Users-alice-Documents-projects-dash-sub" \
+         "$YT2/-Users-alice-Documents-projects-dash-wt-x" \
+         "$YT2/-Users-alice-Documents-projects-dash-wt-wrap" \
+         "$YT2/-Users-alice-Documents-projects-dash-wt-rel"
+out_y3="$(python3 - "$RETRO" "$YP" "$YT2" <<'PYY'
+import argparse, os, sys
+sys.path.insert(0, sys.argv[1])
+import mine_items as M
+M.configure(argparse.Namespace(projects_root=sys.argv[2], transcripts_root=sys.argv[3]))
+print(sorted(os.path.basename(d.rstrip("/")).split("projects-")[-1] for d in M.tx_dirs_for("dash")))
+print(M.TOKEN.findall("close BL-1001 and BL-042"))
+PYY
+)"
+grep -qF "['dash', 'dash-sub', 'dash-wt-rel', 'dash-wt-wrap', 'dash-wt-x']" <<<"$out_y3" \
+  || fail "(y3) tx_dirs_for(dash) must keep its own, subdir and git-worktree sessions but drop the separate project dash-template-ws: $out_y3"
+grep -qF "['BL-1001', 'BL-042']" <<<"$out_y3" \
+  || fail "(y4) TOKEN must match ids past BL-999: $out_y3"
+
+YT3="$(mktemp -d)"
+mkdir -p "$YT3/-Users-alice-Documents-projects-demo-ws"
+python3 - "$YT3/-Users-alice-Documents-projects-demo-ws/z.jsonl" <<'PYY'
+import json, sys
+lines = [
+ {"type": "assistant", "timestamp": "2026-10-01T00:00:00Z", "message": {"content": [
+   {"type": "tool_use", "id": "z1", "name": "Bash", "input": {"command": "pytest -q"}}]}},
+ {"type": "user", "timestamp": "2026-10-01T00:00:00Z", "message": {"content": [
+   {"type": "tool_result", "tool_use_id": "z1", "content": "ok"}]}},
+]
+open(sys.argv[1], "w").write("\n".join(json.dumps(l) for l in lines) + "\n")
+PYY
+out_y5="$(python3 "$RETRO/mine_slow_tests.py" --transcripts-root "$YT3" 2>&1)"
+grep -q 'ZeroDivisionError' <<<"$out_y5" \
+  && fail "(y5) a corpus of 0-second runs must not divide by zero: $out_y5"
+grep -q 'timed test invocations' <<<"$out_y5" \
+  || fail "(y5) mine_slow_tests produced no summary for 0-second runs: $out_y5"
+rm -rf "$YTX" "$YP" "$YT2" "$YT3"
+
+
+# (y6) audit-c17, id_map: an item whose id is past BL-999 resolves a mention to a span.
+Y6P="$(mktemp -d)"; Y6T="$(mktemp -d)"
+mkdir -p "$Y6P/big_ws/.context/backlog" "$Y6T/-Users-alice-Documents-projects-big-ws"
+printf -- '---\ntitle: "Big id"\nid: BL-1001\nstatus: done\ncreated: 2026-03-01\nupdated: 2026-03-01\ntype: task\n---\n\n# Big\n' \
+  > "$Y6P/big_ws/.context/backlog/2026-03-01-big-item.md"
+{
+  python3 -c 'import json; print(json.dumps({"type":"user","timestamp":"2026-03-01T00:00:00Z","entrypoint":"cli","origin":{"kind":"human"},"promptSource":"typed","message":{"role":"user","content":"fix BL-1001 now"}}))'
+  python3 -c 'import json; print(json.dumps({"type":"assistant","timestamp":"2026-03-01T00:01:00Z","message":{"content":[{"type":"tool_use","name":"Edit","id":"t","input":{"file_path":"/p/big_ws/src/a.py","old_string":"a","new_string":"b"}}]}}))'
+} > "$Y6T/-Users-alice-Documents-projects-big-ws/s.jsonl"
+out_y6="$(python3 "$RETRO/mine_items.py" --projects-root "$Y6P" --transcripts-root "$Y6T" \
+  --out "$OUT/y6" --min-mentions 1 2>&1)"
+grep -q 'big_ws: 1 spans' <<<"$out_y6" \
+  || fail "(y6) an item with id BL-1001 must resolve a mention to a span: $out_y6"
+rm -rf "$Y6P" "$Y6T"
+
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 
 echo "OK — usage-retro: provenance gate (tool_result attributes nothing, real prompt does), strict-span rule at the 3-edit boundary, predicate pinned, roots honoured end-to-end, rootless run refused, project-scoped id resolution, one bad line skips the line not the session, machine-independent transcript prefix, one shared runner vocabulary, mine_errors takes a plain-date --since, tool events walk subagents and parse the exit code, a script is attributed by argv and a wrap carries its --out, census promoted, nested Workflow transcripts walked with their session as parent, pages join the registry by basename, miss? is silent while the skill is already running"

@@ -183,7 +183,7 @@ def walk(tx_root):
     also picks up `journal.jsonl`, which carries no assistant turn and contributes
     nothing.
 
-    Row keys: `main`; `("A", model)` for an iteration inside a main turn, so that
+    Row keys: `main`; `("A", model, iteration type)` for an iteration inside a main turn, so that
     `main` stays one comparable line; `("S", label, agent type)` for a subagent.
     """
     root = tx_root.rstrip("/")
@@ -200,10 +200,10 @@ def walk(tx_root):
             atype, inherited = agent_meta(f) if is_sub else (None, None)
             for model, t, itype in turns(f, claimed):
                 if not is_sub:
-                    key = MAIN if itype is None else ("A", model or "unknown")
+                    key = MAIN if itype is None else ("A", model or "unknown", itype)
                 else:
                     label = model or "unknown"
-                    label += " (advisor)" if itype is not None else \
+                    label += f" ({iter_label(itype)})" if itype is not None else \
                              (" (inherited)" if inherited else "")
                     key = ("S", label, atype)
                 r = rows[key]
@@ -217,10 +217,16 @@ def walk(tx_root):
     return rows, n_files
 
 
+def iter_label(itype):
+    """Only `advisor_message` is an advisor; any other non-message iteration
+    (e.g. `fallback_message`) is named by its own type."""
+    return "advisor" if itype == "advisor_message" else itype
+
+
 def label_of(key):
     if key == MAIN:
         return MAIN
-    return f"main (advisor) {key[1]}" if key[0] == "A" else f"{key[1]} / {key[2]}"
+    return f"main ({iter_label(key[2])}) {key[1]}" if key[0] == "A" else f"{key[1]} / {key[2]}"
 
 
 def fmt(label, n, t, usd, unpriced):
