@@ -313,11 +313,215 @@ def test_round_trip() -> None:
             ok("manual_review is non-empty and names what was declined")
 
 
+# ---------- LOOP-013 w1-cv: rename / cross-reference / root-resolution rows ----------
+
+def _doc(title: str, created: str, body: str = "") -> str:
+    return (f"---\ntitle: {title}\nstatus: open\ncreated: {created}\n"
+            f"updated: {created}\n---\n\n# {title}\n\n{body}")
+
+
+def _migrate(ctx: Path, *flags: str) -> subprocess.CompletedProcess:
+    return subprocess.run([sys.executable, str(MIGRATE_PY), str(ctx), *flags],
+                          capture_output=True, text=True)
+
+
+def test_crossref_boundaries() -> None:
+    """c02 + c03: a reference is rewritten only when it names the renamed file itself.
+    The rewrite was a substring replace keyed by bare basename: renaming notes.md
+    corrupted 'release-notes.md', and research/notes.md + plans/notes.md collided."""
+    print("\ntest: cross-reference rewrite honours filename boundaries and tiers")
+    with tempfile.TemporaryDirectory() as td:
+        ctx = Path(td) / ".context"
+        for d in ("research", "plans", "decisions", "backlog"):
+            (ctx / d).mkdir(parents=True)
+        (ctx / "research" / "notes.md").write_text(_doc("Notes", "2026-03-03"), encoding="utf-8")
+        (ctx / "plans" / "notes.md").write_text(_doc("Plan notes", "2026-04-04"), encoding="utf-8")
+        (ctx / "research" / "2026-01-02-release-notes.md").write_text(
+            _doc("Release notes", "2026-01-02"), encoding="utf-8")
+        (ctx / "backlog" / "2026-01-01-notes.md").write_text(
+            _doc("Backlog notes", "2026-01-01"), encoding="utf-8")
+        (ctx / "decisions" / "2026-05-05-ref.md").write_text(
+            _doc("Ref", "2026-05-05",
+                 "see research/notes.md and plans/notes.md\n"
+                 "see 2026-01-02-release-notes.md and backlog/2026-01-01-notes.md\n"),
+            encoding="utf-8")
+        (ctx / "research" / "topic").mkdir()
+        (ctx / "references").mkdir()
+        (ctx / "research" / "topic" / "00-index.md").write_text(
+            _doc("Topic", "2026-03-03", "see 01-setup.md\n"), encoding="utf-8")
+        (ctx / "research" / "topic" / "01-setup.md").write_text(_doc("Setup", "2026-03-03"), encoding="utf-8")
+        (ctx / "references" / "01-setup.md").write_text(_doc("Setup ref", "2026-03-03"), encoding="utf-8")
+        _migrate(ctx, "--apply")
+        topic = (ctx / "research" / "topic" / "00-index.md").read_text(encoding="utf-8")
+        if "see 01-setup.md" in topic:
+            ok("a bare ref to an existing, unrenamed sibling is not pointed at another folder's rename")
+        else:
+            fail(f"a ref to an unrenamed sibling was rewritten onto another folder's file: {topic!r}")
+        ref = (ctx / "decisions" / "2026-05-05-ref.md").read_text(encoding="utf-8")
+        for want in ("research/2026-03-03-notes.md", "plans/2026-04-04-notes.md"):
+            if want in ref:
+                ok(f"tier-qualified reference rewritten to {want}")
+            else:
+                fail(f"reference to the renamed file did not become {want}: {ref!r}")
+        if "2026-01-02-release-notes.md" in ref and "backlog/2026-01-01-notes.md" in ref:
+            ok("longer filenames that merely end in the old basename are untouched")
+        else:
+            fail(f"a longer filename ending in 'notes.md' was corrupted: {ref!r}")
+
+
+def test_rename_collision_is_declined_out_loud() -> None:
+    """c04: a rename whose target already exists (or is claimed by another source) was
+    skipped at apply time AFTER references were rewritten to the target, and the run
+    reported success."""
+    print("\ntest: a colliding rename is declined, named, and its references stay")
+    with tempfile.TemporaryDirectory() as td:
+        ctx = Path(td) / ".context"
+        (ctx / "backlog").mkdir(parents=True)
+        (ctx / "research").mkdir()
+        (ctx / "research" / "20260105-foo.md").write_text(_doc("Research foo", "2026-01-05"), encoding="utf-8")
+        (ctx / "backlog" / "20260105-foo.md").write_text(_doc("Legacy foo", "2026-01-05"), encoding="utf-8")
+        (ctx / "backlog" / "2026-01-05-foo.md").write_text(_doc("Real foo", "2026-01-05"), encoding="utf-8")
+        (ctx / "backlog" / "20260106-a_b.md").write_text(_doc("A underscore", "2026-01-06"), encoding="utf-8")
+        (ctx / "backlog" / "20260106-a-b.md").write_text(_doc("A dash", "2026-01-06"), encoding="utf-8")
+        (ctx / "backlog" / "2026-02-02-ref.md").write_text(
+            _doc("Ref", "2026-02-02", "see 20260105-foo.md\n"), encoding="utf-8")
+        proc = _migrate(ctx, "--apply")
+        plan = run_migrate(ctx)
+        notes = " ".join(plan["manual_review"])
+        if (ctx / "backlog" / "20260105-foo.md").is_file() and "20260105-foo.md" in notes:
+            ok("the colliding legacy file is left in place and named in manual_review")
+        else:
+            fail(f"collision on an existing target not declined out loud: {notes!r}")
+        ref = (ctx / "backlog" / "2026-02-02-ref.md").read_text(encoding="utf-8")
+        if "20260105-foo.md" in ref and "see 2026-01-05-foo.md" not in ref:
+            ok("references to the unrenamed file were not rewritten onto the other document")
+        else:
+            fail(f"reference rewritten to a document that is not the renamed file: {ref!r}")
+        if proc.returncode != 0:
+            ok("the run exits non-zero when it declined a rename")
+        else:
+            fail("the run reported success (rc=0) although a rename was declined")
+        names = {p.name for p in (ctx / "backlog").iterdir()}
+        survivors = [n for n in ("20260106-a_b.md", "20260106-a-b.md") if n in names]
+        if len(survivors) == 1 and "2026-01-06-a-b.md" in names:
+            ok("two sources mapping to one target: one renamed, the other kept and not lost")
+        else:
+            fail(f"two sources mapping to one target lost or kept both: {sorted(names)}")
+
+def test_bare_ref_prefers_own_folder() -> None:
+    """A bare basename shared by renames with different new names goes to the one in the
+    referring file's own folder."""
+    print("\ntest: a bare ref with differing candidates goes to the referrer's folder")
+    with tempfile.TemporaryDirectory() as td:
+        ctx = Path(td) / ".context"
+        for d in ("research", "plans"):
+            (ctx / d).mkdir(parents=True)
+        (ctx / "research" / "notes.md").write_text(_doc("Notes", "2026-03-03"), encoding="utf-8")
+        (ctx / "plans" / "notes.md").write_text(_doc("Plan notes", "2026-04-04"), encoding="utf-8")
+        (ctx / "research" / "2026-05-05-x.md").write_text(
+            _doc("X", "2026-05-05", "see notes.md\n"), encoding="utf-8")
+        _migrate(ctx, "--apply")
+        xr = (ctx / "research" / "2026-05-05-x.md").read_text(encoding="utf-8")
+        if "see 2026-03-03-notes.md" in xr:
+            ok("the research page's bare ref went to research/notes.md's new name")
+        else:
+            fail(f"folder narrowing lost: {xr!r}")
+
+
+def test_bare_ref_resolution() -> None:
+    """Review r1 on c03: a bare self-mention stays with its own document, and a bare
+    reference whose candidates all get the same new name is still rewritten."""
+    print("\ntest: bare references keep their own document and survive same-name renames")
+    with tempfile.TemporaryDirectory() as td:
+        ctx = Path(td) / ".context"
+        for d in ("requests", "references", "research", "plans"):
+            (ctx / d).mkdir(parents=True)
+        (ctx / "requests" / "idea.md").write_text(
+            _doc("Idea", "2026-05-05", "this doc is idea.md\n"), encoding="utf-8")
+        (ctx / "references" / "idea.md").write_text(_doc("Idea ref", "2026-06-06"), encoding="utf-8")
+        (ctx / "research" / "notes.md").write_text(_doc("Notes", "2026-03-03"), encoding="utf-8")
+        (ctx / "plans" / "notes.md").write_text(_doc("Plan notes", "2026-03-03"), encoding="utf-8")
+        (ctx / "research" / "2026-04-04-other.md").write_text(
+            _doc("Other", "2026-04-04", "see notes.md here\n"), encoding="utf-8")
+        (ctx / "research" / "2026-05-05-x.md").write_text(
+            _doc("X", "2026-05-05", "see notes.md\n"), encoding="utf-8")
+        (ctx / "plans" / "notes.md").write_text(_doc("Plan notes", "2026-04-04"), encoding="utf-8")
+        _migrate(ctx, "--apply")
+        xr = (ctx / "research" / "2026-05-05-x.md").read_text(encoding="utf-8")
+        if "see 2026-03-03-notes.md" in xr:
+            ok("a bare ref with differing candidates goes to the referrer's own folder")
+        else:
+            fail(f"folder narrowing lost: {xr!r}")
+        own = (ctx / "requests" / "2026-05-05-idea.md").read_text(encoding="utf-8")
+        if "this doc is idea.md" in own:
+            ok("a bare self-mention is left as written")
+        else:
+            fail(f"a bare self-mention was rewritten (it must stay as written): {own!r}")
+        other = (ctx / "research" / "2026-04-04-other.md").read_text(encoding="utf-8")
+        if "see 2026-03-03-notes.md here" in other:
+            ok("a bare ref whose candidates share one new name is rewritten")
+        else:
+            fail(f"a bare ref was left dangling: {other!r}")
+
+
+def test_case_only_rename() -> None:
+    """Review r1 on c04: on a case-insensitive filesystem the target of a case-only
+    rename 'exists' because it is the source itself; that is not a collision."""
+    print("\ntest: a case-only rename is not a collision")
+    with tempfile.TemporaryDirectory() as td:
+        ctx = Path(td) / ".context"
+        (ctx / "backlog").mkdir(parents=True)
+        (ctx / "backlog" / "2026-01-05-Foo.md").write_text(_doc("Foo", "2026-01-05"), encoding="utf-8")
+        proc = _migrate(ctx, "--apply")
+        names = {p.name for p in (ctx / "backlog").iterdir()}
+        if "2026-01-05-foo.md" in names and "2026-01-05-Foo.md" not in names and proc.returncode == 0:
+            ok("case-only rename applied, rc 0")
+        else:
+            fail(f"case-only rename refused or not applied (rc={proc.returncode}, {sorted(names)})")
+
+
+def test_context_root_stops_at_home() -> None:
+    """c38: find_context_dir walked to / and resolved a stray ~/.context for any project
+    with no .context/ of its own; find_project_root (_lib.sh) stops at $HOME."""
+    print("\ntest: find_context_dir stops at $HOME")
+    import os
+    with tempfile.TemporaryDirectory() as td:
+        home = Path(td).resolve() / "home"
+        proj = home / "proj" / "sub"
+        proj.mkdir(parents=True)
+        (home / ".context").mkdir()
+        old = os.environ.get("HOME")
+        os.environ["HOME"] = str(home)
+        try:
+            for name, mod in (("validate", validate_mod), ("migrate", migrate_mod)):
+                got = mod.find_context_dir(proj)
+                if got is None:
+                    ok(f"{name}: a stray ~/.context is not adopted by a project without one")
+                else:
+                    fail(f"{name}: find_context_dir resolved {got} past $HOME")
+            (home / "proj" / ".context").mkdir()
+            if validate_mod.find_context_dir(proj) == (home / "proj" / ".context"):
+                ok("an initialised project still resolves to its own .context")
+            else:
+                fail("an initialised project no longer resolves to its own .context")
+        finally:
+            if old is None:
+                del os.environ["HOME"]
+            else:
+                os.environ["HOME"] = old
+
+
 if __name__ == "__main__":
     if not MIGRATE_PY.is_file():
         sys.exit(f"FAIL: {MIGRATE_PY} not found")
     test_vocab_derived_not_mirrored()
     test_round_trip()
+    test_crossref_boundaries()
+    test_rename_collision_is_declined_out_loud()
+    test_bare_ref_resolution()
+    test_bare_ref_prefers_own_folder()
+    test_case_only_rename()
+    test_context_root_stops_at_home()
     print()
     if failures:
         print(f"FAILED — {len(failures)} assertion(s)")

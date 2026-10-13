@@ -174,6 +174,14 @@ assert not [i for i in r['eligible'] if i['id']==q], 'still eligible'
 nd=[i for i in r['needs_decision'] if i['id']==q]; assert nd and nd[0]['reason']=='queued in worklist/2026-08-28-other-sweep.md', nd
 PY2
 [[ $? -eq 0 ]] && ok "an item queued in another doing work-list is NEEDS-DECISION: queued in worklist/<file>" || bad "queued elsewhere: $J"
+# BL-777: worklist-advance/close accept an indented or multi-space queue item, so the
+# eligibility scan must see it as queued too (it matched column 0, single space only)
+IQ="$(reg --title "queued indented" --estimate XS)"; IQID="$(idof "$IQ")"; accept "$IQ"
+printf -- '---\ntitle: "Indented sweep"\nstatus: doing\ncreated: 2026-08-29\nupdated: 2026-08-29\nmode: sweep\n---\n\n## Queue (in execution order)\n  1.  [ ] %s — queued indented   <!-- ref: backlog -->\n' "$IQID" > .context/worklists/2026-08-29-indented-sweep.md
+J="$(python3 "$SCRIPTS/sweep-eligible.py" --json 2>/dev/null)"
+python3 -c 'import json,sys; r=json.loads(sys.argv[1]); q=sys.argv[2]; assert not [i for i in r["eligible"] if i["id"]==q]; nd=[i for i in r["needs_decision"] if i["id"]==q]; assert nd and nd[0]["reason"].startswith("queued in worklist/2026-08-29-indented-sweep.md"), nd' "$J" "$IQID" \
+  && ok "BL-777: an item on an indented / multi-space queue line counts as queued elsewhere" || bad "indented queue line invisible to eligibility: $J"
+rm -f .context/worklists/2026-08-29-indented-sweep.md
 # 2026-09-30: a sweep left `doing` turned its unticked items into NEEDS-DECISION rows with
 # nothing saying the fix was to resume or close that work-list; the kickoff names it first
 OUT="$(bash "$SCRIPTS/sweep-kickoff.sh" --dry-run 2>&1)"

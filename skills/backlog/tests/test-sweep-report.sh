@@ -134,6 +134,16 @@ grep -q "leg=legOld" <<<"$SA" && grep -q "leg=legOld" <<<"$SB" \
   && ok "BL-489: an unstamped legacy run still falls back to the date window" || bad "legacy fallback lost"
 rm -f .context/worklists/*same-day-2?.md
 cp "$TMP/gh.keep" $GH
+# BL-777: the queue reader matched column 0 / one space only; an indented or multi-space
+# item (which worklist-advance accepts) was uncounted, so its emergent flag vanished
+printf -- '---\ntitle: "indented"\nstatus: doing\ncreated: %s\nupdated: %s\nmode: sweep\nqueue-size-at-kickoff: 1\n---\n\n## Queue (in execution order)\n  1.  [ ] inline — late find   <!-- ref: inline --> <!-- emergent -->\n' "$(day 0)" "$(day 0)" > .context/worklists/indented-q.md
+IR="$(bash "$SCRIPTS/sweep-report.sh" .context/worklists/indented-q.md --print 2>/dev/null)"
+grep -q "| emergent items appended | 1 " <<<"$IR" && ok "BL-777: an indented / multi-space queue item is counted" || bad "indented queue item uncounted: $(grep 'emergent' <<<"$IR")"
+# the tick on an indented line is read too: a ticked, still-open item is reported as such
+printf -- '---\ntitle: "indented tick"\nstatus: doing\ncreated: %s\nupdated: %s\nmode: sweep\n---\n\n## Queue (in execution order)\n  2.  [x] %s — ticked indented   <!-- ref: backlog -->\n' "$(day 0)" "$(day 0)" "$NID" > .context/worklists/indented-q.md
+IT="$(bash "$SCRIPTS/sweep-report.sh" .context/worklists/indented-q.md --print 2>/dev/null)"
+grep -q "$NID.*ticked in the queue but the item is still" <<<"$IT" && ok "BL-777: an indented [x] line is read as ticked" || bad "indented tick not read: $(grep "$NID" <<<"$IT")"
+rm -f .context/worklists/indented-q.md
 # F1: an archived work-list beside `<wl>-report.md` and `<wl>-report.spec.md` (both sort before
 # `<wl>.md`): the slug resolves to the work-list, and two matches are refused, never head -1
 AR=.context/worklists/_archive

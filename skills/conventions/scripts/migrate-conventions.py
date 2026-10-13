@@ -304,13 +304,17 @@ def file_is_exempt_from_rename(type_name: str, p: Path, context_dir: Path) -> bo
     return False
 
 
-def plan_renames(context_dir: Path) -> dict[Path, Path]:
+def plan_renames(context_dir: Path, declined: list[str] | None = None) -> dict[Path, Path]:
     """Map old absolute path → new absolute path for files that need renaming.
 
     Three cases handled:
       (a) `YYYYMMDD-<slug>.md`           → insert dashes in date
       (b) `YYYY-MM-DD-<bad-slug>.md`     → sanitize slug
       (c) `<no-date>-<slug>.md`          → prepend FM `created` (else today)
+
+    A rename whose target already exists, or is already claimed by another source, is
+    dropped and reported in `declined` (never silently skipped at apply time, after the
+    references were already rewritten onto the other document).
     """
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     renames: dict[Path, Path] = {}
@@ -360,7 +364,15 @@ def plan_renames(context_dir: Path) -> dict[Path, Path]:
                 new_name = f"{iso_date}-{slug_part}.md"
 
         if new_name and new_name != name:
-            renames[p] = p.with_name(new_name)
+            target = p.with_name(new_name)
+            if (target.exists() and not target.samefile(p)) or target in renames.values():
+                if declined is not None:
+                    declined.append(
+                        f"{p.relative_to(context_dir)} not renamed: "
+                        f"{new_name} already exists or is the target of another rename. "
+                        "Merge or rename one of them by hand.")
+                continue
+            renames[p] = target
     return renames
 
 
@@ -507,23 +519,56 @@ def plan_frontmatter_repairs(
     return changes, declined
 
 
+MD_TOKEN = re.compile(r"(?<![\w./-])[\w./-]+\.md(?![\w-])")
+
+
+def rewrite_refs(text: str, p: Path, context_dir: Path,
+                 renames: dict[Path, Path]) -> tuple[str, dict[str, str]]:
+    """Rewrite every path-like `*.md` token in `text` that names a renamed file.
+
+    A token matches a rename only as a whole filename (never as the tail of a longer
+    one) and, when it carries directories, only the rename whose `.context/`-relative
+    path ends with them. A basename shared by several renames goes to the ones in the
+    referring file's own folder (else all of them) and is rewritten only when they agree
+    on one new name; a mention of the referring file itself is left alone. Returns (new_text, {old_token: new_token})."""
+    by_name: dict[str, list[tuple[str, Path, Path]]] = {}
+    for old, new in renames.items():
+        by_name.setdefault(old.name, []).append(
+            (old.relative_to(context_dir).as_posix(), old, new))
+    hits: dict[str, str] = {}
+
+    def sub(m: re.Match) -> str:
+        token = m.group(0)
+        head, _, base = token.rpartition("/")
+        cands = by_name.get(base, [])
+        local = p.parent / token
+        if local.is_file() and local not in renames:
+            return token  # names an existing sibling that is not being renamed
+        if head:
+            want = "/".join(x for x in token.split("/") if x not in ("", ".", ".."))
+            cands = [c for c in cands
+                     if c[0] == want or c[0].endswith("/" + want) or want.endswith("/" + c[0])]
+        if len(cands) > 1:
+            cands = [c for c in cands if c[1].parent == p.parent] or cands
+        if not cands or len({c[2].name for c in cands}) != 1 or all(c[1] == p for c in cands):
+            return token
+        new_token = (head + "/" if head else "") + cands[0][2].name
+        hits[token] = new_token
+        return new_token
+
+    return MD_TOKEN.sub(sub, text), hits
+
+
 def plan_crossref_rewrites(context_dir: Path, renames: dict[Path, Path]) -> list[Change]:
     """For each file in .context/, find references to renamed filenames and queue rewrites.
-    Only rewrites bare basenames to avoid touching unrelated docs that quote the
-    legacy pattern as an example."""
+    Only whole filenames are rewritten (see `rewrite_refs`), so unrelated docs that quote
+    a longer name ending in the legacy basename are left alone."""
     if not renames:
         return []
-    basename_map = {old.name: new.name for old, new in renames.items()}
     changes: list[Change] = []
     for p in iter_md(context_dir):
         text = p.read_text(encoding="utf-8", errors="replace")
-        hits: dict[str, str] = {}
-        for old_name, new_name in basename_map.items():
-            if old_name in text:
-                # Skip the file itself — we'll rename it, not edit references inside.
-                if p.name == old_name:
-                    continue
-                hits[old_name] = new_name
+        _, hits = rewrite_refs(text, p, context_dir, renames)
         if hits:
             changes.append(Change("rewrite-ref", str(p), {"map": hits}))
     return changes
@@ -594,13 +639,12 @@ def apply_changes(
     for c in ref_changes:
         p = Path(c.path)
         text = p.read_text(encoding="utf-8", errors="replace")
-        for old, new in c.detail["map"].items():
-            text = text.replace(old, new)
+        text, _ = rewrite_refs(text, p, context_dir, renames)
         p.write_text(text, encoding="utf-8")
 
     # 3. Renames last.
     for old, new in renames.items():
-        if old.exists() and not new.exists():
+        if old.exists() and (not new.exists() or new.samefile(old)):
             shutil.move(str(old), str(new))
 
     # 4. Archive dirs.
@@ -633,14 +677,7 @@ def inject_field_after_delim(text: str, key: str, value: str) -> str:
 
 # ---------- Driver ----------
 
-def find_context_dir(start: Path) -> Path | None:
-    cur = start.resolve()
-    while True:
-        if (cur / ".context").is_dir():
-            return cur / ".context"
-        if cur.parent == cur:
-            return None
-        cur = cur.parent
+find_context_dir = _validate.find_context_dir
 
 
 def to_relative(context_dir: Path, abs_path: str) -> str:
@@ -672,8 +709,10 @@ def main() -> int:
         print(f"error: not a directory: {context_dir}", file=sys.stderr)
         return 2
 
-    renames = plan_renames(context_dir)
+    declined_renames: list[str] = []
+    renames = plan_renames(context_dir, declined_renames)
     fm_changes, declined = plan_frontmatter_repairs(context_dir, renames)
+    declined = declined_renames + declined
     ref_changes = plan_crossref_rewrites(context_dir, renames)
     dir_changes = plan_archive_dirs(context_dir)
     manual_notes = detect_manual_review(context_dir) + declined
