@@ -244,8 +244,13 @@ def main():
     vdirs = [d for d in pkg_dirs if "vitest" in pkg[d]]
     if vdirs and (vdirs[0] == "frontend" or len(vdirs) == 1):
         d = vdirs[0]
-        lock = any(os.path.exists(os.path.join(root, x, "pnpm-lock.yaml")) for x in (d, ""))
-        v["frontend_test_cmd"] = ("cd " + d + " && " if d else "") + ("pnpm" if lock else "npm exec") + " vitest run {path}"
+        # First manager in the order whose lockfile sits at the package or at the repo root.
+        runner = "npm exec"
+        for cmd, names in (("pnpm", ("pnpm-lock.yaml",)), ("yarn", ("yarn.lock",)), ("bunx", ("bun.lockb", "bun.lock"))):
+            if any(os.path.exists(os.path.join(root, x, n)) for x in (d, "") for n in names):
+                runner = cmd
+                break
+        v["frontend_test_cmd"] = ("cd " + d + " && " if d else "") + runner + " vitest run {path}"
     if e2e:
         v["e2e_test_cmd"] = "./test-e2e.sh {spec}"
     for d in ("frontend/tests/e2e/helpers", "frontend/tests/helpers", "frontend/e2e/helpers"):
