@@ -29,15 +29,16 @@ if grep -q "archived but the index is stale" <<<"$err" && grep -q -- "--reindex"
   ok "failed reindex prints the stale-index line"
 else bad "no stale-index line on failed reindex: $err"; fi
 
-# A nonconforming id makes --reindex exit 1 AFTER it wrote the index: close-item must keep
-# main's exit code (1), let the guard's stderr through and NOT claim the index is stale.
+# A nonconforming id makes --reindex exit 4 AFTER it wrote the index: close-item must keep
+# the distinct "written, id guard failed" exit (4), let the guard's stderr through and NOT
+# claim the index is stale.
 T2="$(mktemp -d)"; bash "$HERE/build-index-fixture.sh" "$T2"
 sed -i.bak 's/^id: BL-031$/id: BL-20260538/' "$T2/.context/backlog/_deferred/2026-08-11-d2.md"
 cd "$T2"
 rc=0; err="$(bash "$SCRIPTS/close-item.sh" BL-003 --status done 2>&1 >/dev/null)" || rc=$?
-if [[ $rc -eq 1 ]] && ! grep -q "index is stale" <<<"$err" && grep -q "nonconforming id BL-20260538" <<<"$err" \
+if [[ $rc -eq 4 ]] && ! grep -q "index is stale" <<<"$err" && grep -q "nonconforming id BL-20260538" <<<"$err" \
    && grep -q "2026-09-01-c-p2.md" <(sed -n '/^## Closed/,$p' .context/backlog/00-index.md); then
-  ok "guard failure after a written index: exit 1, no stale line, item in Closed"
+  ok "guard failure after a written index: exit 4, no stale line, item in Closed"
 else bad "guard-failure close misreported (rc=$rc): $err"; fi
 rm -rf "$T2"
 
