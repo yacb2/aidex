@@ -53,10 +53,20 @@ done
 [[ "$merge" == "ask" || "$merge" == "preauthorized" ]] || { echo "--merge must be ask|preauthorized" >&2; exit 2; }
 [[ -z "$mode" || "$mode" == "sweep" ]] || { echo "--mode must be sweep" >&2; exit 2; }
 [[ ${#refs[@]} -gt 0 ]] || { echo "at least one --ref required" >&2; exit 2; }
+[[ "$title" != *$'\n'* ]] || { echo "--title must be one line" >&2; exit 2; }
+# The work-list readers strip the quotes and do not unescape, so \ and " cannot round-trip.
+[[ "$title" != *[\"\\]* ]] || { echo "--title must not contain a double quote or backslash" >&2; exit 2; }
+for r in "${refs[@]}"; do
+  case "$r" in
+    backlog:*|plan:*|audit:*|inline:*) ;;
+    *) echo "--ref must be <kind:label> with kind backlog|plan|audit|inline: $r" >&2; exit 2;;
+  esac
+done
 
 if [[ -z "$slug" ]]; then
   slug="$(printf '%s' "$title" | tr '[:upper:]' '[:lower:]' \
-          | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' | cut -c1-40)"
+          | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' | cut -c1-40 | sed -E 's/-+$//')"
+  [[ -n "$slug" ]] || { echo "--title has no ASCII letters or digits to derive a slug from; pass --slug" >&2; exit 2; }
 fi
 today="$(date +%F)"
 mkdir -p "$WL_DIR"
@@ -66,6 +76,7 @@ if [[ "$slug" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}- ]]; then
 else
   file="$WL_DIR/${today}-${slug}.md"
 fi
+[[ ! -e "$file" ]] || { echo "work-list already exists, not overwriting: $file (resume or close the existing work-list, or pass a different --slug)" >&2; exit 2; }
 
 {
   echo "---"
