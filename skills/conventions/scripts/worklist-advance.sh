@@ -99,6 +99,8 @@ item_where() {  # item_where <BL-id> -> active | archived | deferred | (empty)
 # Said only once the row is written: a refused append printed it and then "was NOT
 # appended".
 kind="${append%%:*}"; label="${append#*:}"; mark="" said=""
+# a real CR/LF in the label split the queue row across lines: each run folds to one space (BL-805)
+label="$(printf '%s' "$label" | tr -s '\r\n' '\n' | tr '\n' ' ')"
 if [[ -n "$append" && "$sweep" -eq 1 && "$kind" == "backlog" ]]; then
   aid="$(bl_id "$label")"
   if [[ -n "$aid" && "$(item_where "$aid")" == "deferred" ]]; then
@@ -129,7 +131,7 @@ if [[ -n "$append" ]]; then
     tmp="$(mktemp "$file.XXXXXX")"
     WL_ROW="$n. [ ] $label   <!-- ref: backlog --> <!-- emergent -->$mark" \
       awk -v at="$line_no" 'NR==at{print; print ENVIRON["WL_ROW"]; next} {print}' "$file" > "$tmp" \
-      || { rm -f "$tmp"; exit 2; }
+      || { rm -f "$tmp"; echo "sweep: could not insert into $file — '$label' was NOT appended" >&2; exit 2; }
     cat "$tmp" > "$file"; rm -f "$tmp"
     [[ -z "$said" ]] || echo "$said" >&2
   else
