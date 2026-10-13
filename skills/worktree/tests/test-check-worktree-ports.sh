@@ -338,6 +338,62 @@ stop_all' _ "$TMP" 2>&1)"
 rm -f "$TMP/.env"
 
 
+# --- 12. a WT_LINKS DIRECTORY is scanned, not skipped ------------------------
+# The `-f` test dropped a directory entry silently, so `free_port 3700` inside a
+# linked scripts/ dir passed. Scripts inside a linked directory are just as
+# reachable from a worktree as a linked file.
+p="$(mk_project linkdir scripts)"
+mkdir -p "$p/scripts"
+cat > "$p/scripts/dev.sh" <<'SH'
+#!/usr/bin/env bash
+free_port 3700
+SH
+out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "linkdir: a literal in a script inside a linked directory must be a finding, got: $out"
+grep -q 'scripts/dev.sh' <<<"$out" || fail "linkdir: must name the file inside the directory, got: $out"
+
+# --- 12b. a linked directory's nested checkouts and node_modules are pruned ----
+# Filtering paths after find still walked (and reported) an agent worktree nested
+# inside a linked dir; the scan must stop at a nested checkout (.git file or dir).
+p="$(mk_project linknested scripts)"
+mkdir -p "$p/scripts/worktrees/agent-x" "$p/scripts/node_modules/x"
+printf 'gitdir: /elsewhere\n' > "$p/scripts/worktrees/agent-x/.git"
+printf '#!/usr/bin/env bash\nfree_port 3700\n' > "$p/scripts/worktrees/agent-x/dev.sh"
+printf '#!/usr/bin/env bash\nfree_port 3700\n' > "$p/scripts/node_modules/x/run.sh"
+mkdir -p "$p/scripts/worktrees/agent-y/.git"
+printf '#!/usr/bin/env bash\nfree_port 3700\n' > "$p/scripts/worktrees/agent-y/dev.sh"
+out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
+[[ "$rc" -eq 0 ]] || fail "linknested: a nested checkout / node_modules must not be scanned, got: $out"
+grep -q 'agent-x' <<<"$out" && fail "linknested: must not name the nested checkout, got: $out"
+grep -q 'node_modules' <<<"$out" && fail "linknested: must not name node_modules, got: $out"
+
+# --- 12c. a linked directory that is itself a checkout is still scanned --------
+p="$(mk_project linkroot scripts)"
+mkdir -p "$p/scripts/.git"
+printf '#!/usr/bin/env bash\nfree_port 3700\n' > "$p/scripts/dev.sh"
+out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "linkroot: a linked dir holding its own .git must still be scanned, got: $out"
+grep -q 'scripts/dev.sh' <<<"$out" || fail "linkroot: must name dev.sh, got: $out"
+
+# --- 12d. odd file names in a linked directory must not hide the scripts -------
+p="$(mk_project linkodd scripts)"
+mkdir -p "$p/scripts"
+printf '#!/usr/bin/env bash\nfree_port 3700\n' > "$p/scripts/dev.sh"
+printf 'notes\n' > "$p/scripts/it's notes.md"
+printf 'notes\n' > "$p/scripts/my notes.md"
+out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "linkodd: quotes/spaces in other file names must not hide dev.sh, got: $out"
+grep -q 'scripts/dev.sh' <<<"$out" || fail "linkodd: must name dev.sh, got: $out"
+
+# --- 13. a census must not count an empty WT_LINKS as clean -------------------
+# Single-project mode refuses it with exit 2; the census printed `clean`.
+CROOT="$TMP/census-nolinks"; mkdir -p "$CROOT/p1/.context/worktrees"
+printf 'WT_PARTICIPANTS="backend"\nWT_LINKS=""\n' > "$CROOT/p1/.context/worktrees/config.env"
+out="$(AIDEX_PROJECTS_DIR="$CROOT" bash "$CHECK" --census 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "census-nolinks: an unparsed config must not pass the census, got: $out"
+grep -qE 'p1 +clean' <<<"$out" && fail "census-nolinks: must not print the project as clean, got: $out"
+grep -qi 'nothing was checked' <<<"$out" || fail "census-nolinks: must say it examined nothing, got: $out"
+
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"
   exit 1

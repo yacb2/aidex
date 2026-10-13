@@ -212,6 +212,31 @@ printf 'WT_PARTICIPANTS=""\nWT_LINKS="dev.sh"\n' > "$p/.context/worktrees/config
 out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
 [[ "$rc" -ne 0 ]] || fail "noparts: an empty WT_PARTICIPANTS must NOT report clean, got: $out"
 
+# --- 10. a dotenv import ELSEWHERE in the participant must not exempt the config
+# dir_loads_slot_env grepped the participant tree recursively, so `src/server.ts`
+# importing dotenv exempted the root playwright config that falls back to dev's
+# port. The load only counts when it sits in the config's own directory.
+p="$(mk_project elsewhere)"
+cat > "$p/frontend/playwright.e2e.config.ts" <<'TS'
+export default {
+  use: { baseURL: process.env.E2E_BACKEND_URL || 'http://localhost:8710' },
+}
+TS
+mkdir -p "$p/frontend/src"
+printf "import dotenv from 'dotenv'\ndotenv.config()\n" > "$p/frontend/src/server.ts"
+out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "elsewhere: a dotenv import in src/ must NOT exempt the root config, got: $out"
+grep -q '8710' <<<"$out" || fail "elsewhere: must name the port, got: $out"
+
+# --- 11. a census must not count an empty WT_PARTICIPANTS as clean -----------
+# Single-project mode refuses the same config with exit 2.
+CROOT="$TMP/census-noparts"; mkdir -p "$CROOT/p1/.context/worktrees"
+printf 'WT_PARTICIPANTS=""\nWT_LINKS="dev.sh"\n' > "$CROOT/p1/.context/worktrees/config.env"
+out="$(AIDEX_PROJECTS_DIR="$CROOT" bash "$CHECK" --census 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "census-noparts: an unparsed config must not pass the census, got: $out"
+grep -qE 'p1 +clean' <<<"$out" && fail "census-noparts: must not print the project as clean, got: $out"
+grep -qi 'nothing was checked' <<<"$out" || fail "census-noparts: must say it examined nothing, got: $out"
+
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"
   exit 1

@@ -624,7 +624,7 @@ exit 0'
 bounded "BL-793 down" env AIDEX_DOWN_TIMEOUT=2 bash "$S/worktree.sh" down wedge --force
 
 # --- BL-793 follow-ups: with_timeout itself ----------------------------------
-eval "$(sed -n '/^with_timeout()/,/^}/p' "$S/worktree.sh")"
+eval "$(sed -n '/^with_timeout()/,/^}/p' "$S/../../conventions/scripts/_lib.sh")"
 # (a) the KILL reaches the whole group: a TERM-ignoring grandchild that holds the
 #     pipe of a $( ) otherwise keeps the substitution waiting for its full life.
 t0=$SECONDS
@@ -653,7 +653,7 @@ fi
 #      ignores TERM and INT (must be KILLed within the grace, whole group gone);
 #      TERM to the wrapper PID alone (forwarding is the only way the child learns).
 cat > "$TMP/ctrlc.sh" <<EOS
-$(sed -n '/^with_timeout()/,/^}/p' "$S/worktree.sh")
+$(sed -n '/^with_timeout()/,/^}/p' "$S/../../conventions/scripts/_lib.sh")
 set +e
 with_timeout 20 sh -c "\$1" sh "\$2"
 echo CONTINUED

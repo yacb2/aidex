@@ -235,6 +235,34 @@ compose_project_name() {
   printf '%s' "${p#"${p%%[!_-]*}"}"
 }
 
+# with_timeout <seconds> <cmd...>: run cmd as a child (in its own process group);
+# at the deadline TERM the group, then KILL it after a 2 s grace, and exit 142
+# (what an alarm-killed process returns). `alarm; exec cmd` only sent SIGALRM to
+# cmd, and the docker CLI (a Go binary) ignores SIGALRM: a wedged daemon kept
+# `docker` running long past its deadline. TERM alone is not enough either: the
+# compose plugin ignores it, and it is a child of the CLI, hence the group. The
+# KILL goes out even when the direct child died of the TERM: a TERM-ignoring
+# grandchild would otherwise keep a `$( )` pipe open. INT/TERM/HUP/QUIT sent to the
+# wrapper are forwarded as the SAME signal to the group (no TERM is sent for an
+# INT), then a 2 s grace (armed by the first signal only), then KILL; the signal is
+# then re-raised on the wrapper with
+# its default disposition, as coreutils `timeout` does: Ctrl-C ends the calling
+# script (130) instead of being swallowed as "the command failed", and an outer
+# TERM does not leave a `compose down -v` running detached.
+with_timeout() {
+  perl -e '$t=shift; $p=fork; if(!$p){ setpgrp(0,0); exec @ARGV or exit 127 }
+    setpgrp($p,$p);
+    for $s (qw(INT TERM HUP QUIT)){ $SIG{$s}=sub{ alarm 2 unless $got; $got=$_[0]; kill $got,-$p } }
+    $SIG{ALRM}=sub{ die "timeout\n" };
+    sub reap { $r=-1; until($r==$p || $@){ $r=eval{ waitpid $p,0 }; last if $r<0 && !$!{EINTR} } }
+    alarm $t; reap(); alarm 0;
+    if($@ && !$got){ kill "TERM",-$p; alarm 2; $@=""; reap(); alarm 0; $to=1 }
+    if($@ || $got || $to){ kill "KILL",-$p; waitpid $p,0 }
+    if($got){ $SIG{$got}="DEFAULT"; kill $got,$$; exit 1 }
+    exit 142 if $to;
+    exit($?&127 ? 128+($?&127) : $?>>8)' "$@"
+}
+
 # Make a kebab-case slug from arbitrary text: lowercase, non-alnum -> hyphen,
 # collapse repeats, trim leading/trailing hyphens. Empty input -> empty output.
 slugify() {

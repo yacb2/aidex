@@ -148,6 +148,25 @@ grep -q "front-matter: 'worktree_up' names a script that does not exist" <<<"$ou
 grep -q 'CLAUDE_PLUGIN_ROOT}/skills/worktree/scripts/' <<<"$out" \
   || fail "retired front-matter path: missing the plugin-path hint -- $out"
 
+# --- the retired path is caught in EVERY spelling, not only the `~` one ------
+# The extractor cannot start a match at `/` and stops at `{`, so a $-prefixed or
+# absolute path came out as the relative tail `skills/<retired>/scripts/...`,
+# which the basename fallback then resolved against the shipped skill: "OK".
+for spelling in '${CLAUDE_PLUGIN_ROOT}/skills' '$HOME/.claude/skills' "$TMP/nohome/.claude/skills"; do
+  write_doc "s|^worktree_up: .*|worktree_up: \"bash $spelling/aidex-worktree/scripts/worktree.sh up <slug>\"|"
+  out="$(HOME="$TMP/nohome" bash "$SCRIPT" "$DOC" 2>&1)" && fail "retired path '$spelling': should fail"
+  grep -q "retired path" <<<"$out" || fail "retired path '$spelling': failed for some other reason -- $out"
+done
+
+# --- front matter is the LEADING block only ---------------------------------
+# worktree-multi reads it with an awk that stops at the first closing `---`; the
+# sed range here reopened on every later pair of rules, so a `worktree_down` that
+# lived in a body block passed the check and then teardown refused the doc.
+write_doc '/^worktree_down:/d'
+printf '\n---\nworktree_down: "worktree.sh down <slug>"\n---\n' >> "$DOC"
+out="$(bash "$SCRIPT" "$DOC" 2>&1)" && fail "worktree_down only in a body block: should fail"
+grep -q "missing 'worktree_down'" <<<"$out" || fail "worktree_down in a body block: failed for some other reason -- $out"
+
 # --- a Procedure naming a nonexistent script fails; the usage log may name one ---
 write_doc 's|worktree.sh new <slug> --branch <b>|_scripts/worktree-up.sh <slug> <slot>|'
 bash "$SCRIPT" "$DOC" >/dev/null 2>&1 && fail "Procedure naming a nonexistent script: should fail"

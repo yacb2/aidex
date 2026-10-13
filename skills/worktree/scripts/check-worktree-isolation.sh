@@ -52,11 +52,25 @@ run_all_for() {  # run_all_for <project-root> -> 0 clean, 1 findings
   #    `docker-compose.yml` meant a project on `compose.yaml` had this surface
   #    silently skipped while the verdict line below still named it.
   COMPOSE_RAN=false
-  local cf
+  local cf cfg="$root/.context/worktrees/config.env" suffix_args=()
+  # The project's own suffix variable, when its config names one.
+  if [[ -f "$cfg" ]] && grep -qE '^[[:space:]]*WT_SUFFIX_VAR=' "$cfg"; then
+    suffix_args=(--suffix-var "$(sed -n 's/^[[:space:]]*WT_SUFFIX_VAR=["'"'"']\{0,1\}\([^"'"'"']*\).*/\1/p' "$cfg" | sed -n 1p)")
+  fi
   for cf in docker-compose.yml docker-compose.yaml compose.yml compose.yaml; do
     if [[ -f "$root/$cf" ]]; then
-      COMPOSE_RAN=true
-      ( cd "$root" && bash "$SELF_DIR/check-compose-isolation.sh" "$root/$cf" ) || rc=1
+      # The compose check exits 0 when Docker is unreachable ("degraded"); that is
+      # a skip, not a pass, so the verdict below must not claim the surface.
+      # A wedged daemon accepts the socket and never answers: a timeout reads as unavailable.
+      if command -v docker >/dev/null 2>&1 \
+         && with_timeout "${AIDEX_DOCKER_TIMEOUT:-30}" docker info >/dev/null 2>&1; then
+        COMPOSE_RAN=true
+        ( cd "$root" && bash "$SELF_DIR/check-compose-isolation.sh" "$root/$cf" ${suffix_args[@]+"${suffix_args[@]}"} ) || rc=1
+      else
+        # Not run at all: the compose check would probe docker again, unbounded.
+        COMPOSE_SKIPPED=true
+        echo "docker unavailable — skipping compose isolation check for $(basename "$root") (degraded)."
+      fi
       break
     fi
   done
@@ -72,7 +86,7 @@ run_all_for() {  # run_all_for <project-root> -> 0 clean, 1 findings
 }
 
 if $CENSUS; then
-  rc=0; seen=0
+  rc=0; seen=0; COMPOSE_SKIPPED=false
   CENSUS_ROOT="${AIDEX_PROJECTS_DIR:-$HOME/Documents/projects}"
   for cfg in "$CENSUS_ROOT"/*/.context/worktrees/config.env; do
     [[ -f "$cfg" ]] || continue
@@ -89,7 +103,13 @@ if $CENSUS; then
     exit 2
   fi
   printf '\n'
-  [[ $rc -eq 0 ]] && ok "worktree isolation: $seen project(s), every surface holds"
+  if [[ $rc -eq 0 ]]; then
+    if $COMPOSE_SKIPPED; then
+      ok "worktree isolation: $seen project(s), host ports and test runners hold (compose was not checked for at least one project: Docker unavailable)"
+    else
+      ok "worktree isolation: $seen project(s), every surface holds"
+    fi
+  fi
   exit $rc
 fi
 
@@ -101,5 +121,5 @@ run_all_for "$ROOT" || exit 1
 if $COMPOSE_RAN; then
   ok "worktree isolation OK: $(basename "$ROOT") — compose, host ports and test runners all hold"
 else
-  ok "worktree isolation OK: $(basename "$ROOT") — host ports and test runners hold (no compose file found; that surface was not checked)"
+  ok "worktree isolation OK: $(basename "$ROOT") — host ports and test runners hold (compose was not checked: no compose file found, or Docker unavailable)"
 fi
