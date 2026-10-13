@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """profile-init.py — seed <project>/.context/profiles/testing.md from what is on disk.
 
-Reads test-e2e.sh (ports, database, e2e service), docker-compose.yml (service names),
-backend/pyproject.toml (pytest) and the dependencies of package.json in frontend/, the
+Reads test-e2e.sh (ports, database, e2e service), the compose file (compose.yaml first,
+docker-compose.yml last: service names), backend/pyproject.toml and
+backend/requirements*.txt (pytest) and the dependencies of package.json in frontend/, the
 root, cms/, web/ and site/ (packs, vitest, UI libraries).
 Every value is a FACT read from a file; nothing is invented — a key the files do not
 answer is left blank for the owner to fill. Refuses to overwrite unless --force.
@@ -16,7 +17,7 @@ note), and no module under `.context/references/testing/` may sit over the ~2,50
 tripwire `reference/references/03-shaping.md` sets — a doc extended past it is
 split into a new module, never appended. Exit 1 on any finding.
 """
-import json, os, re, sys
+import glob, json, os, re, sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "conventions", "scripts"))
 import profiles  # noqa: E402  the one profile resolver
@@ -82,7 +83,8 @@ def deps(path):
         return set()
     if not isinstance(data, dict):
         return set()
-    return set(data.get("dependencies") or {}) | set(data.get("devDependencies") or {})
+    # Only an object declares names; a string, list or number is not a dependency map.
+    return {n for k in ("dependencies", "devDependencies") if isinstance(data.get(k), dict) for n in data[k]}
 
 
 def service_block(compose, name):
@@ -98,7 +100,7 @@ def service_block(compose, name):
         if depth == 0:
             if out:
                 break
-            in_services = re.match(r"services:\s*(#.*)?$", line) is not None
+            in_services = re.match(r"services:\s*(&\S+\s*)?(#.*)?$", line) is not None
         elif in_services:
             ind = depth if ind is None else ind
             if depth == ind:
@@ -109,6 +111,23 @@ def service_block(compose, name):
             elif out:
                 out.append(line)
     return "\n".join(out) + "\n" if out else ""
+
+
+def service_names(compose):
+    """The service keys `services:` declares, at its first indent, unquoted."""
+    names, ind, in_services = [], None, False
+    for line in compose.splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        depth = len(line) - len(line.lstrip())
+        if depth == 0:
+            in_services = re.match(r"services:\s*(&\S+\s*)?(#.*)?$", line) is not None
+        elif in_services:
+            ind = depth if ind is None else ind
+            m = re.match(r"""\s*["']?([^"'\s:]+)["']?:""", line) if depth == ind else None
+            if m:
+                names.append(m.group(1))
+    return names
 
 
 TRIPWIRE = 2500        # words; reference/references/03-shaping.md
@@ -140,7 +159,10 @@ def check(root):
     text = read(prof)
     if not text.strip():
         return [f"profile at {prof} is empty or unreadable"]
-    body = re.split(r"^---[ \t]*$", text, maxsplit=2, flags=re.M)[-1] if text.startswith("---") else text
+    parts = re.split(r"^---[ \t]*$", text, maxsplit=2, flags=re.M) if text.startswith("---") else [text]
+    body = parts[-1]
+    if len(parts) == 3 and not re.search(r"^[a-z0-9_]+:", parts[1], re.M):
+        out.append(f"profile at {prof} is empty: its front matter holds no key")
     for h in re.findall(r"^##+\s+(.+)$", body, re.M):
         out.append(f"profile carries a prose section '## {h.strip()}' — the profile is facts "
                    f"only; a rule or a guide lives in references/testing/ (14-testing-profile.md)")
@@ -181,8 +203,14 @@ def main():
         sys.exit(f"refusing: {existing} is this project's testing profile; --force would write "
                  f"a second one at {out} that wins over it")
     e2e = read(os.path.join(root, "test-e2e.sh"))
-    compose = read(os.path.join(root, "docker-compose.yml"))
+    # The file `docker compose` itself picks, in its own order of preference.
+    compose = next((read(p) for p in (os.path.join(root, n) for n in
+                    ("compose.yaml", "compose.yml", "docker-compose.yaml", "docker-compose.yml"))
+                    if os.path.isfile(p)), "")
     pyproject = read(os.path.join(root, "backend", "pyproject.toml"))
+    # A TOML comment declares nothing; a `#` inside a value (`#egg=`) is not one.
+    declared = re.sub(r"(^|\s)#.*", r"\1", pyproject, flags=re.M)
+    requirements = "\n".join(read(f) for f in sorted(glob.glob(os.path.join(glob.escape(root), "backend", "requirements*.txt"))))
     pkg_dirs = ("frontend", "", "cms", "web", "site")
     pkg = {d: deps(os.path.join(root, d, "package.json")) for d in pkg_dirs}
     anypkg = set().union(*pkg.values())
@@ -197,17 +225,20 @@ def main():
     v["e2e_frontend_port"] = first(r'E2E_FRONTEND_PORT:-(\d+)', e2e)
     v["e2e_backend_port"] = first(r'E2E_(?:BACKEND|API)_PORT:-(\d+)', e2e)
     backend = service_block(compose, "backend")
-    v["dev_backend_port"] = first(r'\$\{BACKEND_PORT:-(\d+)\}:\d+', compose) or first(r'^\s+- "?(\d{4}):\d{4}"?', backend)
+    v["dev_backend_port"] = first(r'\$\{BACKEND_PORT:-(\d+)\}:\d+', backend) or first(r'^\s+- "?(\d+):\d+"?', backend) \
+        or first(r'\$\{BACKEND_PORT:-(\d+)\}:\d+', compose)
     v["e2e_backend_port"] = v["e2e_backend_port"] or first(r'\$\{E2E_BACKEND_PORT:-(\d+)\}:\d+', compose)
     v["dev_frontend_port"] = first(r'port:\s*(\d{4})', vite)
     if v["db_name"] == "" and v["project_slug"]:
         v["db_name"] = v["project_slug"]
-    v["e2e_service"] = first(r'^\s{2}([a-z0-9-]*backend[a-z0-9-]*test[a-z0-9-]*):\s*$', compose)
+    v["e2e_service"] = next((n for n in service_names(compose)
+                             if re.fullmatch(r'[a-z0-9-]*backend[a-z0-9-]*test[a-z0-9-]*', n)), "")
     v["seed_bootstrap_cmd"] = "bootstrap_data" if "bootstrap_data" in e2e else ""
     v["seed_e2e_bootstrap_cmd"] = "bootstrap_e2e_data" if "bootstrap_e2e_data" in e2e else ""
-    # A service compose declares and a runner pyproject declares, or blank: `manage.py
-    # test` takes no file path, so it never answers the single-file form.
-    if backend and re.search(r'\[tool\.pytest|["\']pytest\b|^pytest[\w-]*\s*=', pyproject, re.M):
+    # A service compose declares and a runner pyproject or requirements*.txt declares, or
+    # blank: `manage.py test` takes no file path, so it never answers the single-file form.
+    if backend and (re.search(r'\[tool\.pytest|["\']pytest\b|^pytest[\w-]*\s*=', declared, re.M)
+                    or re.search(r'^pytest[\w-]*\b', requirements, re.M)):
         v["backend_test_cmd"] = "docker compose exec -T backend pytest {path}"
     # The package that declares vitest: frontend/ first, else the only other one.
     vdirs = [d for d in pkg_dirs if "vitest" in pkg[d]]
@@ -245,8 +276,10 @@ def main():
              "This file is a DELTA over `coverage`: facts about this project only.",
              "Never a layer rule, never a copy of the canon; a deviation from the rubric is a",
              "decision in `.context/decisions/`. Seeded by `profile-init.py` from test-e2e.sh,",
-             "docker-compose.yml, pyproject.toml and package.json — blank keys are unanswered,",
-             "not zero; a key of a pack this project does not name is omitted, never `n/a`.",
+             "the compose file (compose.yaml, compose.yml, docker-compose.yaml or docker-compose.yml),",
+             "backend/pyproject.toml, backend/requirements*.txt, frontend/vite.config.ts and",
+             "package.json — blank keys are unanswered, not zero; a key of a pack this project",
+             "does not name is omitted, never `n/a`.",
              "Schema: `coverage/references/14-testing-profile.md`.", ""]
     text = "\n".join(lines)
     if show:
