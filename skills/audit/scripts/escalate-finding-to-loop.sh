@@ -12,8 +12,9 @@
 #   --dry-run   print what would happen; scaffold nothing, mutate nothing
 #
 # Exit: 0 escalated; 2 refused before scaffolding (unknown or ambiguous id, done or dropped
-#   row, unusable lock dir); 4 the loop spec was scaffolded but its row could not be marked
-#   (the message names the spec; mark the row by hand, do not rerun).
+#   row, unusable lock dir, escalation lock held by another run); 4 the loop spec was
+#   scaffolded but its row could not be marked (the message names the spec; mark the row
+#   by hand, do not rerun).
 
 set -euo pipefail
 . "$(dirname "$0")/_lib.sh"
@@ -96,6 +97,17 @@ GOAL_TEXT="$SUMMARY"
 PROV_TEXT="_Escalated from audit finding ${FINDING_ID} (run ${AUDIT_RUN}${SEVERITY:+, severity ${SEVERITY}})._"
 GATE_TEXT="**TODO (operator):** write the exact machine-checkable gate for this finding — the concrete command that must exit 0 (e.g. a lint/contrast/type-clean check). The loop must NOT run until this is a real pass/fail signal, not prose."
 
+# The project escalation lock escalate-finding.sh holds (same path, fd 8), kept to exit:
+# the checks, the scaffold and the mark below run under it, so a concurrent loop or
+# backlog escalation of the same id waits and is then refused as done (BL-779). The dry
+# run writes nothing and takes no lock.
+if [[ "$DRY_RUN" -eq 0 ]]; then
+  LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/aidex/escalation-log"
+  LOG="$LOG_DIR/$(printf '%s' "$ROOT" | path_digest)"
+  mkdir -p "$LOG_DIR" || die "cannot create $LOG_DIR; nothing was escalated"
+  lock_take "$LOG.flock" 10 8 || die "could not take the escalation lock $LOG.flock (held by another escalation); nothing was escalated"
+fi
+
 # Refuse before scaffolding what the mark would refuse after it (an unusable lock
 # directory, a row it cannot rewrite), so a refusal leaves no orphan loop spec (BL-779);
 # before the dry run too, which previews the same escalation.
@@ -144,8 +156,11 @@ if [[ -z "$LOOP_FILE" || ! -f "$LOOP_FILE" ]]; then
 fi
 
 # Prefill the generated loop-spec: inject Goal + provenance + a gate TODO right
-# after their section headings (instructional comments are left in place).
-TMP="$(mktemp "${TMPDIR:-/tmp}/aidex.XXXXXX")"
+# after their section headings (instructional comments are left in place). The temp
+# file sits beside the spec (atomic rename) and takes its mode (cp -p): mktemp's 0600
+# must not replace it (BL-779).
+TMP="$(mktemp "$LOOP_FILE.XXXXXX")"
+cp -p "$LOOP_FILE" "$TMP"
 awk -v goal="$GOAL_TEXT" -v prov="$PROV_TEXT" -v gate="$GATE_TEXT" '
   /^## Goal$/ { print; print ""; print goal; print ""; print prov; next }
   /^## Stop condition \(the gate\)$/ { print; print ""; print gate; next }
@@ -159,7 +174,8 @@ mv "$TMP" "$LOOP_FILE"
 if grep -q '^origin_ref:' "$LOOP_FILE"; then
   sed -i.bak -E "s|^origin_ref: .*|origin_ref: $ORIGIN_REF|" "$LOOP_FILE" && rm -f "$LOOP_FILE.bak"
 else
-  TMP2="$(mktemp "${TMPDIR:-/tmp}/aidex.XXXXXX")"
+  TMP2="$(mktemp "$LOOP_FILE.XXXXXX")"
+  cp -p "$LOOP_FILE" "$TMP2"
   awk -v ref="$ORIGIN_REF" '
     /^---[[:space:]]*$/ { c++; if (c == 2) print "origin_ref: " ref }
     { print }
@@ -168,8 +184,9 @@ fi
 
 # Canon cross-ref MARKER (D-03), never a markdown relative link.
 MARKER="loop/$(basename "$LOOP_FILE" .md)"
-# The row was checked markable above, but not under the lock: a mark that still fails
-# exits 4 (scaffolded, not marked) naming the spec, as escalate-finding.sh does.
+# The row was checked markable above, under the escalation lock; a mark that still fails
+# (the row edited by hand meanwhile) exits 4 (scaffolded, not marked) naming the spec, so
+# a rerun does not scaffold a second spec.
 mark_row_escalated "$INVENTORY" "$FINDING_ID" "$MARKER" \
   || { err "error: loop-spec $LOOP_FILE was scaffolded for $FINDING_ID, but its row in $INVENTORY was not marked: set it to done with Escalated To $MARKER by hand, or delete the spec; do not rerun (it would scaffold a second spec)"; exit 4; }
 
