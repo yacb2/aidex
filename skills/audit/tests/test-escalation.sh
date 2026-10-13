@@ -514,6 +514,39 @@ LOOP_FILE="$(ls .context/loops/*.md 2>/dev/null | grep -v STATE | sed -n 1p)"
 [[ $rc -eq 4 && "$out" == *"$LOOP_FILE"* && "$out" == *"was not marked"* ]] \
   || fail "loop-mark-fails: a mark failing after the scaffold should exit 4 naming the spec ($LOOP_FILE), rc $rc: $out"
 
+# --- BL-779: the loop spec takes the umask mode of a created file, never mktemp's 0600;
+# concurrent escalations of one id (loop x loop, loop x backlog) are serialised by the
+# project escalation lock: one lands, the other is refused as done, nothing orphaned ---
+modeof() { stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"; }  # GNU first, as c40
+new_project loop-mode
+board "$A/ux/00-inventory.md" F-001
+( umask 022; bash "$SCRIPTS/escalate-finding-to-loop.sh" F-001 --loop >/dev/null 2>&1 ) || fail "loop-mode: escalate --loop exited non-zero"
+( umask 022; : > "$TMP/loop-mode-ref" )
+LOOP_FILE="$(ls .context/loops/*.md 2>/dev/null | sed -n 1p)"
+[[ -n "$LOOP_FILE" && "$(modeof "$LOOP_FILE")" == "$(modeof "$TMP/loop-mode-ref")" ]] \
+  || fail "loop-mode: the loop spec should have mode $(modeof "$TMP/loop-mode-ref") (umask 022), got $( [[ -n "$LOOP_FILE" ]] && modeof "$LOOP_FILE")"
+for c in loop backlog; do
+  new_project "loop-race-$c"
+  board "$A/ux/00-inventory.md" F-001
+  bash "$SCRIPTS/escalate-finding-to-loop.sh" F-001 --loop >"$TMP/race-$c-a.out" 2>&1 & pa=$!
+  if [[ $c == loop ]]; then bash "$SCRIPTS/escalate-finding-to-loop.sh" F-001 --loop >"$TMP/race-$c-b.out" 2>&1 & pb=$!
+  else bash "$SCRIPTS/escalate-finding.sh" F-001 >"$TMP/race-$c-b.out" 2>&1 & pb=$!; fi
+  wait $pa; ra=$?; wait $pb; rb=$?
+  out="$(cat "$TMP/race-$c-a.out" "$TMP/race-$c-b.out")"
+  n="$(( $(ls .context/loops/*.md 2>/dev/null | wc -l) + $(backlog_count) ))"
+  [[ ( "$ra $rb" == "0 2" || "$ra $rb" == "2 0" ) && "$out" == *"already done"* && "$out" != *"was not marked"* && $n -eq 1 ]] \
+    || fail "loop-race-$c: one run should land and the other be refused as done (rc 2), one spec or item in all; rc $ra and $rb, $n written: $out"
+done
+# two ids at once: both land, and the lock keeps their LOOP ids distinct
+new_project loop-race-ids
+board "$A/ux/00-inventory.md" F-001 F-002
+bash "$SCRIPTS/escalate-finding-to-loop.sh" F-001 --loop >"$TMP/race-ids-a.out" 2>&1 & pa=$!
+bash "$SCRIPTS/escalate-finding-to-loop.sh" F-002 --loop >"$TMP/race-ids-b.out" 2>&1 & pb=$!
+wait $pa; ra=$?; wait $pb; rb=$?
+ids="$(sed -n 's/^id: *//p' .context/loops/*.md 2>/dev/null | sort -u | tr '\n' ' ')"
+[[ "$ra $rb" == "0 0" && "$(printf '%s' "$ids" | wc -w | tr -d ' ')" == 2 ]] \
+  || fail "loop-race-ids: two ids escalated at once should both land with distinct LOOP ids; rc $ra and $rb, ids: $ids"
+
 # --- BL-799: the lock name does not depend on CDPATH ---
 new_project cdpath
 mkdir -p "$A/ux" "$TMP/cdpath-decoy/.context/audits/ux"; board "$A/ux/00-inventory.md" F-001
