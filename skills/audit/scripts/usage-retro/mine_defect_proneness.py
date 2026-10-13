@@ -66,6 +66,22 @@ def collapse_worktree(path):
     return WT.sub(lambda m: m.group(1) + "/", rel, count=1)
 
 
+def nest_in_project(rel, proj):
+    """aidex/skills/x.py -> aidex_ws/aidex/skills/x.py for an aidex_ws session.
+
+    A repo that was a sibling of its workspace and now lives inside it (the split
+    workspace, BL-772) keeps its old path in older transcripts. The consumer
+    (coverage/defect_prone.py) joins on `<workspace>/<workspace-rel-path>`, so
+    the row is keyed on the session's project when that project holds the folder.
+    A registered project (own `.context`, the session's own one included) keeps
+    its key."""
+    head = rel.split("/", 1)[0]
+    if os.path.isdir(os.path.join(M.PROJ_ROOT, proj, head)) \
+            and not os.path.isdir(os.path.join(M.PROJ_ROOT, head, ".context")):
+        return proj + "/" + rel
+    return rel
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--min-touches", type=int, default=6)
@@ -162,7 +178,7 @@ def main():
                 for name, _searchable, fp, _cmd in pay["tools"]:
                     if name in ("Edit", "Write", "NotebookEdit") and fp \
                             and is_production_code(fp):
-                        touched[collapse_worktree(fp)].add(key)
+                        touched[nest_in_project(collapse_worktree(fp), proj)].add(key)
 
     if not seen_items:
         print("no typed items attributed — nothing to measure")

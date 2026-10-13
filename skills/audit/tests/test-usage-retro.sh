@@ -390,6 +390,67 @@ grep -q 'base rate              : 50.0%' <<<"$out_n" \
   || fail "(n) task_only.py was flagged at $(share_of 'task_only\.py') — the cross product smeared the bug item onto it: $out_n"
 
 # ---------------------------------------------------------------------------
+# (n2) SPLIT WORKSPACE: PRODUCER ROWS MUST JOIN IN THE CONSUMER (BL-772).
+#     aidex_ws sessions edited the public repo while it was a sibling
+#     (`projects/aidex/...`); it now lives inside the workspace (`aidex_ws/aidex/`).
+#     The producer keyed the row on the directory the file lived in (`aidex/...`),
+#     while coverage/defect_prone.py strips `<workspace>/` and joins on
+#     workspace-relative paths (`aidex/skills/x.py`), so every row missed.
+#     Fed through the real consumer: the sibling-repo edit must land on
+#     `pub/skills/x.py`. Controls: an edit in a sibling with no folder inside the
+#     workspace (`other_ws`) keeps its own project segment, and the workspace's own
+#     path stays `src/z.py` even when the workspace holds a folder named after itself.
+#     Review r1 controls: a registered sibling (`reg_ws`, own `.context`) keeps its
+#     key even when the workspace holds a `reg_ws/` folder; a worktree of the nested
+#     repo (`pub-wt-x`) collapses BEFORE it nests; a FILE named like a sibling
+#     (`filesib`) does not nest, only a folder does.
+SP="$(mktemp -d "${TMPDIR:-/tmp}/w4.XXXXXX")"; ST="$(mktemp -d "${TMPDIR:-/tmp}/w4.XXXXXX")"
+mkdir -p "$SP/split_ws/.context/backlog" "$SP/split_ws/.context/audits/test-coverage" "$SP/split_ws/pub" "$SP/split_ws/split_ws" \
+  "$SP/split_ws/reg_ws" "$SP/reg_ws/.context"
+touch "$SP/split_ws/filesib"
+cat > "$SP/split_ws/.context/backlog/2026-03-03-the-split-bug.md" <<'EOF'
+---
+title: "split bug"
+id: BL-803
+status: done
+created: 2026-03-03
+updated: 2026-03-03
+type: bug
+---
+
+# split bug
+EOF
+mkdir -p "$ST/-Users-user-Documents-projects-split-ws"
+{
+  xprompt "arreglemos BL-803"                              "2026-03-03T10:00:00Z"
+  xedit   "/h/Documents/projects/pub/skills/x.py"          "2026-03-03T10:01:00Z"
+  xedit   "/h/Documents/projects/other_ws/y.py"            "2026-03-03T10:02:00Z"
+  xedit   "/h/Documents/projects/split_ws/src/z.py"        "2026-03-03T10:03:00Z"
+  xedit   "/h/Documents/projects/reg_ws/r.py"              "2026-03-03T10:04:00Z"
+  xedit   "/h/Documents/projects/pub-wt-x/skills/w.py"     "2026-03-03T10:05:00Z"
+  xedit   "/h/Documents/projects/filesib/q.py"             "2026-03-03T10:06:00Z"
+} > "$ST/-Users-user-Documents-projects-split-ws/split.jsonl"
+DPJ="$SP/split_ws/.context/audits/test-coverage/defect-prone.jsonl"
+python3 "$RETRO/mine_defect_proneness.py" --projects-root "$SP" --transcripts-root "$ST" \
+  --denominator all --min-touches 1 --out "$DPJ" >/dev/null 2>&1
+keys_n2="$(python3 - "$TESTS_DIR/../scripts/coverage" "$SP/split_ws" <<'PYN2' 2>&1
+import sys
+sys.path.insert(0, sys.argv[1])
+import defect_prone
+print(sorted(defect_prone.load(sys.argv[2])[1]))
+PYN2
+)"
+[[ "$keys_n2" == "['pub/skills/w.py', 'pub/skills/x.py', 'src/z.py']" ]] \
+  || fail "(n2) the consumer should join the split workspace's rows on pub/skills/w.py, pub/skills/x.py and src/z.py, got $keys_n2: $(cat "$DPJ")"
+grep -q '"file": "other_ws/y.py"' "$DPJ" \
+  || fail "(n2) control: an edit in a sibling with no folder in the workspace keeps its own project: $(cat "$DPJ")"
+grep -q '"file": "reg_ws/r.py"' "$DPJ" \
+  || fail "(n2) control: a registered sibling project keeps its own key even when the workspace holds a folder of its name: $(cat "$DPJ")"
+grep -q '"file": "filesib/q.py"' "$DPJ" \
+  || fail "(n2) control: a FILE named like a sibling does not nest it, only a folder does: $(cat "$DPJ")"
+rm -rf "$SP" "$ST"
+
+# ---------------------------------------------------------------------------
 # (o) mine_verification.py SMOKE CELL — promoted 2026-08-23 out of a gitignored
 #     `.context/` (findings §8.10). Its old `agg.json` input has no producer, so
 #     it now derives targets from items.jsonl + spans.jsonl (mine_items.py's own
