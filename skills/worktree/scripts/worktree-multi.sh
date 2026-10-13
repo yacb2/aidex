@@ -306,10 +306,11 @@ else
     fi
 
     if [[ -z "$WT_DOWN" ]]; then
-      err "Docker resources exist for $(compose_project_name "$(basename "$ROOT")")-wt-$SLUG but the project records no 'worktree_down'."
+      err "Docker resources exist, or could not be judged (see 'not judged' above), for $(compose_project_name "$(basename "$ROOT")")-wt-$SLUG but the project records no 'worktree_down'."
       err "Refusing to invent a teardown. Either:"
       err "  - record worktree_down in $DOC (see /aidex:worktree bootstrap, Axis 4), or"
       err "  - reclaim the resources with the commands listed above, then re-run with --skip-teardown"
+      err "    (nothing listed but 'not judged': re-run once docker answers, not --skip-teardown)"
       exit 1
     fi
 
