@@ -87,8 +87,8 @@ def main():
     # Keyed PER PROJECT, because BL ids are project-scoped (mine_items.py:224-226
     # builds its id_map the same way, for the same reason). A single flat map
     # resolved every shared id to whichever project sorts last in
-    # build_registry()'s glob — 178 ids collide across this workspace's 17
-    # projects — so a session's files were attributed to a stranger's item and
+    # build_registry()'s glob — 800 ids collide across the owner's 25
+    # projects on 2026-10-13 — so a session's files were attributed to a stranger's item and
     # that item's `type:` decided the bug numerator.
     # Per project, in the shape M.attribute_session() consumes: token -> ITEM.
     slug_maps, id_maps = defaultdict(dict), defaultdict(dict)

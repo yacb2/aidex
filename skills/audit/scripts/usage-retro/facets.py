@@ -214,8 +214,10 @@ def facets_for(record, table):
     facet skill, OR the prompt is one of the facet's slash commands.
     """
     p = record.get("prompt") or ""
-    # Transcripts record plugin skills as `aidex:<name>`; facet files list the bare name.
-    fired = {n[len("aidex:"):] if n.startswith("aidex:") else n
+    # Transcripts record plugin skills as `aidex:<name>`, pre-plugin ones as
+    # `aidex-<name>` (BL-800); facet files list the bare name.
+    fired = {n[len("aidex:"):] if n.startswith("aidex:") else
+             n[len("aidex-"):] if n.startswith("aidex-") else n
              for n in (record.get("skills_fired") or []) + (record.get("prior_skills") or [])}
     slash = p.strip().split()[0] if record.get("is_slash") and p.strip() else None
     if slash and not slash.startswith("/"):
