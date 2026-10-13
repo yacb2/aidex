@@ -245,6 +245,12 @@ the base branch explicitly first (branch-base rule above).
 
 A project whose `config.env` does not exist yet needs `bootstrap`, not a guess.
 
+`worktree.sh down` bounds its Docker calls: `AIDEX_DOWN_TIMEOUT` (default 300 s) for
+`compose down`, `AIDEX_DOCKER_TIMEOUT` (default 30 s) for the other daemon calls. Each
+must be a positive integer, else `down` refuses with exit 2. A call that times out is
+reported (`compose down failed (exit 142)`) and the slot claim is kept; re-run
+`worktree.sh down <slug>` once the daemon answers.
+
 ## Boundaries
 
 | The user wants to… | Route to |

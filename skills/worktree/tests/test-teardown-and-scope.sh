@@ -58,6 +58,10 @@ grep -q 'PRE_DB=6400' <<<"$out" \
   && fail "#5: a blank .wt-slot handed the MAIN tree's dev port 6400 to the teardown hook"
 grep -qi 'no slot' <<<"$out" \
   || fail "#5: a blank .wt-slot must be reported as no slot recorded, got: $out"
+# BL-796: a --no-infra tree holds no claim, so `down` has no slot dir to check and
+# must not create one (its guard is "only when one exists").
+[[ -e "$TMPDIR/aidex-wt-slots-p5" || -L "$TMPDIR/aidex-wt-slots-p5" ]] \
+  && fail "BL-796: down of a --no-infra tree created the slot directory"
 
 # --- BL-193. --delete-branch cannot name the branch -> it must REFUSE --------
 #
@@ -588,6 +592,150 @@ out="$( cd "$P" && PATH="$BIN:$PATH" bash "$S/worktree.sh" down td --force --kee
 grep -q "keep-dir: $P-wt-td left in place (no slot claimed; resume with: worktree.sh up td)" <<<"$out" \
   || fail "keep-dir no claim: must say no slot is claimed: $out"
 grep -q 'still claimed' <<<"$out" && fail "keep-dir no claim: claims a slot is still claimed with none held: $out"
+
+# --- BL-795. a foreign file at the slot path must not block a claim-less down ---
+# The refusal is for a symlinked or foreign slot DIRECTORY that `down` would read a
+# claim from or delete one in. A --no-infra tree records no slot and holds no claim,
+# so there is nothing to read or delete, and refusing named a claim that is not there.
+mk_docker '#!/bin/sh
+exit 0'
+mk_branch_fixture "$TMP/p795" fs >/dev/null 2>&1
+: > "$TMP/p795-wt-fs/.wt-slot"
+printf 'not a directory\n' > "$TMPDIR/aidex-wt-slots-p795"
+out="$( cd "$TMP/p795" && PATH="$BIN:$PATH" bash "$S/worktree.sh" down fs --force 2>&1 )"; rc=$?
+[[ $rc -eq 0 ]] || fail "BL-795: a foreign file at the slot path blocked a down that holds no claim (rc=$rc): $out"
+[[ ! -d "$TMP/p795-wt-fs" ]] || fail "BL-795: the claim-less worktree was not torn down: $out"
+rm -f "$TMPDIR/aidex-wt-slots-p795"
+
+# --- BL-793. a docker that ignores TERM must not hang `down` ------------------
+# with_timeout only sent TERM, and the compose plugin ignores it, so a wedged
+# daemon hung the unbounded `compose down` and `docker images` for good. The stub
+# ignores TERM and ALRM (an ignored disposition survives `exec`); down must give
+# up within the deadlines (AIDEX_DOWN_TIMEOUT 2 s, AIDEX_DOCKER_TIMEOUT 2 s, plus
+# the KILL grace) -- bounded() allows 20 s. Only the two calls `down` makes itself
+# hang: the label-less `docker images` belongs to orphan-sweep.
+mk_docker '#!/bin/sh
+case "$1 $*" in
+  "compose "*|"images "*label=*) trap "" TERM ALRM; exec sleep 300 ;;
+esac
+exit 0'
+( cd "$TMP/p5" && bash "$S/worktree.sh" new wedge --branch wt/wedge --no-infra ) >/dev/null 2>&1 \
+  || fail "BL-793: fixture: worktree new failed"
+bounded "BL-793 down" env AIDEX_DOWN_TIMEOUT=2 bash "$S/worktree.sh" down wedge --force
+
+# --- BL-793 follow-ups: with_timeout itself ----------------------------------
+eval "$(sed -n '/^with_timeout()/,/^}/p' "$S/worktree.sh")"
+# (a) the KILL reaches the whole group: a TERM-ignoring grandchild that holds the
+#     pipe of a $( ) otherwise keeps the substitution waiting for its full life.
+t0=$SECONDS
+x="$(with_timeout 1 sh -c '(trap "" TERM; exec sleep 8) & wait')"
+[[ $((SECONDS - t0)) -le 4 ]] \
+  || fail "with_timeout: a TERM-ignoring grandchild held the pipe for $((SECONDS - t0)) s (deadline 1 s + 2 s grace)"
+# (b) a TERM sent to with_timeout itself (Ctrl-C, an outer timeout) reaches the
+#     child instead of leaving it running detached.
+( with_timeout 30 sh -c 'echo $$ > "$1"; exec sleep 31' sh "$TMP/fwd.pid"; true ) 2>/dev/null & wpid=$!
+for ((i = 0; i < 40; i++)); do [[ -s "$TMP/fwd.pid" ]] && break; sleep 0.1; done
+cpid="$(cat "$TMP/fwd.pid" 2>/dev/null)"
+if [[ -n "$cpid" ]]; then
+  kill -TERM "$(ps -o ppid= -p "$cpid" | tr -d ' ')" 2>/dev/null
+  for ((i = 0; i < 30; i++)); do kill -0 "$cpid" 2>/dev/null || break; sleep 0.1; done
+  kill -0 "$cpid" 2>/dev/null && { fail "with_timeout: a TERM to the wrapper left its child running"; kill -9 "$cpid"; }
+else
+  fail "with_timeout: fixture: the child never started"
+fi
+{ wait "$wpid"; } 2>/dev/null
+
+# (b2) a signal reaching with_timeout is forwarded as the SAME signal to the child's
+#      group (no TERM is sent for an INT), the child gets 2 s, then the group is
+#      KILLed, and the signal is re-raised on the wrapper: the CALLING script dies of
+#      it (INT -> 130) instead of going on as if the command had merely failed.
+#      Rows: INT to the group (Ctrl-C) with a plain child and with a child that
+#      ignores TERM and INT (must be KILLed within the grace, whole group gone);
+#      TERM to the wrapper PID alone (forwarding is the only way the child learns).
+cat > "$TMP/ctrlc.sh" <<EOS
+$(sed -n '/^with_timeout()/,/^}/p' "$S/worktree.sh")
+set +e
+with_timeout 20 sh -c "\$1" sh "\$2"
+echo CONTINUED
+EOS
+for row in 'INT group exec sleep 30' 'INT group trap "" TERM INT; sleep 30' "TERM wrapper trap 'touch $TMP/kid.term; exit 0' TERM; sleep 30 & wait"; do
+  sig="${row%% *}"; rest="${row#* }"; who="${rest%% *}"; kid="${rest#* }"
+  kid="echo \$\$ > \"$TMP/kid.pid\"; $kid"
+  rm -f "$TMP/kid.pid" "$TMP/kid.term"; : > "$TMP/ctrlc.out"
+  perl -e '$SIG{INT}="DEFAULT"; setpgrp(0,0); exec @ARGV' bash "$TMP/ctrlc.sh" "$kid" x > "$TMP/ctrlc.out" 2>&1 &
+  wpid=$!
+  for ((i = 0; i < 50; i++)); do [[ -s "$TMP/kid.pid" ]] && break; sleep 0.1; done
+  kpid="$(cat "$TMP/kid.pid" 2>/dev/null)"
+  [[ -n "$kpid" ]] || { fail "with_timeout ($sig): fixture: the child never started"; kill -9 -- "-$wpid" 2>/dev/null; continue; }
+  if [[ $who == group ]]; then target="-$wpid"; else target="$(ps -o ppid= -p "$kpid" | tr -d ' ')"; fi
+  t0=$SECONDS
+  kill -"$sig" -- "$target" 2>/dev/null
+  for ((i = 0; i < 80; i++)); do kill -0 "$wpid" 2>/dev/null || break; sleep 0.1; done
+  if kill -0 "$wpid" 2>/dev/null; then
+    fail "with_timeout ($sig, '$rest'): the script was still running 8 s after the signal"; kill -9 -- "-$wpid" 2>/dev/null
+  fi
+  { wait "$wpid"; } 2>/dev/null; rc=$?
+  [[ $((SECONDS - t0)) -le 4 ]] || fail "with_timeout ($sig, '$rest'): took $((SECONDS - t0)) s to end (grace is 2 s)"
+  kill -0 -- "-$kpid" 2>/dev/null && { fail "with_timeout ($sig, '$rest'): the child's group outlived the wrapper"; kill -9 -- "-$kpid" 2>/dev/null; }
+  # bash itself only abandons a script over SIGINT; after a TERM it carries on (rc 143).
+  # The child's own TERM trap proves the TERM was FORWARDED (a KILL after the grace
+  # would also end it, but leaves no marker).
+  if [[ $sig == TERM ]]; then
+    [[ -e "$TMP/kid.term" ]] || fail "with_timeout (TERM): the child never received the forwarded TERM"
+    continue
+  fi
+  grep -q CONTINUED "$TMP/ctrlc.out" && fail "with_timeout ($sig, '$rest'): the script continued after the signal"
+  [[ $rc -eq 130 ]] || fail "with_timeout ($sig, '$rest'): the script must end with 130, got $rc"
+done
+
+# (c) the timeout is VISIBLE on a claimed tree: exit 142 reported, the slot kept.
+#     (--no-infra clears the 142 because it holds no claim.)
+mk_docker '#!/bin/sh
+case "$1" in compose) trap "" TERM ALRM; exec sleep 300 ;; esac
+exit 0'
+( cd "$TMP/p5" && bash "$S/worktree.sh" new claimed --branch wt/claimed --no-infra ) >/dev/null 2>&1 \
+  || fail "BL-793 claimed: fixture: worktree new failed"
+echo 3 > "$TMP/p5-wt-claimed/.wt-slot"
+mkdir -p "$TMPDIR/aidex-wt-slots-p5"
+echo "1 claimed Mon" > "$TMPDIR/aidex-wt-slots-p5/slot-3"
+bounded "BL-793 claimed down" env AIDEX_DOWN_TIMEOUT=2 bash "$S/worktree.sh" down claimed --force; rc=$?
+[[ $rc -ne 0 && $rc -ne 99 ]] || fail "BL-793 claimed: a timed-out compose down must exit non-zero, got rc=$rc"
+grep -q 'compose down failed (exit 142)' "$TMP/bounded.out" \
+  || fail "BL-793 claimed: the timeout is not reported as exit 142: $(cat "$TMP/bounded.out")"
+[[ -e "$TMPDIR/aidex-wt-slots-p5/slot-3" ]] || fail "BL-793 claimed: the slot claim was released over an unverified teardown"
+
+# --- the timeout knobs are validated (0 would mean no deadline) ---------------
+mk_docker '#!/bin/sh
+exit 0'
+for kv in AIDEX_DOWN_TIMEOUT=0 AIDEX_DOCKER_TIMEOUT=abc AIDEX_DOWN_TIMEOUT=99999999999999999999; do
+  out="$( cd "$TMP/p5" && env "$kv" PATH="$BIN:$PATH" bash "$S/worktree.sh" down claimed --force 2>&1 )"; rc=$?
+  [[ $rc -eq 2 ]] || fail "$kv must be refused with exit 2, got $rc: $out"
+  grep -q "${kv%%=*}" <<<"$out" || fail "$kv: the refusal does not name the variable: $out"
+done
+
+# --- worktree-c06. the compose project name is Compose-normalised ------------
+# Compose rejects `MyApp-wt-x` ("must consist only of lowercase alphanumeric
+# characters, hyphens, and underscores"), so a directory with an uppercase letter
+# or a dot could never get a worktree. DEST keeps the raw directory name; only the
+# project name is normalised.
+mk_docker '#!/bin/sh
+echo "ARGS $*" >> "$DOCKER_LOG"
+case "$*" in "ps -a --format"*) echo myapp-wt-cn ;; esac
+exit 0'
+P="$TMP/My.App"
+mk_branch_fixture "$P" cn >/dev/null 2>&1
+export DOCKER_LOG="$TMP/docker06.log"; : > "$DOCKER_LOG"
+out="$( cd "$P" && PATH="$BIN:$PATH" bash "$S/worktree.sh" down cn --force 2>&1 )"
+# The verifier must look under the same normalised name: a live myapp-wt-cn stack
+# was reported as "no Docker resource remains" when the sweep scanned `My.App-wt-`.
+grep -q 'no Docker resource remains' <<<"$out" \
+  && fail "c06: down declared a clean teardown over a live myapp-wt-cn stack: $out"
+grep -q 'residue remains' <<<"$out" \
+  || fail "c06: down did not report the myapp-wt-cn residue: $out"
+grep -q 'compose -p myapp-wt-cn ' "$DOCKER_LOG" \
+  || fail "c06: down must name the compose project myapp-wt-cn, got: $(grep compose "$DOCKER_LOG" | sed -n 1p)"
+grep -q 'My\.App-wt\|MyApp-wt' "$DOCKER_LOG" \
+  && fail "c06: a raw, un-normalised project name reached docker: $(grep 'My' "$DOCKER_LOG" | sed -n 1p)"
 
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"

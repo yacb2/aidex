@@ -53,7 +53,7 @@ fi
 
 DIR="$(cd "$(dirname "$FILE")" && pwd -P)"
 BASE="$(basename "$FILE")"
-MAIN="$(basename "$DIR")"
+MAIN="$(compose_project_name "$(basename "$DIR")")"
 PROBE="${MAIN}-wt-isolationprobe"
 
 render() {  # render <project-name> <suffix-value>
