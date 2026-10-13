@@ -109,7 +109,13 @@ and rejects anything else rather than defaulting:
 resolved base for any scope, so "the diff of this phase" and "since the last
 commit" are presets over the same resolver instead of new scopes. Every enum
 member added is another site that can silently fall out of lockstep; the
-parameter costs nothing.
+parameter costs nothing. With `--base` the resolver also lists untracked,
+non-ignored files, so the uncommitted last unit of a multi-commit checkpoint is
+not left out.
+
+**The default base is the default branch.** The resolver does not guess a parent
+branch: a caller reviewing a branch cut from another branch (not from the default
+branch) passes `--base <fork-point>` itself.
 
 The resolver never returns a silently-empty anchor. It reports the anchor it
 actually used (`merge-base` · `head` · `last-commit` · `explicit`), and a
