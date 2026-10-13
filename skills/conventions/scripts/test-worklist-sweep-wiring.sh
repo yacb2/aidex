@@ -96,6 +96,14 @@ bash "$DIR/worklist-advance.sh" "$WL8" --append "backlog:BL-9 — nested" >/dev/
 [[ $RC -eq 2 && "$(cksum < "$WL8")" == "$sum8" ]] && grep -q "was NOT appended" "$TMP/err" \
   && ok "6e' a numbered line under Deferred is no insertion point: refused, file untouched" \
   || bad "6e' nested-line append: rc=$RC $(grep -n 'BL-9' "$WL8") $(cat "$TMP/err")"
+# 6f · BL-778: the appended label is written literally. It rode `awk -v`, which turns a
+# literal backslash-n (`C:\new`) into a newline and split the queue line in two.
+WL9="$P/.context/worklists/2026-01-01-backslash.md"
+printf -- '---\ntitle: b\nstatus: doing\ncreated: 2026-01-01\nupdated: 2026-01-01\nmode: sweep\n---\n\n## Queue (in execution order)\n\n1. [ ] BL-1 a   <!-- ref: backlog -->\n\n## Deferred / emergent\n' > "$WL9"
+bash "$DIR/worklist-advance.sh" "$WL9" --append 'backlog:BL-9 fix C:\new path' >/dev/null 2>"$TMP/err"; RC=$?
+[[ $RC -eq 0 ]] && grep -Fxq '2. [ ] BL-9 fix C:\new path   <!-- ref: backlog --> <!-- emergent -->' "$WL9" \
+  && ok "6f a backslash in an appended label is kept literally (one whole queue line)" \
+  || bad "6f backslash label: rc=$RC $(grep -n -A1 'BL-9' "$WL9") $(cat "$TMP/err")"
 
 # 6b · a head closed OUT OF BAND is ticked past, not wedged; a deferred head likewise
 prove "$C" "tests/test_c.py"
