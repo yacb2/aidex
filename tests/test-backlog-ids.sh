@@ -8,11 +8,11 @@
 #
 # Scenarios:
 #   (a) clean backlog             -> --reindex exit 0, no duplicate warning
-#   (b) duplicate id              -> --reindex exit 1, names id and both files
+#   (b) duplicate id              -> --reindex exit 4 (index written, id guard failed), names id and both files
 #   (c) duplicate across _archive -> caught too (scan covers active+archive+deferred)
 #   (d) next id clears the max    -> new entry gets highest+1, not a reused number
 #   (e) registration survives     -> a pre-existing duplicate warns but still writes
-#   (f) nonconforming id          -> --reindex exit 1, names the offending id
+#   (f) nonconforming id          -> --reindex exit 4 (index written, id guard failed), names the offending id
 #   (g) conforming ids stay clean -> no false nonconforming warning
 #
 # Run with: bash tests/test-backlog-ids.sh
@@ -73,7 +73,7 @@ echo "$out" | grep >/dev/null -i "duplicate id" && fail "(a) clean backlog: repo
 make_fixture
 make_item "$B/2026-01-04-delta.md" "BL-002" "Delta"
 out="$(run_reindex)"; rc=$?
-[[ "$rc" -eq 1 ]] || fail "(b) duplicate id: expected exit 1, got $rc"
+[[ "$rc" -eq 4 ]] || fail "(b) duplicate id: expected exit 4 (index written, id guard failed), got $rc"
 echo "$out" | grep >/dev/null "duplicate id BL-002" || fail "(b) duplicate id: did not name the id"
 echo "$out" | grep >/dev/null "2026-01-02-beta.md" || fail "(b) duplicate id: did not name the first file"
 echo "$out" | grep >/dev/null "2026-01-04-delta.md" || fail "(b) duplicate id: did not name the second file"
@@ -83,7 +83,7 @@ echo "$out" | grep >/dev/null "2026-01-04-delta.md" || fail "(b) duplicate id: d
 make_fixture
 make_item "$B/2026-01-05-epsilon.md" "BL-003" "Epsilon"
 out="$(run_reindex)"; rc=$?
-[[ "$rc" -eq 1 ]] || fail "(c) archive duplicate: expected exit 1, got $rc"
+[[ "$rc" -eq 4 ]] || fail "(c) archive duplicate: expected exit 4 (index written, id guard failed), got $rc"
 echo "$out" | grep >/dev/null "duplicate id BL-003" || fail "(c) archive duplicate: did not name the id"
 
 # ---------- (d) next id clears the highest assigned, wherever it lives ----------
@@ -109,7 +109,7 @@ echo "$err_out" | grep >/dev/null "duplicate id BL-002" || fail "(e) registratio
 make_fixture
 make_item "$B/2026-01-07-eta.md" "BL-20260610" "Eta"
 out="$(run_reindex)"; rc=$?
-[[ "$rc" -eq 1 ]] || fail "(f) nonconforming id: expected exit 1, got $rc"
+[[ "$rc" -eq 4 ]] || fail "(f) nonconforming id: expected exit 4 (index written, id guard failed), got $rc"
 echo "$out" | grep >/dev/null "nonconforming id BL-20260610" || fail "(f) nonconforming id: did not name the id"
 echo "$out" | grep >/dev/null "2026-01-07-eta.md" || fail "(f) nonconforming id: did not name the file"
 [[ -f "$B/00-index.md" ]] || fail "(f) nonconforming id: index should still be written"
@@ -118,7 +118,7 @@ echo "$out" | grep >/dev/null "2026-01-07-eta.md" || fail "(f) nonconforming id:
 make_fixture
 make_item "$B/2026-01-08-theta.md" "BL-1" "Theta"
 out="$(run_reindex)"; rc=$?
-[[ "$rc" -eq 1 ]] || fail "(f) short id: expected exit 1, got $rc"
+[[ "$rc" -eq 4 ]] || fail "(f) short id: expected exit 4 (index written, id guard failed), got $rc"
 echo "$out" | grep >/dev/null "nonconforming id BL-1" || fail "(f) short id: did not name the id"
 
 # ---------- (g) a clean, conforming backlog raises no nonconforming warning ----------

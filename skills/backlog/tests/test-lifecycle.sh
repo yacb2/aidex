@@ -239,12 +239,12 @@ printf -- '---\ntitle: "malformed id item"\nid: BL-20260610\nstatus: open\ncreat
 MALFORMED_OUT="$(bash "$SCRIPTS/register-item.sh" --reindex 2>&1)" && MALFORMED_RC=0 || MALFORMED_RC=$?
 check "malformed id still renders on its line" 'grep -q "^- \*\*BL-20260610\*\* · \*\*\[malformed id item\]" .context/backlog/00-index.md'
 check "nonconforming guard still warns" '[[ "$MALFORMED_OUT" == *"nonconforming id BL-20260610"* ]]'
-check "nonconforming guard still fails --reindex" '[[ "$MALFORMED_RC" -eq 1 ]]'
+check "nonconforming guard still fails --reindex, with the written-but-id-problem exit 4" '[[ "$MALFORMED_RC" -eq 4 ]]'
 
 echo "== a duplicate id elsewhere must not abort a transition (backlog-c24) =="
-# --reindex exits 1 AFTER writing the index when any id is duplicated. start/defer/sweep
+# --reindex exits 4 AFTER writing the index when any id is duplicated. start/defer/sweep
 # ran it bare under set -e, so the item was already rewritten but the banner, the path on
-# stdout and the exit code were lost. close-item.sh already guards the same call.
+# stdout and the exit code were lost. 4 is "written, id guard failed", never "stale".
 DUP="$TMP/dup"; mkdir -p "$DUP/.context/backlog" "$DUP/.context/plans"
 cd "$DUP"
   B1="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "dup start bug" --priority P1 --type bug 2>/dev/null)"
@@ -256,14 +256,18 @@ cd "$DUP"
   DUP_RC=0; DUP_OUT="$(bash "$SCRIPTS/start-item.sh" BL-001 2>&1)" || DUP_RC=$?
   check "start-item still exits 0 with a duplicate id elsewhere" '[[ $DUP_RC -eq 0 ]]'
   check "start-item still prints the bug route" '[[ "$DUP_OUT" == *"RED->GREEN procedure now"* ]]'
+  # Re-starting a doing item rewrites the index to identical bytes: with a duplicate id
+  # elsewhere the guard exits 4 (written), which is not a stale index (Q23a).
+  DUP_RC=0; DUP_OUT="$(bash "$SCRIPTS/start-item.sh" BL-001 2>&1)" || DUP_RC=$?
+  check "re-starting a doing item with a duplicate id elsewhere exits 0, never 'stale'" '[[ $DUP_RC -eq 0 && "$DUP_OUT" != *"stale"* && "$DUP_OUT" == *"id problem"* ]]'
   DEF_RC=0; DEF_OUT="$(bash "$SCRIPTS/defer-item.sh" defer "$X1" --reason "x" 2>/dev/null)" || DEF_RC=$?
   check "defer-item still exits 0 with a duplicate id elsewhere" '[[ $DEF_RC -eq 0 ]]'
   check "defer-item still prints the destination on stdout" '[[ "$DEF_OUT" == *"/_deferred/"* ]]'
   SW_RC=0; SW_OUT="$(bash "$SCRIPTS/sweep.sh" --apply 2>&1)" || SW_RC=$?
-  check "sweep.sh --apply still exits 0 and reports the archive" '[[ $SW_RC -eq 0 && "$SW_OUT" == *"item(s) archived"* ]]'
+  check "sweep.sh --apply still exits 0 and reports the archive" '[[ $SW_RC -eq 0 && "$SW_OUT" == *"item(s) archived"* && "$SW_OUT" != *"stale"* ]]'
   D2="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "dup close target" --priority P2 2>/dev/null)"
   CL_RC=0; CL_OUT="$(bash "$SCRIPTS/close-item.sh" "$D2" --status dropped 2>/dev/null)" || CL_RC=$?
-  check "close-item (exit stays 1 by contract) archives and prints the destination with a duplicate id elsewhere" '[[ "$CL_OUT" == *"/_archive/"* && -f "$CL_OUT" ]]'
+  check "close-item archives, prints the destination and exits 4 (index written, id guard failed) with a duplicate id elsewhere" '[[ $CL_RC -eq 4 && "$CL_OUT" == *"/_archive/"* && -f "$CL_OUT" ]]'
 cd "$TMP"
 
 echo "== an index that cannot be written is reported, never "rebuilt" (BL-798 through the callers) =="

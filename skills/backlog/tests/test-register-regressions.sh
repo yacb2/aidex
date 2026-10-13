@@ -781,8 +781,16 @@ PARKED=0; kill -0 "$LATE" 2>/dev/null && ls .context/backlog/*-bl-002-registered
 D="$(fresh b25)"; cd "$D"
 mkdir .context/backlog/00-index.md
 OUT="$(bash "$REG" --reindex 2>&1)"; RC=$?
-[[ $RC -ne 0 ]] && ok "B25 --reindex exits non-zero when the index cannot be written" || bad "B25 exited 0 over an unwritable index"
+[[ $RC -eq 1 ]] && ok "B25 --reindex exits 1 (not written, never the id-guard 4) when the index cannot be written" || bad "B25 rc=$RC over an unwritable index (want 1)"
 [[ "$OUT" != *"Regenerated"* ]] && ok "B25 no Regenerated line for a write that failed" || bad "B25 claimed success: $OUT"
+# B25b: a registration whose index cannot be written still succeeds (entry written, path on
+# stdout) but says the index was not rebuilt; only the id-guard exit 4 stays quiet.
+D="$(fresh b25b)"; cd "$D"
+mkdir .context/backlog/00-index.md
+ERR="$(bash "$REG" --origin manual --title "unwritable index" 2>&1 >"$TMP/b25b.out")"; RC=$?
+[[ $RC -eq 0 && -f "$(cat "$TMP/b25b.out")" && "$ERR" == *"was not rebuilt"* ]] \
+  && ok "B25b registering over an unwritable index exits 0, keeps the entry and says the index was not rebuilt" \
+  || bad "B25b rc=$RC err: $ERR"
 
 cd /
 echo

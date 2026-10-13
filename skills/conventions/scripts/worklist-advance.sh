@@ -164,6 +164,10 @@ if [[ "$peek" -eq 0 && -z "$append" ]]; then
           # `--commit` is forwarded: without it every sweep-closed item carried
           # `commits: ""` and the report had nothing to count (BL-576/637, 2026-08-28)
           rc=0; close_out="$(bash "$BACKLOG_SCRIPTS/close-item.sh" "$id" --sweep ${commits[@]+"${commits[@]}"})" || rc=$?
+          # 4 = archived and index written, but the id guard found a duplicate/nonconforming id
+          if [[ $rc -eq 4 ]]; then
+            echo "sweep: $id closed; index rebuilt, but reindex reported an id problem (exit 4)" >&2; rc=0
+          fi
           if [[ $rc -ne 0 ]]; then
             echo "sweep: $id was not closed — the queue does not advance past an unproven item" >&2
             exit "$rc"

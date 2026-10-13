@@ -193,6 +193,18 @@ sed -i.bak 's/^mode: sweep$/mode: "sweep"/' "$WL4" && rm -f "$WL4.bak"
 bash "$DIR/worklist-advance.sh" "$WL4" >/dev/null 2>"$TMP/err"; RC=$?
 grep -q "BL-777" "$TMP/err" && ok "mode: \"sweep\" (quoted) is still sweep mode" || bad "quoted mode ignored: rc=$RC $(cat "$TMP/err")"
 
+# 6i · Q23a: a duplicate id elsewhere makes close-item's --reindex exit 4 AFTER the item was
+# archived and the index written. The advance must tick the head and go on, not die as "not closed".
+L1="$(reg --title "dup head")"; L1ID="$(idof "$L1")"; prove "$L1" "t"
+L2="$(reg --title "dup next")"; L2ID="$(idof "$L2")"; prove "$L2" "t"
+cp "$L2" "$P/.context/backlog/2026-01-01-dup-copy-of-next.md"   # same id as L2, elsewhere
+WL13="$(bash "$DIR/worklist-new.sh" --title "Dup id" --mode sweep --ref "backlog:$L1ID — head" --ref "backlog:$L2ID — next")"
+NEXT="$(bash "$DIR/worklist-advance.sh" "$WL13" 2>"$TMP/err")"; RC=$?
+[[ $RC -eq 0 && "$NEXT" == 2.* && -f "$P/.context/backlog/_archive/$(basename "$L1")" ]] && grep -q "id problem" "$TMP/err" \
+  && ok "6i a head closed while a duplicate id exists elsewhere is ticked past, the next one starts" \
+  || bad "6i dup-id close: rc=$RC next=$NEXT $(cat "$TMP/err")"
+rm -f "$P/.context/backlog/2026-01-01-dup-copy-of-next.md"
+
 # 7 · one project root: from a linked worktree, worklist and item resolve to the main tree
 if command -v git >/dev/null 2>&1; then
   # .context/ is gitignored, as in this repo: with it TRACKED the worktree carries its own

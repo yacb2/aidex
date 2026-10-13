@@ -116,18 +116,16 @@ ok "Started ${ID:-$(basename "$FILE")} → doing · ${TITLE}"
 
 if [[ $NO_INDEX -eq 0 ]]; then
   # The transition is already written, so a reindex problem must not drop the route banner.
-  # --reindex also exits 1 AFTER writing the index (id guard); only an index that did NOT
-  # change is stale or unwritten, and that is the one that fails this run.
-  INDEX_FILE="$BACKLOG_DIR/00-index.md"
-  INDEX_BEFORE="$(cksum <"$INDEX_FILE" 2>/dev/null || true)"
+  # --reindex exits 4 AFTER writing the index (id guard); any other non-zero exit is a stale
+  # index, and that is the one that fails this run.
   IDX_RC=0
   bash "$SCRIPT_DIR/register-item.sh" --reindex >/dev/null || IDX_RC=$?
   if [[ $IDX_RC -eq 0 ]]; then
     ok "  index rebuilt"
-  elif [[ "$(cksum <"$INDEX_FILE" 2>/dev/null || true)" == "$INDEX_BEFORE" ]]; then
-    warn "  index is stale (reindex exit $IDX_RC); rebuild it with: bash $SCRIPT_DIR/register-item.sh --reindex"
-  else
+  elif [[ $IDX_RC -eq 4 ]]; then
     warn "  index rebuilt, but reindex reported an id problem (exit $IDX_RC)"; IDX_RC=0
+  else
+    warn "  index is stale (reindex exit $IDX_RC); rebuild it with: bash $SCRIPT_DIR/register-item.sh --reindex"
   fi
 fi
 

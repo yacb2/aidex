@@ -23,6 +23,9 @@
 #                               empty or a placeholder PARKS the item. Outside sweep
 #                               mode the type: bug warning below is all there is.
 #
+# Exit: 0 closed; 2 refused (nothing mutated); 4 archived and index written, but the id guard
+# found a duplicate or nonconforming id (the path is still printed); 1 archived, index stale.
+#
 # Resolves <BL-id> against active backlog items' front-matter `id:` field.
 
 set -euo pipefail
@@ -344,17 +347,15 @@ archive_companions "$ROOT/.context" "backlog/$(basename "$FILE")" "$BACKLOG_DIR/
 
 # --- rebuild index ---
 if [[ $NO_INDEX -eq 0 ]]; then
-  INDEX_FILE="$BACKLOG_DIR/00-index.md"
-  INDEX_BEFORE="$(cksum <"$INDEX_FILE" 2>/dev/null || true)"
   RC=0
   bash "$SCRIPT_DIR/register-item.sh" --reindex >/dev/null || RC=$?
   if [[ $RC -eq 0 ]]; then
     ok "  index rebuilt"
   else
-    # --reindex also exits non-zero AFTER writing the index when the id guard finds a
-    # problem; only an index that was NOT rewritten is stale. The path is printed either way
-    # (the item is archived); the exit code stays main's.
-    if [[ "$(cksum <"$INDEX_FILE" 2>/dev/null || true)" == "$INDEX_BEFORE" ]]; then
+    # --reindex exits 4 AFTER writing the index when the id guard finds a problem; any other
+    # non-zero exit means the index is stale. The path is printed either way (the item is
+    # archived) and the exit code is the reindex's.
+    if [[ $RC -ne 4 ]]; then
       echo "close-item: $(basename "$DEST") was archived but the index is stale; rebuild it with: bash $SCRIPT_DIR/register-item.sh --reindex" >&2
     fi
     printf '%s\n' "$DEST"
