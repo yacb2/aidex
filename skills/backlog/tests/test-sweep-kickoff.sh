@@ -77,6 +77,11 @@ grep -q '^mode: sweep$' "$WL" && grep -q '^  publish: never$' "$WL" && ok "mode:
 grep -q "^queue-size-at-kickoff: 5$" "$WL" && ok "original queue size recorded (growth baseline)" || bad "queue-size line: $(grep queue-size "$WL")"
 awk '/^## Needs decision \(kickoff\)/{n=NR} /^## Deferred/{d=NR} END{exit !(n && d && n<d)}' "$WL" && ok "Needs-decision section sits before Deferred / emergent (which stays last)" || bad "section order in worklist"
 python3 "$CONV/validate-worklist.py" "$WL" >/dev/null && ok "sweep work-list validates" || bad "validate: $(python3 "$CONV/validate-worklist.py" "$WL")"
+# c07: a second kickoff with the same title and slug the same day must not rewrite the first
+SUM1="$(cksum < "$WL")"
+bash "$SCRIPTS/sweep-kickoff.sh" --title "Small sweep 3" --slug small-sweep-3 --include "$RID" >/dev/null 2>"$TMP/again.err"; RC=$?
+[[ "$RC" == "2" && "$(cksum < "$WL")" == "$SUM1" ]] && ok "same-day rerun with the same title and slug is refused (rc 2) and leaves the work-list byte-identical" || bad "rerun: rc=$RC, unchanged=$([[ "$(cksum < "$WL")" == "$SUM1" ]] && echo yes || echo no)"
+grep -q "resume or close" "$TMP/again.err" && ok "the refusal tells the caller to resume or close the existing work-list" || bad "refusal text: $(cat "$TMP/again.err")"
 Q="$(grep -E '^[0-9]+\. \[ \] ' "$WL")"
 [[ "$(grep -c . <<<"$Q")" == "5" ]] && ok "five eligible items queued" || bad "queue: $Q"
 pos() { grep -nE "^[0-9]+\. \[ \] .*\b$1\b" "$WL" | cut -d: -f1; }

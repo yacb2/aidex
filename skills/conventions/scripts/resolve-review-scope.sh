@@ -19,7 +19,7 @@
 #   resolve-review-scope.sh --files <scope> [target] # print the resolved file list
 #
 # Scopes (the closed enum — see references/review-scope-conventions.md):
-#   working-diff         uncommitted tracked changes vs HEAD
+#   working-diff         uncommitted tracked changes plus untracked, non-ignored files vs HEAD
 #   branch-vs-main       this branch's cumulative work vs the default branch
 #   worktree-cumulative  a linked worktree's cumulative work vs its fork point
 #   module-path <path>   changes under <path>, over the widest non-empty base
@@ -32,7 +32,7 @@
 # Output (stdout, one key=value per line):
 #   scope=<name>
 #   base=<rev>        git rev-spec to diff against; `-` means "working tree vs HEAD"
-#   anchor=<how>      merge-base | default-branch | head | last-commit | explicit
+#   anchor=<how>      merge-base | head | last-commit | explicit
 #   pathspec=<path>   empty unless the scope narrows to a path
 #
 # Exit codes: 0 resolved · 2 usage error · 3 scope resolved but empty
@@ -73,13 +73,22 @@ git rev-parse --git-dir >/dev/null 2>&1 || die "not a git repository"
 # Files changed for a base. `-` means working tree vs HEAD.
 changed_files() { # base [pathspec]
   local base="$1" ps="${2:-}"
-  if [ "$base" = "-" ]; then
-    if [ -n "$ps" ]; then git diff --name-only HEAD -- "$ps" 2>/dev/null
-    else git diff --name-only HEAD 2>/dev/null; fi
-  else
-    if [ -n "$ps" ]; then git diff --name-only "$base" -- "$ps" 2>/dev/null
-    else git diff --name-only "$base" 2>/dev/null; fi
-  fi
+  {
+    if [ "$base" = "-" ]; then
+      if [ -n "$ps" ]; then git diff --name-only HEAD -- "$ps" 2>/dev/null
+      else git diff --name-only HEAD 2>/dev/null; fi
+    else
+      if [ -n "$ps" ]; then git diff --name-only "$base" -- "$ps" 2>/dev/null
+      else git diff --name-only "$base" 2>/dev/null; fi
+    fi
+    # `git diff` never lists untracked files, so a new file would never be reviewed.
+    # Only the working-diff scope adds them: the cumulative scopes must keep their
+    # anchor when a directory of untracked artefacts sits in the tree.
+    # `:/` = the whole repo, so the root-relative names match the diff's.
+    if [ "$scope" = "working-diff" ]; then
+      git ls-files --others --exclude-standard --full-name -- "${ps:-:/}" 2>/dev/null
+    fi
+  } | LC_ALL=C sort -u
 }
 
 nonempty() { [ -n "$(changed_files "$1" "${2:-}")" ]; }
@@ -88,9 +97,13 @@ nonempty() { [ -n "$(changed_files "$1" "${2:-}")" ]; }
 default_branch() {
   local d
   d=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null) && {
-    printf '%s\n' "${d#origin/}"; return 0; }
+    # merge-base needs a ref that exists: the local branch, else the remote one.
+    git show-ref --verify --quiet "refs/heads/${d#origin/}" && { printf '%s\n' "${d#origin/}"; return 0; }
+    git rev-parse --verify --quiet "$d" >/dev/null 2>&1 && { printf '%s\n' "$d"; return 0; }
+  }
   for c in main master; do
     git show-ref --verify --quiet "refs/heads/$c" && { printf '%s\n' "$c"; return 0; }
+    git show-ref --verify --quiet "refs/remotes/origin/$c" && { printf '%s\n' "origin/$c"; return 0; }
   done
   return 1
 }

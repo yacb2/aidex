@@ -189,7 +189,7 @@ def summary(d):
     if d["fan_out"]:
         print("\nFAN OUT: %d > 20 eligible — triage with parallel readers (5 was the measured shape);" % d["n_eligible"])
         print("  each reader writes its verdict with define-item.sh (estimate, surface, verify, touches, depends),")
-        print("  then re-run the kickoff so the queue is ordered from the corrected items.")
+        print("  then re-run the kickoff with --dry-run until triage is done (a real run writes the work-list, and a second one the same day is refused).")
     print("\nREVIEW (%d) — defined, but READ the body before starting; re-run with --include <id> to queue it" % len(d["review"]))
     for i in d["review"]:
         print("  %-8s %-3s %-3s  %-34s %s" % (i["id"], i["priority"], i["estimate"], i["reason"][:34], i["title"][:40]))
