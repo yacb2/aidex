@@ -151,10 +151,13 @@ substitute an eyeball.
 - [scripts/check-worktree-isolation.sh](scripts/check-worktree-isolation.sh) —
   **the one command.** Runs every isolation check in order and reports them
   together; `--census` does it across every project with a `config.env`. Run this
-  BEFORE enabling worktrees on a project, and again whenever the compose file or
-  a linked script changes. Every finding is a blocker, not a warning.
-  Run the umbrella, not one of the checks below: each is correct about the surface
-  it covers, and a defect lives outside whichever one you pick.
+  once `config.env` is written (bootstrap step 6), before enabling worktrees, and
+  again whenever the compose file or a linked script changes. Every finding is a
+  blocker, not a warning. Before `config.env` exists, only the compose check below
+  can run (bootstrap step 3); the umbrella refuses with "nothing was checked".
+  Once the config exists, run the umbrella, not one of the checks below: each is
+  correct about the surface it covers, and a defect lives outside whichever one
+  you pick.
   - [scripts/check-compose-isolation.sh](scripts/check-compose-isolation.sh) —
     compose addressing. A stack whose names do not vary with
     `COMPOSE_PROJECT_NAME` cannot run twice, and no teardown can fix that later.

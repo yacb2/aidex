@@ -26,8 +26,8 @@
 # Degrades gracefully when docker is not on PATH or the daemon is
 # unreachable: prints a note and exits 0 (a --check gate cannot fail on an
 # environment that has no Docker to begin with). A daemon that answers but
-# times out on an image's label lookup leaves that image unjudged: the sweep is
-# reported incomplete, and --check / --slug exit 1 (never a clean bill).
+# times out on any call leaves that part unjudged: the sweep is reported
+# incomplete, and --check / --slug exit 1 (never a clean bill).
 
 set -uo pipefail
 
@@ -152,18 +152,38 @@ if [[ $drc -ne 0 ]]; then
   exit 0
 fi
 
+# dk VAR docker-args... — run docker under the deadline and put its stdout in
+# VAR. A deadline hit is reported and counted as degraded (VAR left empty): an
+# empty inventory from a wedged daemon must never read as "No orphans".
+degraded=0
+dk() {
+  local v="$1" o r=0; shift
+  o="$(with_timeout "$dt" docker "$@" 2>/dev/null)" || r=$?
+  if [[ $r -eq 142 ]]; then
+    echo "docker did not answer within ${dt} s running: docker $* (not judged)."
+    degraded=$((degraded + 1)); o=""
+  fi
+  printf -v "$v" '%s' "$o"
+}
+
 # --- inventory, fetched once up front: owner_slug needs every slug known to
 #     exist before it can resolve a bare "-" suffix to the right one. ---
-compose_projects="$(docker ps -a --format '{{.Label "com.docker.compose.project"}}' 2>/dev/null | sort -u || true)"
-volumes="$(docker volume ls --format '{{.Name}}' 2>/dev/null | sort -u || true)"
-images="$(docker images --format '{{.Repository}}' 2>/dev/null | sort -u || true)"
-dangling_projects="$(
-  docker images -f dangling=true -q 2>/dev/null | while IFS= read -r id; do
-    [[ -z "$id" ]] && continue
-    docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' "$id" 2>/dev/null
-  done | sort -u | grep -v '^$' || true
-)"
-networks="$(docker network ls --format '{{.Name}}' 2>/dev/null | sort -u || true)"
+dk compose_projects ps -a --format '{{.Label "com.docker.compose.project"}}'
+compose_projects="$(sort -u <<< "$compose_projects")"
+dk volumes volume ls --format '{{.Name}}'
+volumes="$(sort -u <<< "$volumes")"
+dk images images --format '{{.Repository}}'
+images="$(sort -u <<< "$images")"
+dk dangling_ids images -f dangling=true -q
+dangling_projects=""
+while IFS= read -r id; do
+  [[ -z "$id" ]] && continue
+  dk lbl inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' "$id"
+  dangling_projects+="$lbl"$'\n'
+done <<< "$dangling_ids"
+dangling_projects="$(sort -u <<< "$dangling_projects" | grep -v '^$' || true)"
+dk networks network ls --format '{{.Name}}'
+networks="$(sort -u <<< "$networks")"
 
 # Candidate slugs: worktrees on disk, compose project labels (exact names),
 # volume/network heads, and the slug asked about.
@@ -176,7 +196,6 @@ while IFS= read -r ident; do
 done < <(printf '%s\n' "${known_projects[@]:-}" "$compose_projects" "$dangling_projects" "$volumes" "$networks")
 
 orphans_found=0
-degraded=0
 
 if [[ -n "$SLUG" ]]; then
   echo "Attribution pre-flight for $SCOPE (every resource carrying this project name)..."
@@ -241,7 +260,8 @@ while IFS= read -r proj; do
   [[ -z "$proj" ]] && continue
   in_scope "$proj" || continue
   is_known "$proj" && continue
-  ids="$(docker images -f dangling=true -f "label=com.docker.compose.project=$proj" -q 2>/dev/null | tr '\n' ' ')"
+  dk ids images -f dangling=true -f "label=com.docker.compose.project=$proj" -q
+  ids="$(tr '\n' ' ' <<< "$ids")"
   ids="${ids% }"
   [[ -z "$ids" ]] && continue
   n="$(wc -w <<< "$ids" | tr -d ' ')"
@@ -260,7 +280,14 @@ while IFS= read -r net; do
   [[ -z "$net" ]] && continue
   in_scope "$net" || continue
   is_known "$net" && continue
-  attached="$(docker network inspect "$net" -f '{{len .Containers}}' 2>/dev/null || echo 0)"
+  before=$degraded
+  dk attached network inspect "$net" -f '{{len .Containers}}'
+  if [[ $degraded -gt $before ]]; then
+    echo "$LABEL network: $net (attached count not judged)"
+    echo "  # attached containers unknown — do not force-remove"
+    orphans_found=$((orphans_found + 1))
+    continue
+  fi
   echo "$LABEL network: $net ($attached container(s) attached)"
   if [[ "$attached" == "0" ]]; then
     echo "  docker network rm $net"
@@ -271,7 +298,7 @@ while IFS= read -r net; do
 done <<< "$networks"
 
 echo
-[[ "$degraded" -gt 0 ]] && warn "sweep incomplete (degraded): $degraded image(s) not judged."
+[[ "$degraded" -gt 0 ]] && warn "sweep incomplete (degraded): $degraded docker call(s) timed out, not judged."
 if [[ "$orphans_found" -gt 0 ]]; then
   if [[ -n "$SLUG" ]]; then
     warn "$orphans_found resource group(s) attributable to $SCOPE."
