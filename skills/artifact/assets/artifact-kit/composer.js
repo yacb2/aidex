@@ -654,12 +654,15 @@
     /* A decided item folded in place gets no entry (BL-380): its block is the
      * way in, and listing it would put the answered question back in the
      * index the reader asked to stop navigating. links[i] stays undefined,
-     * which collect() already tolerates. */
-    if (isDecided(el) && el.closest('.consult-group')) return;
+     * which collect() already tolerates. A proposal is not folded (it stays
+     * drawn with live controls), so it keeps its entry (BL-768). */
+    if (isSettled(el) && el.closest('.consult-group')) return;
     /* Nor does anything under [hidden]: drawn as nothing, its rect top is 0 and
      * the scroll spy would mark it current ahead of the section the reader is in. */
     if (el.closest('[hidden]')) return;
     var cls = el.closest('.consult-group') ? 'railitem sub' : 'railitem';
+    /* A row that asks nothing is content, not a question: no pending dot (BL-792). */
+    if (el.hasAttribute('data-asks-nothing')) cls += ' content';
     /* A row with a human heading (data-heading, a gallery row) lists by it and
      * without its slug id: the id stays the anchor and what a reply names. */
     var badge = el.querySelector('.consult-id');
@@ -1040,8 +1043,7 @@
          * still counted nowhere (BL-692). */
         /* A proposal with no correction typed is pending the reader's
          * confirmation: it is not marked answered until something is typed
-         * (BL-692). A proposal inside a group has no rail link, so only the
-         * item's has-answer class moves; the rail has no "pending" state. */
+         * (BL-692). Its rail link (BL-768) moves with the item's has-answer class. */
         /* Like an open item, a defect report alone is no answer and no correction (it still
          * travels, and Clear reaches it): BL-711. */
         var fix = '', corr = '';
@@ -1068,7 +1070,8 @@
        * on a page whose one question was answered. It leaves the counts the
        * same way the general notes do; its notes still travel in the paste. */
       var notes = el.classList.contains('consult-notes')
-        || (isGalleryRow(el) && !el.querySelector('.opts'));
+        || (isGalleryRow(el) && !el.querySelector('.opts'))
+        || el.hasAttribute('data-asks-nothing');      /* BL-792: by attribute too, whatever its shape */
       markProvisional(el);
       var body = readItem(el);
       el.classList.toggle('has-answer', !!body);

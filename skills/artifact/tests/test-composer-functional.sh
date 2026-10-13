@@ -4346,6 +4346,10 @@ item692() {  # item692 <id> <title> <attrs>; an asks-nothing row is shaped like 
     return;
   }
   var done0 = has(i3);
+  /* BL-768: a proposal is drawn in place with live controls, so the rail lists it under its block. */
+  var rail = function (id) { var a = [].filter.call(document.querySelectorAll("#raillist a"), function (x) { return x.getAttribute("href") === "#" + id; })[0];
+    return a ? a.className : "none"; };
+  var rail0 = rail("P2");
   /* BL-711: a proposal has the controls and the radio look of an open item (the injected control set,
    * and what an UNPICKED option's label looks like), differing only by the item's own border. */
   var ctrl = function (n) { return ["kit-ask", "consult-clear", "kit-defect", "kit-other", "kit-notnow"]
@@ -4393,6 +4397,7 @@ item692() {  # item692 <id> <title> <attrs>; an asks-nothing row is shaped like 
     + "|LOOK=" + look(p1) + "~" + look(document.querySelector('[data-id="A2"]'))
     + "|ASKREPLY=" + askCap.replace(/[|<>\n]/g, " ")
     + "|DONE0=" + done0 + "|DONE1=" + done1
+    + "|RAILP0=" + rail0 + "|RAILP=" + rail("P1") + "," + rail("P2")
     + "|REPLY=" + cap.replace(/[|<>\n]/g, " ") + "|";
 });</script>
 PROBE
@@ -4412,10 +4417,12 @@ tp="$(grep -oE '<title>[^<]*</title>' "$PRP/dom.html" | sed -n 1p)"
   || fail "BL-692: the folded group's summary is not one line per point (want 2 lines, no '; '): $tp"
 [[ "$tp" == *"|REPLY="*"P1"*"zzzcorrection mejor No"* ]] \
   || fail "BL-692: the correction typed on the proposal did not land in the copied reply: $tp"
-[[ "$tp" == *"|STATTYPED="*"2 correcciones listas para copiar|"* ]] \
-  || fail "BL-692: the status must count the typed corrections beside the questions (want '2 correcciones listas para copiar'): $tp"
 [[ "$tp" == *"|DONE0=0|DONE1=1|"* ]] \
   || fail "BL-692: a proposal with no correction must not read as answered (has-answer), and must once something is typed: $tp"
+[[ "$tp" == *"|RAILP0=railitem sub|RAILP=railitem sub done,railitem sub done|"* ]] \
+  || fail "BL-768: a proposal inside a block must be listed in the rail under it, pending until a correction is typed (want RAILP0=railitem sub, then both done): $tp"
+[[ "$tp" == *"|STATTYPED=1 de 1 respondidas · 2 correcciones listas para copiar|"* ]] \
+  || fail "BL-692/BL-792: the status must count the typed corrections beside the questions, and a row marked data-asks-nothing (A1) must not count nor be reported missing (want '1 de 1 respondidas · 2 correcciones listas para copiar'): $tp"
 [[ "$tp" == *"|EMPTYVIS=1|RADIOOFF=0|"* ]] \
   || fail "BL-692/BL-700: an EMPTY proposal must show its correction box and label (EMPTYVIS=1), with its options live (RADIOOFF=0, BL-700): $tp"
 [[ "$tp" == *"|REPLY="*"### P2"*"zzzloose"* && "${tp%%## G3*}" != *"- Si"* && "$tp" != *"### S1"* && "$tp" != *"### S2"* ]] \
@@ -4435,13 +4442,28 @@ tp="$(grep -oE '<title>[^<]*</title>' "$PRP/dom.html" | sed -n 1p)"
 gen629 "$TMP/g629/marks.html" "$(row629 empty '')" "$(row629 loaded '' | sed 's/"kind": "review"/"kind": "sample"/')"
 MARKS_PROBE='<script>window.addEventListener("load", function () {
   var n = function (id) { return document.querySelectorAll("[data-id=" + id + "] textarea.kit-marks").length; };
-  document.title = "MARKS|NORMAL=" + n("audit-empty-light-desktop") + "|SAMPLE=" + n("audit-loaded-light-desktop") + "|";
+  document.title = "MARKS|NORMAL=" + n("audit-empty-light-desktop") + "|SAMPLE=" + n("audit-loaded-light-desktop-sample") + "|";
 });</script>'
 PROBE629="$MARKS_PROBE"
 page629 "$TMP/g629/marks.html" "$TMP/reports/marks692.html"
 tmk="$(title629 "$TMP/reports/marks692.html")"
 [[ "$tmk" == *"|NORMAL=1|SAMPLE=0|"* ]] \
   || fail "BL-693: a tiled gallery row marked data-asks-nothing must get no mark-mode box while a normal one does (want NORMAL=1|SAMPLE=0): $tmk"
+# BL-792: the same page's sample row is content in the rail, never a pending decision. The open row is
+# answered first; the sample's entry must carry no hollow (unanswered) dot and the status reads all answered.
+# Layer: browser, because the rail entry and its dot are drawn by the composer and the kit CSS.
+PROBE629='<script>window.addEventListener("load", function () {
+  var r = document.querySelector("[data-id=audit-empty-light-desktop] input[type=radio]");
+  r.checked = true; r.dispatchEvent(new Event("change", { bubbles: true }));
+  var s = document.querySelector("[data-asks-nothing]");
+  var a = s && [].filter.call(document.querySelectorAll("#raillist a"), function (x) { return x.getAttribute("href") === "#" + s.id; })[0];
+  document.title = "R792|LINK=" + (a ? a.className : "none") + "|DOT=" + (a ? getComputedStyle(a.querySelector(".dot")).borderTopStyle : "x")
+    + "|STATUS=" + document.getElementById("consult-status").textContent + "|";
+});</script>'
+page629 "$TMP/g629/marks.html" "$TMP/reports/rail792.html"
+tr792="$(title629 "$TMP/reports/rail792.html")"
+[[ "$tr792" == *"|LINK=railitem sub content|DOT=none|STATUS=1 de 1 respondidas|"* ]] \
+  || fail "BL-792: an illustration-only sample row must be listed in the rail as content (class content, no hollow dot) and leave the count once the open row is answered (want LINK=railitem sub content|DOT=none|STATUS=1 de 1 respondidas): $tr792"
 # A page whose only remaining items are proposals is not "all decided": status and copy count say so.
 {
   printf '%s\n' '<meta name="consult-visual" content="none: a layout probe, nothing to draw">' \
