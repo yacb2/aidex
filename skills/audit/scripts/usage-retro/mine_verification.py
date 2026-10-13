@@ -159,7 +159,7 @@ def user_images(o):
 
 
 def load_targets(data_dir, min_edits, since_dt):
-    """items.jsonl + spans.jsonl -> {(project, slug): {session, ...}}.
+    """items.jsonl + spans.jsonl -> {(project, slug): {session: (first, last)}}.
 
     Replaces the retired agg.json['bucket']=='real' filter with a threshold on the
     one signal both pipelines agree on: total edits across the item's spans.
@@ -180,7 +180,17 @@ def load_targets(data_dir, min_edits, since_dt):
             continue
         if sum(s.get('edits', 0) for s in spans) < min_edits:
             continue
-        targets[k] = {s['session'] for s in spans}
+        # per session: the item's own window, first..last over its spans there. A
+        # missing bound stays None (unbounded on that side).
+        win = {}
+        for s in spans:
+            lo, hi = parse_ts(s.get('first')), parse_ts(s.get('last'))
+            if s['session'] in win:
+                olo, ohi = win[s['session']]
+                lo = None if lo is None or olo is None else min(lo, olo)
+                hi = None if hi is None or ohi is None else max(hi, ohi)
+            win[s['session']] = (lo, hi)
+        targets[k] = win
     return targets
 
 
@@ -203,6 +213,9 @@ def main():
     since_dt = parse_since(args.since)
     targets = load_targets(args.data_dir, args.min_edits, since_dt)
 
+    # Q24: only a session that serves 2+ items is windowed; a session serving one
+    # item keeps every run, as before.
+    shared = {x for x, c in Counter(x for w in targets.values() for x in w).items() if c >= 2}
     per = {}
     unknown_shapes = Counter()
     missing, bad_lines = set(), {}   # per file, not per item: sessions are shared
@@ -210,7 +223,7 @@ def main():
         proj, slug = k
         files = [f for d in M.tx_dirs_for(proj) for f in glob.glob(d + "*.jsonl")
                  if os.path.basename(f) in sessions]
-        missing |= sessions - {os.path.basename(f) for f in files}
+        missing |= set(sessions) - {os.path.basename(f) for f in files}
         ev = []
         for f in files:
             objs = []
@@ -228,6 +241,7 @@ def main():
                 except ValueError:
                     bad_lines[f] += 1
             fh.close()
+            lo, hi = sessions[os.path.basename(f)] if os.path.basename(f) in shared else (None, None)
             pending = {}          # tool_use_id -> ('test'|'commit', ts)
             for o in objs:
                 ts = o.get("timestamp", "")
@@ -253,6 +267,12 @@ def main():
                         if tid in pending:
                             kind, _ = pending.pop(tid)
                             if kind == 'test':
+                                # Q24: a session may serve several items; credit a test
+                                # run only to the item whose span window holds it
+                                # (edges inclusive).
+                                t_dt = parse_ts(ts)
+                                if t_dt is not None and ((lo and t_dt < lo) or (hi and t_dt > hi)):
+                                    continue
                                 oc = test_outcome(txt)
                                 if oc == 'unknown':
                                     unknown_shapes[unknown_shape(txt)] += 1
