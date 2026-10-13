@@ -44,22 +44,8 @@ is_valid_slug() { [[ "$1" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; }
 # while _lib.sh consumers wrote to the main tree. Pinned by
 # conventions/scripts/test-find-project-root.sh (no private copies).
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../conventions/scripts" && pwd -P)/_lib.sh"
-
-# Render {{KEY}} placeholders. Usage: render <tpl> <out> KEY=val ...
-render_template() {
-  local template="$1"; shift
-  local out="$1"; shift
-  [[ -f "$template" ]] || die "template not found: $template"
-  [[ -e "$out" ]] && die "refusing to overwrite existing file: $out"
-  local content; content="$(cat "$template")"
-  local kv key val
-  for kv in "$@"; do
-    key="${kv%%=*}"; val="${kv#*=}"
-    val="${val//\\/\\\\}"; val="${val//|/\\|}"; val="${val//&/\\&}"
-    content="$(printf '%s' "$content" | sed "s|{{$key}}|$val|g")"
-  done
-  printf '%s' "$content" > "$out"
-}
+# render_template comes from _lib.sh too: the private copy here lost the template's
+# final newline after the shared one was fixed (BL-780).
 
 # --- Communications style profile (BL-216) ---------------------------------------
 # Same shape as .context/profiles/artifact.md: a human-readable markdown file whose
