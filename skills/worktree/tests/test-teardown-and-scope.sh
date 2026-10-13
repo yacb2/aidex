@@ -63,6 +63,39 @@ grep -qi 'no slot' <<<"$out" \
 [[ -e "$TMPDIR/aidex-wt-slots-p5" || -L "$TMPDIR/aidex-wt-slots-p5" ]] \
   && fail "BL-796: down of a --no-infra tree created the slot directory"
 
+# --- #5 / BL-776. down reads a slot from the file, else the claim, else none --
+# `down` checked only "is a number", so 0 -- the MAIN tree -- passed and the hook
+# got dev's own port. Each source is checked on its own: a 0 file falls through to
+# a real claim, a 0 claim is no slot. No range check: a slot above a LOWERED
+# WT_MAX_SLOTS is still that worktree's, and its teardown must release it.
+# Row: name | .wt-slot | claim slot ("" = none) | WT_MAX_SLOTS ("" = default) |
+#      hook output | expect "released slot N" (yes/no).
+down_case() {
+  local name="$1" file="$2" claim="$3" max="$4" want="$5" rel="$6" P="$TMP/p5$1" sd
+  mkdir -p "$P/.context/worktrees" "$P/backend"
+  { printf '%s\n' 'WT_PARTICIPANTS="backend"' 'WT_LINKS=""' 'WT_PORT_VARS="WEB_PORT=8000"' \
+      "WT_PRE_DOWN_CMD='echo PRE_WEB=\${WEB_PORT:-none}'"
+    [[ -n "$max" ]] && printf 'WT_MAX_SLOTS=%s\n' "$max"; } > "$P/.context/worktrees/config.env"
+  ( cd "$P/backend" && /usr/bin/git init -q . && /usr/bin/git config user.email t@e.com \
+    && /usr/bin/git config user.name t && echo x > f && /usr/bin/git add -A && /usr/bin/git commit -qm i ) >/dev/null 2>&1
+  ( cd "$P" && bash "$S/worktree.sh" new z --branch wt/z --no-infra ) >/dev/null 2>&1
+  printf '%s\n' "$file" > "$P-wt-z/.wt-slot"
+  if [[ -n "$claim" ]]; then
+    sd="$TMPDIR/aidex-wt-slots-p5$name"; mkdir -p "$sd"; chmod 700 "$sd"
+    printf '99999 z 0\n' > "$sd/slot-$claim"
+  fi
+  out="$( cd "$P" && PATH="$BIN:$PATH" bash "$S/worktree.sh" down z --force 2>&1 )"
+  grep -qx "$want" <<<"$out" \
+    || fail "BL-776 down ($name): .wt-slot '$file', claim '${claim:--}' must give the hook $want, got: $out"
+  if [[ "$rel" == yes ]]; then
+    grep -q "released slot $claim" <<<"$out" || fail "BL-776 down ($name): slot $claim must be released, got: $out"
+  fi
+}
+down_case zero  0 ''  '' PRE_WEB=none no    # no claim: no slot, never the main tree
+down_case zfile 0 3   '' PRE_WEB=8300 yes   # a 0 file falls through to the claim
+down_case zclm  '' 0  '' PRE_WEB=none no    # a 0 claim is no slot either
+down_case lower 7 7   4  PRE_WEB=8700 yes   # above a lowered WT_MAX_SLOTS: still released
+
 # --- BL-193. --delete-branch cannot name the branch -> it must REFUSE --------
 #
 # `down --delete-branch` reads the branch from `<worktree>/.wt-branch`. When that

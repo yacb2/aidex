@@ -12,6 +12,10 @@
 #   worktree-c11  an empty .wt-slot (`new --no-infra` writes exactly that) or a
 #                 detached HEAD printed an EMPTY field; a consumer reading with
 #                 IFS=$'\t' collapses adjacent tabs and every later column shifts.
+#   BL-776        a non-empty .wt-slot that is not a slot (`abc`, `0`, `99`) was
+#                 printed as the SLOT instead of falling back to the claim; an
+#                 out-of-range claim was shown, `08` printed a bash base error and
+#                 18446744073709551617 wrapped into range.
 #
 # Behavioural, no daemon: docker is a stub that exits 0.
 # Run with: bash skills/worktree/tests/test-list-rows.sh
@@ -62,6 +66,26 @@ check_row "c11 empty .wt-slot" "$row"
 # c11, second source: a detached HEAD has no branch name.
 git_q -C "$TMP/root-wt-lr" checkout --detach
 check_row "c11 detached HEAD" "$(row_for "$r" lr)"
+
+# --- BL-776. a .wt-slot that is not a slot falls back to the claim, else "-" --
+# Valid means what `up` accepts: an integer in 1..WT_MAX_SLOTS (default 9).
+# A valid .wt-slot still wins over the claim, and a claim out of range is no slot
+# either. `08` must be judged without bash's octal error on stderr, and a number
+# that wraps 64-bit arithmetic back into range is not a slot.
+sd="$TMPDIR/aidex-wt-slots-root"; mkdir -p "$sd"
+for c in 'abc|3|3' '0|3|3' '99|3|3' 'abc||-' '2|3|2' 'abc|12|-' '08|3|3' \
+         '18446744073709551617|3|3'; do
+  IFS='|' read -r file claim want <<<"$c"
+  rm -f "$sd"/slot-*
+  [[ -n "$claim" ]] && printf '%s lr\n' "$$" > "$sd/slot-$claim"
+  printf '%s\n' "$file" > "$TMP/root-wt-lr/.wt-slot"
+  got="$(row_for "$r" lr | awk -F'\t' '{print $2}')"
+  [[ "$got" == "$want" ]] \
+    || fail "BL-776: .wt-slot '$file' with claim '${claim:--}' must list SLOT $want, got '$got'"
+  err="$( cd "$r" && PATH="$BIN:$PATH" bash "$WT" list --porcelain 2>&1 >/dev/null )"
+  [[ -z "$err" ]] || fail "BL-776: .wt-slot '$file': list wrote to stderr: $err"
+done
+rm -f "$sd"/slot-*
 
 # --- c10. a nested participant's branch ---------------------------------------
 n="$TMP/nest"
