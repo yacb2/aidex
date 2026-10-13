@@ -69,6 +69,7 @@ globalThis.agent = async (prompt, opts) => {
   if (scenario === 'flaky') { // first arbiter call fails transiently (null), later ones rule STOP
     return arbiterPrompts.length === 1 ? null : { verdict: 'STOP', reason: 'deny-class' }
   }
+  if (scenario === 'null-arbiter') return null // the arbiter is down for every call
   if (scenario === 'counter') {
     return { verdict: 'ASK', reason: 'tier 3', batched_question: `Push now? (ask #${arbiterPrompts.length})` }
   }
@@ -203,6 +204,26 @@ async function main() {
   out.flaky = { passed: rFlaky.passed, verdict: rFlaky.escalated && rFlaky.escalated.verdict,
     arbiterCalls: arbiterPrompts.length }
 
+  // --- plan-exec Q22d: a null arbiter verdict on a deny action, one attempt allowed ---
+  // Fail closed: with no verdict and no retry left the destructive action must not be
+  // waved through to a green gate.
+  scenario = 'null-arbiter'
+  calls = []
+  const rNull = await runPhase({ id: 'p-null', gateCmd: 'true',
+    implement: async () => ({ done: true, summary: 'ok', proof: 'x.txt', pending_actions: ['drop the users table'] }) },
+    { ...ctx, maxRetries: 0 })
+  out.nullDeny = { passed: rNull.passed, verdict: rNull.escalated && rNull.escalated.verdict,
+    reachedGate: calls.some((c) => c.startsWith('verify:')) }
+
+  // Same, at the default maxRetries: earlier attempts must not reach the gate either, and
+  // the phase ends in STOP on the last attempt (3 = K + 1).
+  calls = []
+  const rNull2 = await runPhase({ id: 'p-null2', gateCmd: 'true',
+    implement: async () => ({ done: true, summary: 'ok', proof: 'x.txt', pending_actions: ['drop the users table'] }) },
+    { ...ctx, maxRetries: 2 })
+  out.nullDeny2 = { passed: rNull2.passed, verdict: rNull2.escalated && rNull2.escalated.verdict,
+    reachedGate: calls.some((c) => c.startsWith('verify:')), attempts: rNull2.attempts }
+
   console.log(JSON.stringify(out))
 }
 main().catch((e) => { console.error(String(e)); process.exit(2) })
@@ -261,6 +282,17 @@ echo "transient arbiter failure on a deny action (null verdict is asked again):"
 check "the phase does not pass" "$(jqf flaky.passed)" "false"
 check "the retry ruled STOP" "$(jqf flaky.verdict)" "STOP"
 check "the arbiter was consulted twice" "$(jqf flaky.arbiterCalls)" "2"
+
+echo "null arbiter verdict on a deny action, single attempt (plan-exec Q22d, fail closed):"
+check "the phase does not pass" "$(jqf nullDeny.passed)" "false"
+check "it halts with STOP" "$(jqf nullDeny.verdict)" "STOP"
+check "it never reaches the gate" "$(jqf nullDeny.reachedGate)" "false"
+
+echo "same at maxRetries 2 (earlier attempts stay off the gate, STOP on the last):"
+check "the phase does not pass" "$(jqf nullDeny2.passed)" "false"
+check "it halts with STOP" "$(jqf nullDeny2.verdict)" "STOP"
+check "it never reaches the gate" "$(jqf nullDeny2.reachedGate)" "false"
+check "it used all three attempts" "$(jqf nullDeny2.attempts)" "3"
 
 echo ""
 echo "workflow-core publication: $PASS passed, $FAIL failed"

@@ -59,6 +59,15 @@ single-agent baseline of that same plan, the threshold is the structural rule ab
   non-empty `depends_on` forming a single chain → `pipeline-with-gate`; if two or more phases
   are edge-free (empty/omitted `depends_on`) and can run in parallel → `fan-out-with-gate`.
   When unsure, the sequential pipeline is the safe default (it never mis-orders).
+- **Before a `fan-out-with-gate` launch of a multi-file plan** (a plan folder; a single-file plan
+  has no `**Files:**` lists to check) run
+  `python3 ${CLAUDE_PLUGIN_ROOT}/skills/plan-exec/scripts/plan-waves.py <plan-dir> --fanout`.
+  Exit 0 and no output: launch. Exit 1 prints one stderr line, and it tells the causes apart:
+  `fan-out wave N: ... share <file>` or `... declares no **Files:** paths` means the plan must be
+  fixed first (two phases of one wave would race in one working tree); `no wave can run, unmet or
+  cyclic depends_on among ...` means the dependencies do not resolve to phase numbers; `usage:`,
+  `is not a directory`, `no phase files` or `duplicate phase number` are structure errors, not a
+  disjointness verdict. Never launch on exit 1; show the line to the user.
 - **Launch:** read the chosen asset and hand it to the `Workflow` tool, passing the plan as
   `args = JSON.stringify({ planPath, phases: [{ id, spec, gateCmd, model, effort, agentType, depends_on }],
   autonomySurface, preAuthorized, maxRetries })`. `depends_on` is a list of phase `id`s a phase
