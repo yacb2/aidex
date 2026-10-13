@@ -100,11 +100,15 @@ def git_times(root, shas):
     return times
 
 
+# validate-worklist.py's QUEUE_ITEM: indentation and runs of spaces are legal queue syntax
+QUEUE_ITEM = re.compile(r'^\s*\d+\.\s+\[([ x])\]\s+')
+
+
 def render(root, wl_path):
     wl_text = open(wl_path, encoding='utf-8', errors='replace').read()
     wl_fm, wl_body = fm_and_body(wl_text)
     wl_file = os.path.basename(wl_path)
-    queue_lines = [ln for ln in section(wl_body, 'Queue').splitlines() if re.match(r'^\d+\. \[[ x]\] ', ln)]
+    queue_lines = [ln for ln in section(wl_body, 'Queue').splitlines() if QUEUE_ITEM.match(ln)]
     kickoff_n = re.search(r'^queue-size-at-kickoff:\s*(\d+)', wl_text, re.M)
     kickoff_n = int(kickoff_n.group(1)) if kickoff_n else None
     emergent_n = sum(1 for ln in queue_lines if '<!-- emergent -->' in ln)
@@ -117,7 +121,7 @@ def render(root, wl_path):
         if not m:
             continue
         bl = m.group(0)
-        ticked = ln.startswith(tuple(f'{i}. [x]' for i in range(1, 10000)))
+        ticked = QUEUE_ITEM.match(ln).group(1) == 'x'
         it = find_item(root, bl)
         if not it:
             skipped.append((bl, 'item not found in backlog/, _archive/ or _deferred/'))
