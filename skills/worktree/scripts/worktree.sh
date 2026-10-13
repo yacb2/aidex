@@ -171,6 +171,12 @@ if [[ -n "$_unfilled" ]]; then
   exit 2
 fi
 
+# The upper bound of every slot (VALID_SLOT, the allocator, list's PORT-HELD scan).
+# A typo here read as an unbound variable inside VALID_SLOT's arithmetic, and
+# list and up exited 0 with no message (BL-803). The digit form of VALID_SLOT.
+[[ "${WT_MAX_SLOTS-}" =~ ^[1-9][0-9]{0,3}$ ]] \
+  || die "WT_MAX_SLOTS must be a positive integer (at most 4 digits), got '${WT_MAX_SLOTS-}'. Config: $CONFIG"
+
 SLUG=""; BRANCH=""; BASE=""; SLOT=""; NO_INFRA=false; KEEP_DIR=false; FORCE=false; PORCELAIN=false; REAP=false; DELETE_BRANCH=false
 REPOS=()
 [[ $# -gt 0 && "$1" != -* ]] && { SLUG="$1"; shift; }
@@ -398,8 +404,10 @@ if [[ "$cmd" == "list" ]]; then
     cs="$(awk '{print $2}' "$f" 2>/dev/null)"
     [[ -d "$(DEST_FOR "$cs")" ]] && continue
     found=1
-    if $PORCELAIN; then printf '%s\t%s\t-\t-\tno\tMISSING-DIR\n' "$cs" "$(basename "$f" | sed 's/slot-//')"
-    else warn "claim for '$cs' (slot $(basename "$f" | sed 's/slot-//')) has no directory — run: worktree.sh down $cs"; fi
+    # The claim's number by the slot rule, as for a worktree row (BL-804).
+    ms="$(basename "$f")"; ms="${ms#slot-}"; VALID_SLOT "$ms" || ms='-'
+    if $PORCELAIN; then printf '%s\t%s\t-\t-\tno\tMISSING-DIR\n' "$cs" "$ms"
+    else warn "claim for '$cs' (slot $ms) has no directory — run: worktree.sh down $cs"; fi
   done
   # A slot nobody claims whose port is still held (BL-376): the tree is gone and a
   # host process — a Vite dev server, in this family — survived the teardown. It is

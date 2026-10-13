@@ -251,6 +251,9 @@ must be a positive integer, else `down` refuses with exit 2. A call that times o
 reported (`compose down failed (exit 142)`) and the slot claim is kept; re-run
 `worktree.sh down <slug>` once the daemon answers.
 
+`WT_MAX_SLOTS` in `config.env` must be an integer in 1..9999 with no leading zero; any
+other value makes `new`, `up`, `down` and `list` refuse with exit 2, naming it.
+
 ## Boundaries
 
 | The user wants to… | Route to |
