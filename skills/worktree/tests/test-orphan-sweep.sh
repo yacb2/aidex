@@ -220,6 +220,41 @@ printf '%s' "$out" | grep >/dev/null 'did not answer within 1 s' \
   || fail "no 'did not answer' note on a deadline hit: $out"
 [[ "$code" -eq 0 ]] && pass "a degraded sweep exits 0" || fail "a degraded sweep should exit 0, got $code"
 
+echo "== an image label lookup that times out is degraded, not clean (BL-774) =="
+# The image's compose-project label decides its owner; a wedged `image inspect`
+# leaves the image unjudged, and the sweep must not call that an all-clear.
+mkdir -p "$TMP/ibin"
+cat > "$TMP/ibin/docker" <<'SHIM'
+#!/usr/bin/env bash
+case "$1 ${2:-}" in
+  "info ") exit 0 ;;
+  "images --format") echo myproj-wt-alive ;;
+  "image inspect") trap '' ALRM; exec sleep 6 ;;
+  *) exit 0 ;;
+esac
+SHIM
+chmod +x "$TMP/ibin/docker"
+t0=$SECONDS
+out="$( cd "$ROOT" && PATH="$TMP/ibin:$PATH" AIDEX_DOCKER_TIMEOUT=1 bash "$SCRIPT" 2>&1 )"; code=$?
+el=$((SECONDS - t0))
+[[ "$el" -le 4 ]] && pass "the label lookup returned at the deadline (${el} s)" \
+  || fail "a wedged image inspect held the sweep for ${el} s (deadline 1 s): $out"
+printf '%s' "$out" | grep >/dev/null 'No orphaned' \
+  && fail "an image whose label lookup timed out was swept as clean: $out" \
+  || pass "a timed-out label lookup is not an all-clear"
+printf '%s' "$out" | grep >/dev/null 'did not answer within 1 s' \
+  && pass "the label timeout is reported" \
+  || fail "no 'did not answer' note for the image label lookup: $out"
+[[ "$code" -eq 0 ]] && pass "a plain run with an unjudged image still exits 0" \
+  || fail "a plain (report-only) run with an unjudged image exited $code"
+# Under --slug an exit 0 means "nothing attributable" and lets a teardown go ahead.
+out="$( cd "$ROOT" && PATH="$TMP/ibin:$PATH" AIDEX_DOCKER_TIMEOUT=1 bash "$SCRIPT" --slug alive 2>&1 )"; code=$?
+[[ "$code" -eq 1 ]] && pass "--slug with an unjudged image exits 1" \
+  || fail "--slug read an unjudged image as nothing attributable (exit $code): $out"
+printf '%s' "$out" | grep >/dev/null 'RESOURCE image: myproj-wt-alive' \
+  && fail "--slug attributed an unjudged image by its name: $out" \
+  || pass "--slug does not attribute an unjudged image by name"
+
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
 [[ "$FAIL" -eq 0 ]]
