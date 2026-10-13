@@ -285,6 +285,13 @@ CLAIMED_SLOT() {  # slug -> slot number held in the claim files, or ""
   done
   return 1
 }
+# A worktree slot: an integer in 1..WT_MAX_SLOTS (slot 0 is the main tree). The
+# rule for --slot, the slot `up` reads and the slot column of a worktree's `list`
+# row; `down` uses the same digit form without the range (see there). Digits with
+# no leading zero, at most 4: `08` is an octal error inside `[[ -ge ]]`, `03`
+# names a claim file (slot-03) no lookup of slot-3 finds, and 2^64+1 wraps back
+# into range. The regex already rules out 0, so only the upper bound is checked.
+VALID_SLOT() { [[ "$1" =~ ^[1-9][0-9]{0,3}$ ]] && (( 10#$1 <= WT_MAX_SLOTS )); }
 # WT_PARTICIPANTS may name a NESTED repo ("apps/backend"), whose checkout lands
 # at $DEST/backend. Anything that starts from a basename and needs the repo back
 # must come through here -- resolving it by hand at each site is what produced
@@ -368,11 +375,12 @@ if [[ "$cmd" == "list" ]]; then
     # An empty field would collapse under a consumer's `IFS=$'\t' read`, shifting
     # every column after it: `cat` of an empty .wt-slot succeeds (`new --no-infra`
     # writes one) and a detached HEAD prints an empty branch, so each is checked
-    # for emptiness, not for failure. A nested participant's checkout is at
-    # $d/<basename>, not at $d/<its full path>.
+    # by its value, not for failure: the slot must be a slot (VALID_SLOT, which
+    # also rejects garbage, BL-776), the branch non-empty. A nested participant's
+    # checkout is at $d/<basename>, not at $d/<its full path>.
     slot="$(cat "$d/.wt-slot" 2>/dev/null)"
-    [[ -n "$slot" ]] || slot="$(CLAIMED_SLOT "$sg")"
-    [[ -n "$slot" ]] || slot='-'
+    VALID_SLOT "$slot" || slot="$(CLAIMED_SLOT "$sg")"
+    VALID_SLOT "$slot" || slot='-'
     br="$(git -C "$d/$(basename "$(echo "$WT_PARTICIPANTS" | awk '{print $1}')")" branch --show-current 2>/dev/null)"
     [[ -n "$br" ]] || br='-'
     n_up="$(docker ps -q --filter "label=com.docker.compose.project=$(PROJ_FOR "$sg")" 2>/dev/null | wc -l | tr -d ' ')"
@@ -432,7 +440,7 @@ case "$SLUG" in "$PROJECT"|dev|prod|main) die "refusing dev/prod-like slug: $SLU
 # array-subscript substitution. Validated here, at the parse boundary, so `up`
 # is covered as well as `new`.
 if [[ -n "$SLOT" ]]; then
-  [[ "$SLOT" =~ ^[0-9]+$ ]] && [[ "$SLOT" -ge 1 && "$SLOT" -le "$WT_MAX_SLOTS" ]] \
+  VALID_SLOT "$SLOT" \
     || die "invalid --slot '$SLOT': must be an integer in 1..$WT_MAX_SLOTS (slot 0 is the main tree)"
 fi
 
@@ -795,12 +803,17 @@ if [[ "$cmd" == "up" ]]; then
   # Read the way `down` reads it: `cat` on an EMPTY .wt-slot (what --no-infra
   # writes) succeeds, which stopped the fall-back to the claim. And checked the
   # way --slot is: the value reaches `$(( ))` in port_env, where 0 is the main
-  # tree's ports and an array subscript executes (worktree-c08).
+  # tree's ports and an array subscript executes (worktree-c08). A .wt-slot
+  # that is not a slot falls back to a claim that is, as `list` reads it
+  # (BL-776); with no valid claim the refusal still names the file.
   if [[ -z "$SLOT" ]]; then
     SLOT_FROM="$DEST/.wt-slot"; SLOT="$(cat "$DEST/.wt-slot" 2>/dev/null || true)"
-    [[ -n "$SLOT" ]] || { SLOT_FROM="the slot claim"; SLOT="$(CLAIMED_SLOT "$SLUG" || true)"; }
+    if ! VALID_SLOT "$SLOT"; then
+      _claim="$(CLAIMED_SLOT "$SLUG" || true)"
+      if [[ -z "$SLOT" ]] || VALID_SLOT "$_claim"; then SLOT_FROM="the slot claim"; SLOT="$_claim"; fi
+    fi
     [[ -n "$SLOT" ]] || die "no slot recorded for $SLUG (missing .wt-slot and no claim) — pass --slot N"
-    [[ "$SLOT" =~ ^[0-9]+$ ]] && [[ "$SLOT" -ge 1 && "$SLOT" -le "$WT_MAX_SLOTS" ]] \
+    VALID_SLOT "$SLOT" \
       || die "invalid slot '$SLOT' in $SLOT_FROM: must be an integer in 1..$WT_MAX_SLOTS (slot 0 is the main tree)"
   fi
 
@@ -1162,10 +1175,14 @@ if [[ "$cmd" == "down" ]]; then
   # teardown then exported dev's own ports into WT_PRE_DOWN_CMD. `new --no-infra`
   # writes exactly that empty file, so this was reachable by design, not by
   # corruption. Each source is now tried on its own and the result must be a
-  # number before it is allowed anywhere near port_env.
+  # slot number, never 0 (the main tree), before it is allowed anywhere near
+  # port_env. The digit form of VALID_SLOT WITHOUT its range, unlike `up`: `up`
+  # starts a stack, so a slot beyond WT_MAX_SLOTS is refused there; `down` tears
+  # one down, and a worktree created before WT_MAX_SLOTS was lowered still owns
+  # its slot -- refusing it would leave its ports unexported and its claim held.
   SLOT="$(cat "$DEST/.wt-slot" 2>/dev/null || true)"
-  [[ "$SLOT" =~ ^[0-9]+$ ]] || SLOT="$(CLAIMED_SLOT "$SLUG" || true)"
-  [[ "$SLOT" =~ ^[0-9]+$ ]] || SLOT=""
+  [[ "$SLOT" =~ ^[1-9][0-9]{0,3}$ ]] || SLOT="$(CLAIMED_SLOT "$SLUG" || true)"
+  [[ "$SLOT" =~ ^[1-9][0-9]{0,3}$ ]] || SLOT=""
   # The claim this teardown is for, as it reads NOW. It is released only if slot
   # $SLOT still holds exactly this: a `new` of the same slug that starts once
   # $DEST is gone reaps it and reserves afresh, and deleting every claim naming

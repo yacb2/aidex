@@ -62,6 +62,14 @@ grep -q 'must be an integer in 1\.\.' <<<"$out" \
 grep -q 'slot 99 ->' <<<"$out" \
   && fail "slot 99: an out-of-range slot was allocated anyway"
 
+# --- 2b. BL-776: 2^64+1 wraps to 1 in bash arithmetic; 03 is not slot 3 -----
+# (its claim file would be slot-03, never found by a lookup of slot-3).
+for bad in 18446744073709551617 03; do
+  run_wt new wrap-slot --branch wt/wrap --slot "$bad"
+  grep -q "invalid --slot '$bad': must be an integer in 1\.\." <<<"$out" \
+    || fail "slot $bad: must be refused with the valid range, got: $out"
+done
+
 # --- 3. a non-numeric slot must never reach arithmetic ----------------------
 # `$(( base + slot * stride ))` is a code-execution sink, but not via the naive
 # `$(cmd)` payload -- bash rejects that as "operand expected" without running it.
@@ -119,6 +127,16 @@ grep -q "error: invalid slot '5' in $D/.wt-slot: must be an integer in 1\.\.4" <
 run_up
 [[ "$RC" -eq 0 ]] || fail "up empty .wt-slot: must fall back to the claim and exit 0, got $RC: $out"
 grep -q 'stack up: slotproj-wt-rs (slot 2)' <<<"$out" || fail "up empty .wt-slot: must resume on the claimed slot 2: $out"
+rm -f "$SD"/slot-*
+
+# BL-776: a .wt-slot that is not a slot falls back to the claim, the way `list`
+# reads it; the refusals above are for "neither source is a slot".
+echo abc > "$D/.wt-slot"; printf '%s rs\n' "$$" > "$SD/slot-2"
+run_up
+[[ "$RC" -eq 0 ]] || fail "up .wt-slot=abc with claim 2: must fall back to the claim and exit 0, got $RC: $out"
+grep -q 'stack up: slotproj-wt-rs (slot 2)' <<<"$out" || fail "up .wt-slot=abc: must resume on the claimed slot 2: $out"
+[[ "$(cat "$D/.wt-slot")" == 2 ]] \
+  || fail "up .wt-slot=abc: .wt-slot must be rewritten to the claimed slot 2, reads '$(cat "$D/.wt-slot")'"
 rm -f "$SD"/slot-*
 
 if [[ "$failures" -gt 0 ]]; then
