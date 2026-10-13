@@ -9,7 +9,7 @@ import subprocess
 
 SKIP_DIRS = {"node_modules", "_wt", "_tmp", "_backups", ".git"}
 EXCLUDE_COMPONENTS = {".context", ".claude", "migrations"}
-LOCKFILES = {"package-lock.json", "pnpm-lock.yaml", "yarn.lock", "poetry.lock", "uv.lock"}
+LOCKFILES = {"package-lock.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb", "poetry.lock", "uv.lock"}
 BINARY_EXT = {
     ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".bmp", ".tiff", ".svg", ".pdf",
     ".woff", ".woff2", ".ttf", ".otf", ".eot", ".zip", ".gz", ".tar", ".tgz", ".mp3",

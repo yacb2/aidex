@@ -192,6 +192,26 @@ printf '{"dependencies":{"vue":"^3"},"devDependencies":{"vitest":"^4"}}\n' > "$T
 python3 "$SCRIPT" --print "$TMP/c9" | grep >/dev/null -x "frontend_test_cmd: cd frontend && pnpm vitest run {path}" \
   || fail "frontend vitest under a root pnpm lock must use pnpm: $(python3 "$SCRIPT" --print "$TMP/c9" | grep frontend_test_cmd)"
 
+# c09b (BL-783 e, owner Q37): the vitest runner follows the lockfile; precedence pnpm, yarn,
+# bun, else npm exec. bun.lockb and bun.lock both mean bunx.
+lockrow() { # <expected command> <package dir, "." for the root> <lockfile path relative to the project...>
+  local want="$1" pdir="$2"; shift 2; local d; d="$(mktemp -d "$TMP/lock.XXXXXX")"
+  mkdir -p "$d/$pdir"
+  printf '{"dependencies":{"vue":"^3"},"devDependencies":{"vitest":"^4"}}\n' > "$d/$pdir/package.json"
+  local f; for f in "$@"; do mkdir -p "$d/$(dirname "$f")"; : > "$d/$f"; done
+  local got; got="$(python3 "$SCRIPT" --print "$d" | grep '^frontend_test_cmd:' || true)"
+  [ "$got" = "frontend_test_cmd: $want" ] || fail "lockfiles [$*] in $pdir: want '$want', got '$got'"
+}
+lockrow "yarn vitest run {path}" . yarn.lock
+lockrow "bunx vitest run {path}" . bun.lockb
+lockrow "bunx vitest run {path}" . bun.lock
+lockrow "pnpm vitest run {path}" . pnpm-lock.yaml yarn.lock
+lockrow "yarn vitest run {path}" . yarn.lock bun.lockb
+lockrow "yarn vitest run {path}" . bun.lock yarn.lock
+lockrow "npm exec vitest run {path}" .
+lockrow "cd frontend && yarn vitest run {path}" frontend frontend/yarn.lock
+lockrow "cd frontend && pnpm vitest run {path}" frontend frontend/yarn.lock pnpm-lock.yaml
+
 # c13: packs come from dependency keys, never from a token anywhere in package.json.
 mkdir -p "$TMP/c13/frontend"
 printf '{"name":"x","keywords":["vue","payload"],"dependencies":{"react":"^18"}}\n' > "$TMP/c13/frontend/package.json"
