@@ -218,6 +218,33 @@ out=$( cd "$TMPROOT/untrackedscopes.wt" && "$SCRIPT" --files worktree-cumulative
 if [ "$out" = "a.txt " ]; then ok "worktree-cumulative does not list the untracked file"
 else err "worktree-cumulative with an untracked file: '$out'"; fi
 
+# --- case 10b (Q27b): --base brings the untracked files of the last, uncommitted unit
+BASE_SHA=$(git -C "$R10" rev-parse main)
+out=$(files_for "$R10" --base "$BASE_SHA" branch-vs-main | tr '\n' ' ')
+if [ "$out" = "a.txt u.txt " ]; then ok "branch-vs-main with --base lists the untracked file"
+else err "branch-vs-main --base with an untracked file: '$out'"; fi
+printf 'ign\n' > "$R10/ignored.log"; printf 'ignored.log\n' >> "$R10/.git/info/exclude"
+out=$(files_for "$R10" --base "$BASE_SHA" branch-vs-main | tr '\n' ' ')
+if [ "$out" = "a.txt u.txt " ]; then ok "branch-vs-main with --base keeps an ignored untracked file out"
+else err "branch-vs-main --base with an ignored file: '$out'"; fi
+# module-path with --base: the pathspec narrows the untracked listing too (root u.txt stays out)
+printf 'n\n' > "$R10/mod/nu.txt"
+out=$(files_for "$R10" --base "$BASE_SHA" module-path mod | tr '\n' ' ')
+if [ "$out" = "mod/nu.txt " ]; then ok "module-path --base lists only untracked files under the path"
+else err "module-path mod --base: '$out'"; fi
+# untracked-only repo: --base HEAD makes the scope non-empty (rc 0), not 3
+R13=$(make_repo untrackedonlybase)
+printf 'u\n' > "$R13/u.txt"
+out=$(files_for "$R13" --base HEAD branch-vs-main | tr '\n' ' '); rc=$?
+if [ "$rc" -eq 0 ] && [ "$out" = "u.txt " ]; then ok "untracked-only repo with --base HEAD resolves rc 0 to that file"
+else err "untracked-only --base HEAD: rc=$rc files='$out'"; fi
+# --help prints the whole header (to Exit codes) and stops before code
+help=$("$SCRIPT" --help)
+case "$help" in
+  *"Exit codes:"*) case "$help" in *"set -uo"*) err "--help leaks code: set -uo" ;; *) ok "--help ends at the header's end" ;; esac ;;
+  *) err "--help is cut before 'Exit codes:'" ;;
+esac
+
 # --- case 11: no duplicate lines when a file is both in the diff and untracked ---
 R12=$(make_repo dedupe)
 git -C "$R12" rm -q --cached a.txt

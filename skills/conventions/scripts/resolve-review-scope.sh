@@ -24,6 +24,11 @@
 #   worktree-cumulative  a linked worktree's cumulative work vs its fork point
 #   module-path <path>   changes under <path>, over the widest non-empty base
 #
+# The default base is the default branch (origin/HEAD, else main/master, local or origin). A
+# caller reviewing a branch cut from another branch passes `--base <fork-point>`;
+# the resolver does not guess the parent branch. `--base` also lists untracked,
+# non-ignored files, whatever the scope.
+#
 # A base ref is a PARAMETER, not an enum member: `--base <ref>` overrides the
 # resolved base for any scope, so callers that want "the diff of this phase" or
 # "since the last commit" express it as a preset over this resolver rather than
@@ -50,7 +55,7 @@ while [ $# -gt 0 ]; do
     --files) files_mode=1; shift ;;
     --base)  [ $# -ge 2 ] || die "--base needs a ref"; base_override="$2"; shift 2 ;;
     --help|-h)
-      sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '2,/^set -uo/p' "$0" | sed -e '$d' -e 's/^# \{0,1\}//'
       exit 0 ;;
     --*) die "unknown option: $1" ;;
     *) break ;;
@@ -83,9 +88,11 @@ changed_files() { # base [pathspec]
     fi
     # `git diff` never lists untracked files, so a new file would never be reviewed.
     # Only the working-diff scope adds them: the cumulative scopes must keep their
-    # anchor when a directory of untracked artefacts sits in the tree.
+    # anchor when a directory of untracked artefacts sits in the tree. An explicit
+    # --base adds them too: the caller named the range, and the last unit of a
+    # multi-commit checkpoint is usually still uncommitted.
     # `:/` = the whole repo, so the root-relative names match the diff's.
-    if [ "$scope" = "working-diff" ]; then
+    if [ "$scope" = "working-diff" ] || [ -n "$base_override" ]; then
       git ls-files --others --exclude-standard --full-name -- "${ps:-:/}" 2>/dev/null
     fi
   } | LC_ALL=C sort -u
