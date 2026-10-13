@@ -16,6 +16,8 @@
 #                 printed as the SLOT instead of falling back to the claim; an
 #                 out-of-range claim was shown, `08` printed a bash base error and
 #                 18446744073709551617 wrapped into range.
+#   BL-804        a claim with no directory (MISSING-DIR) printed its filename's
+#                 number raw: a planted slot-abc showed SLOT abc.
 #
 # Behavioural, no daemon: docker is a stub that exits 0.
 # Run with: bash skills/worktree/tests/test-list-rows.sh
@@ -84,6 +86,24 @@ for c in 'abc|3|3' '0|3|3' '99|3|3' 'abc||-' '2|3|2' 'abc|12|-' '08|3|3' \
     || fail "BL-776: .wt-slot '$file' with claim '${claim:--}' must list SLOT $want, got '$got'"
   err="$( cd "$r" && PATH="$BIN:$PATH" bash "$WT" list --porcelain 2>&1 >/dev/null )"
   [[ -z "$err" ]] || fail "BL-776: .wt-slot '$file': list wrote to stderr: $err"
+done
+rm -f "$sd"/slot-*
+
+# --- BL-804. a claim with no directory (MISSING-DIR) shows its slot by the same rule --
+# The row printed the claim FILENAME's number raw, so a planted slot-abc showed
+# SLOT abc. Like an invalid .wt-slot, an invalid number lists as "-"; the row
+# itself stays, since a claim with no directory is a leak the agent must see.
+for c in 'abc|-' '0|-' '007|-' '99|-' '3|3'; do
+  IFS='|' read -r claim want <<<"$c"
+  rm -f "$sd"/slot-*
+  printf '%s ghost\n' "$$" > "$sd/slot-$claim"
+  row="$(row_for "$r" ghost)"
+  check_row "BL-804 slot-$claim" "$row"
+  [[ "$(awk -F'\t' '{print $2 "|" $6}' <<<"$row")" == "$want|MISSING-DIR" ]] \
+    || fail "BL-804: claim slot-$claim with no directory must list SLOT $want as MISSING-DIR, got: $row"
+  err="$( cd "$r" && PATH="$BIN:$PATH" bash "$WT" list 2>&1 >/dev/null )"
+  grep -q "claim for 'ghost' (slot $want) has no directory" <<<"$err" \
+    || fail "BL-804: claim slot-$claim: the warning must name slot $want, got: $err"
 done
 rm -f "$sd"/slot-*
 
