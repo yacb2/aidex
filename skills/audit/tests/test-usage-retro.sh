@@ -1050,6 +1050,60 @@ grep -q 'big_ws: 1 spans' <<<"$out_y6" \
 rm -rf "$Y6P" "$Y6T"
 
 
+# ---------------------------------------------------------------------------
+# (ur) LOOP-013 w7-ur, audit-c11 / Q24: a session shared by several items credits
+#      each item only the test runs inside its OWN span window there (first..last of
+#      its spans in that session, edges inclusive). Layer: script (subprocess) over a
+#      synthetic transcript, because the credit is decided inside main().
+# ---------------------------------------------------------------------------
+ur_run() {   # args: <spans as slug@first@last ...>; transcript has a fail at :02 and a pass at :12
+  local tx out proj o
+  tx="$(mktemp -d "${TMPDIR:-/tmp}/ur.XXXXXX")"; out="$(mktemp -d "${TMPDIR:-/tmp}/ur.XXXXXX")"
+  proj="$(mktemp -d "${TMPDIR:-/tmp}/ur.XXXXXX")"
+  mkdir -p "$tx/-Users-user-Documents-projects-demo-ws"
+  python3 - "$tx/-Users-user-Documents-projects-demo-ws/su.jsonl" "$out/spans.jsonl" "$@" <<'PYU'
+import json, sys
+def run(i, sec, res):
+    return [
+     {"type": "assistant", "timestamp": "2026-01-01T00:00:%02dZ" % (sec - 1), "message": {"content": [
+       {"type": "tool_use", "name": "Bash", "id": "t%d" % i, "input": {"command": "pytest -q"}}]}},
+     {"type": "user", "timestamp": "2026-01-01T00:00:%02dZ" % sec, "message": {"content": [
+       {"type": "tool_result", "tool_use_id": "t%d" % i, "content": res}]}}]
+rows = run(1, 2, "1 failed, 2 passed") + run(2, 12, "3 passed")
+with open(sys.argv[1], "w") as f:
+    f.write("\n".join(json.dumps(r) for r in rows) + "\n")
+with open(sys.argv[2], "w") as f:
+    for a in sys.argv[3:]:
+        slug, first, last = a.split("@")
+        f.write(json.dumps({"project": "demo_ws", "slug": slug, "session": "su.jsonl", "edits": 5,
+                            "first": "2026-01-01T" + first + "Z", "last": "2026-01-01T" + last + "Z"}) + "\n")
+PYU
+  o="$(python3 "$RETRO/mine_verification.py" --projects-root "$proj" \
+    --transcripts-root "$tx" --data-dir "$out" --min-edits 1 2>&1)"
+  rm -rf "$tx" "$out" "$proj"
+  printf '%s' "$o"
+}
+# two items share the session; the failing run (:02) sits in A's window, the pass (:12) in B's
+out_ur1="$(ur_run a@00:00:00@00:00:05 b@00:00:10@00:00:20)"
+grep -q 'test runs: fail=1 pass=1' <<<"$out_ur1" \
+  || fail "(ur) shared session: each run must be credited to the one item whose window holds it: $out_ur1"
+# boundary (B holds neither run): A's window ends exactly at the fail (:02), inclusive; the pass at :12 is in no window
+out_ur2="$(ur_run a@00:00:00@00:00:02 b@00:00:30@00:00:40)"
+grep -q 'test runs: fail=1 pass=0' <<<"$out_ur2" \
+  || fail "(ur) an event exactly at a window edge is inside (inclusive), one outside every window is credited to none: $out_ur2"
+# one second short of the edge: the fail drops out
+out_ur3="$(ur_run a@00:00:00@00:00:01 b@00:00:30@00:00:40)"
+grep -q 'test runs: fail=0 pass=0' <<<"$out_ur3" \
+  || fail "(ur) an event just past the window must not be credited: $out_ur3"
+# lower edge: the window starts exactly at the fail (:02), inclusive
+out_ur5="$(ur_run a@00:00:02@00:00:03 b@00:00:30@00:00:40)"
+grep -q 'test runs: fail=1 pass=0' <<<"$out_ur5" \
+  || fail "(ur) an event exactly at the window's first timestamp is inside (inclusive): $out_ur5"
+# single-item session whose window is narrower than the session: not windowed, keeps every run
+out_ur4="$(ur_run a@00:00:05@00:00:30)"
+grep -q 'test runs: fail=1 pass=1' <<<"$out_ur4" \
+  || fail "(ur) a session serving one item must keep every run, window or not: $out_ur4"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 
 echo "OK — usage-retro: provenance gate (tool_result attributes nothing, real prompt does), strict-span rule at the 3-edit boundary, predicate pinned, roots honoured end-to-end, rootless run refused, project-scoped id resolution, one bad line skips the line not the session, machine-independent transcript prefix, one shared runner vocabulary, mine_errors takes a plain-date --since, tool events walk subagents and parse the exit code, a script is attributed by argv and a wrap carries its --out, census promoted, nested Workflow transcripts walked with their session as parent, pages join the registry by basename, miss? is silent while the skill is already running"
