@@ -269,5 +269,40 @@ raw "$d" 1 $'depends_on: []\nphase-type: afk-impl' $'**Files:**\n- Modify: `src/
 raw "$d" 2 $'depends_on: []\nphase-type: afk-impl' $'**Files:**\n- Create: `src/api/mutations.ts` (or extend `doctorApi.ts`)\n\n'"$UNDONE"
 check "name in parentheses clashes with the path it names, either order" "$d" $'wave 1: 1\nwave 2: 2'
 
+# --fanout (plan-exec Q22a): a fan-out run launches every dependency-ready phase together, so
+# the check refuses, before anything is written, a wave whose phases share a file.
+# fanout <name> <dir> <expected exit> <stderr must contain...>
+fanout() {
+  local name="$1" d="$2" want="$3" err rc; shift 3
+  err="$(python3 "$SCRIPT" "$d" --fanout 2>&1 >/dev/null)"; rc=$?
+  local bad=0; [ "$rc" = "$want" ] || bad=1
+  for needle in "$@"; do case "$err" in *"$needle"*) ;; *) bad=1 ;; esac; done
+  if [ "$bad" = 0 ]; then echo "ok: $name"; else printf 'FAIL: %s\n  want exit %s containing %s\n  got exit %s: %s\n' "$name" "$want" "$*" "$rc" "$err"; failures=$((failures+1)); fi
+}
+d="$TMP/fo-shared"
+phase "$d" 1 "" afk-impl '`pkg/__init__.py`, `a.txt`' 0; phase "$d" 2 "" afk-impl '`pkg/__init__.py`' 0
+fanout "fan-out refuses a wave sharing a file, naming both phases and the file" "$d" 1 "01-p.md" "02-p.md" "pkg/__init__.py"
+d="$TMP/fo-disjoint"
+phase "$d" 1 "" afk-impl '`a.txt`' 0; phase "$d" 2 "" afk-impl '`b.txt`' 0
+fanout "fan-out accepts disjoint phases" "$d" 0
+d="$TMP/fo-chain"
+phase "$d" 1 "" afk-impl '`a.txt`' 0; phase "$d" 2 "1" afk-impl '`a.txt`' 0
+fanout "fan-out accepts a shared file across dependency waves" "$d" 0
+d="$TMP/fo-later"
+phase "$d" 1 "" afk-impl '`a.txt`' 0; phase "$d" 2 "1" afk-impl '`x.txt`' 0; phase "$d" 3 "1" afk-impl '`x.txt`' 0
+fanout "fan-out checks later waves too" "$d" 1 "02-p.md" "03-p.md" "x.txt"
+d="$TMP/fo-nofiles"
+phase "$d" 1 "" afk-impl '' 0; phase "$d" 2 "" afk-impl '`b.txt`' 0
+fanout "fan-out refuses a wave member with no declared files (disjointness unprovable)" "$d" 1 "01-p.md"
+d="$TMP/fo-slug"
+phase "$d" 1 "" afk-impl '`a.txt`' 0; phase "$d" 2 "setup" afk-impl '`x.txt`' 0; phase "$d" 3 "setup" afk-impl '`x.txt`' 0
+fanout "fan-out refuses phases no wave can reach (unresolvable depends_on), naming them" "$d" 1 "02-p.md" "03-p.md"
+d="$TMP/fo-hitl"
+phase "$d" 1 "" hitl-align '' 0; phase "$d" 2 "" afk-impl '`b.txt`' 0
+fanout "fan-out leaves a hitl phase out of the wave" "$d" 0
+d="$TMP/fo-lone"
+phase "$d" 1 "" afk-impl '' 0
+fanout "a lone no-Files phase in its own wave is accepted" "$d" 0
+
 [ "$failures" -eq 0 ] && echo "PASS: plan-waves" || echo "FAILED: $failures"
 exit "$failures"

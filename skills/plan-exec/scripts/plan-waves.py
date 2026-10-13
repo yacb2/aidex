@@ -9,6 +9,9 @@ Later waves assume every earlier wave completed. Checkpoint boxes are those unde
 heading naming Checkpoint; a phase without one is judged on every box in the file.
 A phase file is NN-<phase>.md (1-3 digits, not 00-); other digit-led names are skipped and
 named on stderr.
+With a second argument `--fanout`, nothing is printed; exit 1 and a stderr line naming the
+phases and the file when a fan-out run (every dependency-ready phase launched together) would
+put two phases with a shared path, or one with no **Files:** paths, in one wave.
 Refused on stderr with exit 1: no plan directory, no phase files, two phase files with
 one number.
 """
@@ -176,9 +179,15 @@ def clash(a, b):
     return any(clash_tail(t, b, a) for t in tails(b)) or any(clash_tail(t, a, b) for t in tails(a))
 
 
+def shared(p, q):
+    """The first (path, path) pair of p and q that clash, or None."""
+    pairs = [(a, b) for a in p["files"] for b in q["files"] + q["weak"]] + [
+        (a, b) for a in p["weak"] for b in q["files"]]
+    return next(((a, b) for a, b in pairs if clash(a, b)), None)
+
+
 def overlaps(p, q):
-    return any(clash(a, b) for a in p["files"] for b in q["files"] + q["weak"]) or any(
-        clash(a, b) for a in p["weak"] for b in q["files"])
+    return shared(p, q) is not None
 
 
 def alone(p):
@@ -210,13 +219,41 @@ def waves(phases):
     return out, pending
 
 
+def fanout_refusal(phases):
+    """The reason a fan-out run must not start, or None. A fan-out run launches every phase
+    whose depends_on are met together (no file split), so each such wave must be provably
+    disjoint: a member with no declared files cannot be proven so. hitl-* phases are not in
+    a fan-out batch (they run interactively) and are left out; pending phases that no wave
+    can reach (unknown or cyclic depends_on) are refused, never skipped."""
+    done = {p["n"] for p in phases if p["done"]}
+    pending = [p for p in phases if not p["done"] and not p["hitl"]]
+    wave_no = 0
+    while pending:
+        wave = [p for p in pending if all(d in done for d in p["deps"])]
+        if not wave:
+            return "fan-out: no wave can run, unmet or cyclic depends_on among " + ", ".join(p["name"] for p in pending)
+        wave_no += 1
+        if len(wave) > 1:
+            for i, p in enumerate(wave):
+                if not p["files"]:
+                    return f"fan-out wave {wave_no}: {p['name']} declares no **Files:** paths, so it cannot be proven disjoint from the rest of its wave"
+                for q in wave[i + 1:]:
+                    hit = shared(p, q)
+                    if hit:
+                        return f"fan-out wave {wave_no}: {p['name']} and {q['name']} share {hit[0]}" + (f" (vs {hit[1]})" if hit[1] != hit[0] else "")
+        done |= {p["n"] for p in wave}
+        pending = [p for p in pending if p not in wave]
+    return None
+
+
 def die(msg):
     sys.exit(f"plan-waves: {msg}")
 
 
 def main():
-    if len(sys.argv) != 2:
-        die("usage: plan-waves.py <plan-dir>")
+    fan = sys.argv[2:] == ["--fanout"]
+    if len(sys.argv) != 2 and not (len(sys.argv) == 3 and fan):
+        die("usage: plan-waves.py <plan-dir> [--fanout]")
     plan = Path(sys.argv[1])
     if not plan.is_dir():
         die(f"{plan} is not a directory")
@@ -231,6 +268,11 @@ def main():
         same = [p["name"] for p in phases if p["n"] == n]
         if len(same) > 1:
             die(f"duplicate phase number {n}: " + ", ".join(same))
+    if fan:
+        refusal = fanout_refusal(phases)
+        if refusal:
+            die(refusal)
+        return
     out, blocked = waves(phases)
     for i, w in enumerate(out, 1):
         print(f"wave {i}: " + ", ".join(str(p["n"]) for p in w))

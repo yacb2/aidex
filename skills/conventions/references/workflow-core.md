@@ -126,6 +126,8 @@ const WORK_SCHEMA = {
   additionalProperties: false,
 }
 
+const DENY_RE = /\b(drop|delete|destroy|truncate|rm -rf)\b/i
+
 // Gate stage 1: a Bash-capable agent RUNS the machine gate and returns independent proof.
 function verify(phaseId, gateCmd) {
   return agent(
@@ -186,13 +188,21 @@ async function runPhase(phase, ctx) {
       return { phaseId: phase.id, passed: false, attempts: attempt, escalated: v || { verdict: 'ASK', reason: 'arbiter unavailable on blocked implementer', unavailable: true }, asks, outOfScopeBugs }
     }
     // Publication/deny path: actions the implementer REPORTED instead of performing.
+    let unvetted = false
     for (const action of (work && work.pending_actions) || []) {
       // Only a real verdict is remembered: a null (transient arbiter failure) is asked again.
       let c = verdicts.get(action)
       if (!c) { c = await checkAction(action, ctx); if (c) verdicts.set(action, c) }
       if (c && c.verdict === 'STOP') return { phaseId: phase.id, passed: false, attempts: attempt, escalated: c, asks, outOfScopeBugs }
       if (c && c.verdict === 'ASK') ask(c.batched_question || `Authorize: ${action}?`)
+      // A deny action with no verdict (arbiter unavailable) fails closed: never to the gate.
+      if (!c && DENY_RE.test(action)) unvetted = true
       // CONTINUE: pre-authorized or outside pub/deny — nothing to gate.
+    }
+    if (unvetted) {
+      if (attempt > K) return { phaseId: phase.id, passed: false, attempts: attempt, escalated: { verdict: 'STOP', reason: 'arbiter returned no verdict on a deny-set action; failing closed', unavailable: true }, asks, outOfScopeBugs }
+      feedback = 'Your reported deny-set action could not be ruled on; re-report it or finish the phase without it.'
+      continue
     }
     let proof = await verify(phase.id, phase.gateCmd)
     if (!proof) proof = await verify(phase.id, phase.gateCmd) // null = transient verifier failure, not a gate verdict: one retry
@@ -236,7 +246,7 @@ async function runPhase(phase, ctx) {
 // crosses the publication-set (and is not pre-authorized) or the deny-set; else CONTINUE.
 async function checkAction(action, ctx) {
   const pub = /\b(push|publish|deploy|release|merge)\b/i.test(action)
-  const deny = /\b(drop|delete|destroy|truncate|rm -rf)\b/i.test(action)
+  const deny = DENY_RE.test(action)
   if (!pub && !deny) return { verdict: 'CONTINUE' }
   // Pre-authorization never covers the deny-set: a destructive action stays the arbiter's call.
   if (pub && !deny && (ctx.preAuthorized || []).includes(action)) return { verdict: 'CONTINUE' }
