@@ -228,8 +228,10 @@ def crossref_target_exists(context_dir: Path, ref: str) -> bool:
     # shorthand. Without this descent every marker pointing at a filed reference read as
     # orphaned: aidex's harness-lessons audit page was reported missing an artifact sitting
     # one directory down (2026-09-07). One level only, in active and in _archive; deeper is
-    # spelled out in the ref and already handled above.
-    if folder in ("references", "research"):
+    # spelled out in the ref and already handled above. Communications nest the same way
+    # (`communications/{received,sent,meetings}/<YYYY-MM-DD>-<slug>/`) under the marker
+    # `communication/<YYYY-MM-DD>-<slug>` the comm skill prescribes (BL-807).
+    if folder in ("references", "research", "communications"):
         for cand in candidates:
             if any((topic / cand).exists()
                    for topic in list(base.glob("*")) + list((base / "_archive").glob("*"))

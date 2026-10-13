@@ -1139,6 +1139,31 @@ def check_crossref_topic_folders_unit(failures: list[str]) -> None:
                 failures.append(f"crossref topic folders: {ref!r} resolved, but nothing on disk matches it")
 
 
+def check_crossref_communication_folders_unit(failures: list[str]) -> None:
+    """A `communication/<YYYY-MM-DD>-<slug>` marker resolves into received/, sent/ or meetings/.
+
+    The comm skill tells an ADR to cite a meeting as `communication/<dated-folder>`, but the
+    entry lives one level down (`communications/meetings/<dated-folder>/body.md`). The topic
+    descent covered references and research only, so a correct marker read as
+    cross-ref-target-missing (BL-807, found 2026-10-13 in recomed_ws).
+    """
+    v = _load_validator()
+    with tempfile.TemporaryDirectory() as td:
+        ctx = Path(td) / ".context"
+        for sub, folder in (("received", "2026-10-01-client-email"),
+                            ("sent", "2026-10-02-reply"),
+                            ("meetings", "2026-10-13-kickoff")):
+            (ctx / "communications" / sub / folder).mkdir(parents=True)
+            (ctx / "communications" / sub / folder / "body.md").write_text("x")
+            ref = f"communication/{folder}"
+            if not v.crossref_target_exists(ctx, ref):
+                failures.append(f"crossref communication folders: {ref!r} did not resolve, but {sub}/{folder} is on disk")
+        if not v.crossref_target_exists(ctx, "communication/meetings/2026-10-13-kickoff"):
+            failures.append("crossref communication folders: the explicit meetings/<folder> path stopped resolving")
+        if v.crossref_target_exists(ctx, "communication/2099-12-31-nope"):
+            failures.append("crossref communication folders: 'communication/2099-12-31-nope' resolved, but nothing on disk matches it")
+
+
 def check_backlog_placeholder_body_unit(failures: list[str]) -> None:
     """Direct cells for check_backlog_placeholder_body (Phase 4): an active entry
     still carrying a register-template placeholder comment warns; a filled-in entry
@@ -1796,6 +1821,7 @@ def main() -> int:
     check_archive_status_open_unit(failures)
     check_archive_status_terminal_unit(failures)
     check_crossref_topic_folders_unit(failures)
+    check_crossref_communication_folders_unit(failures)
     check_backlog_placeholder_body_unit(failures)
     check_backlog_type_unit(failures)
     check_references_root_unit(failures)
