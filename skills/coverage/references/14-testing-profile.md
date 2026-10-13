@@ -93,7 +93,9 @@ gets a new pack in `myskills`, never a section in this skill.
 ## Seeding it
 
 `scripts/profile-init.py <project>` derives the port, database, command and pack keys
-from an existing `test-e2e.sh`, `docker-compose.yml`, `pyproject.toml` and
+from an existing `test-e2e.sh`, the compose file (`compose.yaml`, `compose.yml`,
+`docker-compose.yaml` or `docker-compose.yml`, the first that exists),
+`backend/pyproject.toml`, `backend/requirements*.txt`, `frontend/vite.config.ts` and
 `package.json`, and leaves the reference keys (`personas_ref`, `cross_deps_ref`, the
 locale) blank for the author to fill. Blank keys are unanswered, not zero; the script
 names them. It refuses to overwrite without `--force`, and `--print` never writes.
