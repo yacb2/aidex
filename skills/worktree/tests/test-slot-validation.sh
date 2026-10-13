@@ -62,6 +62,14 @@ grep -q 'must be an integer in 1\.\.' <<<"$out" \
 grep -q 'slot 99 ->' <<<"$out" \
   && fail "slot 99: an out-of-range slot was allocated anyway"
 
+# --- 2b. BL-776: 2^64+1 wraps to 1 in bash arithmetic; 03 is not slot 3 -----
+# (its claim file would be slot-03, never found by a lookup of slot-3).
+for bad in 18446744073709551617 03; do
+  run_wt new wrap-slot --branch wt/wrap --slot "$bad"
+  grep -q "invalid --slot '$bad': must be an integer in 1\.\." <<<"$out" \
+    || fail "slot $bad: must be refused with the valid range, got: $out"
+done
+
 # --- 3. a non-numeric slot must never reach arithmetic ----------------------
 # `$(( base + slot * stride ))` is a code-execution sink, but not via the naive
 # `$(cmd)` payload -- bash rejects that as "operand expected" without running it.
@@ -120,6 +128,39 @@ run_up
 [[ "$RC" -eq 0 ]] || fail "up empty .wt-slot: must fall back to the claim and exit 0, got $RC: $out"
 grep -q 'stack up: slotproj-wt-rs (slot 2)' <<<"$out" || fail "up empty .wt-slot: must resume on the claimed slot 2: $out"
 rm -f "$SD"/slot-*
+
+# BL-776: a .wt-slot that is not a slot falls back to the claim, the way `list`
+# reads it; the refusals above are for "neither source is a slot".
+echo abc > "$D/.wt-slot"; printf '%s rs\n' "$$" > "$SD/slot-2"
+run_up
+[[ "$RC" -eq 0 ]] || fail "up .wt-slot=abc with claim 2: must fall back to the claim and exit 0, got $RC: $out"
+grep -q 'stack up: slotproj-wt-rs (slot 2)' <<<"$out" || fail "up .wt-slot=abc: must resume on the claimed slot 2: $out"
+[[ "$(cat "$D/.wt-slot")" == 2 ]] \
+  || fail "up .wt-slot=abc: .wt-slot must be rewritten to the claimed slot 2, reads '$(cat "$D/.wt-slot")'"
+rm -f "$SD"/slot-*
+
+# --- 6. BL-803: WT_MAX_SLOTS is the other half of the slot rule --------------
+# A config typo (abc) read as an unbound variable inside VALID_SLOT's arithmetic
+# under bash 3.2 `set -u`: list and up exited 0 with no message, down tore down
+# without ever looking at it, an empty or 0 value refused every valid slot as
+# "invalid slot '1' ... in 1..", and an array-subscript payload in it executed.
+# It must be refused naming WT_MAX_SLOTS before any slot work: the claim stays.
+MP="$TMP/maxproj"; MS="$TMP/maxslots"; MSD="$MS/aidex-wt-slots-maxproj"
+mkdir -p "$MP/.context/worktrees" "$MP/backend/.git" "$MSD"
+for bad in abc '' 0 9x x9 10000 09 'WT_PORT_STRIDE[$(touch pwned4)]'; do
+  printf 'WT_PARTICIPANTS="backend"\nWT_PORT_VARS="DB_PORT=6400"\nWT_MAX_SLOTS='"'%s'"'\n' "$bad" \
+    > "$MP/.context/worktrees/config.env"
+  for c in list up down; do
+    rm -f "$MP/pwned4"; mkdir -p "$TMP/maxproj-wt-mx"; echo 2 > "$TMP/maxproj-wt-mx/.wt-slot"; printf '%s mx\n' "$$" > "$MSD/slot-2"
+    args=("$c"); [[ "$c" == list ]] || args+=(mx)
+    out="$( cd "$MP" && TMPDIR="$MS" PATH="$UPBIN:$PATH" bash "$WT" "${args[@]}" 2>&1 )"; RC=$?
+    [[ "$RC" -eq 2 ]] || fail "BL-803 $c, WT_MAX_SLOTS='$bad': must exit 2, got $RC: $out"
+    grep -q "error: WT_MAX_SLOTS must be" <<<"$out" \
+      || fail "BL-803 $c, WT_MAX_SLOTS='$bad': must be refused naming WT_MAX_SLOTS, got: $out"
+    [[ -e "$MSD/slot-2" ]] || fail "BL-803 $c, WT_MAX_SLOTS='$bad': the slot-2 claim was released"
+    [[ ! -e "$MP/pwned4" ]] || fail "BL-803 $c: a WT_MAX_SLOTS payload EXECUTED -- $MP/pwned4 was created"
+  done
+done
 
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"

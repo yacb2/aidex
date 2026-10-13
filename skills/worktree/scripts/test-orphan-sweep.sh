@@ -151,6 +151,67 @@ grep -q 'ws-wt-foo-bar' <<<"$outB" && fail "B: --slug foo attributed sibling foo
 outB2="$(cd "$TMP/sib-b/ws" && PATH="$TMP/bin-sib:$PATH" bash "$SCRIPT" --slug foo-bar 2>&1)"
 [[ "$(grep -c '^RESOURCE' <<<"$outB2")" -eq 4 ]] || fail "B: --slug foo-bar must still list its own 4 resources: $outB2"
 
+# --- a tagged image's owner is its compose-project label (BL-774). By name alone
+#     ws-wt-foo-bar-xyz is foo's "bar-xyz" or foo-bar's "xyz"; the longest known
+#     slug guessed wrong both ways. Compose stamps the exact project on the image. ---
+# lbl_stub DIR VOLUME IMAGE LABEL [RC]: one volume, one tagged image carrying
+# LABEL; with RC, `image inspect` fails like a missing image instead.
+lbl_stub() {
+  mkdir -p "$1"
+  cat > "$1/docker" <<FAKE
+#!/usr/bin/env bash
+case "\$*" in
+  "info") exit 0 ;;
+  *"volume ls"*)       printf '%s\n' $2 ;;
+  *"images --format"*) echo $3 ;;
+  *"image inspect"*)   [[ -n "${5:-}" ]] && { echo "Error: No such image: \${!#}" >&2; exit ${5:-0}; }
+                       [[ "\${!#}" == "$3" ]] && echo '$4' ;;
+  *) exit 0 ;;
+esac
+FAKE
+  chmod +x "$1/docker"
+}
+
+# 1: live foo owns ws-wt-foo-bar-xyz (service bar-xyz); a dead foo-bar left a volume.
+lbl_stub "$TMP/bin-l1" ws-wt-foo-bar_db ws-wt-foo-bar-xyz ws-wt-foo
+mkdir -p "$TMP/lbl1/ws/.context" "$TMP/lbl1/ws-wt-foo"
+out1="$(cd "$TMP/lbl1/ws" && PATH="$TMP/bin-l1:$PATH" bash "$SCRIPT" --check 2>&1)"
+grep -q 'ORPHAN volume: ws-wt-foo-bar_db' <<<"$out1" || fail "L1: the dead foo-bar's volume must still be reported: $out1"
+grep -q 'image: ws-wt-foo-bar-xyz' <<<"$out1" && fail "L1: live foo's image labelled ws-wt-foo was reported as an orphan: $out1"
+
+# 2: foo and foo-api both live; foo owns ws-wt-foo-api (service api).
+lbl_stub "$TMP/bin-l2" "" ws-wt-foo-api ws-wt-foo
+mkdir -p "$TMP/lbl2/ws/.context" "$TMP/lbl2/ws-wt-foo" "$TMP/lbl2/ws-wt-foo-api"
+out2="$(cd "$TMP/lbl2/ws" && PATH="$TMP/bin-l2:$PATH" bash "$SCRIPT" --slug foo 2>&1)"; rc2=$?
+{ [[ "$rc2" -eq 1 ]] && grep -q 'RESOURCE image: ws-wt-foo-api' <<<"$out2"; } \
+  || fail "L2: --slug foo did not list its own image labelled ws-wt-foo (rc=$rc2): $out2"
+out2b="$(cd "$TMP/lbl2/ws" && PATH="$TMP/bin-l2:$PATH" bash "$SCRIPT" --slug foo-api 2>&1)"
+grep -q 'RESOURCE image: ws-wt-foo-api' <<<"$out2b" && fail "L2: --slug foo-api claimed foo's image labelled ws-wt-foo: $out2b"
+
+# 3: only foo is live; a dead foo-bar left just its image, labelled ws-wt-foo-bar.
+lbl_stub "$TMP/bin-l3" "" ws-wt-foo-bar-backend ws-wt-foo-bar
+mkdir -p "$TMP/lbl3/ws/.context" "$TMP/lbl3/ws-wt-foo"
+out3="$(cd "$TMP/lbl3/ws" && PATH="$TMP/bin-l3:$PATH" bash "$SCRIPT" --check 2>&1)"; rc3=$?
+{ [[ "$rc3" -eq 1 ]] && grep -q 'ORPHAN image: ws-wt-foo-bar-backend' <<<"$out3"; } \
+  || fail "L3: dead foo-bar's image labelled ws-wt-foo-bar was hidden behind live foo (rc=$rc3): $out3"
+
+# 4: an inspect that fails for a reason other than the deadline (no :latest tag,
+#    image gone) is not "not judged": the image falls back to the name rule.
+lbl_stub "$TMP/bin-l4" ws-wt-foo-bar_db ws-wt-foo-bar-xyz "" 1
+out4="$(cd "$TMP/lbl1/ws" && PATH="$TMP/bin-l4:$PATH" bash "$SCRIPT" --check 2>&1)"; rc4=$?
+{ [[ "$rc4" -eq 1 ]] && grep -q 'ORPHAN image: ws-wt-foo-bar-xyz' <<<"$out4"; } \
+  || fail "L4: a failed (not timed-out) inspect did not fall back to the name rule (rc=$rc4): $out4"
+grep -q 'not judged' <<<"$out4" && fail "L4: a failed inspect was reported as a timeout: $out4"
+
+# 5: a label without this workspace's prefix (<no value>, another project) is
+#    not an owner: live foo still owns ws-wt-foo-api by name.
+for l in '<no value>' otherproj; do
+  lbl_stub "$TMP/bin-l5" "" ws-wt-foo-api "$l"
+  out5="$(cd "$TMP/lbl1/ws" && PATH="$TMP/bin-l5:$PATH" bash "$SCRIPT" --check 2>&1)"; rc5=$?
+  { [[ "$rc5" -eq 0 ]] && ! grep -q 'image:' <<<"$out5"; } \
+    || fail "L5: label '$l' was taken as the owner of ws-wt-foo-api (rc=$rc5): $out5"
+done
+
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"
   exit 1

@@ -180,7 +180,7 @@ def main():
           (f"   (since {args.since})" if args.since else ""))
     print(f"  median {st.median(durs):.0f}s · p90 {pct(.90):.0f}s · p99 {pct(.99):.0f}s")
     print(f"  >{SLOW_S:.0f}s        : {len(slow)} ({len(slow)/len(runs)*100:.0f}%) "
-          f"consuming {slow_t/3600:.1f} h ({slow_t/total*100:.0f}% of run time)")
+          f"consuming {slow_t/3600:.1f} h ({slow_t/total*100 if total else 0:.0f}% of run time)")
     print(f"  excluded             : {unanswered} unanswered, {dropped_long} over {MAX_S/3600:.0f}h (clock artifacts)"
           + (f", {dropped_before_since} before {args.since}" if args.since else ""))
 

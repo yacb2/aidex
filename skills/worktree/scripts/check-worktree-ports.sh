@@ -94,6 +94,37 @@ sources_slot_env() {
     | grep >/dev/null -E '(^|[[:space:]]|;|&&|\|\|)(\.|source)[[:space:]]+.*\.env'
 }
 
+# A WT_LINKS entry may be a directory: its scripts are as reachable from a worktree
+# as a linked file, so they are scanned too (relative paths, one per line).
+# Skips node_modules, .git and any nested checkout (a subdirectory holding its own
+# .git, file or directory). The linked directory itself is always scanned, even when it
+# holds its own .git (only that top-level .git is pruned). One find lists files and .git entries; awk drops files under
+# a checkout root. A per-directory `-exec test` prune forked once per directory and
+# took the fleet census from 0.5 s to 25 s. Only shell scripts are used downstream, so
+# a single awk keeps those (first line is a shebang) instead of two forks per file.
+expand_links() {  # expand_links <root> <links>
+  local rel
+  for rel in $2; do
+    if [[ -d "$1/$rel" ]]; then
+      ( cd "$1" && find "${rel%/}/" -mindepth 1 \( -name node_modules -o -path "${rel%/}/.git" \) -prune -o \
+          \( -name .git -prune -o -type f \) -print | LC_ALL=C awk '
+          { line[NR] = $0 }
+          END {
+            for (i = 1; i <= NR; i++)
+              if (line[i] ~ /(^|\/)\.git$/) root[substr(line[i], 1, length(line[i]) - 4)] = 1
+            for (i = 1; i <= NR; i++) {
+              if (line[i] ~ /(^|\/)\.git$/) continue
+              n = split(line[i], part, "/"); pre = ""; skip = 0
+              for (j = 1; j < n; j++) { pre = pre part[j] "/"; if (pre in root) { skip = 1; break } }
+              if (!skip) print line[i]
+            }
+          }' | LC_ALL=C awk '{ f = $0; if ((getline l < f) > 0 && l ~ /^#!.*sh/) print f; close(f) }' | sort )
+    else
+      printf '%s\n' "$rel"
+    fi
+  done
+}
+
 # One project. Prints findings as <file>\t<kind>\t<what>\t<why>, and nothing when
 # clean. Always exits 0: under `set -e` a non-zero return here aborted the
 # caller's `out=$(scan_project ...)` assignment before it could report anything.
@@ -109,7 +140,7 @@ scan_project() {
   local names=""
   for pair in $port_vars; do names="$names ${pair%%=*}"; done
 
-  for rel in $links; do
+  for rel in $(expand_links "$root" "$links"); do
     f="$root/$rel"
     [[ -f "$f" ]] || continue
     head -1 "$f" | grep >/dev/null '^#!.*sh' || continue      # shell scripts only
@@ -208,7 +239,12 @@ if $CENSUS; then
     root="${cfg%/.context/worktrees/config.env}"
     out="$(scan_project "$root")"
     name="$(basename "$root")"
-    if [[ -z "$out" ]]; then
+    if [[ -z "$(sed -n 's/^[[:space:]]*WT_LINKS=["'"'"']\{0,1\}\([^"'"'"']*\).*/\1/p' "$cfg" | sed -n 1p)" ]]; then
+      # Single-project mode refuses this config (exit 2); counting it clean here
+      # would turn "nothing was checked" into a green census line.
+      printf '  %-20s WT_LINKS is empty -- nothing was checked\n' "$name"
+      rc=1
+    elif [[ -z "$out" ]]; then
       printf '  %-20s clean\n' "$name"
     else
       n="$(grep -c . <<<"$out")"

@@ -390,6 +390,67 @@ grep -q 'base rate              : 50.0%' <<<"$out_n" \
   || fail "(n) task_only.py was flagged at $(share_of 'task_only\.py') — the cross product smeared the bug item onto it: $out_n"
 
 # ---------------------------------------------------------------------------
+# (n2) SPLIT WORKSPACE: PRODUCER ROWS MUST JOIN IN THE CONSUMER (BL-772).
+#     aidex_ws sessions edited the public repo while it was a sibling
+#     (`projects/aidex/...`); it now lives inside the workspace (`aidex_ws/aidex/`).
+#     The producer keyed the row on the directory the file lived in (`aidex/...`),
+#     while coverage/defect_prone.py strips `<workspace>/` and joins on
+#     workspace-relative paths (`aidex/skills/x.py`), so every row missed.
+#     Fed through the real consumer: the sibling-repo edit must land on
+#     `pub/skills/x.py`. Controls: an edit in a sibling with no folder inside the
+#     workspace (`other_ws`) keeps its own project segment, and the workspace's own
+#     path stays `src/z.py` even when the workspace holds a folder named after itself.
+#     Review r1 controls: a registered sibling (`reg_ws`, own `.context`) keeps its
+#     key even when the workspace holds a `reg_ws/` folder; a worktree of the nested
+#     repo (`pub-wt-x`) collapses BEFORE it nests; a FILE named like a sibling
+#     (`filesib`) does not nest, only a folder does.
+SP="$(mktemp -d "${TMPDIR:-/tmp}/w4.XXXXXX")"; ST="$(mktemp -d "${TMPDIR:-/tmp}/w4.XXXXXX")"
+mkdir -p "$SP/split_ws/.context/backlog" "$SP/split_ws/.context/audits/test-coverage" "$SP/split_ws/pub" "$SP/split_ws/split_ws" \
+  "$SP/split_ws/reg_ws" "$SP/reg_ws/.context"
+touch "$SP/split_ws/filesib"
+cat > "$SP/split_ws/.context/backlog/2026-03-03-the-split-bug.md" <<'EOF'
+---
+title: "split bug"
+id: BL-803
+status: done
+created: 2026-03-03
+updated: 2026-03-03
+type: bug
+---
+
+# split bug
+EOF
+mkdir -p "$ST/-Users-user-Documents-projects-split-ws"
+{
+  xprompt "arreglemos BL-803"                              "2026-03-03T10:00:00Z"
+  xedit   "/h/Documents/projects/pub/skills/x.py"          "2026-03-03T10:01:00Z"
+  xedit   "/h/Documents/projects/other_ws/y.py"            "2026-03-03T10:02:00Z"
+  xedit   "/h/Documents/projects/split_ws/src/z.py"        "2026-03-03T10:03:00Z"
+  xedit   "/h/Documents/projects/reg_ws/r.py"              "2026-03-03T10:04:00Z"
+  xedit   "/h/Documents/projects/pub-wt-x/skills/w.py"     "2026-03-03T10:05:00Z"
+  xedit   "/h/Documents/projects/filesib/q.py"             "2026-03-03T10:06:00Z"
+} > "$ST/-Users-user-Documents-projects-split-ws/split.jsonl"
+DPJ="$SP/split_ws/.context/audits/test-coverage/defect-prone.jsonl"
+python3 "$RETRO/mine_defect_proneness.py" --projects-root "$SP" --transcripts-root "$ST" \
+  --denominator all --min-touches 1 --out "$DPJ" >/dev/null 2>&1
+keys_n2="$(python3 - "$TESTS_DIR/../scripts/coverage" "$SP/split_ws" <<'PYN2' 2>&1
+import sys
+sys.path.insert(0, sys.argv[1])
+import defect_prone
+print(sorted(defect_prone.load(sys.argv[2])[1]))
+PYN2
+)"
+[[ "$keys_n2" == "['pub/skills/w.py', 'pub/skills/x.py', 'src/z.py']" ]] \
+  || fail "(n2) the consumer should join the split workspace's rows on pub/skills/w.py, pub/skills/x.py and src/z.py, got $keys_n2: $(cat "$DPJ")"
+grep -q '"file": "other_ws/y.py"' "$DPJ" \
+  || fail "(n2) control: an edit in a sibling with no folder in the workspace keeps its own project: $(cat "$DPJ")"
+grep -q '"file": "reg_ws/r.py"' "$DPJ" \
+  || fail "(n2) control: a registered sibling project keeps its own key even when the workspace holds a folder of its name: $(cat "$DPJ")"
+grep -q '"file": "filesib/q.py"' "$DPJ" \
+  || fail "(n2) control: a FILE named like a sibling does not nest it, only a folder does: $(cat "$DPJ")"
+rm -rf "$SP" "$ST"
+
+# ---------------------------------------------------------------------------
 # (o) mine_verification.py SMOKE CELL — promoted 2026-08-23 out of a gitignored
 #     `.context/` (findings §8.10). Its old `agg.json` input has no producer, so
 #     it now derives targets from items.jsonl + spans.jsonl (mine_items.py's own
@@ -782,6 +843,211 @@ PYV
 )"
 [[ "$out_v" == *PYOK* ]] || fail "(v) miss? lookback: $out_v"
 rm -rf "$MISSDIR"
+
+# ---------------------------------------------------------------------------
+# (w) THE SKILL ADMISSION GATE SEES PLUGIN-NAMESPACED NAMES (audit-c08, BL-800).
+#     Transcripts record `aidex:backlog` (pre-plugin: `aidex-backlog`); the facet files list `backlog`. The
+#     intersection compared the raw names, so a plugin-invoked skill never admitted
+#     a prompt whose text matched no lexicon (here "gracias"). Bare name = control.
+# ---------------------------------------------------------------------------
+out_w="$(cd "$RETRO" && python3 - 2>&1 <<'PYW'
+import facets
+t = facets.compiled()
+def ok(**kw): return facets.facets_for(dict(prompt="gracias", **kw), t)
+assert "backlog" in ok(skills_fired=["backlog"]), "control: bare name admits"
+assert "backlog" in ok(skills_fired=["aidex:backlog"]), "namespaced skills_fired admits"
+assert "backlog" in ok(prior_skills=["aidex:backlog"]), "namespaced prior_skills admits"
+assert ok(skills_fired=["other:backlog"]) == [], "a foreign namespace is not stripped"
+# BL-800: pre-plugin transcripts record the legacy `aidex-` prefix.
+assert "backlog" in ok(skills_fired=["aidex-backlog"]), "legacy aidex- skills_fired admits"
+assert ok(skills_fired=["xaidex-backlog"]) == [], "only a leading aidex- is stripped"
+print("PYOK")
+PYW
+)"
+[[ "$out_w" == *PYOK* ]] || fail "(w) namespaced skill admission: $out_w"
+
+# ---------------------------------------------------------------------------
+# (x) mine_verification: ONE TRUNCATED LINE SKIPS THE LINE, NOT THE SESSION
+#     (audit-c12). The parse was a list comprehension under `except: continue`,
+#     so a truncated final record dropped the session's test run with no counter.
+# ---------------------------------------------------------------------------
+VTX="$(mktemp -d)"; VOUT="$(mktemp -d)"; VPROJ="$(mktemp -d)"
+mkdir -p "$VTX/-Users-user-Documents-projects-demo-ws"
+python3 - "$VTX/-Users-user-Documents-projects-demo-ws/sx.jsonl" "$VOUT/spans.jsonl" <<'PYX'
+import json, sys
+rows = [
+ {"type": "assistant", "timestamp": "2026-01-01T00:00:01Z", "message": {"content": [
+   {"type": "tool_use", "name": "Bash", "id": "t1", "input": {"command": "pytest -q"}}]}},
+ {"type": "user", "timestamp": "2026-01-01T00:00:02Z", "message": {"content": [
+   {"type": "tool_result", "tool_use_id": "t1", "content": "1 failed, 2 passed"}]}},
+]
+with open(sys.argv[1], "w") as f:
+    f.write("\n".join(json.dumps(r) for r in rows) + "\n" + '{"type":"user","mes')
+# two items share each session: sx.jsonl (one truncated line) and gone.jsonl (not on
+# disk, as when Claude Code prunes it); each defect must be counted once, not per item
+with open(sys.argv[2], "w") as f:
+    for slug, sess in (("2026-01-01-x", "sx.jsonl"), ("2026-01-01-x2", "sx.jsonl"),
+                       ("2026-01-02-y", "gone.jsonl"), ("2026-01-02-y2", "gone.jsonl")):
+        f.write(json.dumps({"project": "demo_ws", "slug": slug, "session": sess, "edits": 5,
+                            "first": "2026-01-01T00:00:00Z", "last": "2026-01-01T00:00:03Z"}) + "\n")
+PYX
+out_x="$(python3 "$RETRO/mine_verification.py" --projects-root "$VPROJ" \
+  --transcripts-root "$VTX" --data-dir "$VOUT" --min-edits 1 2>&1)"
+grep -q 'test runs: fail=2 pass=0' <<<"$out_x" \
+  || fail "(x) a truncated trailing line discarded the session's test run: $out_x"
+grep -q 'skipped 1 unparseable line' <<<"$out_x" \
+  || fail "(x) a bad line shared by two items must be counted ONCE: $out_x"
+grep -q 'skipped 1 missing transcript file(s)' <<<"$out_x" \
+  || fail "(x) a missing file shared by two items must be counted ONCE: $out_x"
+rm -rf "$VTX" "$VOUT" "$VPROJ"
+
+
+# ---------------------------------------------------------------------------
+# (y) LOOP-013 w1-ur2: the mine_* scripts do not crash or mislabel on real input.
+#     Layer: script (subprocess) over a synthetic transcript root under mktemp.
+#     (y1) audit-c13  mine_errors labels a project by the generic `-projects-` prefix,
+#          not the author's literal `-Users-user-`.
+#     (y2) audit-c14  one non-UTF-8 byte in a transcript does not crash the run, and an
+#          unparseable --since is refused with a message, not a TypeError traceback.
+#     (y3) audit-c16  tx_dirs_for does not hand a project the transcripts of a sibling
+#          project whose name merely extends it (`dash` vs `dash-template-ws`).
+#     (y3b) BL-801   build_registry files a git worktree's items (gitdir link or symlinked
+#          `.context`) under its parent, by the same detector: one entry per slug, the
+#          parent's copy, BL id and pages win, worktree-only items kept, dedupe scoped
+#          to the parent (another project's slug or id is no collision); dash-template-ws stays.
+#     (y4) audit-c17  TOKEN reads ids past BL-999.
+#     (y5) audit-c33  mine_slow_tests survives a corpus of 0-second runs.
+YTX="$(mktemp -d)"
+YD="$YTX/-Users-alice-Documents-projects-demo-ws"
+mkdir -p "$YD"
+python3 - "$YD/s.jsonl" <<'PYY'
+import json, sys
+a = {"type": "assistant", "timestamp": "2026-10-01T00:00:00Z", "message": {"content": [
+    {"type": "tool_use", "id": "t1", "name": "Bash", "input": {"command": "x"}}]}}
+u = {"type": "user", "timestamp": "2026-10-01T00:00:01Z", "message": {"content": [
+    {"type": "tool_result", "tool_use_id": "t1", "is_error": True, "content": "boom failure"}]}}
+with open(sys.argv[1], "wb") as fh:
+    fh.write((json.dumps(a) + "\n").encode())
+    fh.write(b'{"type":"x","note":"bad byte \xff here"}\n')
+    fh.write((json.dumps(u) + "\n").encode())
+PYY
+YD2="$YTX/-Users-u-Documents-projects--projects-data"
+mkdir -p "$YD2"
+LC_ALL=C sed 's/boom failure/second boom/' "$YD/s.jsonl" > "$YD2/s.jsonl"
+out_y1="$(python3 "$RETRO/mine_errors.py" --since 2026-01-01 --top 3 --transcripts-root "$YTX" 2>&1)"
+grep -qF '] data :: ' <<<"$out_y1" \
+  || fail "(y1) a name holding '-projects-' twice must be cut at the LAST one: $out_y1"
+grep -q 'boom failure' <<<"$out_y1" \
+  || fail "(y2) a transcript with one non-UTF-8 byte crashed or lost its errors: $out_y1"
+grep -qF '] demo-ws :: ' <<<"$out_y1" \
+  || fail "(y1) the project label must be the name after '-projects-', not the encoded path: $out_y1"
+out_y2="$(python3 "$RETRO/mine_errors.py" --since 2026/08/01 --transcripts-root "$YTX" 2>&1)"
+grep -q 'Traceback' <<<"$out_y2" \
+  && fail "(y2) an unparseable --since must be refused with a message, not a traceback: $out_y2"
+grep -q -- '--since' <<<"$out_y2" \
+  || fail "(y2) the refusal must name --since: $out_y2"
+
+YP="$(mktemp -d)"
+mkdir -p "$YP/dash/.context" "$YP/dash/.git/worktrees/x" "$YP/dash-template-ws/.context" \
+         "$YP/dash-template-ws/.git" "$YP/dash-wt-x/.context"
+printf 'gitdir: %s/dash/.git/worktrees/x\n' "$YP" > "$YP/dash-wt-x/.git"
+# wrapper worktree: `.context` is a symlink to the parent's, no root .git
+mkdir -p "$YP/dash-wt-wrap"; ln -s "$YP/dash/.context" "$YP/dash-wt-wrap/.context"
+# relative gitdir link
+mkdir -p "$YP/dash/.git/worktrees/rel" "$YP/dash-wt-rel/.context"
+printf 'gitdir: ../dash/.git/worktrees/rel\n' > "$YP/dash-wt-rel/.git"
+# BL-801: one dated item per entry; dash-wt-wrap sees dash's through its symlink.
+for e in dash dash-template-ws dash-wt-x dash-wt-rel; do
+  mkdir -p "$YP/$e/.context/backlog"
+  printf -- '---\nid: BL-1\ntitle: t\n---\nbody\n' > "$YP/$e/.context/backlog/2026-01-01-$e-item.md"
+done
+# Same slug in parent and worktree (dash-wt-x sorts BEFORE dash/): the parent copy
+# wins. A branch-only item whose id collides with the parent's loses the id.
+printf -- '---\nid: BL-700\ntitle: parent\n---\nb\n' > "$YP/dash/.context/backlog/2026-01-02-shared.md"
+printf -- '---\nid: BL-700\ntitle: branch\n---\nb\n' > "$YP/dash-wt-x/.context/backlog/2026-01-02-shared.md"
+printf -- '---\nid: BL-700\ntitle: branch-only\n---\nb\n' > "$YP/dash-wt-rel/.context/backlog/2026-01-03-branch-only.md"
+# Dedupe and id-drop are scoped to the parent project: a worktree slug or id that
+# only ANOTHER project has is kept. A worktree page whose slug is a parent item is
+# not added to that item's `pages`.
+printf -- '---\nid: BL-1\ntitle: t\n---\nb\n' > "$YP/dash-wt-rel/.context/backlog/2026-01-01-dash-template-ws-item.md"
+printf -- '---\nid: BL-701\ntitle: t\n---\nb\n' > "$YP/dash-template-ws/.context/backlog/2026-01-01-dash-template-ws-item.md"
+printf -- '---\nid: BL-701\ntitle: branch-new\n---\nb\n' > "$YP/dash-wt-rel/.context/backlog/2026-01-04-branch-new.md"
+mkdir -p "$YP/dash-wt-x/.context/reports"
+printf '<title>s</title>\n' > "$YP/dash-wt-x/.context/reports/2026-01-02-shared.html"
+YT2="$(mktemp -d)"
+mkdir -p "$YT2/-Users-alice-Documents-projects-dash" \
+         "$YT2/-Users-alice-Documents-projects-dash-template-ws" \
+         "$YT2/-Users-alice-Documents-projects-dash-sub" \
+         "$YT2/-Users-alice-Documents-projects-dash-wt-x" \
+         "$YT2/-Users-alice-Documents-projects-dash-wt-wrap" \
+         "$YT2/-Users-alice-Documents-projects-dash-wt-rel"
+out_y3="$(python3 - "$RETRO" "$YP" "$YT2" <<'PYY'
+import argparse, os, sys
+sys.path.insert(0, sys.argv[1])
+import mine_items as M
+M.configure(argparse.Namespace(projects_root=sys.argv[2], transcripts_root=sys.argv[3]))
+print(sorted(os.path.basename(d.rstrip("/")).split("projects-")[-1] for d in M.tx_dirs_for("dash")))
+print(M.TOKEN.findall("close BL-1001 and BL-042"))
+reg = M.build_registry()
+def owners(slug): return sorted(it["project"] for it in reg if it["slug"] == slug)
+bad = []
+if sorted({it["project"] for it in reg}) != ["dash", "dash-template-ws"]: bad.append("projects")
+for slug in ("2026-01-01-dash-item", "2026-01-01-dash-wt-x-item", "2026-01-01-dash-wt-rel-item",
+             "2026-01-02-shared", "2026-01-03-branch-only"):
+    if owners(slug) != ["dash"]: bad.append(f"{slug} -> {owners(slug)}")
+shared = [it for it in reg if it["slug"] == "2026-01-02-shared"]
+if [it["title"] for it in shared] != ["parent"]: bad.append(f"shared copy: {[it['title'] for it in shared]}")
+holders = [it["title"] for it in reg if it["project"] == "dash" and it["id"] == "BL-700"]
+if holders != ["parent"]: bad.append(f"BL-700 holders: {holders}")
+if owners("2026-01-01-dash-template-ws-item") != ["dash", "dash-template-ws"]:
+    bad.append(f"other project's slug -> {owners('2026-01-01-dash-template-ws-item')}")
+new_ids = [it["id"] for it in reg if it["slug"] == "2026-01-04-branch-new"]
+if new_ids != ["BL-701"]: bad.append(f"branch-new ids: {new_ids}")
+if any(it.get("pages") for it in shared): bad.append(f"shared pages: {[it.get('pages') for it in shared]}")
+print("REG", "OK" if not bad else bad)
+PYY
+)"
+grep -qF "['dash', 'dash-sub', 'dash-wt-rel', 'dash-wt-wrap', 'dash-wt-x']" <<<"$out_y3" \
+  || fail "(y3) tx_dirs_for(dash) must keep its own, subdir and git-worktree sessions but drop the separate project dash-template-ws: $out_y3"
+grep -qF "['BL-1001', 'BL-042']" <<<"$out_y3" \
+  || fail "(y4) TOKEN must match ids past BL-999: $out_y3"
+grep -qF "REG OK" <<<"$out_y3" \
+  || fail "(y3b) build_registry must file a git worktree's items (gitdir link or symlinked .context) under its parent, once, the parent's copy and id winning, and keep the separate project dash-template-ws: $out_y3"
+
+YT3="$(mktemp -d)"
+mkdir -p "$YT3/-Users-alice-Documents-projects-demo-ws"
+python3 - "$YT3/-Users-alice-Documents-projects-demo-ws/z.jsonl" <<'PYY'
+import json, sys
+lines = [
+ {"type": "assistant", "timestamp": "2026-10-01T00:00:00Z", "message": {"content": [
+   {"type": "tool_use", "id": "z1", "name": "Bash", "input": {"command": "pytest -q"}}]}},
+ {"type": "user", "timestamp": "2026-10-01T00:00:00Z", "message": {"content": [
+   {"type": "tool_result", "tool_use_id": "z1", "content": "ok"}]}},
+]
+open(sys.argv[1], "w").write("\n".join(json.dumps(l) for l in lines) + "\n")
+PYY
+out_y5="$(python3 "$RETRO/mine_slow_tests.py" --transcripts-root "$YT3" 2>&1)"
+grep -q 'ZeroDivisionError' <<<"$out_y5" \
+  && fail "(y5) a corpus of 0-second runs must not divide by zero: $out_y5"
+grep -q 'timed test invocations' <<<"$out_y5" \
+  || fail "(y5) mine_slow_tests produced no summary for 0-second runs: $out_y5"
+rm -rf "$YTX" "$YP" "$YT2" "$YT3"
+
+
+# (y6) audit-c17, id_map: an item whose id is past BL-999 resolves a mention to a span.
+Y6P="$(mktemp -d)"; Y6T="$(mktemp -d)"
+mkdir -p "$Y6P/big_ws/.context/backlog" "$Y6T/-Users-alice-Documents-projects-big-ws"
+printf -- '---\ntitle: "Big id"\nid: BL-1001\nstatus: done\ncreated: 2026-03-01\nupdated: 2026-03-01\ntype: task\n---\n\n# Big\n' \
+  > "$Y6P/big_ws/.context/backlog/2026-03-01-big-item.md"
+{
+  python3 -c 'import json; print(json.dumps({"type":"user","timestamp":"2026-03-01T00:00:00Z","entrypoint":"cli","origin":{"kind":"human"},"promptSource":"typed","message":{"role":"user","content":"fix BL-1001 now"}}))'
+  python3 -c 'import json; print(json.dumps({"type":"assistant","timestamp":"2026-03-01T00:01:00Z","message":{"content":[{"type":"tool_use","name":"Edit","id":"t","input":{"file_path":"/p/big_ws/src/a.py","old_string":"a","new_string":"b"}}]}}))'
+} > "$Y6T/-Users-alice-Documents-projects-big-ws/s.jsonl"
+out_y6="$(python3 "$RETRO/mine_items.py" --projects-root "$Y6P" --transcripts-root "$Y6T" \
+  --out "$OUT/y6" --min-mentions 1 2>&1)"
+grep -q 'big_ws: 1 spans' <<<"$out_y6" \
+  || fail "(y6) an item with id BL-1001 must resolve a mention to a span: $out_y6"
+rm -rf "$Y6P" "$Y6T"
 
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi

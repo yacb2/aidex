@@ -25,7 +25,9 @@
 #
 # Degrades gracefully when docker is not on PATH or the daemon is
 # unreachable: prints a note and exits 0 (a --check gate cannot fail on an
-# environment that has no Docker to begin with).
+# environment that has no Docker to begin with). A daemon that answers but
+# times out on an image's label lookup leaves that image unjudged: the sweep is
+# reported incomplete, and --check / --slug exit 1 (never a clean bill).
 
 set -uo pipefail
 
@@ -58,16 +60,17 @@ WS_PARENT="$(dirname "$WS_ROOT")"
 # does not is another workspace's business (or not a worktree at all).
 if [[ -n "$SLUG" ]]; then
   is_valid_slug "$SLUG" || die "invalid slug: $SLUG (kebab-case, [a-z0-9-])"
-  SCOPE="${WS_NAME}-wt-${SLUG}"
+  SCOPE="$(compose_project_name "$WS_NAME")-wt-${SLUG}"
   # Under --slug the finding is "attributable to this worktree", not "orphaned":
   # the resources of a LIVE worktree are exactly what the pre-flight must list.
   LABEL="RESOURCE"
 else
-  SCOPE="${WS_NAME}-wt-"
+  SCOPE="$(compose_project_name "$WS_NAME")-wt-"
   LABEL="ORPHAN"
 fi
 
-PREFIX="${WS_NAME}-wt-"
+# Compose project names are normalised (compose_project_name); directories are not.
+PREFIX="$(compose_project_name "$WS_NAME")-wt-"
 
 # owner_slug IDENT — the slug IDENT belongs to, by the boundary the tool creates:
 # project <ws>-wt-<slug>; volume/network <project>_<name>; compose v2 image
@@ -75,8 +78,11 @@ PREFIX="${WS_NAME}-wt-"
 # first one is the slug exactly. A bare "-" suffix is ambiguous by name alone
 # (ws-wt-foo-bar-backend: foo's "bar-backend" or foo-bar's "backend"?), so it
 # goes to the LONGEST slug known to exist -- never a prefix sibling (worktree-c03).
+# LABEL (optional): the resource's com.docker.compose.project label; when it
+# carries this workspace's prefix it is the exact owner and the name is not read.
 owner_slug() {
   local rest="${1#"$PREFIX"}" head best="" c
+  if [[ "${2:-}" == "$PREFIX"?* ]]; then printf '%s\n' "${2#"$PREFIX"}"; return; fi
   head="${rest%%[_:]*}"
   if [[ "$head" != "$rest" ]]; then printf '%s\n' "$head"; return; fi
   for c in "${candidates[@]:-}"; do
@@ -91,7 +97,7 @@ owner_slug() {
 in_scope() {
   [[ "$1" == "$PREFIX"* ]] || return 1
   [[ -z "$SLUG" ]] && return 0
-  [[ "$(owner_slug "$1")" == "$SLUG" ]]
+  [[ "$(owner_slug "$1" "${2:-}")" == "$SLUG" ]]
 }
 
 # --- build the set of KNOWN live compose-project names, i.e. worktrees that
@@ -99,19 +105,22 @@ in_scope() {
 #     <project>-wt-<slug>, where <project> is the main repo's basename. ---
 known_projects=()
 
-while IFS= read -r d; do
-  [[ -z "$d" ]] && continue
-  known_projects+=("$(basename "$d")")
-done < <(find "$WS_PARENT" -maxdepth 1 -type d -name "${WS_NAME}-wt-*" 2>/dev/null)
+for d in "$WS_PARENT/$WS_NAME"-wt-*; do
+  [[ -d "$d" ]] || continue
+  d="$(basename "$d")"
+  known_projects+=("${PREFIX}${d#"${WS_NAME}-wt-"}")
+done
 
 if [[ -d "$WS_ROOT/_worktrees" ]]; then
   while IFS= read -r d; do
     [[ -z "$d" ]] && continue
     name="$(basename "$d")"
-    if [[ "$name" == *-wt-* ]]; then
+    if [[ "$name" == "${WS_NAME}-wt-"* ]]; then
+      known_projects+=("${PREFIX}${name#"${WS_NAME}-wt-"}")
+    elif [[ "$name" == *-wt-* ]]; then
       known_projects+=("$name")
     else
-      known_projects+=("${WS_NAME}-wt-${name}")
+      known_projects+=("${PREFIX}${name}")
     fi
   done < <(find "$WS_ROOT/_worktrees" -mindepth 1 -maxdepth 1 -type d 2>/dev/null)
 fi
@@ -122,7 +131,7 @@ fi
 is_known() {
   [[ -n "$SLUG" ]] && return 1
   local owner p
-  owner="$PREFIX$(owner_slug "$1")"
+  owner="$PREFIX$(owner_slug "$1" "${2:-}")"
   for p in "${known_projects[@]:-}"; do
     [[ "$owner" == "$p" ]] && return 0
   done
@@ -136,7 +145,7 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 # A wedged Docker Desktop accepts the socket and never answers; 30 s covers a cold start.
 dt="${AIDEX_DOCKER_TIMEOUT:-30}" drc=0
-perl -e 'alarm shift; exec @ARGV' "$dt" docker info >/dev/null 2>&1 || drc=$?
+with_timeout "$dt" docker info >/dev/null 2>&1 || drc=$?
 if [[ $drc -ne 0 ]]; then
   [[ $drc -eq 142 ]] && echo "docker did not answer within ${dt} s."
   echo "docker daemon unreachable — skipping Docker orphan sweep (degraded)."
@@ -167,6 +176,7 @@ while IFS= read -r ident; do
 done < <(printf '%s\n' "${known_projects[@]:-}" "$compose_projects" "$dangling_projects" "$volumes" "$networks")
 
 orphans_found=0
+degraded=0
 
 if [[ -n "$SLUG" ]]; then
   echo "Attribution pre-flight for $SCOPE (every resource carrying this project name)..."
@@ -197,10 +207,21 @@ while IFS= read -r vol; do
 done <<< "$volumes"
 
 # --- images (tagged) ---
+# Owner by the compose-project label compose stamps on the image (BL-774); the
+# name rule is only the fallback for an unlabelled image. A lookup that times
+# out leaves the image unjudged and the sweep degraded, never clean.
 while IFS= read -r img; do
   [[ -z "$img" ]] && continue
-  in_scope "$img" || continue
-  if ! is_known "$img"; then
+  [[ "$img" == "$PREFIX"* ]] || continue
+  irc=0
+  lbl="$(with_timeout "$dt" docker image inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' "$img" 2>/dev/null)" || irc=$?
+  if [[ $irc -eq 142 ]]; then
+    echo "docker did not answer within ${dt} s reading the label of image $img (not judged)."
+    degraded=$((degraded + 1))
+    continue
+  fi
+  in_scope "$img" "$lbl" || continue
+  if ! is_known "$img" "$lbl"; then
     echo "$LABEL image: $img"
     echo "  docker rmi $img"
     orphans_found=$((orphans_found + 1))
@@ -250,21 +271,23 @@ while IFS= read -r net; do
 done <<< "$networks"
 
 echo
-if [[ "$orphans_found" -eq 0 ]]; then
-  if [[ -n "$SLUG" ]]; then
-    ok "no Docker resources attributable to $SCOPE."
-  else
-    ok "No orphaned ${SCOPE}* Docker resources found."
-  fi
-else
+[[ "$degraded" -gt 0 ]] && warn "sweep incomplete (degraded): $degraded image(s) not judged."
+if [[ "$orphans_found" -gt 0 ]]; then
   if [[ -n "$SLUG" ]]; then
     warn "$orphans_found resource group(s) attributable to $SCOPE."
   else
     warn "$orphans_found orphan(s) found."
   fi
+elif [[ "$degraded" -eq 0 ]]; then
+  if [[ -n "$SLUG" ]]; then
+    ok "no Docker resources attributable to $SCOPE."
+  else
+    ok "No orphaned ${SCOPE}* Docker resources found."
+  fi
 fi
 
-if { $CHECK || [[ -n "$SLUG" ]]; } && [[ "$orphans_found" -gt 0 ]]; then
+# An unjudged image is not a clean bill: --slug exit 0 releases a teardown.
+if { $CHECK || [[ -n "$SLUG" ]]; } && [[ $((orphans_found + degraded)) -gt 0 ]]; then
   exit 1
 fi
 exit 0

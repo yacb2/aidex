@@ -65,7 +65,7 @@ def configure(args):
     require_projects_root()
 
 FM = re.compile(r'^---\n(.*?)\n---', re.S)
-TOKEN = re.compile(r'\bBL-\d{3}\b|\b20\d\d-\d\d-\d\d-[a-z0-9][a-z0-9-]{2,70}\b')
+TOKEN = re.compile(r'\bBL-\d{3,}\b|\b20\d\d-\d\d-\d\d-[a-z0-9][a-z0-9-]{2,70}\b')
 
 REVERT = re.compile(r'git\s+(checkout\s+--|revert|reset\s+--hard|stash|restore)')
 # THE runner vocabulary for this package. mine_slow_tests.py imports it from here
@@ -102,15 +102,49 @@ def parse_fm(path):
     return fm, txt
 
 
+def worktree_of(sdir, proj):
+    """True when `sdir` is a git worktree of PROJ_ROOT/<proj>: its `.context` resolves
+    to the project's (a wrapper worktree, no root `.git`), or its `.git` is a gitdir
+    link under the project's `.git/worktrees/`. A worktree of the project IS the project."""
+    if (os.path.realpath(os.path.join(sdir, ".context"))
+            == os.path.realpath(os.path.join(PROJ_ROOT, proj, ".context"))):
+        return True
+    try:
+        with open(os.path.join(sdir, ".git")) as fh:
+            link = fh.readline().strip()
+    except OSError:
+        return False
+    want = os.path.realpath(os.path.join(PROJ_ROOT, proj, ".git", "worktrees"))
+    return (link.startswith("gitdir:")
+            and os.path.realpath(os.path.join(sdir, link[len("gitdir:"):].strip())).startswith(want + os.sep))
+
+
 def build_registry():
     """One record per tracked item: slug, id, project, kind, front-matter, body stats."""
     require_projects_root()   # also guards importers that never call configure()
     items = []
+    projs = [os.path.basename(d.rstrip("/")) for d in sorted(glob.glob(PROJ_ROOT + "/*/"))
+             if os.path.isdir(os.path.join(d, ".context"))]
+    # A worktree of a registered project IS that project (BL-801), by the same
+    # name-prefix + detector rule tx_dirs_for uses; the prefix keeps the parent from
+    # reading as a worktree of its own symlinked worktree.
+    entries = []
     for pdir in sorted(glob.glob(PROJ_ROOT + "/*/")):
-        proj = os.path.basename(pdir.rstrip("/"))
-        ctx = os.path.join(pdir, ".context")
-        if not os.path.isdir(ctx):
+        name = os.path.basename(pdir.rstrip("/"))
+        if not os.path.isdir(os.path.join(pdir, ".context")):
             continue
+        parent = next((o for o in projs
+                       if name.replace("_", "-").startswith(o.replace("_", "-") + "-")
+                       and worktree_of(pdir, o)), None)
+        entries.append((parent is not None, pdir, parent or name))
+    # Parents first, so the parent's own copy of a slug or BL id wins over a
+    # worktree's whatever the name order (`x-wt-a/` sorts before `x/`). A worktree
+    # adds only the slugs its project does not have yet; a branch-assigned id that
+    # collides with one already taken in the project is dropped, never a second key.
+    for is_wt, pdir, proj in sorted(entries):
+        ctx = os.path.join(pdir, ".context")
+        seen = {it["slug"] for it in items if it["project"] == proj} if is_wt else set()
+        taken = {it["id"] for it in items if it["project"] == proj and it["id"]} if is_wt else set()
         specs = []
         for kind, pats in (("backlog", ["backlog/*.md", "backlog/_archive/*.md",
                                         "backlog/_deferred/*.md"]),
@@ -124,14 +158,15 @@ def build_registry():
             if base.startswith("00-index") and kind == "backlog":
                 continue
             slug = os.path.basename(os.path.dirname(f)) if base == "00-index.md" else base[:-3]
-            if not re.match(r'^20\d\d-\d\d-\d\d-', slug):
+            if not re.match(r'^20\d\d-\d\d-\d\d-', slug) or slug in seen:
                 continue
             fm, body = parse_fm(f)
             if fm is None:
                 continue
             items.append({
                 "project": proj, "kind": kind, "slug": slug, "path": f,
-                "id": fm.get("id", ""), "title": fm.get("title", ""),
+                "id": "" if fm.get("id", "") in taken else fm.get("id", ""),
+                "title": fm.get("title", ""),
                 "status": fm.get("status", ""), "priority": fm.get("priority", ""),
                 # `estimate` is carried so the calibration read (BL-131) can score it
                 # against realized effort without re-parsing every item's front-matter.
@@ -154,6 +189,8 @@ def build_registry():
         by_slug = {it["slug"]: it for it in items if it["project"] == proj}
         for f in page_files(ctx):
             slug = os.path.basename(f)[:-5]
+            if slug in seen:
+                continue
             if slug in by_slug:
                 by_slug[slug].setdefault("pages", []).append(f)
                 continue
@@ -212,9 +249,21 @@ def tx_dirs_for(proj):
     mine_slow_tests.project_of); this one was the odd copy out.
     """
     a = proj.replace("_", "-")
+    # A longer-named sibling that is a SEPARATE project (`.context`, and not a git
+    # worktree of this one) owns its own dirs: `dash-template-ws` is not a subdir
+    # session of `dash`. A worktree of the project IS the project.
+    def separate_project(sdir):
+        return os.path.isdir(os.path.join(sdir, ".context")) and not worktree_of(sdir, proj)
+
+    siblings = [os.path.basename(sd.rstrip("/")).replace("_", "-")
+                for sd in glob.glob(PROJ_ROOT + "/*/")
+                if os.path.basename(sd.rstrip("/")).replace("_", "-").startswith(a + "-")
+                and separate_project(sd)]
     out = []
     for d in glob.glob(TX_ROOT + "/*/"):
         core = short_project_dir(os.path.basename(d.rstrip("/")))
+        if any(core == o or core.startswith(o + "-") for o in siblings):
+            continue
         if core == proj or core == a or core.startswith(proj + "-") or core.startswith(a + "-"):
             out.append(d)
     return out
@@ -686,7 +735,7 @@ def main():
     for proj, its in sorted(by_proj.items()):
         # slug -> item ; id -> item (ids are project-scoped)
         slug_map = {it["slug"]: it for it in its}
-        id_map = {it["id"]: it for it in its if re.match(r'^BL-\d{3}$', it["id"] or "")}
+        id_map = {it["id"]: it for it in its if re.match(r'^BL-\d{3,}$', it["id"] or "")}
         keys = set(slug_map) | set(id_map)
         if not keys:
             continue

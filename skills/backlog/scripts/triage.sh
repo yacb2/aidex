@@ -7,7 +7,7 @@
 #
 #   ids       duplicate or nonconforming BL-NNN ids       (register-item.sh --check-ids)
 #   archive   done/dropped items still in the active dir  (sweep.sh --check)
-#   drift     open items whose plan is done, done items with no commit  (reconcile.sh)
+#   drift     open items whose plan is done, done items with no commit, stale plans/audits index  (reconcile.sh)
 #   definition open items missing a contract field — they never enter a sweep (define-check.py)
 #
 # READ-ONLY. Every check runs in its reporting mode and the fix commands are printed, never
@@ -68,7 +68,7 @@ say "backlog triage — $BACKLOG_DIR"
 say ""
 
 run_check "ids" "duplicate or nonconforming BL-NNN id" \
-  "bash $SCRIPT_DIR/migrate-ids.sh --apply    # then fix any hand-authored id by hand" \
+  "python3 $SCRIPT_DIR/renumber-ids.py --root \"$ROOT\" --apply    # nonconforming ids; a duplicate id is fixed by hand" \
   bash "$SCRIPT_DIR/register-item.sh" --check-ids || true
 
 run_check "archive" "done/dropped items never moved to _archive/ (D-10)" \
@@ -76,7 +76,7 @@ run_check "archive" "done/dropped items never moved to _archive/ (D-10)" \
   bash "$SCRIPT_DIR/sweep.sh" --check || true
 
 run_check "drift" "closure that did not propagate across artifacts" \
-  "close the named items with close-item.sh, or record the missing commit" \
+  "close the named items with close-item.sh, record the missing commit, or regenerate a stale roll-up index (reindex-plans.sh / reindex-audits.sh)" \
   bash "$SCRIPT_DIR/reconcile.sh" || true
 
 run_check "definition" "open items below the definition contract (kept out of any sweep)" \

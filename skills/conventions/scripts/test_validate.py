@@ -1139,6 +1139,31 @@ def check_crossref_topic_folders_unit(failures: list[str]) -> None:
                 failures.append(f"crossref topic folders: {ref!r} resolved, but nothing on disk matches it")
 
 
+def check_crossref_communication_folders_unit(failures: list[str]) -> None:
+    """A `communication/<YYYY-MM-DD>-<slug>` marker resolves into received/, sent/ or meetings/.
+
+    The comm skill tells an ADR to cite a meeting as `communication/<dated-folder>`, but the
+    entry lives one level down (`communications/meetings/<dated-folder>/body.md`). The topic
+    descent covered references and research only, so a correct marker read as
+    cross-ref-target-missing (BL-807, found 2026-10-13 in recomed_ws).
+    """
+    v = _load_validator()
+    with tempfile.TemporaryDirectory() as td:
+        ctx = Path(td) / ".context"
+        for sub, folder in (("received", "2026-10-01-client-email"),
+                            ("sent", "2026-10-02-reply"),
+                            ("meetings", "2026-10-13-kickoff")):
+            (ctx / "communications" / sub / folder).mkdir(parents=True)
+            (ctx / "communications" / sub / folder / "body.md").write_text("x")
+            ref = f"communication/{folder}"
+            if not v.crossref_target_exists(ctx, ref):
+                failures.append(f"crossref communication folders: {ref!r} did not resolve, but {sub}/{folder} is on disk")
+        if not v.crossref_target_exists(ctx, "communication/meetings/2026-10-13-kickoff"):
+            failures.append("crossref communication folders: the explicit meetings/<folder> path stopped resolving")
+        if v.crossref_target_exists(ctx, "communication/2099-12-31-nope"):
+            failures.append("crossref communication folders: 'communication/2099-12-31-nope' resolved, but nothing on disk matches it")
+
+
 def check_backlog_placeholder_body_unit(failures: list[str]) -> None:
     """Direct cells for check_backlog_placeholder_body (Phase 4): an active entry
     still carrying a register-template placeholder comment warns; a filled-in entry
@@ -1301,6 +1326,175 @@ def check_backlog_priority_unit(failures: list[str]) -> None:
         failures.append("backlog-priority unit: the 'Blocked' violation does not point at blocked_by")
     if v.check_backlog_priority(path, {"status": "open"}) is not None:
         failures.append("backlog-priority unit: absent priority produced a finding")
+
+
+def check_directory_waiver(failures: list[str]) -> None:
+    """LOOP-013 c20: a finding anchored on a directory (archive-folder-missing names
+    `.context/loops`) was reported 'path-missing' because waiver_state demanded a
+    regular file, so its waiver was orphaned and the finding stayed active."""
+    import shutil
+    with tempfile.TemporaryDirectory() as td:
+        ctx = Path(td) / ".context"
+        shutil.copytree(FIXTURES / "good" / ".context", ctx)
+        (ctx / "loops").mkdir(exist_ok=True)
+        if (ctx / "loops" / "_archive").exists():
+            shutil.rmtree(ctx / "loops" / "_archive")
+        def run_v() -> dict:
+            res = subprocess.run([sys.executable, str(VALIDATOR), str(ctx), "--json"],
+                                 capture_output=True, text=True)
+            return json.loads(res.stdout)
+        def active(d: dict) -> bool:
+            return any(x["rule"] == "archive-folder-missing" and x["file"] == ".context/loops"
+                       for x in d["warnings"])
+        if not active(run_v()):
+            failures.append("directory waiver: the control finding archive-folder-missing "
+                            "on .context/loops did not fire — the fixture is wrong")
+            return
+        (ctx / ".aidex-waivers").write_text(
+            "archive-folder-missing | .context/loops | - | no finished loops yet | 2026-10-13\n",
+            encoding="utf-8")
+        d = run_v()
+        if active(d) or d["summary"].get("waived") != 1 or d["summary"].get("waiver_paths_orphaned"):
+            failures.append(f"directory waiver: a waiver on a directory path did not suppress "
+                            f"its finding (waived={d['summary'].get('waived')}, "
+                            f"orphaned={d['summary'].get('waiver_paths_orphaned')})")
+
+
+def check_corrupt_baseline(failures: list[str]) -> None:
+    """LOOP-013 c39: a baseline that does not parse (a merge conflict) was treated as
+    absent, silently turning the ratchet off; a JSON array raised AttributeError."""
+    import shutil
+    with tempfile.TemporaryDirectory() as td:
+        ctx = Path(td) / ".context"
+        shutil.copytree(FIXTURES / "bad" / ".context", ctx)
+        bp = ctx / ".validate-baseline.json"
+        for label, content in (("a merge-conflicted file", "<<<<<<< HEAD\n{}\n=======\n{}\n>>>>>>> x\n"),
+                               ("a JSON array", "[]\n")):
+            bp.write_text(content, encoding="utf-8")
+            res = subprocess.run([sys.executable, str(VALIDATOR), str(ctx)],
+                                 capture_output=True, text=True)
+            if res.returncode != 2 or "baseline" not in res.stderr or "Traceback" in res.stderr:
+                failures.append(f"corrupt baseline: {label} must stop the run with rc 2 and a "
+                                f"message naming the baseline (rc={res.returncode}, "
+                                f"stderr={res.stderr[-160:]!r})")
+
+
+def check_baseline_survives_line_shift(failures: list[str]) -> None:
+    """LOOP-013 c40: the emoji message embeds 'line N', and the baseline key included the
+    message, so a line inserted above a baselined emoji made it NEW. A baseline written
+    with the line number (every v2 baseline so far) must keep matching."""
+    import shutil
+    with tempfile.TemporaryDirectory() as td:
+        ctx = Path(td) / ".context"
+        shutil.copytree(FIXTURES / "good" / ".context", ctx)
+        note = ctx / "research" / "2026-06-01-emoji-shift.md"
+        head = ("---\ntitle: Emoji shift\nstatus: done\ncreated: 2026-06-01\n"
+                "updated: 2026-06-01\n---\n\n# Emoji shift\n\n")
+        note.write_text(head + "Plain line.\nShipped \u2705 today.\n", encoding="utf-8")
+        def run_v() -> subprocess.CompletedProcess:
+            return subprocess.run([sys.executable, str(VALIDATOR), str(ctx), "--json"],
+                                  capture_output=True, text=True)
+        freeze = subprocess.run([sys.executable, str(VALIDATOR), str(ctx), "--baseline"],
+                                capture_output=True, text=True)
+        bp = ctx / ".validate-baseline.json"
+        if freeze.returncode != 0 or not bp.is_file():
+            failures.append(f"baseline line shift: freeze failed: {freeze.stderr[:120]}")
+            return
+        note.write_text(head + "An inserted line.\nPlain line.\nShipped \u2705 today.\n",
+                        encoding="utf-8")
+        res = run_v()
+        d = json.loads(res.stdout)
+        if res.returncode != 0 or d["summary"]["baseline"]["new_violations"] != 0:
+            failures.append(f"baseline line shift: a line inserted above a baselined emoji made "
+                            f"it NEW (rc={res.returncode}, new={d.get('new_violations')})")
+        # a baseline frozen before the fix carries the raw message (line number included)
+        # and must keep matching while the file is unchanged
+        note.write_text(head + "Plain line.\nShipped \u2705 today.\n", encoding="utf-8")
+        raw = [f"{v['file']}|{v['rule']}|{v['message']}"
+               for v in json.loads(run_v().stdout)["violations"] if v["rule"] == "emoji-codepoint"]
+        data = json.loads(bp.read_text(encoding="utf-8"))
+        data["keys"] = sorted(set(raw))  # raw keys ONLY: the stripped key must not mask the compat branch
+        bp.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        res = run_v()
+        d = json.loads(res.stdout)
+        if (res.returncode != 0 or d["summary"]["baseline"]["new_violations"] != 0
+                or d["summary"]["baseline"]["resolved"] != 0):
+            failures.append(f"baseline line shift: a baseline written with the line number "
+                            f"stopped matching or read as resolved (rc={res.returncode}, "
+                            f"baseline={d['summary']['baseline']})")
+
+def check_baseline_occurrences_and_paste_unsafe(failures: list[str]) -> None:
+    """Review r1 on c40: (a) a NEW identical violation in an already-baselined file must
+    stay NEW (occurrence-indexed keys, BL-043), a fixed one is reported resolved; (b) the
+    paste-unsafe message's 'at body line ~N' moves like 'line N:' and must not be in the
+    key; (c) a baseline whose keys are not strings stops the run like any corrupt one."""
+    import shutil
+    with tempfile.TemporaryDirectory() as td:
+        ctx = Path(td) / ".context"
+        shutil.copytree(FIXTURES / "good" / ".context", ctx)
+        note = ctx / "research" / "2026-06-01-emoji-twice.md"
+        head = ("---\ntitle: Emoji twice\nstatus: done\ncreated: 2026-06-01\n"
+                "updated: 2026-06-01\n---\n\n# Emoji twice\n\n")
+        note.write_text(head + "Shipped \u2705 today.\n", encoding="utf-8")
+        def run_v() -> subprocess.CompletedProcess:
+            return subprocess.run([sys.executable, str(VALIDATOR), str(ctx), "--json"],
+                                  capture_output=True, text=True)
+        subprocess.run([sys.executable, str(VALIDATOR), str(ctx), "--baseline"],
+                       capture_output=True, text=True)
+        note.write_text(head + "Shipped \u2705 today.\n\n\n\n\n\nAgain \u2705 later.\n", encoding="utf-8")
+        res = run_v()
+        d = json.loads(res.stdout)
+        if res.returncode != 1 or d["summary"]["baseline"]["new_violations"] != 1:
+            failures.append(f"baseline occurrences: a second identical emoji in a baselined file "
+                            f"was masked (rc={res.returncode}, "
+                            f"new={d['summary']['baseline']['new_violations']})")
+        subprocess.run([sys.executable, str(VALIDATOR), str(ctx), "--baseline"],
+                       capture_output=True, text=True)
+        note.write_text(head + "Shipped \u2705 today.\n", encoding="utf-8")
+        d = json.loads(run_v().stdout)
+        if d["summary"]["baseline"]["resolved"] != 1:
+            failures.append(f"baseline occurrences: deleting one of two identical violations "
+                            f"must report one resolved key (got {d['summary']['baseline']['resolved']})")
+
+        body = ctx / "communications" / "sent" / "2026-06-18-spring-pricing-reply" / "body.md"
+        table = "\n| a | b |\n|---|---|\n| 1 | 2 |\n"
+        body.write_text(body.read_text(encoding="utf-8") + table, encoding="utf-8")
+        note.unlink()
+        subprocess.run([sys.executable, str(VALIDATOR), str(ctx), "--baseline"],
+                       capture_output=True, text=True)
+        text = body.read_text(encoding="utf-8")
+        body.write_text(text.replace("Hola Ana,\n", "Hola Ana,\n\nuna linea nueva\n", 1), encoding="utf-8")
+        res = run_v()
+        d = json.loads(res.stdout)
+        if res.returncode != 0 or d["summary"]["baseline"]["new_violations"] != 0:
+            failures.append(f"baseline paste-unsafe: a line inserted above a baselined table made "
+                            f"it NEW (rc={res.returncode}, new={d.get('new_violations')})")
+
+        # a message with no line number: occurrence 2 must not ride on the raw key of 1
+        ex = ctx / "backlog" / "2026-05-14-clean-example.md"
+        ex_text = ex.read_text(encoding="utf-8")
+        ex.write_text(ex_text.replace("\n---\n", "\nescalated_to: decision/2026-01-01-gone.md\n---\n", 1),
+                      encoding="utf-8")
+        subprocess.run([sys.executable, str(VALIDATOR), str(ctx), "--baseline"],
+                       capture_output=True, text=True)
+        ex.write_text(ex_text.replace("\n---\n", "\nescalated_to: decision/2026-01-01-gone.md, "
+                                      "decision/2026-01-01-gone.md\n---\n", 1), encoding="utf-8")
+        res = run_v()
+        d = json.loads(res.stdout)
+        if res.returncode != 1 or d["summary"]["baseline"]["new_violations"] != 1:
+            failures.append(f"baseline occurrences: a repeated no-line-number violation rode on "
+                            f"the first one's key (rc={res.returncode}, "
+                            f"new={d['summary']['baseline']['new_violations']})")
+        ex.write_text(ex_text, encoding="utf-8")
+
+        bp = ctx / ".validate-baseline.json"
+        bp.write_text('{"version": 2, "keys": [[1]]}\n', encoding="utf-8")
+        res = subprocess.run([sys.executable, str(VALIDATOR), str(ctx)],
+                             capture_output=True, text=True)
+        if res.returncode != 2 or "Traceback" in res.stderr:
+            failures.append(f"corrupt baseline: non-string keys must stop the run with rc 2 "
+                            f"(rc={res.returncode}, stderr={res.stderr[-120:]!r})")
+
 
 
 def check_waivers(failures: list[str]) -> None:
@@ -1627,6 +1821,7 @@ def main() -> int:
     check_archive_status_open_unit(failures)
     check_archive_status_terminal_unit(failures)
     check_crossref_topic_folders_unit(failures)
+    check_crossref_communication_folders_unit(failures)
     check_backlog_placeholder_body_unit(failures)
     check_backlog_type_unit(failures)
     check_references_root_unit(failures)
@@ -1634,6 +1829,10 @@ def main() -> int:
     check_path_scope(failures)
     check_waivers(failures)
     check_waiver_moved_path(failures)
+    check_directory_waiver(failures)
+    check_corrupt_baseline(failures)
+    check_baseline_survives_line_shift(failures)
+    check_baseline_occurrences_and_paste_unsafe(failures)
     check_comm_paste_safe_unit(failures)
     check_comm_direction_and_legacy_unit(failures)
     check_no_emoji(failures)

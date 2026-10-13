@@ -92,7 +92,7 @@ def body_signals(text):
     return [out[k] for k in sorted(out)]
 
 
-_QUEUED = re.compile(r'^\d+\. \[ \] (BL-\d+)\b', re.M)
+_QUEUED = re.compile(r'^[ \t]*\d+\.[ \t]+\[ \][ \t]+(BL-\d+)\b', re.M)
 
 
 def sibling_trees(root):

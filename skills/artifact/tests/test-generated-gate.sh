@@ -120,7 +120,12 @@ gg.SPEC_BUILD = fake_failline
 _, info = gg.exhibits([("t0", "x\n", "valid")])
 check(info.get("t0", "").startswith("FAIL [consult-shape]"), "the detail is the first FAIL [ line", info.get("t0", ""))
 gg.SPEC_BUILD = fake_gal
+# a long temp root (a session scratchpad TMPDIR is 120+ chars) must not push the message out of the
+# 200-char detail: BL-802 cut it at "was refuse" with a 129-char TMPDIR
+import tempfile
+tempfile.tempdir = os.path.join(tmp, "L" * 150); os.makedirs(tempfile.tempdir)
 _, info = gg.exhibits([("t0", "x\n", "valid")])
+tempfile.tempdir = None
 check("was refused" in info.get("t0", ""), "with no FAIL [ line the detail is the first line", info.get("t0", ""))
 check(all(k and next(iter(k))[:2] == ("BUILD", "traceback") for k in kinds(fake_tb)), "a traceback refusal fails with its exception")
 check(next(iter(kinds(fake_tb)[0]))[2] == "OverflowError", "the failure key names the exception")

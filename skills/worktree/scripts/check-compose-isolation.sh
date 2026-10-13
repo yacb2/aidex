@@ -53,7 +53,7 @@ fi
 
 DIR="$(cd "$(dirname "$FILE")" && pwd -P)"
 BASE="$(basename "$FILE")"
-MAIN="$(basename "$DIR")"
+MAIN="$(compose_project_name "$(basename "$DIR")")"
 PROBE="${MAIN}-wt-isolationprobe"
 
 render() {  # render <project-name> <suffix-value>
@@ -74,6 +74,9 @@ B="$(render "$PROBE" "-isolationprobe")"
 # parameterized port gets reported as hardcoded.
 C="$( cd "$DIR" && docker compose -f "$BASE" --profile '*' config --no-interpolate --format json 2>/dev/null )"
 [[ -n "$A" && -n "$B" ]] || die "docker compose config failed on $FILE (is the file valid, and are required vars set?)"
+# An empty C would reach the helper as "no ports anywhere" and switch the
+# literal-port finding off without a word (an old compose has no --no-interpolate).
+[[ -n "$C" ]] || die "docker compose config --no-interpolate failed on $FILE (compose too old?): literal host ports cannot be judged"
 
 export SUFFIX_VAR MAIN PROBE
 findings="$(python3 "$(dirname "${BASH_SOURCE[0]}")/check-compose-isolation.py" "$A" "$B" "$C")"

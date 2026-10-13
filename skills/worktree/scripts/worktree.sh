@@ -171,6 +171,12 @@ if [[ -n "$_unfilled" ]]; then
   exit 2
 fi
 
+# The upper bound of every slot (VALID_SLOT, the allocator, list's PORT-HELD scan).
+# A typo here read as an unbound variable inside VALID_SLOT's arithmetic, and
+# list and up exited 0 with no message (BL-803). The digit form of VALID_SLOT.
+[[ "${WT_MAX_SLOTS-}" =~ ^[1-9][0-9]{0,3}$ ]] \
+  || die "WT_MAX_SLOTS must be a positive integer (at most 4 digits), got '${WT_MAX_SLOTS-}'. Config: $CONFIG"
+
 SLUG=""; BRANCH=""; BASE=""; SLOT=""; NO_INFRA=false; KEEP_DIR=false; FORCE=false; PORCELAIN=false; REAP=false; DELETE_BRANCH=false
 REPOS=()
 [[ $# -gt 0 && "$1" != -* ]] && { SLUG="$1"; shift; }
@@ -191,7 +197,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 DEST_FOR() { printf '%s/../%s-wt-%s\n' "$ROOT" "$PROJECT" "$1"; }
-PROJ_FOR() { printf '%s-wt-%s\n' "$PROJECT" "$1"; }
+# The compose project name, normalised the way Compose requires
+# (compose_project_name, _lib.sh). Only this name: DEST_FOR and the slot dir keep
+# the raw directory name.
+PROJ_FOR() { printf '%s-wt-%s\n' "$(compose_project_name "$PROJECT")" "$1"; }
 
 # Defined above `list`, which reads it for the PORT-HELD row (BL-376).
 port_env() {
@@ -262,14 +271,6 @@ slot_taken() { [[ -e "$1/slot-$2" || -L "$1/slot-$2" ]]; }
 # take a plain `9>&-`. The reaper's `docker ps` is also bounded (with_timeout).
 # AIDEX_WT_LOCK_WAIT (seconds, default 30) exists ONLY so the regression tests can
 # assert "a live holder is waited for" in a second. Never set in normal use.
-# with_timeout <seconds> <cmd...>: run cmd as a child; at the deadline TERM it
-# and exit 142 (what an alarm-killed process returns). `alarm; exec cmd` only
-# sent SIGALRM to cmd, and the docker CLI (a Go binary) ignores SIGALRM: a
-# wedged daemon kept `docker` running long past its deadline.
-with_timeout() {
-  perl -e '$t=shift; $p=fork; exec @ARGV or exit 127 if !$p; $SIG{ALRM}=sub{kill "TERM",$p; waitpid $p,0; exit 142};
-    alarm $t; waitpid $p,0; exit($?&127 ? 128+($?&127) : $?>>8)' "$@"
-}
 acquire_slot_lock() {  # acquire_slot_lock <slotdir>
   lock_take "$1/.flock" "${AIDEX_WT_LOCK_WAIT:-30}" || exit 2
 }
@@ -290,6 +291,13 @@ CLAIMED_SLOT() {  # slug -> slot number held in the claim files, or ""
   done
   return 1
 }
+# A worktree slot: an integer in 1..WT_MAX_SLOTS (slot 0 is the main tree). The
+# rule for --slot, the slot `up` reads and the slot column of a worktree's `list`
+# row; `down` uses the same digit form without the range (see there). Digits with
+# no leading zero, at most 4: `08` is an octal error inside `[[ -ge ]]`, `03`
+# names a claim file (slot-03) no lookup of slot-3 finds, and 2^64+1 wraps back
+# into range. The regex already rules out 0, so only the upper bound is checked.
+VALID_SLOT() { [[ "$1" =~ ^[1-9][0-9]{0,3}$ ]] && (( 10#$1 <= WT_MAX_SLOTS )); }
 # WT_PARTICIPANTS may name a NESTED repo ("apps/backend"), whose checkout lands
 # at $DEST/backend. Anything that starts from a basename and needs the repo back
 # must come through here -- resolving it by hand at each site is what produced
@@ -335,7 +343,7 @@ if [[ "$cmd" == "list" ]]; then
   for d in "$ROOT"/../"$PROJECT"-wt-*; do
     [[ -d "$d" ]] || continue
     hdr; found=1
-    sg="$(basename "$d")"; sg="${sg#${PROJECT}-wt-}"
+    sg="$(basename "$d")"; sg="${sg#"${PROJECT}-wt-"}"
 
     # A directory is not a worktree. A dev server that outlived the teardown
     # rewrote frontend/.vite/deps/ and so recreated the tree it had been started
@@ -361,7 +369,8 @@ if [[ "$cmd" == "list" ]]; then
     registered=false
     for pp in $WT_PARTICIPANTS; do
       git -C "$ROOT/$pp" worktree list --porcelain 2>/dev/null \
-        | grep >/dev/null "^worktree $dr/" && { registered=true; break; }
+        | D="$dr" awk '$0 == "worktree " ENVIRON["D"] || index($0, "worktree " ENVIRON["D"] "/") == 1 { f = 1 } END { exit !f }' \
+        && { registered=true; break; }
     done
     if ! $registered && ! CLAIMED_SLOT "$sg" >/dev/null; then
       if $PORCELAIN; then printf '%s\t-\t-\t-\tno\tSTRAY-DIR:%s\n' "$sg" "$d"
@@ -369,8 +378,17 @@ if [[ "$cmd" == "list" ]]; then
       continue
     fi
 
-    slot="$(cat "$d/.wt-slot" 2>/dev/null || CLAIMED_SLOT "$sg" || echo '-')"
-    br="$(git -C "$d/$(echo "$WT_PARTICIPANTS" | awk '{print $1}')" branch --show-current 2>/dev/null || echo '-')"
+    # An empty field would collapse under a consumer's `IFS=$'\t' read`, shifting
+    # every column after it: `cat` of an empty .wt-slot succeeds (`new --no-infra`
+    # writes one) and a detached HEAD prints an empty branch, so each is checked
+    # by its value, not for failure: the slot must be a slot (VALID_SLOT, which
+    # also rejects garbage, BL-776), the branch non-empty. A nested participant's
+    # checkout is at $d/<basename>, not at $d/<its full path>.
+    slot="$(cat "$d/.wt-slot" 2>/dev/null)"
+    VALID_SLOT "$slot" || slot="$(CLAIMED_SLOT "$sg")"
+    VALID_SLOT "$slot" || slot='-'
+    br="$(git -C "$d/$(basename "$(echo "$WT_PARTICIPANTS" | awk '{print $1}')")" branch --show-current 2>/dev/null)"
+    [[ -n "$br" ]] || br='-'
     n_up="$(docker ps -q --filter "label=com.docker.compose.project=$(PROJ_FOR "$sg")" 2>/dev/null | wc -l | tr -d ' ')"
     stack="down"; [[ "${n_up:-0}" -gt 0 ]] && stack="up:$n_up"
     dirty=no; IS_DIRTY "$d" && dirty=YES
@@ -386,8 +404,10 @@ if [[ "$cmd" == "list" ]]; then
     cs="$(awk '{print $2}' "$f" 2>/dev/null)"
     [[ -d "$(DEST_FOR "$cs")" ]] && continue
     found=1
-    if $PORCELAIN; then printf '%s\t%s\t-\t-\tno\tMISSING-DIR\n' "$cs" "$(basename "$f" | sed 's/slot-//')"
-    else warn "claim for '$cs' (slot $(basename "$f" | sed 's/slot-//')) has no directory — run: worktree.sh down $cs"; fi
+    # The claim's number by the slot rule, as for a worktree row (BL-804).
+    ms="$(basename "$f")"; ms="${ms#slot-}"; VALID_SLOT "$ms" || ms='-'
+    if $PORCELAIN; then printf '%s\t%s\t-\t-\tno\tMISSING-DIR\n' "$cs" "$ms"
+    else warn "claim for '$cs' (slot $ms) has no directory — run: worktree.sh down $cs"; fi
   done
   # A slot nobody claims whose port is still held (BL-376): the tree is gone and a
   # host process — a Vite dev server, in this family — survived the teardown. It is
@@ -411,6 +431,12 @@ if [[ "$cmd" == "list" ]]; then
   exit 0
 fi
 
+# A deadline of 0 or text would mean "no deadline" (or an error inside perl); more
+# than 6 digits (~11 days) would overflow perl's alarm.
+for _k in AIDEX_DOCKER_TIMEOUT AIDEX_DOWN_TIMEOUT; do
+  [[ -z "${!_k:-}" || "${!_k}" =~ ^[1-9][0-9]{0,5}$ ]] \
+    || { err "$_k must be a positive integer (seconds, at most 6 digits), got '${!_k}'"; exit 2; }
+done
 [[ -n "$SLUG" ]] || die "a <slug> is required"
 is_valid_slug "$SLUG" || die "invalid slug: $SLUG (kebab-case, [a-z0-9-])"
 case "$SLUG" in "$PROJECT"|dev|prod|main) die "refusing dev/prod-like slug: $SLUG" ;; esac
@@ -422,7 +448,7 @@ case "$SLUG" in "$PROJECT"|dev|prod|main) die "refusing dev/prod-like slug: $SLU
 # array-subscript substitution. Validated here, at the parse boundary, so `up`
 # is covered as well as `new`.
 if [[ -n "$SLOT" ]]; then
-  [[ "$SLOT" =~ ^[0-9]+$ ]] && [[ "$SLOT" -ge 1 && "$SLOT" -le "$WT_MAX_SLOTS" ]] \
+  VALID_SLOT "$SLOT" \
     || die "invalid --slot '$SLOT': must be an integer in 1..$WT_MAX_SLOTS (slot 0 is the main tree)"
 fi
 
@@ -785,12 +811,17 @@ if [[ "$cmd" == "up" ]]; then
   # Read the way `down` reads it: `cat` on an EMPTY .wt-slot (what --no-infra
   # writes) succeeds, which stopped the fall-back to the claim. And checked the
   # way --slot is: the value reaches `$(( ))` in port_env, where 0 is the main
-  # tree's ports and an array subscript executes (worktree-c08).
+  # tree's ports and an array subscript executes (worktree-c08). A .wt-slot
+  # that is not a slot falls back to a claim that is, as `list` reads it
+  # (BL-776); with no valid claim the refusal still names the file.
   if [[ -z "$SLOT" ]]; then
     SLOT_FROM="$DEST/.wt-slot"; SLOT="$(cat "$DEST/.wt-slot" 2>/dev/null || true)"
-    [[ -n "$SLOT" ]] || { SLOT_FROM="the slot claim"; SLOT="$(CLAIMED_SLOT "$SLUG" || true)"; }
+    if ! VALID_SLOT "$SLOT"; then
+      _claim="$(CLAIMED_SLOT "$SLUG" || true)"
+      if [[ -z "$SLOT" ]] || VALID_SLOT "$_claim"; then SLOT_FROM="the slot claim"; SLOT="$_claim"; fi
+    fi
     [[ -n "$SLOT" ]] || die "no slot recorded for $SLUG (missing .wt-slot and no claim) — pass --slot N"
-    [[ "$SLOT" =~ ^[0-9]+$ ]] && [[ "$SLOT" -ge 1 && "$SLOT" -le "$WT_MAX_SLOTS" ]] \
+    VALID_SLOT "$SLOT" \
       || die "invalid slot '$SLOT' in $SLOT_FROM: must be an integer in 1..$WT_MAX_SLOTS (slot 0 is the main tree)"
   fi
 
@@ -1152,10 +1183,14 @@ if [[ "$cmd" == "down" ]]; then
   # teardown then exported dev's own ports into WT_PRE_DOWN_CMD. `new --no-infra`
   # writes exactly that empty file, so this was reachable by design, not by
   # corruption. Each source is now tried on its own and the result must be a
-  # number before it is allowed anywhere near port_env.
+  # slot number, never 0 (the main tree), before it is allowed anywhere near
+  # port_env. The digit form of VALID_SLOT WITHOUT its range, unlike `up`: `up`
+  # starts a stack, so a slot beyond WT_MAX_SLOTS is refused there; `down` tears
+  # one down, and a worktree created before WT_MAX_SLOTS was lowered still owns
+  # its slot -- refusing it would leave its ports unexported and its claim held.
   SLOT="$(cat "$DEST/.wt-slot" 2>/dev/null || true)"
-  [[ "$SLOT" =~ ^[0-9]+$ ]] || SLOT="$(CLAIMED_SLOT "$SLUG" || true)"
-  [[ "$SLOT" =~ ^[0-9]+$ ]] || SLOT=""
+  [[ "$SLOT" =~ ^[1-9][0-9]{0,3}$ ]] || SLOT="$(CLAIMED_SLOT "$SLUG" || true)"
+  [[ "$SLOT" =~ ^[1-9][0-9]{0,3}$ ]] || SLOT=""
   # The claim this teardown is for, as it reads NOW. It is released only if slot
   # $SLOT still holds exactly this: a `new` of the same slug that starts once
   # $DEST is gone reaps it and reserves afresh, and deleting every claim naming
@@ -1163,7 +1198,9 @@ if [[ "$cmd" == "down" ]]; then
   # The checks `new` and `up` make, before anything is torn down: a symlinked or
   # foreign slot dir is refused, never followed to take a lock or delete a claim
   # in its target. Only when one exists: a --no-infra tree has none to create.
-  if [[ -e "$(SLOTDIR_FOR)" || -L "$(SLOTDIR_FOR)" ]]; then ensure_slotdir >/dev/null || exit 2; fi
+  # With no slot recorded there is no claim to read or delete, so whatever sits at
+  # the slot path is not this teardown's business.
+  if [[ -n "$SLOT" ]] && [[ -e "$(SLOTDIR_FOR)" || -L "$(SLOTDIR_FOR)" ]]; then ensure_slotdir >/dev/null || exit 2; fi
   CLAIM_SEEN=""
   if [[ -n "$SLOT" && "$(awk '{print $2}' "$(SLOTDIR_FOR)/slot-$SLOT" 2>/dev/null)" == "$SLUG" ]]; then
     CLAIM_SEEN="$(cat "$(SLOTDIR_FOR)/slot-$SLOT" 2>/dev/null)"
@@ -1203,7 +1240,10 @@ if [[ "$cmd" == "down" ]]; then
   # What could not be verified reclaimed. Any entry withholds the claim and the
   # exit 0 below (worktree-c02): releasing over it left resources no claim tracks.
   unreclaimed=""
-  ( cd "$COMPOSE_DIR" && env "${envs[@]}" docker compose -p "$CPROJ" --profile '*' down -v --rmi local --remove-orphans ) \
+  # Bounded: a wedged daemon hung both calls here for good. A legitimate `down -v`
+  # can take minutes, hence its own, longer deadline.
+  ( cd "$COMPOSE_DIR" && with_timeout "${AIDEX_DOWN_TIMEOUT:-300}" \
+      env "${envs[@]}" docker compose -p "$CPROJ" --profile '*' down -v --rmi local --remove-orphans ) \
     || unreclaimed="compose down failed (exit $?)"
 
   # `--rmi local` cannot reach untagged layers this project built; nothing else
@@ -1212,7 +1252,7 @@ if [[ "$cmd" == "down" ]]; then
   # layers found here were orphaned by rebuilds *during* the worktree's life
   # (Playwright's global-setup `up -d --build`), and the generated test-e2e.sh
   # reclaims each one at the end of the run that orphaned it (BL-372/BL-377).
-  dangling="$(docker images -f dangling=true -f "label=com.docker.compose.project=$CPROJ" -q | tr '\n' ' ')"
+  dangling="$(with_timeout "${AIDEX_DOCKER_TIMEOUT:-30}" docker images -f dangling=true -f "label=com.docker.compose.project=$CPROJ" -q | tr '\n' ' ')"
   if [[ -n "${dangling// /}" ]]; then
     info "reclaiming untagged layers built by $CPROJ: $dangling"
     docker rmi $dangling >/dev/null 2>&1

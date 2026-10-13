@@ -96,6 +96,39 @@ bash "$DIR/worklist-advance.sh" "$WL8" --append "backlog:BL-9 — nested" >/dev/
 [[ $RC -eq 2 && "$(cksum < "$WL8")" == "$sum8" ]] && grep -q "was NOT appended" "$TMP/err" \
   && ok "6e' a numbered line under Deferred is no insertion point: refused, file untouched" \
   || bad "6e' nested-line append: rc=$RC $(grep -n 'BL-9' "$WL8") $(cat "$TMP/err")"
+# 6f · BL-778: the appended label is written literally. It rode `awk -v`, which turns a
+# literal backslash-n (`C:\new`) into a newline and split the queue line in two.
+WL9="$P/.context/worklists/2026-01-01-backslash.md"
+printf -- '---\ntitle: b\nstatus: doing\ncreated: 2026-01-01\nupdated: 2026-01-01\nmode: sweep\n---\n\n## Queue (in execution order)\n\n1. [ ] BL-1 a   <!-- ref: backlog -->\n\n## Deferred / emergent\n' > "$WL9"
+bash "$DIR/worklist-advance.sh" "$WL9" --append 'backlog:BL-9 fix C:\new path' >/dev/null 2>"$TMP/err"; RC=$?
+[[ $RC -eq 0 ]] && grep -Fxq '2. [ ] BL-9 fix C:\new path   <!-- ref: backlog --> <!-- emergent -->' "$WL9" \
+  && ok "6f a backslash in an appended label is kept literally (one whole queue line)" \
+  || bad "6f backslash label: rc=$RC $(grep -n -A1 'BL-9' "$WL9") $(cat "$TMP/err")"
+# 6g · BL-805: a label with a REAL newline or CR (not the two characters of 6f) stays on
+# one queue line, in the sweep insert and the plain `- [ ]` append: each CR/LF run folds
+# to one space (spaces already in the label are kept). Both wrote it raw and split the row.
+WL10="$P/.context/worklists/2026-01-01-newline.md"; cp "$WL9" "$WL10"
+bash "$DIR/worklist-advance.sh" "$WL10" --append $'backlog:BL-8 two\nlines  kept\r\n\r\nhere' >/dev/null 2>"$TMP/err"; RC=$?
+[[ $RC -eq 0 ]] && grep -Fxq '3. [ ] BL-8 two lines  kept here   <!-- ref: backlog --> <!-- emergent -->' "$WL10" \
+  && ok "6g a sweep append label with real newlines/CRs stays one queue line" \
+  || bad "6g newline label (sweep): rc=$RC $(grep -n -A2 'BL-8' "$WL10" | cat -v) $(cat "$TMP/err")"
+WL11="$P/.context/worklists/2026-01-01-newline-plain.md"; grep -v '^mode:' "$WL9" > "$WL11"
+bash "$DIR/worklist-advance.sh" "$WL11" --append $'inline:tidy\r\nthe\ndocs' >/dev/null 2>"$TMP/err"; RC=$?
+[[ $RC -eq 0 ]] && grep -Fxq -- '- [ ] tidy the docs   <!-- ref: inline -->' "$WL11" \
+  && ok "6g a plain append label with real newlines/CRs stays one line" \
+  || bad "6g newline label (plain): rc=$RC $(grep -n -A2 'tidy' "$WL11" | cat -v) $(cat "$TMP/err")"
+# 6h · BL-805: the sweep insert's awk fails -> non-zero, the work-list byte-identical, no
+# temp left beside it, and a "was NOT appended" line like the other refusals (awk's own
+# stderr was the only output). The stub fails only the insert program, keyed on its text.
+mkdir -p "$TMP/awkstub"; REAL_AWK="$(command -v awk)"
+printf '#!/bin/sh\ncase "$*" in *ENVIRON*WL_ROW*) echo "awk stub: forced failure" >&2; exit 3;; esac\nexec %s "$@"\n' "$REAL_AWK" > "$TMP/awkstub/awk"
+chmod +x "$TMP/awkstub/awk"
+WL12="$P/.context/worklists/2026-01-01-awkfail.md"; cp "$WL9" "$WL12"; sum12="$(cksum < "$WL12")"
+PATH="$TMP/awkstub:$PATH" bash "$DIR/worklist-advance.sh" "$WL12" --append 'backlog:BL-7 x' >/dev/null 2>"$TMP/err"; RC=$?
+left12="$(find "$P/.context/worklists" -name '2026-01-01-awkfail.md.*' | wc -l | tr -d ' ')"
+[[ $RC -ne 0 && "$(cksum < "$WL12")" == "$sum12" && "$left12" == 0 ]] && grep -q "was NOT appended" "$TMP/err" \
+  && ok "6h an awk failure in the sweep insert is refused: non-zero, file untouched, says NOT appended" \
+  || bad "6h awk failure: rc=$RC left=$left12 changed=$([[ "$(cksum < "$WL12")" == "$sum12" ]] && echo no || echo yes) $(cat "$TMP/err")"
 
 # 6b · a head closed OUT OF BAND is ticked past, not wedged; a deferred head likewise
 prove "$C" "tests/test_c.py"

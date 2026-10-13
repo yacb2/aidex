@@ -135,7 +135,7 @@ what `close-item.sh --sweep` switches its proof minimum on, while `origin_ref`,
 | Field | Values / format | Notes |
 |---|---|---|
 | `title` | quoted string | Global (§7). |
-| `id` | `BL-NNN` | **Machine-required (D-09):** `close-item.sh` resolves the target by `id` (dies with "no active backlog item with id" otherwise); `harvest-commit.sh` matches on it. `register-item.sh` assigns it, and the filename carries it. Must match `^BL-[0-9]{3}$` — `--reindex` fails on a duplicate **or** a nonconforming id. `next_backlog_id` counts only conforming ids toward the max, so a hand-authored `BL-20260610` no longer inflates the sequence; it is still reported until fixed. |
+| `id` | `BL-NNN` | **Machine-required (D-09):** `close-item.sh` resolves the target by `id` (dies with "no active backlog item with id" otherwise); `harvest-commit.sh` matches on it. `register-item.sh` assigns it, and the filename carries it. Must match `^BL-[0-9]{3,5}$` — `--reindex` fails on a duplicate **or** a nonconforming id. `next_backlog_id` counts only conforming ids toward the max, so a hand-authored `BL-20260610` no longer inflates the sequence; it is still reported until fixed. |
 
 | `status` | `open` · `doing` · `done` · `dropped` | Base lifecycle from [`00-global.md` §6](../../conventions/references/00-global.md#6-status-vocabulary). |
 | `created` · `updated` | ISO `YYYY-MM-DD` | Global (§7). |

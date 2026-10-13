@@ -100,7 +100,7 @@ and rejects anything else rather than defaulting:
 
 | Scope | Means |
 |---|---|
-| `working-diff` | uncommitted tracked changes vs `HEAD` |
+| `working-diff` | uncommitted tracked changes plus untracked, non-ignored files vs `HEAD` |
 | `branch-vs-main` | this branch's cumulative work vs the default branch |
 | `worktree-cumulative` | a linked worktree's cumulative work vs its fork point |
 | `module-path <path>` | changes under `<path>`, over the widest non-empty base |

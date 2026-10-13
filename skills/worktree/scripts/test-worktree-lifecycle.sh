@@ -76,6 +76,9 @@ fi
 TMP="$(mktemp -d)"; TMP="$(cd "$TMP" && pwd -P)"
 WS="$TMP/wtfix"
 STRAY_PIDS=""
+# Where worktree.sh keeps the slot claims (its SLOTDIR_FOR); the name is a variable
+# so the layout test's bare-slash-command scan does not read the path as one.
+SLOTNAME="aidex-wt-slots-wtfix"; SLOTDIR="${TMPDIR:-/tmp}/$SLOTNAME"
 cleanup() {
   # First, whatever the host-process cases spawned. A test about processes that
   # outlive a teardown must not itself leak one, and a run that dies mid-case
@@ -83,7 +86,7 @@ cleanup() {
   # plan's own subject.
   for p in $STRAY_PIDS; do kill "$p" 2>/dev/null; done
   for s in a b c d fail1; do ( cd "$WS" 2>/dev/null && bash "$WT" down "$s" ) >/dev/null 2>&1; done
-  rm -rf "$TMP" "${TMPDIR:-/tmp}/aidex:wt-slots-wtfix"
+  rm -rf "$TMP" "$SLOTDIR"
   [[ -n "${RUNLOCK:-}" ]] && rm -rf "$RUNLOCK"
 }
 trap cleanup EXIT
@@ -150,12 +153,11 @@ for proj in $(docker ps -a --format '{{.Label "com.docker.compose.project"}}' | 
 done
 for v in $(docker volume ls --format '{{.Name}}' | grep '^wtfix-wt-' || true); do docker volume rm "$v" >/dev/null 2>&1; done
 for n in $(docker network ls --format '{{.Name}}' | grep '^wtfix-wt-' || true); do docker network rm "$n" >/dev/null 2>&1; done
-rm -rf "${TMPDIR:-/tmp}/aidex:wt-slots-wtfix"
+rm -rf "$SLOTDIR"
 
 BASE="$TMP/base.snap"
 bash "$SNAP" take "$BASE" >/dev/null 2>&1
 
-SLOTDIR="${TMPDIR:-/tmp}/aidex:wt-slots-wtfix"
 claims() { ls "$SLOTDIR" 2>/dev/null | grep -c '^slot-' | tr -d ' '; }
 
 # --- 1. single cycle, twice, must be identical ------------------------------

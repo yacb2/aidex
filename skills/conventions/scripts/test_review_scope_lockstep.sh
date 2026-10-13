@@ -72,6 +72,16 @@ for s in $impl; do
   fi
 done
 
+# ---------- anchors: the header contract, the reference and the code agree ----------
+# `anchor=default-branch` was advertised in the header while no code path emitted it,
+# so a caller branching on it held dead code. Emitted = every anchor="..." the code assigns.
+emitted=$(grep -o 'anchor="[a-z-]*"' "$SCRIPT" | sed 's/anchor="//; s/"//' | grep -v '^$' | sort -u)
+hdr=$(grep -m1 '^#   anchor=<how>' "$SCRIPT" | sed 's/^#   anchor=<how> *//' | tr '|' '\n' | tr -d ' ' | grep -v '^$' | sort -u)
+docanch=$(tr '\n' ' ' < "$REF" | grep -o 'It reports the anchor it actually used ([^)]*)' | grep -o '`[a-z-]*`' | tr -d '`' | sort -u)
+[ -n "$emitted" ] && [ -n "$hdr" ] && [ -n "$docanch" ] || die "could not parse anchors (emitted=[$emitted] header=[$hdr] doc=[$docanch])"
+[ "$hdr" = "$emitted" ] || err "anchor header vs code mismatch — header: [$(echo $hdr)] vs emitted: [$(echo $emitted)]"
+[ "$docanch" = "$emitted" ] || err "anchor reference vs code mismatch — reference: [$(echo $docanch)] vs emitted: [$(echo $emitted)]"
+
 # ---------- site 3: plan-exec delegates instead of restating ----------
 flat=$(tr '\n' ' ' < "$EXEC" | tr -s ' ')
 case "$flat" in

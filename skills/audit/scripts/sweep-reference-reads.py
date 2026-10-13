@@ -14,12 +14,13 @@ looks like coverage.
 Read-only over ~/.claude/projects.
 
 Usage:
-  sweep-reference-reads.py [--skills-dir DIR] [--min-fired N] [--json OUT]
+  sweep-reference-reads.py [--skills-dir DIR] [--projects-root DIR] [--min-fired N] [--json OUT]
 """
 import argparse, collections, glob, json, os, re, sys
 
 PROJECTS = os.path.expanduser("~/.claude/projects")
-DEFAULT_SKILLS = os.path.expanduser("~/.claude/skills")
+# The skills this script ships in: plugin skills no longer live under ~/.claude/skills.
+DEFAULT_SKILLS = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 # markdown links and bare paths pointing at a .md under a references/ dir
 CITE_RX = re.compile(r"(?:\.\./|/|\b)([A-Za-z0-9_\-]+/)?references/([A-Za-z0-9._\-]+\.md)")
@@ -30,7 +31,8 @@ ARTIFACT_RX = re.compile(r"\.context/references/([A-Za-z0-9._\-]+\.md)")
 
 
 def collect_citations(skills_dir):
-    """skill -> set(reference basenames it points at)."""
+    """skill -> set((owner skill, reference basename)) it points at. A bare
+    `references/x.md` belongs to the citing skill; `other/references/x.md` to other."""
     out = collections.defaultdict(set)
     for skill_md in glob.glob(os.path.join(skills_dir, "*", "SKILL.md")):
         skill = os.path.basename(os.path.dirname(skill_md))
@@ -39,9 +41,9 @@ def collect_citations(skills_dir):
         except OSError:
             continue
         artifacts = set(ARTIFACT_RX.findall(txt))
-        for _, base in CITE_RX.findall(txt):
+        for folder, base in CITE_RX.findall(txt):
             if base not in artifacts:
-                out[skill].add(base)
+                out[skill].add((folder.rstrip("/") or skill, base))
     return out
 
 
@@ -58,6 +60,7 @@ def pulls_into_context(name, inp):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--skills-dir", default=DEFAULT_SKILLS)
+    ap.add_argument("--projects-root", default=PROJECTS)
     ap.add_argument("--min-fired", type=int, default=5,
                     help="skip references whose citing skills fired fewer times")
     ap.add_argument("--json")
@@ -66,7 +69,7 @@ def main():
     cites = collect_citations(a.skills_dir)
     if not cites:
         sys.exit(f"no SKILL.md citations found under {a.skills_dir}")
-    all_refs = sorted({r for rs in cites.values() for r in rs})
+    all_refs = sorted({r for rs in cites.values() for r in rs})   # (owner, basename)
     print(f"{len(cites)} skills cite {len(all_refs)} distinct references", flush=True)
 
     fired_count = collections.Counter()          # skill -> sessions where it fired
@@ -74,7 +77,7 @@ def main():
     fired_pairs = collections.Counter()          # (skill, ref) -> sessions fired
     how = collections.defaultdict(collections.Counter)
 
-    for f in glob.glob(PROJECTS + "/*/*.jsonl"):
+    for f in glob.glob(a.projects_root + "/*/*.jsonl"):
         try:
             lines = open(f, errors="replace").read().splitlines()
         except OSError:
@@ -94,13 +97,17 @@ def main():
                     continue
                 name, inp = b.get("name") or "", b.get("input") or {}
                 if name == "Skill":
+                    # aidex fires as `aidex:<name>`; citations are keyed bare. Another
+                    # plugin's `x:<name>` is a different skill and is ignored.
                     sk = inp.get("skill") or ""
-                    if sk:
+                    if sk.startswith("aidex:"):
+                        sk = sk[len("aidex:"):]
+                    if sk and ":" not in sk:
                         fired.add(sk)
                 blob = pulls_into_context(name, inp)
                 if blob:
                     for ref in all_refs:
-                        if ref in blob:
+                        if f"{ref[0]}/references/{ref[1]}" in blob:
                             touched.setdefault(ref, set()).add(name)
         if not fired:
             continue
@@ -113,12 +120,17 @@ def main():
                     for t in touched[ref]:
                         how[(sk, ref)][t] += 1
 
+    if not fired_pairs:
+        sys.exit(f"ERROR: no session under {a.projects_root} fired a skill that cites a "
+                 f"reference (skills read from {a.skills_dir}); not a clean result.")
+
     rows = []
     for (sk, ref), n in sorted(fired_pairs.items(), key=lambda kv: -kv[1]):
         if n < a.min_fired:
             continue
         r = read_pairs[(sk, ref)]
-        rows.append(dict(skill=sk, reference=ref, fired=n, read=r,
+        rows.append(dict(skill=sk, reference=ref[1] if ref[0] == sk else f"{ref[0]}/{ref[1]}",
+                         fired=n, read=r,
                          rate=round(r / n, 4), how=dict(how[(sk, ref)])))
 
     print(f"\n{'skill':22s} {'reference':44s} {'fired':>6s} {'read':>5s} {'rate':>7s}")

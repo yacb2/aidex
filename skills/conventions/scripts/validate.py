@@ -228,8 +228,10 @@ def crossref_target_exists(context_dir: Path, ref: str) -> bool:
     # shorthand. Without this descent every marker pointing at a filed reference read as
     # orphaned: aidex's harness-lessons audit page was reported missing an artifact sitting
     # one directory down (2026-09-07). One level only, in active and in _archive; deeper is
-    # spelled out in the ref and already handled above.
-    if folder in ("references", "research"):
+    # spelled out in the ref and already handled above. Communications nest the same way
+    # (`communications/{received,sent,meetings}/<YYYY-MM-DD>-<slug>/`) under the marker
+    # `communication/<YYYY-MM-DD>-<slug>` the comm skill prescribes (BL-807).
+    if folder in ("references", "research", "communications"):
         for cand in candidates:
             if any((topic / cand).exists()
                    for topic in list(base.glob("*")) + list((base / "_archive").glob("*"))
@@ -1533,8 +1535,14 @@ def check_plan_scoped_shape(path: Path, text: str, fm: dict | None) -> list[Find
 # ---------- Driver ----------
 
 def find_context_dir(start: Path) -> Path | None:
+    """Nearest `.context/` upward from `start`. The walk stops at $HOME, exclusive, like
+    _lib.sh find_project_root: a stray ~/.context must not capture a project with none."""
     cur = start.resolve()
+    home = os.environ.get("HOME")
+    stop = Path(home).resolve() if home and Path(home).is_dir() else None
     while True:
+        if stop is not None and cur == stop:
+            return None
         if (cur / ".context").is_dir():
             return cur / ".context"
         if cur.parent == cur:
@@ -1737,10 +1745,27 @@ def to_relative(context_dir: Path, finding: Finding) -> Finding:
 BASELINE_NAME = ".validate-baseline.json"
 BASELINE_VERSION = 2
 
-def baseline_key(f: Finding) -> str:
-    """v2 key: file|rule|message. The message is the only discriminator left inside
-    one file+rule pair — with the v1 file|rule key, a file already dirty for rule X
-    masked every NEW rule-X violation in that same file (BL-043)."""
+LINE_NUMBER_RE = re.compile(r"^line \d+: | at body line ~\d+")
+
+def baseline_keys(findings: list[Finding]) -> list[str]:
+    """v2 keys, parallel to `findings`: file|rule|message, with the line numbers a message
+    embeds ("line N: ", "at body line ~N") dropped because they move whenever a line is
+    inserted above. Dropping them would merge identical violations, so a repeat of the same
+    key inside one list gets "#2", "#3"...; the first keeps the bare key. The message is
+    the only discriminator inside one file+rule pair (BL-043)."""
+    return index_keys([f"{f.file}|{f.rule}|{LINE_NUMBER_RE.sub('', f.message)}" for f in findings])
+
+def index_keys(keys: list[str]) -> list[str]:
+    """Suffix the repeats of a key in `keys` with "#2", "#3"...; the first keeps it bare."""
+    seen: dict[str, int] = {}
+    out = []
+    for k in keys:
+        seen[k] = seen.get(k, 0) + 1
+        out.append(k if seen[k] == 1 else f"{k}#{seen[k]}")
+    return out
+
+def raw_baseline_key(f: Finding) -> str:
+    """The v2 key as written before line numbers were dropped; still honoured."""
     return f"{f.file}|{f.rule}|{f.message}"
 
 def legacy_baseline_key(f: Finding) -> str:
@@ -1751,14 +1776,18 @@ def legacy_baseline_key(f: Finding) -> str:
 def load_baseline(context_dir: Path) -> tuple[set[str], int] | None:
     """Ratchet baseline: the frozen set of violation keys a legacy project accepts.
     Present -> the enforceable rule becomes 'zero NEW violations'. Returns
-    (keys, version); version 1 means the file predates per-message keys."""
+    (keys, version); version 1 means the file predates per-message keys. A baseline that
+    does not parse raises ValueError: treating it as absent silently turns the ratchet off."""
     bp = context_dir / BASELINE_NAME
     if not bp.is_file():
         return None
     try:
         data = json.loads(bp.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
+    except (OSError, json.JSONDecodeError) as e:
+        raise ValueError(f"{bp} is unreadable ({e})") from e
+    keys = data.get("keys", []) if isinstance(data, dict) else None
+    if not isinstance(keys, list) or not all(isinstance(k, str) for k in keys):
+        raise ValueError(f"{bp} is not a baseline object with a list of string keys")
     version = data.get("version", 1)
     if not isinstance(version, int) or version < 1:
         version = 1
@@ -1770,7 +1799,7 @@ def write_baseline(context_dir: Path, violations: list[Finding]) -> Path:
         "version": BASELINE_VERSION,
         "created": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "note": "validate.py ratchet baseline — runs report/exit only on violations NOT in this set. Refresh explicitly with --baseline.",
-        "keys": sorted({baseline_key(f) for f in violations}),
+        "keys": sorted(set(baseline_keys(violations))),
     }
     bp.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     return bp
@@ -1845,7 +1874,7 @@ def waiver_state(w: Waiver, project_root: Path) -> str:
     is the anchor doing its job, a moved path is the anchor being unable to.
     """
     target = project_root / w.path
-    if not target.is_file():
+    if not target.exists():
         return "path-missing"
     if w.anchor in ("", "-"):
         return "matched"
@@ -2035,21 +2064,37 @@ def main() -> int:
 
     if args.baseline:
         bp = write_baseline(context_dir, prewaiver_violations)
-        keys = len({baseline_key(f) for f in prewaiver_violations})
+        keys = len(set(baseline_keys(prewaiver_violations)))
         print(f"baseline written: {bp} "
               f"(v{BASELINE_VERSION}, {keys} accepted keys from "
               f"{len(prewaiver_violations)} violations)")
         return 0
 
     # Ratchet: with a baseline present, only violations NOT in the frozen set count.
-    loaded = load_baseline(context_dir)
+    try:
+        loaded = load_baseline(context_dir)
+    except ValueError as e:
+        print(f"error: ratchet baseline {e}. Fix or delete it, or refresh it with --baseline.",
+              file=sys.stderr)
+        return 2
     new_violations: list[Finding] | None = None
     baseline_version = BASELINE_VERSION
     resolved_keys: list[str] = []
     if loaded is not None:
         baseline, baseline_version = loaded
-        key_of = baseline_key if baseline_version >= BASELINE_VERSION else legacy_baseline_key
-        new_violations = [f for f in violations_list if key_of(f) not in baseline]
+        # Keys are indexed over the PREWAIVER list so a waiver never shifts an occurrence.
+        if baseline_version >= BASELINE_VERSION:
+            keys_pre = baseline_keys(prewaiver_violations)
+            raw_pre = index_keys([raw_baseline_key(f) for f in prewaiver_violations])
+        else:
+            keys_pre = [legacy_baseline_key(f) for f in prewaiver_violations]
+            raw_pre = []
+        key_by_id = {id(f): (k, r) for f, k, r in
+                     zip(prewaiver_violations, keys_pre, raw_pre or keys_pre)}
+        def accepted(f: Finding) -> bool:
+            k, r = key_by_id[id(f)]
+            return k in baseline or r in baseline
+        new_violations = [f for f in violations_list if not accepted(f)]
         # Refresh policy: report accepted keys that no longer occur so the baseline
         # can be tightened. Reporting only — a validation run never mutates state.
         # Suppressed on a scoped run: a --type run cannot distinguish "fixed" from
@@ -2061,7 +2106,7 @@ def main() -> int:
         # cancelled out and the advised refresh would drop a violation that is still
         # in the tree. Pinned by test_validate.py::check_waived_is_not_resolved.
         resolved_keys = ([] if type_filter or only
-                         else sorted(baseline - {key_of(f) for f in prewaiver_violations}))
+                         else sorted(baseline - set(keys_pre) - set(raw_pre)))
         summary["baseline"] = {"present": True, "version": baseline_version,
                                "accepted": len(baseline),
                                "new_violations": len(new_violations),

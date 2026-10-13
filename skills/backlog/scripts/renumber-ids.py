@@ -33,7 +33,7 @@ import tarfile
 import time
 from pathlib import Path
 
-CONFORMING = re.compile(r"^BL-\d{3}$")
+CONFORMING = re.compile(r"^BL-\d{3,5}$")  # register-item.sh mints 3-5 digits
 ID_FIELD = re.compile(r'^(\s*id:\s*)"?([^"\s]+)"?\s*$', re.M)
 TITLE_LINE = re.compile(r"^title:.*$", re.M)
 SCAN_SUFFIXES = {".md", ".html", ".json", ".txt", ".yml", ".yaml"}

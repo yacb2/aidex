@@ -613,13 +613,12 @@ const invariants = () => {
     // NAV-2: the composer never opens a details on rail navigation, so a closed one hides its target too
     for (const a of links) { const x = target(a); if (x && !shown(x) && !decidedTarget(x)) add('NAV-2', `rail entry "${brief(label(a))}" targets #${x.id}, which is not rendered`); }
     for (const a of links) { const x = target(a); if (x && decidedTarget(x)) add('NAV-8', `rail entry "${brief(label(a))}" targets #${x.id}, a decided item folded out of the index`); }
-    // NAV-9: every shown, unsettled item is a rail target. Composer exemption (itemLink): a proposal
-    // (data-decided + data-proposal) inside a consult-group gets no entry; an item in a group reached
-    // only through an id-less group gets none either, which is the defect this row catches.
+    // NAV-9: every shown, unsettled item is a rail target, a proposal inside a consult-group included
+    // (BL-768); an item in a group reached only through an id-less group gets none, which is the
+    // defect this row catches.
     const targetSet = new Set(links.map(target).filter(Boolean));
     for (const el of items) {
       if (!shown(el) || inClosedDetails(el) || (el.hasAttribute('data-decided') && !el.hasAttribute('data-proposal'))) continue;
-      if (el.hasAttribute('data-proposal') && el.closest('.consult-group')) continue;
       if (!targetSet.has(el)) add('NAV-9', `item ${el.dataset.id || '?'} is not the target of any rail entry`);
     }
     // NAV-3: adjacent pairs, the first one that precedes its predecessor names the break

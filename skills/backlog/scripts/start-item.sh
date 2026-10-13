@@ -35,7 +35,7 @@ die()  { printf '%serror: %s%s\n' "$C_RED" "$*" "$C_RESET" >&2; exit 2; }
 # conventions/scripts/test-find-project-root.sh (no private copies).
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../conventions/scripts" && pwd -P)/_lib.sh"
 
-TARGET="" NO_INDEX=0
+TARGET="" NO_INDEX=0 IDX_RC=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --no-index) NO_INDEX=1; shift ;;
@@ -77,11 +77,22 @@ elif [[ -f "$TARGET" ]]; then
   FILE="$TARGET"
 elif [[ -f "$BACKLOG_DIR/$TARGET" ]]; then
   FILE="$BACKLOG_DIR/$TARGET"
+elif [[ -f "$BACKLOG_DIR/$TARGET.md" ]]; then
+  FILE="$BACKLOG_DIR/$TARGET.md"
 else
-  die "cannot resolve target: $TARGET"
+  # a slug: the item whose name is <date>-bl-<n>-<slug>.md with exactly this slug (never
+  # 00-index.md, never a partial word); several are refused, never the first by date
+  m=()
+  for f in "$BACKLOG_DIR"/*.md; do
+    [[ "$(basename "$f")" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}-bl-[0-9]+-(.*)\.md$ && "${BASH_REMATCH[1]}" == "$TARGET" ]] && m+=("$f")
+  done
+  [[ ${#m[@]} -le 1 ]] || die "ambiguous slug '$TARGET' matches: $(for f in "${m[@]}"; do printf '%s ' "$(basename "$f")"; done)"
+  [[ ${#m[@]} -eq 1 ]] || die "cannot resolve target: $TARGET"
+  FILE="${m[0]}"
 fi
 
 [[ "$(dirname "$FILE")" == "$BACKLOG_DIR" ]] || die "target is not an active backlog item: $FILE"
+[[ "$(basename "$FILE")" != "00-index.md" ]] || die "target is the index, not a backlog item: $FILE"
 
 TODAY="$(date +%Y-%m-%d)"
 
@@ -104,8 +115,20 @@ ID="$(read_field "$FILE" id)"
 ok "Started ${ID:-$(basename "$FILE")} → doing · ${TITLE}"
 
 if [[ $NO_INDEX -eq 0 ]]; then
-  bash "$SCRIPT_DIR/register-item.sh" --reindex >/dev/null
-  ok "  index rebuilt"
+  # The transition is already written, so a reindex problem must not drop the route banner.
+  # --reindex also exits 1 AFTER writing the index (id guard); only an index that did NOT
+  # change is stale or unwritten, and that is the one that fails this run.
+  INDEX_FILE="$BACKLOG_DIR/00-index.md"
+  INDEX_BEFORE="$(cksum <"$INDEX_FILE" 2>/dev/null || true)"
+  IDX_RC=0
+  bash "$SCRIPT_DIR/register-item.sh" --reindex >/dev/null || IDX_RC=$?
+  if [[ $IDX_RC -eq 0 ]]; then
+    ok "  index rebuilt"
+  elif [[ "$(cksum <"$INDEX_FILE" 2>/dev/null || true)" == "$INDEX_BEFORE" ]]; then
+    warn "  index is stale (reindex exit $IDX_RC); rebuild it with: bash $SCRIPT_DIR/register-item.sh --reindex"
+  else
+    warn "  index rebuilt, but reindex reported an id problem (exit $IDX_RC)"; IDX_RC=0
+  fi
 fi
 
 # --- the route: type: bug is the mechanical entry into RED->GREEN ---
@@ -139,3 +162,4 @@ elif [[ -z "$TYPE" ]]; then
 fi
 
 printf '%s\n' "$FILE"
+[[ $IDX_RC -eq 0 ]] || exit "$IDX_RC"

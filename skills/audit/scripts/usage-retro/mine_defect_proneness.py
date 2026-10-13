@@ -66,6 +66,22 @@ def collapse_worktree(path):
     return WT.sub(lambda m: m.group(1) + "/", rel, count=1)
 
 
+def nest_in_project(rel, proj):
+    """aidex/skills/x.py -> aidex_ws/aidex/skills/x.py for an aidex_ws session.
+
+    A repo that was a sibling of its workspace and now lives inside it (the split
+    workspace, BL-772) keeps its old path in older transcripts. The consumer
+    (coverage/defect_prone.py) joins on `<workspace>/<workspace-rel-path>`, so
+    the row is keyed on the session's project when that project holds the folder.
+    A registered project (own `.context`, the session's own one included) keeps
+    its key."""
+    head = rel.split("/", 1)[0]
+    if os.path.isdir(os.path.join(M.PROJ_ROOT, proj, head)) \
+            and not os.path.isdir(os.path.join(M.PROJ_ROOT, head, ".context")):
+        return proj + "/" + rel
+    return rel
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--min-touches", type=int, default=6)
@@ -87,8 +103,8 @@ def main():
     # Keyed PER PROJECT, because BL ids are project-scoped (mine_items.py:224-226
     # builds its id_map the same way, for the same reason). A single flat map
     # resolved every shared id to whichever project sorts last in
-    # build_registry()'s glob — 178 ids collide across this workspace's 17
-    # projects — so a session's files were attributed to a stranger's item and
+    # build_registry()'s glob — 800 ids collide across the owner's 25
+    # projects on 2026-10-13 — so a session's files were attributed to a stranger's item and
     # that item's `type:` decided the bug numerator.
     # Per project, in the shape M.attribute_session() consumes: token -> ITEM.
     slug_maps, id_maps = defaultdict(dict), defaultdict(dict)
@@ -162,7 +178,7 @@ def main():
                 for name, _searchable, fp, _cmd in pay["tools"]:
                     if name in ("Edit", "Write", "NotebookEdit") and fp \
                             and is_production_code(fp):
-                        touched[collapse_worktree(fp)].add(key)
+                        touched[nest_in_project(collapse_worktree(fp), proj)].add(key)
 
     if not seen_items:
         print("no typed items attributed — nothing to measure")

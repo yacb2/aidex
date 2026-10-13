@@ -159,5 +159,84 @@ else
   err "could not create a linked worktree — worktree-cumulative is left unproven"
 fi
 
+# --- case 9 (c10): origin/HEAD names the default branch but no local branch of that
+# name exists. The merge-base must use the remote ref, not silently fall back to
+# the last commit (a 3-commit branch reviewed as its last commit only, rc=0).
+R7=$(make_repo nolocal)
+git -C "$R7" checkout -qb feat
+for n in f1 f2 f3; do printf '%s\n' "$n" > "$R7/$n.txt"; git -C "$R7" add "$n.txt"; git -C "$R7" commit -qm "$n"; done
+git -C "$R7" branch -D main >/dev/null 2>&1
+out=$(files_for "$R7" branch-vs-main | sort | tr '\n' ' ')
+anchor=$(key_for "$R7" anchor branch-vs-main)
+if [ "$out" = "f1.txt f2.txt f3.txt " ] && [ "$anchor" = "merge-base" ]; then
+  ok "no local default branch: merge-base falls back to origin/<default>, all 3 commits reviewed"
+else
+  err "no local main: expected f1 f2 f3 + merge-base, got files='$out' anchor='$anchor'"
+fi
+
+# --- case 10 (c11): untracked, non-ignored files belong to working-diff ONLY ----
+R8=$(make_repo untracked)
+printf 'n\n' > "$R8/new.py"
+out=$(files_for "$R8" working-diff); rc=$?
+if [ "$rc" -eq 0 ] && [ "$out" = "new.py" ]; then ok "working-diff lists an untracked file (add-only change is not empty)"
+else err "working-diff with only an untracked file: rc=$rc files='$out'"; fi
+# ignored files stay out; a tracked edit and an untracked file both appear, root-relative
+printf 'ignored.log\n' > "$R8/.gitignore"; printf 'x\n' > "$R8/ignored.log"
+printf 'edit\n' >> "$R8/mod/m.txt"
+out=$( cd "$R8/mod" && "$SCRIPT" --files working-diff | sort | tr '\n' ' ' )
+if [ "$out" = ".gitignore mod/m.txt new.py " ]; then ok "tracked + untracked, root-relative from a subdirectory, ignored file excluded"
+else err "mixed tracked/untracked from subdir: got '$out'"; fi
+# names with glob characters and spaces are listed verbatim, a sibling-prefix dir is not special
+mkdir -p "$R8/mod2" "$R8/mo[d]" "$R8/sp ace"
+printf 'u\n' > "$R8/mod2/sib.txt"; printf 'u\n' > "$R8/mo[d]/g.txt"; printf 'u\n' > "$R8/sp ace/s.txt"
+out=$(files_for "$R8" working-diff | grep -c -x -e 'mod2/sib.txt' -e 'mo\[d\]/g.txt' -e 'sp ace/s.txt')
+if [ "$out" = "3" ]; then ok "working-diff lists untracked names with glob characters and spaces"
+else err "untracked special names: matched $out of 3"; fi
+
+# the other scopes stay as at HEAD: 194 untracked PNGs must not flip their anchor
+R10=$(make_repo untrackedscopes)
+git -C "$R10" checkout -qb feat
+printf 'feature\n' >> "$R10/a.txt"; git -C "$R10" commit -qam feat-work
+printf 'u\n' > "$R10/u.txt"
+for sc in branch-vs-main; do
+  out=$(files_for "$R10" $sc | tr '\n' ' '); anchor=$(key_for "$R10" anchor $sc)
+  if [ "$out" = "a.txt " ] && [ "$anchor" = "merge-base" ]; then ok "$sc does not list the untracked file"
+  else err "$sc with an untracked file: files='$out' anchor='$anchor'"; fi
+done
+R11=$(make_repo untrackedmain)
+printf 'u\n' > "$R11/u.txt"
+anchor=$(key_for "$R11" anchor branch-vs-main); out=$(files_for "$R11" branch-vs-main); rc=$?
+if [ "$anchor" = "last-commit" ] || [ "$rc" -eq 3 ]; then ok "branch-vs-main on main with only an untracked file is not flipped to anchor=head ('$anchor', rc=$rc)"
+else err "untracked-only on main: anchor='$anchor' rc=$rc files='$out'"; fi
+out=$(files_for "$R10" module-path . | tr '\n' ' ')
+if [ "$out" = "a.txt " ]; then ok "module-path does not list the untracked file"
+else err "module-path with an untracked file: '$out'"; fi
+git -C "$R10" worktree add -q -b wt2 "$TMPROOT/untrackedscopes.wt" >/dev/null 2>&1
+printf 'wt\n' >> "$TMPROOT/untrackedscopes.wt/a.txt"; git -C "$TMPROOT/untrackedscopes.wt" commit -qam wtw
+printf 'u\n' > "$TMPROOT/untrackedscopes.wt/wu.txt"
+out=$( cd "$TMPROOT/untrackedscopes.wt" && "$SCRIPT" --files worktree-cumulative | sort | tr '\n' ' ' )
+if [ "$out" = "a.txt " ]; then ok "worktree-cumulative does not list the untracked file"
+else err "worktree-cumulative with an untracked file: '$out'"; fi
+
+# --- case 11: no duplicate lines when a file is both in the diff and untracked ---
+R12=$(make_repo dedupe)
+git -C "$R12" rm -q --cached a.txt
+dups=$(files_for "$R12" working-diff | sort | uniq -d)
+if [ -z "$dups" ]; then ok "working-diff lists a de-indexed file once"
+else err "duplicate lines in working-diff: '$dups'"; fi
+
+# --- case 12 (c10): no origin/HEAD, no local main, origin/main present ---------
+R13=$(make_repo noorigin_head)
+git -C "$R13" checkout -qb feat
+for n in f1 f2; do printf '%s\n' "$n" > "$R13/$n.txt"; git -C "$R13" add "$n.txt"; git -C "$R13" commit -qm "$n"; done
+git -C "$R13" branch -D main >/dev/null 2>&1
+git -C "$R13" remote set-head origin -d >/dev/null 2>&1
+out=$(files_for "$R13" branch-vs-main | sort | tr '\n' ' '); anchor=$(key_for "$R13" anchor branch-vs-main)
+if [ "$out" = "f1.txt f2.txt " ] && [ "$anchor" = "merge-base" ]; then
+  ok "no origin/HEAD and no local main: origin/main is the default branch"
+else
+  err "no origin/HEAD, no local main: files='$out' anchor='$anchor'"
+fi
+
 printf '\n%s passed, %s failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ] || exit 1

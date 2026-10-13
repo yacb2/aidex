@@ -96,7 +96,8 @@ def build_one(root, tag, spec, intent="edge"):
     prev = os.path.join(d, ".aidex-artifact-prev")
     residue = os.path.isdir(prev) and bool(os.listdir(prev))
     kind = classify_build(rc, out, os.path.exists(page), residue)
-    lines = [ln.strip() for ln in out.strip().splitlines() if ln.strip()]
+    # the detail names the spec by its file name: the absolute temp path would eat the 200-char cap
+    lines = [ln.strip() for ln in out.replace(spec_path, tag + ".spec.md").strip().splitlines() if ln.strip()]
     detail = next((ln for ln in lines if ln.startswith("FAIL [")), lines[0] if lines else "")[:200]
     key = None if kind in PASS_KINDS else ("BUILD", kind, exception_name(out))
     # a refusal only counts as a pass for a spec that may be refused: an intended-valid spec the

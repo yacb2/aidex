@@ -77,6 +77,11 @@ grep -q '^mode: sweep$' "$WL" && grep -q '^  publish: never$' "$WL" && ok "mode:
 grep -q "^queue-size-at-kickoff: 5$" "$WL" && ok "original queue size recorded (growth baseline)" || bad "queue-size line: $(grep queue-size "$WL")"
 awk '/^## Needs decision \(kickoff\)/{n=NR} /^## Deferred/{d=NR} END{exit !(n && d && n<d)}' "$WL" && ok "Needs-decision section sits before Deferred / emergent (which stays last)" || bad "section order in worklist"
 python3 "$CONV/validate-worklist.py" "$WL" >/dev/null && ok "sweep work-list validates" || bad "validate: $(python3 "$CONV/validate-worklist.py" "$WL")"
+# c07: a second kickoff with the same title and slug the same day must not rewrite the first
+SUM1="$(cksum < "$WL")"
+bash "$SCRIPTS/sweep-kickoff.sh" --title "Small sweep 3" --slug small-sweep-3 --include "$RID" >/dev/null 2>"$TMP/again.err"; RC=$?
+[[ "$RC" == "2" && "$(cksum < "$WL")" == "$SUM1" ]] && ok "same-day rerun with the same title and slug is refused (rc 2) and leaves the work-list byte-identical" || bad "rerun: rc=$RC, unchanged=$([[ "$(cksum < "$WL")" == "$SUM1" ]] && echo yes || echo no)"
+grep -q "resume or close" "$TMP/again.err" && ok "the refusal tells the caller to resume or close the existing work-list" || bad "refusal text: $(cat "$TMP/again.err")"
 Q="$(grep -E '^[0-9]+\. \[ \] ' "$WL")"
 [[ "$(grep -c . <<<"$Q")" == "5" ]] && ok "five eligible items queued" || bad "queue: $Q"
 pos() { grep -nE "^[0-9]+\. \[ \] .*\b$1\b" "$WL" | cut -d: -f1; }
@@ -174,6 +179,14 @@ assert not [i for i in r['eligible'] if i['id']==q], 'still eligible'
 nd=[i for i in r['needs_decision'] if i['id']==q]; assert nd and nd[0]['reason']=='queued in worklist/2026-08-28-other-sweep.md', nd
 PY2
 [[ $? -eq 0 ]] && ok "an item queued in another doing work-list is NEEDS-DECISION: queued in worklist/<file>" || bad "queued elsewhere: $J"
+# BL-777: worklist-advance/close accept an indented or multi-space queue item, so the
+# eligibility scan must see it as queued too (it matched column 0, single space only)
+IQ="$(reg --title "queued indented" --estimate XS)"; IQID="$(idof "$IQ")"; accept "$IQ"
+printf -- '---\ntitle: "Indented sweep"\nstatus: doing\ncreated: 2026-08-29\nupdated: 2026-08-29\nmode: sweep\n---\n\n## Queue (in execution order)\n  1.  [ ] %s — queued indented   <!-- ref: backlog -->\n' "$IQID" > .context/worklists/2026-08-29-indented-sweep.md
+J="$(python3 "$SCRIPTS/sweep-eligible.py" --json 2>/dev/null)"
+python3 -c 'import json,sys; r=json.loads(sys.argv[1]); q=sys.argv[2]; assert not [i for i in r["eligible"] if i["id"]==q]; nd=[i for i in r["needs_decision"] if i["id"]==q]; assert nd and nd[0]["reason"].startswith("queued in worklist/2026-08-29-indented-sweep.md"), nd' "$J" "$IQID" \
+  && ok "BL-777: an item on an indented / multi-space queue line counts as queued elsewhere" || bad "indented queue line invisible to eligibility: $J"
+rm -f .context/worklists/2026-08-29-indented-sweep.md
 # 2026-09-30: a sweep left `doing` turned its unticked items into NEEDS-DECISION rows with
 # nothing saying the fix was to resume or close that work-list; the kickoff names it first
 OUT="$(bash "$SCRIPTS/sweep-kickoff.sh" --dry-run 2>&1)"
@@ -284,5 +297,29 @@ bash "$SCRIPTS/define-item.sh" "$CAID" --depends "$CBID, $OID" --no-index >/dev/
 bash "$SCRIPTS/define-item.sh" "$CBID" --depends "$CAID" --no-index >/dev/null 2>&1
 bash "$SCRIPTS/sweep-kickoff.sh" --dry-run >/dev/null 2>"$TMP/cyc.err"; RC=$?
 [[ $RC -eq 2 ]] && grep -q "cycle among" "$TMP/cyc.err" && ok "a depends cycle is reported before open depends block its members" || bad "hidden cycle: rc=$RC $(cat "$TMP/cyc.err")"
+
+# backlog-c49: contracting a `touches:` cluster must not invent a cycle. BL-1 and BL-3 share a
+# token and BL-1 -> BL-2 -> BL-3, so the contracted graph loops although the items do not.
+# Only that cluster is broken up: BL-4/BL-5 (shared token) stay adjacent and the unrelated
+# MERGE pair BL-6/BL-7 keeps its mark. BL-4 is P1 and BL-5 P3, so only a kept cluster puts
+# them side by side (ungrouped, the P2 items sort between them).
+O="$TMP/c49"; mkdir -p "$O/bl"
+mk49() { printf -- '---\nid: %s\nstatus: open\ntouches: "%s"\ndepends: "%s"\n---\n' "$1" "$2" "$3" > "$O/bl/$1.md"; }
+j49() { local j='{"eligible":[' n a p; for a in "$@"; do n="${a%%:*}"; p="${a#*:}"; [[ "$p" == "$a" ]] && p=P2; j+="{\"id\":\"BL-$n\",\"file\":\"BL-$n.md\",\"priority\":\"$p\",\"estimate\":\"S\",\"title\":\"t$n\"},"; done; printf '%s],"review":[],"needs_decision":[]}' "${j%,}"; }
+mk49 BL-1 shared BL-2; mk49 BL-2 "" BL-3; mk49 BL-3 shared ""; mk49 BL-4 other ""; mk49 BL-5 other ""
+mk49 BL-6 "" "merge:BL-7"; mk49 BL-7 "" ""
+python3 "$SCRIPTS/sweep-order.py" "$O/bl" --format refs <<<"$(j49 1 2 3 4:P1 5:P3 6 7)" > "$TMP/c49.out" 2>"$TMP/c49.err"
+python3 - "$TMP/c49.out" <<'PY' && ok "c49: acyclic items are ordered; only the looping cluster is broken up" || bad "c49: $(cat "$TMP/c49.out") $(cat "$TMP/c49.err")"
+import sys
+rows = [l.rstrip("\n").split("\t") for l in open(sys.argv[1])]
+ids = [r[0] for r in rows]
+assert ids.index("BL-3") < ids.index("BL-2") < ids.index("BL-1"), ids
+assert abs(ids.index("BL-4") - ids.index("BL-5")) == 1, ids
+assert all(r[3] == "MERGE" for r in rows if r[0] in ("BL-6", "BL-7")), rows
+PY
+# a cycle that runs through a MERGE pair cannot be fixed by splitting: refused, pair named
+mk49 BL-8 "" "merge:BL-9, BL-10"; mk49 BL-9 "" ""; mk49 BL-10 "" BL-9
+python3 "$SCRIPTS/sweep-order.py" "$O/bl" --format refs <<<"$(j49 8 9 10)" >/dev/null 2>"$TMP/c49m.err"; RC=$?
+[[ $RC -eq 2 && "$(cat "$TMP/c49m.err")" == *"BL-8/BL-9"* ]] && ok "c49: a cycle through a MERGE pair exits 2 naming the pair" || bad "c49 merge: rc=$RC $(cat "$TMP/c49m.err")"
 
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — sweep kickoff: $PASS cells"; exit 0; }; echo "$FAIL failure(s)"; exit 1

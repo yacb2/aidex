@@ -114,9 +114,13 @@ DEST_T="$TMP/ws-wt-feat-t"
 # --- refuses when resources exist but no teardown is recorded ---
 mk_doc ""
 bash "$SCRIPT" create --slug feat-t --branch feat/t --repo backend --dest "$DEST_T" >/dev/null 2>&1
-if bash "$SCRIPT" remove --slug feat-t --dest "$DEST_T" >/dev/null 2>&1; then
+if refusal="$(bash "$SCRIPT" remove --slug feat-t --dest "$DEST_T" 2>&1)"; then
   fail "remove: must refuse when Docker resources exist and no worktree_down is recorded"
 fi
+# The sweep also exits 1 on an image it could not judge (BL-774); the refusal must
+# not send that case to --skip-teardown, which would strand the unjudged image.
+grep -q "could not be judged" <<<"$refusal" \
+  || fail "remove: the refusal does not cover a sweep that could not judge a resource: $refusal"
 [[ -d "$DEST_T" ]] || fail "remove: a refused teardown must NOT have removed the directory"
 
 # --- runs the recorded teardown, substituting <slug>, before removing ---

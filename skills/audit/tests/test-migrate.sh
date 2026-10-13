@@ -96,5 +96,53 @@ out="$(bash "$SCRIPTS/migrate-audit.sh" "$PFX2" 2>&1)"; rc=$?
 [[ $rc -eq 0 ]] || fail "plans scan with a no-signal folder exited $rc: $(printf '%s' "$out" | tail -n 1)"
 printf '%s' "$out" | grep >/dev/null -F "security-review" || fail "folder with a signal not reported next to a no-signal folder"
 
+# --- audit-c05: --methodology never moves a board or run onto an existing target ---
+HEAD9='| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |
+|---|---|---|---|---|---|---|---|---|
+'
+# root 00-inventory.md AND INVENTORY.md: the first apply moves the modern one; the
+# second must not move the legacy board over it (that would lose the moved board)
+C5="$TMP/c05-both"; mkdir -p "$C5/.context/audits"
+printf '%s| M-1 | bug | a | MODERN board | open | P1 | 2026-06-01 | — | — |\n' "$HEAD9" > "$C5/.context/audits/00-inventory.md"
+printf '%s| L-1 | bug | a | LEGACY board | open | P1 | 2026-06-01 | — | — |\n' "$HEAD9" > "$C5/.context/audits/INVENTORY.md"
+for try in 1 2; do bash "$SCRIPTS/migrate-audit.sh" --layout --methodology ux --apply "$C5" >/dev/null 2>&1; done
+grep -q 'MODERN board' "$C5/.context/audits/ux/00-inventory.md" 2>/dev/null \
+  || fail "c05: the second --apply replaced the moved inventory: $(cat "$C5/.context/audits/ux/00-inventory.md" 2>&1 | tail -n 1)"
+[[ -f "$C5/.context/audits/INVENTORY.md" ]] || fail "c05: the legacy board that could not move was deleted"
+# an existing methodology inventory is not overwritten by a root board
+C5="$TMP/c05-existing"; mkdir -p "$C5/.context/audits/ux"
+printf '%s| E-1 | bug | a | EXISTING board | open | P1 | 2026-06-01 | — | — |\n' "$HEAD9" > "$C5/.context/audits/ux/00-inventory.md"
+printf '%s| R-1 | bug | a | ROOT board | open | P1 | 2026-06-01 | — | — |\n' "$HEAD9" > "$C5/.context/audits/00-inventory.md"
+bash "$SCRIPTS/migrate-audit.sh" --layout --methodology ux --apply "$C5" >/dev/null 2>&1
+grep -q 'EXISTING board' "$C5/.context/audits/ux/00-inventory.md" || fail "c05: an existing audits/ux/00-inventory.md was overwritten"
+[[ -f "$C5/.context/audits/00-inventory.md" ]] || fail "c05: the root board was lost instead of left for a manual merge"
+# a legacy run whose ISO twin exists is not nested inside it
+C5="$TMP/c05-run"; mkdir -p "$C5/.context/audits/20260610-foo" "$C5/.context/audits/2026-06-10-foo"
+bash "$SCRIPTS/migrate-audit.sh" --layout --apply "$C5" >/dev/null 2>&1
+[[ ! -e "$C5/.context/audits/2026-06-10-foo/20260610-foo" ]] || fail "c05: 20260610-foo was nested inside its ISO twin"
+[[ -d "$C5/.context/audits/20260610-foo" ]] || fail "c05: the legacy run that could not be renamed disappeared"
+
+# round 2: a run reported "stays in place" under --methodology stays in place on the next apply
+C5="$TMP/c05-run-meth"; mkdir -p "$C5/.context/audits/20260610-foo" "$C5/.context/audits/2026-06-10-foo"
+printf '%s' "$HEAD9" > "$C5/.context/audits/00-inventory.md"
+out1="$(bash "$SCRIPTS/migrate-audit.sh" --layout --methodology ux --apply "$C5" 2>&1)"
+bash "$SCRIPTS/migrate-audit.sh" --layout --methodology ux --apply "$C5" >/dev/null 2>&1
+[[ -d "$C5/.context/audits/20260610-foo" && ! -e "$C5/.context/audits/2026-06-10-foo" ]] \
+  || fail "c05: second --methodology apply moved the run that stayed in place: $(ls "$C5/.context/audits" "$C5/.context/audits/ux")"
+[[ "$out1" == *"stays in place"* ]] || fail "c05: first apply did not warn the run stays in place: $out1"
+# round 2: a legacy board left behind beside a moved modern one is warned about on the first apply
+C5="$TMP/c05-both-warn"; mkdir -p "$C5/.context/audits"
+printf '%s' "$HEAD9" > "$C5/.context/audits/00-inventory.md"; printf '%s' "$HEAD9" > "$C5/.context/audits/INVENTORY.md"
+out="$(bash "$SCRIPTS/migrate-audit.sh" --layout --methodology ux --apply "$C5" 2>&1)"
+[[ "$out" == *"INVENTORY.md stays in place"* ]] || fail "c05: first apply was silent about the INVENTORY.md left behind: $out"
+
+# --- audit-c30: only a real calendar-shaped YYYYMMDD becomes an ISO date ---
+C30="$TMP/c30"; mkdir -p "$C30/.context/audits/ux"
+printf '%s| N-1 | bug | a | Summary | open | P1 | 20260610 | — | build 20991399 and 20260231x |\n' "$HEAD9" > "$C30/.context/audits/ux/00-inventory.md"
+bash "$SCRIPTS/migrate-audit.sh" --layout --apply "$C30" >/dev/null 2>&1
+grep -q 'build 20991399' "$C30/.context/audits/ux/00-inventory.md" || fail "c30: a non-date 20991399 was rewritten: $(grep N-1 "$C30/.context/audits/ux/00-inventory.md")"
+grep -q '20260231x' "$C30/.context/audits/ux/00-inventory.md" || fail "c30: a word glued to digits (20260231x) was rewritten"
+grep -q '| 2026-06-10 |' "$C30/.context/audits/ux/00-inventory.md" || fail "c30: a real YYYYMMDD cell date was not converted"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — legacy layout/status/date migration, validator-clean result, idempotent; plans scan checkbox signal, - [x] not scored, no-signal folder"

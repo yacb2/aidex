@@ -264,6 +264,7 @@ column-0 comment inside services:|services:\n  db:\n    image: postgres\n# a col
 block stops at the next service|services:\n  backend:\n    build: .\n  db:\n    ports:\n      - "5432:5432"\n||y
 a backend key outside services:|networks:\n  backend:\n    driver: bridge\nservices:\n  api:\n    ports:\n      - "8000:8000"\n||-
 exact key, not a prefix|services:\n  backend-test:\n    ports:\n      - "8610:8600"\n  backend:\n    build: .\n||y
+anchor on services: (BL-783 j)|services: &svc\n  backend:\n    ports:\n      - "8006:8006"\n|8006|y
 UTF-8 BOM before services:|\xef\xbb\xbfservices:\n  backend:\n    ports:\n      - "8000:8000"\n|8000|y
 ROWS
 
@@ -280,5 +281,102 @@ grep -qx "testing_packs: " <<<"$out" || fail "a top-level [] declares no depende
 printf '\n  \n\n' > "$TMP/c12/.context/profiles/testing.md"
 if out="$(python3 "$SCRIPT" --check "$TMP/c12")"; then fail "--check on a whitespace-only profile must exit 1: $out"; fi
 [[ "$out" == *"empty"* ]] || fail "a whitespace-only profile must be reported as empty: $out"
+
+# --- BL-783: one row per edge left open by the coverage fix unit ---
+p783() { python3 "$SCRIPT" --print "$1" 2>&1; }
+# (a) e2e_service is a key of `services:`, at whatever indent, never a key elsewhere.
+mkdir -p "$TMP/a783"; echo x > "$TMP/a783/test-e2e.sh"
+printf 'networks:\n  backend-test:\n    driver: bridge\nservices:\n  backend:\n    build: .\n' > "$TMP/a783/docker-compose.yml"
+grep -qx "e2e_service: " <<<"$(p783 "$TMP/a783")" \
+  || fail "(a) a networks key is not a service: $(p783 "$TMP/a783" | grep e2e_service)"
+printf 'services:\n    backend:\n        build: .\n    backend-test:\n        build: .\n' > "$TMP/a783/docker-compose.yml"
+grep -qx "e2e_service: backend-test" <<<"$(p783 "$TMP/a783")" \
+  || fail "(a) a 4-space-indented service must be found: $(p783 "$TMP/a783" | grep e2e_service)"
+# ...and a nested key under a service is not a service (review r1 point 2).
+printf 'services:\n  backend:\n    depends_on:\n      backend-test-db:\n        condition: service_healthy\n  backend-test:\n    build: .\n' > "$TMP/a783/docker-compose.yml"
+grep -qx "e2e_service: backend-test" <<<"$(p783 "$TMP/a783")" \
+  || fail "(a) a nested depends_on key is not a service: $(p783 "$TMP/a783" | grep e2e_service)"
+# (b) ${BACKEND_PORT:-N} counts only inside the backend service.
+mkdir -p "$TMP/b783/backend"; : > "$TMP/b783/backend/manage.py"
+printf 'services:\n  proxy:\n    ports:\n      - "${BACKEND_PORT:-9999}:80"\n  backend:\n    ports:\n      - "8000:8000"\n' > "$TMP/b783/docker-compose.yml"
+grep -qx "dev_backend_port: 8000" <<<"$(p783 "$TMP/b783")" \
+  || fail "(b) BACKEND_PORT of another service: $(p783 "$TMP/b783" | grep dev_backend_port)"
+# ...yet with no port in the backend block, BACKEND_PORT anywhere still answers: the
+# order is BACKEND_PORT in backend, a number in backend, BACKEND_PORT anywhere (review r1 point 6).
+mkdir -p "$TMP/b783api/backend"; : > "$TMP/b783api/backend/manage.py"
+printf 'services:\n  api:\n    ports:\n      - "${BACKEND_PORT:-8000}:8000"\n' > "$TMP/b783api/docker-compose.yml"
+grep -qx "dev_backend_port: 8000" <<<"$(p783 "$TMP/b783api")" \
+  || fail "(b) BACKEND_PORT on a service named api: $(p783 "$TMP/b783api" | grep dev_backend_port)"
+# (c) the fallback reads a host port of any width.
+for hp in 18000 80; do
+  printf 'services:\n  backend:\n    ports:\n      - "%s:8000"\n' "$hp" > "$TMP/b783/docker-compose.yml"
+  grep -qx "dev_backend_port: $hp" <<<"$(p783 "$TMP/b783")" \
+    || fail "(c) host port $hp: $(p783 "$TMP/b783" | grep dev_backend_port)"
+done
+# (d) compose.yml is read like docker compose reads it, and wins over docker-compose.yml.
+mkdir -p "$TMP/d783/backend"; : > "$TMP/d783/backend/manage.py"
+printf 'services:\n  backend:\n    ports:\n      - "8100:8000"\n' > "$TMP/d783/compose.yml"
+grep -qx "dev_backend_port: 8100" <<<"$(p783 "$TMP/d783")" \
+  || fail "(d) compose.yml alone: $(p783 "$TMP/d783" | grep dev_backend_port)"
+printf 'services:\n  backend:\n    ports:\n      - "8200:8000"\n' > "$TMP/d783/docker-compose.yml"
+grep -qx "dev_backend_port: 8100" <<<"$(p783 "$TMP/d783")" \
+  || fail "(d) compose.yml must win over docker-compose.yml: $(p783 "$TMP/d783" | grep dev_backend_port)"
+# compose.yaml is read alone, and wins over compose.yml (review r1 point 3).
+printf 'services:\n  backend:\n    ports:\n      - "8300:8000"\n' > "$TMP/d783/compose.yaml"
+grep -qx "dev_backend_port: 8300" <<<"$(p783 "$TMP/d783")" \
+  || fail "(d) compose.yaml must win over compose.yml: $(p783 "$TMP/d783" | grep dev_backend_port)"
+mkdir -p "$TMP/d783y/backend"; : > "$TMP/d783y/backend/manage.py"; cp "$TMP/d783/compose.yaml" "$TMP/d783y/"
+grep -qx "dev_backend_port: 8300" <<<"$(p783 "$TMP/d783y")" \
+  || fail "(d) compose.yaml alone: $(p783 "$TMP/d783y" | grep dev_backend_port)"
+# (f) pytest declared only in backend/requirements.txt is a declared runner.
+mkdir -p "$TMP/f783/backend"; : > "$TMP/f783/backend/manage.py"
+printf 'services:\n  backend:\n    build: .\n' > "$TMP/f783/docker-compose.yml"
+printf 'django>=5\n# pytest-xdist later\npytest==8.3\n' > "$TMP/f783/backend/requirements.txt"
+grep -qx "backend_test_cmd: docker compose exec -T backend pytest {path}" <<<"$(p783 "$TMP/f783")" \
+  || fail "(f) pytest in requirements.txt: $(p783 "$TMP/f783" | grep backend_test_cmd)"
+printf 'django>=5\n# pytest some day\n' > "$TMP/f783/backend/requirements.txt"
+grep -qx "backend_test_cmd: " <<<"$(p783 "$TMP/f783")" \
+  || fail "(f) pytest only in a requirements comment: $(p783 "$TMP/f783" | grep backend_test_cmd)"
+# Any backend/requirements*.txt counts, and a root with glob characters is still found
+# (review r1 point 4).
+printf 'pytest-django==4.9\n' > "$TMP/f783/backend/requirements-dev.txt"
+grep -qx "backend_test_cmd: docker compose exec -T backend pytest {path}" <<<"$(p783 "$TMP/f783")" \
+  || fail "(f) pytest-django in requirements-dev.txt: $(p783 "$TMP/f783" | grep backend_test_cmd)"
+mkdir -p "$TMP/proj[1]"; cp -R "$TMP/f783/." "$TMP/proj[1]/"
+grep -qx "backend_test_cmd: docker compose exec -T backend pytest {path}" <<<"$(p783 "$TMP/proj[1]")" \
+  || fail "(f) a project dir named proj[1]: $(p783 "$TMP/proj[1]" | grep backend_test_cmd)"
+# (g) a profile whose front matter holds no key states no fact: it is empty too.
+mkdir -p "$TMP/g783/.context/profiles"; printf -- '---\n---\n' > "$TMP/g783/.context/profiles/testing.md"
+if out="$(python3 "$SCRIPT" --check "$TMP/g783")"; then fail "(g) --check on a keyless front matter must exit 1: $out"; fi
+[[ "$out" == *"no key"* ]] || fail "(g) the finding must say the front matter holds no key: $out"
+# (h) a quoted "pytest" or a [tool.pytest table inside a pyproject comment declares nothing.
+mkdir -p "$TMP/h783/backend"; printf 'services:\n  backend:\n    build: .\n' > "$TMP/h783/docker-compose.yml"
+for decl in '[project]\nname = "x"  # "pytest" later\n' '# [tool.pytest.ini_options]\n[project]\nname = "x"\n'; do
+  printf "$decl" > "$TMP/h783/backend/pyproject.toml"
+  grep -qx "backend_test_cmd: " <<<"$(p783 "$TMP/h783")" \
+    || fail "(h) pytest only in a comment of $(paste -sd' ' "$TMP/h783/backend/pyproject.toml"): $(p783 "$TMP/h783" | grep backend_test_cmd)"
+done
+# ...but a `#` inside a value (a URL fragment) is not a comment, and a comment line does
+# not hide the declaration after it (review r1 points 1 and 5).
+for decl in '[project]\ndependencies = ["lib @ git+https://h/x.git#egg=lib", "pytest>=8"]\n' '# dev tooling\n[tool.pytest.ini_options]\n'; do
+  printf "$decl" > "$TMP/h783/backend/pyproject.toml"
+  grep -qx "backend_test_cmd: docker compose exec -T backend pytest {path}" <<<"$(p783 "$TMP/h783")" \
+    || fail "(h) pytest declared in $(paste -sd' ' "$TMP/h783/backend/pyproject.toml"): $(p783 "$TMP/h783" | grep backend_test_cmd)"
+done
+# (i) dependencies that are not an object declare nothing: `5` must not crash, `["vue"]`
+# must not yield a pack. The "vue" string row was green before the fix: it pins that a
+# string dependency is not split into names (npm's legacy normalize-package-data would).
+mkdir -p "$TMP/i783"
+for d in '5' '["vue"]' '"vue"'; do
+  printf '{"dependencies":%s}\n' "$d" > "$TMP/i783/package.json"
+  out="$(p783 "$TMP/i783")" || fail "(i) dependencies $d must not crash: $(tail -1 <<<"$out")"
+  grep -qx "testing_packs: " <<<"$out" || fail "(i) dependencies $d declare no pack: $(grep testing_packs <<<"$out")"
+done
+# (j) a top-level `services: &anchor` still opens the services (the service_block table
+# pins the port; this row pins e2e_service). Flow style and tab indents: see the hand-back.
+mkdir -p "$TMP/j783"; echo x > "$TMP/j783/test-e2e.sh"
+printf 'services: &svc\n  backend-test:\n    build: .\n' > "$TMP/j783/docker-compose.yml"
+grep -qx "e2e_service: backend-test" <<<"$(p783 "$TMP/j783")" \
+  || fail "(j) services: &anchor: $(p783 "$TMP/j783" | grep e2e_service)"
 
 echo "OK — profile-init: facts read, blanks stay blank, overwrite refused, --print is read-only, --check finds prose and tripwire"

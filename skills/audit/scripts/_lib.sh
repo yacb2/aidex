@@ -227,7 +227,7 @@ inventory_lock_path() {
   mkdir -m 700 "$lock_dir" 2>/dev/null || :   # an existing path (or symlink) stays as it is
   [[ -d "$lock_dir" && ! -L "$lock_dir" && -O "$lock_dir" ]] \
     || { err "error: the lock directory $lock_dir is a symlink, not a directory or not yours; nothing written"; return 2; }
-  printf '%s/aidex-inv.%s.flock\n' "$lock_dir" "$(printf '%s' "$(cd "$(dirname "$inventory")" && pwd -P)/$(basename "$inventory")" | path_digest | cut -c1-16)"
+  printf '%s/aidex-inv.%s.flock\n' "$lock_dir" "$(printf '%s' "$(CDPATH= cd "$(dirname "$inventory")" && pwd -P)/$(basename "$inventory")" | path_digest | cut -c1-16)"
 }
 
 # Would mark_row_escalated rewrite the finding's row? Runs the same awk program with its

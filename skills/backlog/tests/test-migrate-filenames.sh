@@ -86,5 +86,68 @@ echo "== idempotent =="
 python3 "$MIG" --root "$TMP" > "$TMP/again.txt" 2>&1
 check "second run finds nothing to rename" 'grep -q "nothing to do" "$TMP/again.txt"'
 
+# fresh project per case: <name> -> $TMP/<name>, cwd inside it
+fresh() { rm -rf "$TMP/$1"; mkdir -p "$TMP/$1/.context/backlog/_archive" "$TMP/$1/.context/research"; cd "$TMP/$1"; }
+
+echo "== c04: a name without a YYYY-MM-DD- prefix is skipped, never mangled =="
+fresh c04
+item . fix-login.md BL-010 "Fix login"
+item . 2026-06-01-ok.md BL-011 "Ok"
+python3 "$MIG" --root "$TMP/c04" --apply > "$TMP/c04.txt" 2>&1 || true
+check "undated file kept its name" '[[ -f .context/backlog/fix-login.md ]]'
+check "no extension-less mangled file" '[[ -z "$(find .context/backlog -maxdepth 1 -type f -not -name "*.md")" ]]'
+check "skip reason names the date prefix" 'grep -q "YYYY-MM-DD" "$TMP/c04.txt"'
+check "dated sibling still renamed" '[[ -f .context/backlog/2026-06-01-bl-011-ok.md ]]'
+
+echo "== c21: a stem that prefixes another item's stem does not corrupt it =="
+fresh c21
+item . 2026-01-01-auth.md BL-020 "Auth"
+item . 2026-01-01-auth-tokens.md BL-20260101 "Auth tokens (legacy id, stays)"
+printf 'see 2026-01-01-auth-tokens.md and 2026-01-01-auth.md and [[2026-01-01-auth]] and backlog/2026-01-01-auth-report.html\n' > .context/research/2026-06-10-n.md
+python3 "$MIG" --root "$TMP/c21" --apply > "$TMP/c21.txt" 2>&1 || true
+N=.context/research/2026-06-10-n.md
+check "longer stem reference untouched" 'grep -q "2026-01-01-auth-tokens.md" "$N" && ! grep -q "bl-020-auth-tokens" "$N"'
+check "html sibling ref untouched" 'grep -q "backlog/2026-01-01-auth-report.html" "$N"'
+check "exact stem reference rewritten" 'grep -q "2026-01-01-bl-020-auth.md and \[\[2026-01-01-bl-020-auth\]\]" "$N"'
+
+echo "== c34: a failing git log aborts instead of disabling the commit-citation guard =="
+fresh c34
+item . 2026-06-01-cited.md BL-030 "Cited"
+mkdir .git "$TMP/fakebin"
+printf '#!/bin/sh\nexit 128\n' > "$TMP/fakebin/git"; chmod +x "$TMP/fakebin/git"
+rc=0; PATH="$TMP/fakebin:$PATH" python3 "$MIG" --root "$TMP/c34" --apply > "$TMP/c34.txt" 2>&1 || rc=$?
+check "exits nonzero" '[[ $rc -ne 0 ]]'
+check "item not renamed" '[[ -f .context/backlog/2026-06-01-cited.md ]]'
+check "message names the failed git log" 'grep -q "git log failed" "$TMP/c34.txt"'
+check "nothing reported renamed" '! grep -Eq "^renamed [0-9]+ file" "$TMP/c34.txt"'
+
+echo "== c34: a broken direct-child code repo (depth 1) aborts too =="
+fresh c34c
+item . 2026-06-01-cited.md BL-032 "Cited"
+G="git -c user.name=t -c user.email=t@t"
+git init -q . && $G commit -q --allow-empty -m root
+mkdir backend && git init -q backend && $G -C backend commit -q --allow-empty -m "fix per 2026-06-01-cited"
+echo 0123456789012345678901234567890123456789 > "backend/.git/refs/heads/$(git -C backend symbolic-ref --short HEAD)"
+rc=0; python3 "$MIG" --root "$TMP/c34c" --apply > "$TMP/c34c.txt" 2>&1 || rc=$?
+check "child repo failure: exits nonzero" '[[ $rc -ne 0 ]]'
+check "child repo failure: cited item not renamed" '[[ -f .context/backlog/2026-06-01-cited.md ]]'
+
+echo "== c34: a failing NESTED repo (vendored checkout) warns and continues =="
+fresh c34n
+item . 2026-06-01-clean.md BL-031 "Clean"
+mkdir -p _archive/vendor/x/.git "$TMP/fakebin2"
+# fails only for the vendored path; the root has no .git of its own here
+printf '#!/bin/sh\ncase "$2" in *vendor*) exit 128;; esac\nexit 0\n' > "$TMP/fakebin2/git"; chmod +x "$TMP/fakebin2/git"
+rc=0; PATH="$TMP/fakebin2:$PATH" python3 "$MIG" --root "$TMP/c34n" --apply > "$TMP/c34n.txt" 2>&1 || rc=$?
+check "nested failure: item renamed" '[[ -f .context/backlog/2026-06-01-bl-031-clean.md ]]'
+check "nested failure: warning names the nested repo" 'grep -q "warning: git log failed in .*vendor" "$TMP/c34n.txt"'
+
+echo "== c03: a BL-1000+ id is conforming =="
+fresh c03
+item . 2026-06-01-big.md BL-1000 "Big"
+python3 "$MIG" --root "$TMP/c03" --apply > "$TMP/c03.txt" 2>&1 || true
+check "BL-1000 item renamed" '[[ -f .context/backlog/2026-06-01-bl-1000-big.md ]]'
+
+
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [[ $FAIL -eq 0 ]]

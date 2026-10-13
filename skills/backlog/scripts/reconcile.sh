@@ -12,7 +12,10 @@
 #      and no superseded_by/escalated_to ⇒ closure asserted without provenance
 #      (informational; pre-D-09 items legitimately lack commits).
 #
-# Exit: 1 if any category-A (actionable) drift exists, else 0. Never writes.
+#   C) roll-up index drift — a plans/audits 00-index.md that no longer matches its files.
+#
+# Exit: 1 if any category-A (actionable) or category-C (stale index) drift exists, else 0.
+# Category B is informational and never changes the exit. Never writes.
 
 set -euo pipefail
 
@@ -36,7 +39,7 @@ fm() { awk -v k="$2" '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1==k":"{su
 
 # status of a plan referenced as plan/<slug> (or bare <slug>): archived | <status> | missing
 plan_status() {
-  local ref="$1" slug; slug="${ref#plan/}"; slug="${slug%/}"
+  local ref="$1" slug; slug="${ref#plan/}"; slug="${slug%/}"; slug="${slug%.md}"
   [[ -d "$PLANS_DIR/_archive/$slug" || -f "$PLANS_DIR/_archive/$slug.md" || -f "$PLANS_DIR/_archive/$slug" ]] && { echo "archived"; return; }
   if [[ -f "$PLANS_DIR/$slug/00-index.md" ]]; then fm "$PLANS_DIR/$slug/00-index.md" status; return; fi
   if [[ -f "$PLANS_DIR/$slug.md" ]]; then fm "$PLANS_DIR/$slug.md" status; return; fi
@@ -53,8 +56,20 @@ if [[ -d "$BACKLOG_DIR" ]]; then
     st="$(fm "$f" status)"; esc="$(fm "$f" escalated_to)"; id="$(fm "$f" id)"
     case "$st" in open|doing) ;; *) continue ;; esac
     [[ -n "$esc" ]] || continue
-    ps="$(plan_status "$esc")"
-    if [[ "$ps" == "done" || "$ps" == "archived" || "$ps" == "dropped" ]]; then
+    # escalated_to may be a comma list (a plan plus cross-repo refs): the item is a close
+    # candidate when it has at least one plan and every plan it names is finished.
+    plans=0 live=0 ps=""
+    while IFS= read -r ref; do
+      ref="${ref#"${ref%%[![:space:]]*}"}"; ref="${ref%"${ref##*[![:space:]]}"}"
+      [[ -n "$ref" ]] || continue
+      one="$(plan_status "$ref")"
+      case "$one" in
+        missing) ;;
+        done|archived|dropped) plans=$((plans+1)); ps="$one" ;;
+        *) live=1 ;;
+      esac
+    done < <(printf '%s\n' "$esc" | tr ',' '\n')
+    if [[ $plans -gt 0 && $live -eq 0 ]]; then
       CAND_A+=("${id:-?} ($(basename "$f")) — status=$st but plan ${esc} is ${ps} ⇒ close it")
     fi
   done
@@ -67,13 +82,13 @@ check_done_no_commits() {
   st="$(fm "$f" status)"; [[ "$st" == "done" ]] || return 0
   sup="$(fm "$f" superseded_by)"; esc="$(fm "$f" escalated_to)"; com="$(fm "$f" commits)"
   [[ -n "$sup" || -n "$esc" ]] && return 0   # provenance is the link, not a commit
-  [[ -n "$com" ]] && return 0
+  [[ -n "$com" && "$com" != "[]" ]] && return 0
   id="$(fm "$f" id)"
   local name; name="$(basename "$f")"
   [[ "$name" == "00-index.md" ]] && name="$(basename "$(dirname "$f")")/"
   INFO_B+=("${kind}: ${id:+${id} }${name}")
 }
-if [[ -d "$BACKLOG_DIR" ]]; then
+if [[ -d "$BACKLOG_DIR" || -d "$PLANS_DIR" ]]; then
   shopt -s nullglob
   for f in "$BACKLOG_DIR"/*.md "$BACKLOG_DIR"/_archive/*.md; do
     [[ "$(basename "$f")" == "00-index.md" ]] && continue

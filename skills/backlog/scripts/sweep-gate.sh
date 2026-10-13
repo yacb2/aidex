@@ -379,6 +379,10 @@ for leg in "${LEGS[@]}"; do
     # does not run — running the suite anyway against the state the pre-command
     # failed to clear is the flake this exists to remove, now with a green tick.
     # The header names the checkout and commit tested, so a log can be held against the branch.
+    # A private log per run, moved over <leg>.log when scored: two gates on one root shared
+    # the leg-keyed file, so one's header truncated the other's output and it scored the
+    # other's count (backlog-c50).
+    log="$LOG_DIR/$leg.$$.log"
     printf '%s\n' "$(header_of "$leg")" > "$log"
     if [[ -n "$(pre_of "$leg")" ]]; then
       printf '# pre_cmd: %s\n' "$(pre_of "$leg")" >> "$log"
@@ -395,6 +399,7 @@ for leg in "${LEGS[@]}"; do
     fi
     secs=$(( $(date +%s) - t0 ))
     count="$(count_in "$leg" "$log")"
+    mv -f "$log" "$LOG_DIR/$leg.log"
   fi
   emit_row "$leg" "$rc" "$count" "$secs"
   [[ "$rc" == "0" && "$count" != "?" ]] || FAILED=$((FAILED+1))
