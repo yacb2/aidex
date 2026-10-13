@@ -68,12 +68,15 @@ done
 # path ending in .env AND writes into process.env.
 dir_loads_slot_env() {
   local f
-  # Vendored trees are pruned: the dotenv package itself and dozens of its
-  # dependents live under node_modules, so an unpruned recursive grep matches
-  # every real frontend and exempts the whole directory before a single fallback
-  # is examined -- a blocking gate reporting green having looked at nothing.
-  grep -rqE --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=.venv \
-    "require\\(['\"]dotenv|from ['\"]dotenv|dotenv\\.config\\(" "$1" 2>/dev/null && return 0
+  # The scan stays at maxdepth 1, which also keeps vendored trees out: the dotenv
+  # package and dozens of its dependents live under node_modules, and a recursive
+  # grep matched them and exempted every real frontend.
+  # Only the directory's own files: a dotenv import elsewhere in the participant
+  # (src/server.ts) does not load anything into THIS harness, and a recursive
+  # grep let it exempt the root playwright config.
+  while IFS= read -r f; do
+    grep -qE "require\\(['\"]dotenv|from ['\"]dotenv|dotenv\\.config\\(" "$f" 2>/dev/null && return 0
+  done < <(find "$1" -maxdepth 1 -type f \( -name '*.ts' -o -name '*.js' -o -name '*.mjs' -o -name '*.cjs' \) 2>/dev/null)
   # Three conditions in the SAME file: it reads a file, it names `.env`, and it
   # writes into process.env. Requiring the literal `.env` INSIDE the read call
   # was too strict -- real loaders build the path into a variable first, so the
@@ -165,7 +168,12 @@ if $CENSUS; then
     root="${cfg%/.context/worktrees/config.env}"
     out="$(scan_project "$root")"
     name="$(basename "$root")"
-    if [[ -z "$out" ]]; then
+    if [[ -z "$(sed -n 's/^[[:space:]]*WT_PARTICIPANTS=["'"'"']\{0,1\}\([^"'"'"']*\).*/\1/p' "$cfg" | sed -n 1p)" ]]; then
+      # Single-project mode refuses this config (exit 2); counting it clean here
+      # would turn "nothing was checked" into a green census line.
+      printf '  %-20s WT_PARTICIPANTS is empty -- nothing was checked\n' "$name"
+      rc=1
+    elif [[ -z "$out" ]]; then
       printf '  %-20s clean\n' "$name"
     else
       printf '  %-20s %s finding(s)\n' "$name" "$(grep -c . <<<"$out")"

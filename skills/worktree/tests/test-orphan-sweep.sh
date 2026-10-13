@@ -197,6 +197,29 @@ out="$( cd "$NROOT" && PATH="$TMP/nbin:$PATH" bash "$SCRIPT" --slug cn )"; code=
   && pass "--slug cn sees the myapp-wt-cn stack" \
   || fail "--slug cn missed the myapp-wt-cn stack (exit $code): $out"
 
+echo "== a wedged daemon is cut at the deadline (BL-794) =="
+# The docker CLI is a Go binary and ignores SIGALRM, so `alarm; exec docker info`
+# never stopped it. The stub ignores ALRM and sleeps 6 s; with a 1 s deadline the
+# sweep must be back well before that, saying the daemon did not answer.
+mkdir -p "$TMP/wbin"
+cat > "$TMP/wbin/docker" <<'SHIM'
+#!/usr/bin/env bash
+case "$1" in
+  info) trap '' ALRM; exec sleep 6 ;;
+  *) exit 0 ;;
+esac
+SHIM
+chmod +x "$TMP/wbin/docker"
+t0=$SECONDS
+out="$( cd "$ROOT" && PATH="$TMP/wbin:$PATH" AIDEX_DOCKER_TIMEOUT=1 bash "$SCRIPT" 2>&1 )"; code=$?
+el=$((SECONDS - t0))
+[[ "$el" -le 4 ]] && pass "the sweep returned at the deadline (${el} s)" \
+  || fail "a docker that ignores SIGALRM held the sweep for ${el} s (deadline 1 s): $out"
+printf '%s' "$out" | grep >/dev/null 'did not answer within 1 s' \
+  && pass "a deadline hit is reported as such" \
+  || fail "no 'did not answer' note on a deadline hit: $out"
+[[ "$code" -eq 0 ]] && pass "a degraded sweep exits 0" || fail "a degraded sweep should exit 0, got $code"
+
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
 [[ "$FAIL" -eq 0 ]]

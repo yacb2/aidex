@@ -45,8 +45,11 @@ BACKLOG_DIR="$(dirname "$DOC_DIR")/backlog"
 
 gaps=()
 
-# --- front-matter fields (first --- ... --- block) ---
-fm="$(sed -n '/^---$/,/^---$/p' "$DOC")"
+# --- front-matter fields (the LEADING --- ... --- block only) ---
+# The same reader worktree-multi.sh uses: a `/^---$/,/^---$/` sed range reopens on
+# every later pair of rules, so a field living in a body block passed here and
+# the teardown then refused the doc.
+fm="$(awk 'NR==1{if($0!="---")exit;next} $0=="---"{exit} {print}' "$DOC")"
 # A field is only useful if it carries a command. `worktree_up: ""` is the shape
 # a doc takes when its mechanism was retired and nobody updated the front-matter.
 for field in worktree_up worktree_down; do
@@ -66,18 +69,25 @@ done
 fm_scripts_check() {
   local field s cand
   for field in worktree_new worktree_up worktree_down worktree_list; do
+    # The retired skill path is judged on the raw token, in whatever spelling
+    # (~, $HOME, ${CLAUDE_PLUGIN_ROOT}, absolute): the extractor below cannot
+    # start a match at `/` or read through `{`, and its relative tail then
+    # resolved against the shipped skill's basename.
     while IFS= read -r s; do
       [[ -z "$s" ]] && continue
+      cand="${s/#\~/$HOME}"; cand="${cand/#\$HOME/$HOME}"
+      [[ -e "$cand" ]] && continue
+      gaps+=("front-matter: '$field' names a script that does not exist: $s (retired path; use \${CLAUDE_PLUGIN_ROOT}/skills/worktree/scripts/$(basename "$s"))")
+    done < <(grep -E "^${field}:" <<<"$fm" | sed -n 1p | grep -oE '[^[:space:]"'"'"']*skills/aidex-worktree/[^[:space:]"'"'"']*\.sh' | sort -u || true)
+    while IFS= read -r s; do
+      [[ -z "$s" ]] && continue
+      [[ "$s" == *skills/aidex-worktree/* ]] && continue
       cand="${s/#\~/$HOME}"
       [[ -e "$cand" ]] && continue
       if [[ "$cand" != /* ]]; then
         [[ -e "$PROJECT_DIR/$cand" || -e "$SKILL_SCRIPTS/$(basename "$cand")" ]] && continue
       fi
-      if [[ "$s" == *skills/aidex-worktree/* ]]; then
-        gaps+=("front-matter: '$field' names a script that does not exist: $s (retired path; use \${CLAUDE_PLUGIN_ROOT}/skills/worktree/scripts/$(basename "$s"))")
-      else
-        gaps+=("front-matter: '$field' names a script that does not exist: $s")
-      fi
+      gaps+=("front-matter: '$field' names a script that does not exist: $s")
     done < <(grep -E "^${field}:" <<<"$fm" | sed -n 1p | grep -oE '(~|[A-Za-z0-9_.$-])[A-Za-z0-9_./$-]*\.sh' | grep -v '\$' | sort -u || true)
   done
 }

@@ -22,11 +22,12 @@ recipe. Prose is what let 15 projects each implement isolation differently.
    actually found in plain language. Never assume monorepo or any prior default.
 
 3. **Verify the stack can be isolated AT ALL.** Run
-   [scripts/check-worktree-isolation.sh](scripts/check-worktree-isolation.sh) —
-   the umbrella, which runs the compose check plus the host-port and
-   test-runner checks. Run the umbrella, not the compose check alone: it is a
-   good check of the surface it covers, and the other surfaces ship unverified
-   when it stands in for all three.
+   [scripts/check-compose-isolation.sh](scripts/check-compose-isolation.sh) from the
+   project root. It is the only surface that can be checked before a config exists:
+   the umbrella's host-port and test-runner checks read `config.env`, and without
+   one they refuse with "nothing was checked" (exit 2), so the umbrella run at this
+   step always ended in a blocker. The umbrella runs at step 6, once the config is
+   written, so the other surfaces do not ship unverified.
    Every finding is a blocker, not a warning — each one is a name that will not
    vary between two stacks:
    - an image pinned to the main project, or one that resolves identically in
@@ -109,7 +110,11 @@ recipe. Prose is what let 15 projects each implement isolation differently.
      of dev: schema-only is seconds and does not couple every worktree to
      whatever dev happens to hold.
 
-6. **Prove it before recording it.** Create a throwaway worktree, confirm the
+6. **Prove it before recording it.** Run
+   [scripts/check-worktree-isolation.sh](scripts/check-worktree-isolation.sh) — the
+   umbrella: the compose check plus the host-port and test-runner checks, now that
+   `config.env` exists. Fix its findings (each is a blocker) before going on. Then
+   create a throwaway worktree, confirm the
    stack answers, tear it down, and show `docker-snapshot.sh diff` reporting
    ZERO RESIDUE. A config that has never completed a cycle is a guess.
 
