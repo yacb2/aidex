@@ -14,7 +14,8 @@
 # Scaffolds .context/communications/<folder>/<YYYY-MM-DD>-<slug>/body.md from the template.
 # received entries default to status=sent (a record); sent entries default to status=draft;
 # meeting/call entries default to status=sent (they already happened).
-# Self-contained: inlines its helpers so it does not depend on a sibling _lib.sh.
+# Sources ../../conventions/scripts/_lib.sh for the colour/log helpers, find_project_root,
+# today_iso, is_valid_slug and render_template; it is not standalone.
 # Refuses to overwrite. On success, prints the created file path to stdout.
 
 set -euo pipefail
@@ -22,21 +23,6 @@ set -euo pipefail
 # Resolve the skill dir even via symlink.
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 TEMPLATES_DIR="$SKILL_DIR/assets/templates"
-
-if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
-  C_RED=$'\033[31m' C_GREEN=$'\033[32m' C_YELLOW=$'\033[33m' C_BLUE=$'\033[34m' C_RESET=$'\033[0m'
-else
-  C_RED='' C_GREEN='' C_YELLOW='' C_BLUE='' C_RESET=''
-fi
-info() { printf '%s%s%s\n' "$C_BLUE" "$*" "$C_RESET" >&2; }
-ok()   { printf '%s%s%s\n' "$C_GREEN" "$*" "$C_RESET" >&2; }
-warn() { printf '%s%s%s\n' "$C_YELLOW" "$*" "$C_RESET" >&2; }
-err()  { printf '%s%s%s\n' "$C_RED" "$*" "$C_RESET" >&2; }
-die()  { err "error: $*"; exit 2; }
-
-today_iso() { date +%Y-%m-%d; }
-
-is_valid_slug() { [[ "$1" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; }
 
 # Shared resolver. This file used to carry its own copy, three fixes behind:
 # no $HOME boundary, no project-marker fallback, and no linked-worktree hop --
