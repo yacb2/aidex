@@ -58,16 +58,17 @@ WS_PARENT="$(dirname "$WS_ROOT")"
 # does not is another workspace's business (or not a worktree at all).
 if [[ -n "$SLUG" ]]; then
   is_valid_slug "$SLUG" || die "invalid slug: $SLUG (kebab-case, [a-z0-9-])"
-  SCOPE="${WS_NAME}-wt-${SLUG}"
+  SCOPE="$(compose_project_name "$WS_NAME")-wt-${SLUG}"
   # Under --slug the finding is "attributable to this worktree", not "orphaned":
   # the resources of a LIVE worktree are exactly what the pre-flight must list.
   LABEL="RESOURCE"
 else
-  SCOPE="${WS_NAME}-wt-"
+  SCOPE="$(compose_project_name "$WS_NAME")-wt-"
   LABEL="ORPHAN"
 fi
 
-PREFIX="${WS_NAME}-wt-"
+# Compose project names are normalised (compose_project_name); directories are not.
+PREFIX="$(compose_project_name "$WS_NAME")-wt-"
 
 # owner_slug IDENT — the slug IDENT belongs to, by the boundary the tool creates:
 # project <ws>-wt-<slug>; volume/network <project>_<name>; compose v2 image
@@ -99,19 +100,22 @@ in_scope() {
 #     <project>-wt-<slug>, where <project> is the main repo's basename. ---
 known_projects=()
 
-while IFS= read -r d; do
-  [[ -z "$d" ]] && continue
-  known_projects+=("$(basename "$d")")
-done < <(find "$WS_PARENT" -maxdepth 1 -type d -name "${WS_NAME}-wt-*" 2>/dev/null)
+for d in "$WS_PARENT/$WS_NAME"-wt-*; do
+  [[ -d "$d" ]] || continue
+  d="$(basename "$d")"
+  known_projects+=("${PREFIX}${d#"${WS_NAME}-wt-"}")
+done
 
 if [[ -d "$WS_ROOT/_worktrees" ]]; then
   while IFS= read -r d; do
     [[ -z "$d" ]] && continue
     name="$(basename "$d")"
-    if [[ "$name" == *-wt-* ]]; then
+    if [[ "$name" == "${WS_NAME}-wt-"* ]]; then
+      known_projects+=("${PREFIX}${name#"${WS_NAME}-wt-"}")
+    elif [[ "$name" == *-wt-* ]]; then
       known_projects+=("$name")
     else
-      known_projects+=("${WS_NAME}-wt-${name}")
+      known_projects+=("${PREFIX}${name}")
     fi
   done < <(find "$WS_ROOT/_worktrees" -mindepth 1 -maxdepth 1 -type d 2>/dev/null)
 fi

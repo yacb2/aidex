@@ -274,7 +274,7 @@ fi
 SWEEP="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/orphan-sweep.sh"
 
 if $SKIP_TEARDOWN; then
-  warn "--skip-teardown: leaving Docker resources for $(basename "$ROOT")-wt-$SLUG untouched"
+  warn "--skip-teardown: leaving Docker resources for $(compose_project_name "$(basename "$ROOT")")-wt-$SLUG untouched"
 else
   # Pre-flight: what, exactly, belongs to THIS worktree? Exit 1 means "resources
   # exist" — the enumeration itself is the guard the user reads before anything
@@ -306,7 +306,7 @@ else
     fi
 
     if [[ -z "$WT_DOWN" ]]; then
-      err "Docker resources exist for $(basename "$ROOT")-wt-$SLUG but the project records no 'worktree_down'."
+      err "Docker resources exist for $(compose_project_name "$(basename "$ROOT")")-wt-$SLUG but the project records no 'worktree_down'."
       err "Refusing to invent a teardown. Either:"
       err "  - record worktree_down in $DOC (see /aidex:worktree bootstrap, Axis 4), or"
       err "  - reclaim the resources with the commands listed above, then re-run with --skip-teardown"

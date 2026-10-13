@@ -42,6 +42,8 @@ recipe. Prose is what let 15 projects each implement isolation differently.
    container_name: <name>${WT_SUFFIX:-}
    ports: ["${SOME_PORT:-<dev-default>}:<container-port>"]
    ```
+   `<main-project>` is the main directory name as Compose normalises it (lowercase,
+   only `a-z0-9_-`: `My.App` becomes `myapp`); `COMPOSE_PROJECT_NAME` carries that form.
    Services meant to run the SAME environment must share ONE explicit tag — a
    shared `build:` block is not enough, compose derives a per-service name from
    it. A service pinning the main project's image by name is the specific defect

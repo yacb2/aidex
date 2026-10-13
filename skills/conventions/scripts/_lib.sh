@@ -226,6 +226,15 @@ is_valid_slug() {
   [[ "$1" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]
 }
 
+# The directory name as a Compose project-name prefix: Compose accepts only
+# lowercase alphanumerics, hyphens and underscores, starting with an alphanumeric
+# (it rejects `MyApp-wt-x`). Every script that names or looks for a worktree's
+# compose project must come through here, or it scans a name nothing carries.
+compose_project_name() {
+  local p; p="$(printf '%s' "$1" | tr 'A-Z' 'a-z' | tr -cd 'a-z0-9_-')"
+  printf '%s' "${p#"${p%%[!_-]*}"}"
+}
+
 # Make a kebab-case slug from arbitrary text: lowercase, non-alnum -> hyphen,
 # collapse repeats, trim leading/trailing hyphens. Empty input -> empty output.
 slugify() {

@@ -147,6 +147,56 @@ else
   fail "docker-absent should exit 0, got $code"
 fi
 
+echo "== a normalised compose project name (worktree-c06) =="
+# A workspace directory `My.App` gets compose projects `myapp-wt-<slug>`; the sweep
+# used to look for `My.App-wt-` and saw nothing, so a live stack read as absent.
+NROOT="$TMP/My.App"; mkdir -p "$NROOT/.context" "$TMP/My.App-wt-cn" "$NROOT/_worktrees/My.App-wt-cx"
+git init -q "$NROOT"
+git -C "$NROOT" -c user.email=t@t.t -c user.name=t commit -q --allow-empty -m init
+mkdir -p "$TMP/nbin"
+cat > "$TMP/nbin/docker" <<'SHIM'
+#!/usr/bin/env bash
+case "$1" in
+  info) exit 0 ;;
+  ps) printf '%s\n' "myapp-wt-cn" "myapp-wt-dead" "myapp-wt-cx" ;;
+  *) exit 0 ;;
+esac
+SHIM
+chmod +x "$TMP/nbin/docker"
+out="$( cd "$NROOT" && PATH="$TMP/nbin:$PATH" bash "$SCRIPT" )"
+printf '%s' "$out" | grep >/dev/null 'ORPHAN compose project: myapp-wt-dead' \
+  && pass "an orphan under a normalised name is reported" \
+  || fail "the normalised-name orphan was not seen: $out"
+printf '%s' "$out" | grep >/dev/null 'ORPHAN compose project: myapp-wt-cn' \
+  && fail "a live My.App-wt-cn worktree made its own myapp-wt-cn stack look orphaned: $out" \
+  || pass "the live worktree's stack is not an orphan"
+# A live `_worktrees/My.App-wt-cx` is the same stack under the normalised name.
+printf '%s' "$out" | grep >/dev/null 'ORPHAN compose project: myapp-wt-cx' \
+  && fail "a live _worktrees/My.App-wt-cx made its own myapp-wt-cx stack look orphaned: $out" \
+  || pass "a live _worktrees/<ws>-wt-<slug> stack is not an orphan"
+# A glob character in the workspace name is literal, not a pattern (p[1] vs p1).
+GROOT="$TMP/p[1]"; mkdir -p "$GROOT/.context" "$TMP/p[1]-wt-cn"
+git init -q "$GROOT"
+git -C "$GROOT" -c user.email=t@t.t -c user.name=t commit -q --allow-empty -m init
+mkdir -p "$TMP/gbin"
+cat > "$TMP/gbin/docker" <<'SHIM'
+#!/usr/bin/env bash
+case "$1" in
+  info) exit 0 ;;
+  ps) printf '%s\n' "p1-wt-cn" ;;
+  *) exit 0 ;;
+esac
+SHIM
+chmod +x "$TMP/gbin/docker"
+out="$( cd "$GROOT" && PATH="$TMP/gbin:$PATH" bash "$SCRIPT" )"
+printf '%s' "$out" | grep >/dev/null 'ORPHAN compose project: p1-wt-cn' \
+  && fail "p[1]: a live p[1]-wt-cn worktree made the p1-wt-cn stack look orphaned: $out" \
+  || pass "a glob character in the workspace name is literal"
+out="$( cd "$NROOT" && PATH="$TMP/nbin:$PATH" bash "$SCRIPT" --slug cn )"; code=$?
+{ [[ "$code" -eq 1 ]] && printf '%s' "$out" | grep >/dev/null 'RESOURCE compose project: myapp-wt-cn'; } \
+  && pass "--slug cn sees the myapp-wt-cn stack" \
+  || fail "--slug cn missed the myapp-wt-cn stack (exit $code): $out"
+
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
 [[ "$FAIL" -eq 0 ]]

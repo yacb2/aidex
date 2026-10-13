@@ -191,7 +191,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 DEST_FOR() { printf '%s/../%s-wt-%s\n' "$ROOT" "$PROJECT" "$1"; }
-PROJ_FOR() { printf '%s-wt-%s\n' "$PROJECT" "$1"; }
+# The compose project name, normalised the way Compose requires
+# (compose_project_name, _lib.sh). Only this name: DEST_FOR and the slot dir keep
+# the raw directory name.
+PROJ_FOR() { printf '%s-wt-%s\n' "$(compose_project_name "$PROJECT")" "$1"; }
 
 # Defined above `list`, which reads it for the PORT-HELD row (BL-376).
 port_env() {
@@ -262,13 +265,32 @@ slot_taken() { [[ -e "$1/slot-$2" || -L "$1/slot-$2" ]]; }
 # take a plain `9>&-`. The reaper's `docker ps` is also bounded (with_timeout).
 # AIDEX_WT_LOCK_WAIT (seconds, default 30) exists ONLY so the regression tests can
 # assert "a live holder is waited for" in a second. Never set in normal use.
-# with_timeout <seconds> <cmd...>: run cmd as a child; at the deadline TERM it
-# and exit 142 (what an alarm-killed process returns). `alarm; exec cmd` only
-# sent SIGALRM to cmd, and the docker CLI (a Go binary) ignores SIGALRM: a
-# wedged daemon kept `docker` running long past its deadline.
+# with_timeout <seconds> <cmd...>: run cmd as a child (in its own process group);
+# at the deadline TERM the group, then KILL it after a 2 s grace, and exit 142
+# (what an alarm-killed process returns). `alarm; exec cmd` only sent SIGALRM to
+# cmd, and the docker CLI (a Go binary) ignores SIGALRM: a wedged daemon kept
+# `docker` running long past its deadline. TERM alone is not enough either: the
+# compose plugin ignores it, and it is a child of the CLI, hence the group. The
+# KILL goes out even when the direct child died of the TERM: a TERM-ignoring
+# grandchild would otherwise keep a `$( )` pipe open. INT/TERM/HUP/QUIT sent to the
+# wrapper are forwarded as the SAME signal to the group (no TERM is sent for an
+# INT), then a 2 s grace (armed by the first signal only), then KILL; the signal is
+# then re-raised on the wrapper with
+# its default disposition, as coreutils `timeout` does: Ctrl-C ends the calling
+# script (130) instead of being swallowed as "the command failed", and an outer
+# TERM does not leave a `compose down -v` running detached.
 with_timeout() {
-  perl -e '$t=shift; $p=fork; exec @ARGV or exit 127 if !$p; $SIG{ALRM}=sub{kill "TERM",$p; waitpid $p,0; exit 142};
-    alarm $t; waitpid $p,0; exit($?&127 ? 128+($?&127) : $?>>8)' "$@"
+  perl -e '$t=shift; $p=fork; if(!$p){ setpgrp(0,0); exec @ARGV or exit 127 }
+    setpgrp($p,$p);
+    for $s (qw(INT TERM HUP QUIT)){ $SIG{$s}=sub{ alarm 2 unless $got; $got=$_[0]; kill $got,-$p } }
+    $SIG{ALRM}=sub{ die "timeout\n" };
+    sub reap { $r=-1; until($r==$p || $@){ $r=eval{ waitpid $p,0 }; last if $r<0 && !$!{EINTR} } }
+    alarm $t; reap(); alarm 0;
+    if($@ && !$got){ kill "TERM",-$p; alarm 2; $@=""; reap(); alarm 0; $to=1 }
+    if($@ || $got || $to){ kill "KILL",-$p; waitpid $p,0 }
+    if($got){ $SIG{$got}="DEFAULT"; kill $got,$$; exit 1 }
+    exit 142 if $to;
+    exit($?&127 ? 128+($?&127) : $?>>8)' "$@"
 }
 acquire_slot_lock() {  # acquire_slot_lock <slotdir>
   lock_take "$1/.flock" "${AIDEX_WT_LOCK_WAIT:-30}" || exit 2
@@ -335,7 +357,7 @@ if [[ "$cmd" == "list" ]]; then
   for d in "$ROOT"/../"$PROJECT"-wt-*; do
     [[ -d "$d" ]] || continue
     hdr; found=1
-    sg="$(basename "$d")"; sg="${sg#${PROJECT}-wt-}"
+    sg="$(basename "$d")"; sg="${sg#"${PROJECT}-wt-"}"
 
     # A directory is not a worktree. A dev server that outlived the teardown
     # rewrote frontend/.vite/deps/ and so recreated the tree it had been started
@@ -361,7 +383,8 @@ if [[ "$cmd" == "list" ]]; then
     registered=false
     for pp in $WT_PARTICIPANTS; do
       git -C "$ROOT/$pp" worktree list --porcelain 2>/dev/null \
-        | grep >/dev/null "^worktree $dr/" && { registered=true; break; }
+        | D="$dr" awk '$0 == "worktree " ENVIRON["D"] || index($0, "worktree " ENVIRON["D"] "/") == 1 { f = 1 } END { exit !f }' \
+        && { registered=true; break; }
     done
     if ! $registered && ! CLAIMED_SLOT "$sg" >/dev/null; then
       if $PORCELAIN; then printf '%s\t-\t-\t-\tno\tSTRAY-DIR:%s\n' "$sg" "$d"
@@ -369,8 +392,16 @@ if [[ "$cmd" == "list" ]]; then
       continue
     fi
 
-    slot="$(cat "$d/.wt-slot" 2>/dev/null || CLAIMED_SLOT "$sg" || echo '-')"
-    br="$(git -C "$d/$(echo "$WT_PARTICIPANTS" | awk '{print $1}')" branch --show-current 2>/dev/null || echo '-')"
+    # An empty field would collapse under a consumer's `IFS=$'\t' read`, shifting
+    # every column after it: `cat` of an empty .wt-slot succeeds (`new --no-infra`
+    # writes one) and a detached HEAD prints an empty branch, so each is checked
+    # for emptiness, not for failure. A nested participant's checkout is at
+    # $d/<basename>, not at $d/<its full path>.
+    slot="$(cat "$d/.wt-slot" 2>/dev/null)"
+    [[ -n "$slot" ]] || slot="$(CLAIMED_SLOT "$sg")"
+    [[ -n "$slot" ]] || slot='-'
+    br="$(git -C "$d/$(basename "$(echo "$WT_PARTICIPANTS" | awk '{print $1}')")" branch --show-current 2>/dev/null)"
+    [[ -n "$br" ]] || br='-'
     n_up="$(docker ps -q --filter "label=com.docker.compose.project=$(PROJ_FOR "$sg")" 2>/dev/null | wc -l | tr -d ' ')"
     stack="down"; [[ "${n_up:-0}" -gt 0 ]] && stack="up:$n_up"
     dirty=no; IS_DIRTY "$d" && dirty=YES
@@ -411,6 +442,12 @@ if [[ "$cmd" == "list" ]]; then
   exit 0
 fi
 
+# A deadline of 0 or text would mean "no deadline" (or an error inside perl); more
+# than 6 digits (~11 days) would overflow perl's alarm.
+for _k in AIDEX_DOCKER_TIMEOUT AIDEX_DOWN_TIMEOUT; do
+  [[ -z "${!_k:-}" || "${!_k}" =~ ^[1-9][0-9]{0,5}$ ]] \
+    || { err "$_k must be a positive integer (seconds, at most 6 digits), got '${!_k}'"; exit 2; }
+done
 [[ -n "$SLUG" ]] || die "a <slug> is required"
 is_valid_slug "$SLUG" || die "invalid slug: $SLUG (kebab-case, [a-z0-9-])"
 case "$SLUG" in "$PROJECT"|dev|prod|main) die "refusing dev/prod-like slug: $SLUG" ;; esac
@@ -1163,7 +1200,9 @@ if [[ "$cmd" == "down" ]]; then
   # The checks `new` and `up` make, before anything is torn down: a symlinked or
   # foreign slot dir is refused, never followed to take a lock or delete a claim
   # in its target. Only when one exists: a --no-infra tree has none to create.
-  if [[ -e "$(SLOTDIR_FOR)" || -L "$(SLOTDIR_FOR)" ]]; then ensure_slotdir >/dev/null || exit 2; fi
+  # With no slot recorded there is no claim to read or delete, so whatever sits at
+  # the slot path is not this teardown's business.
+  if [[ -n "$SLOT" ]] && [[ -e "$(SLOTDIR_FOR)" || -L "$(SLOTDIR_FOR)" ]]; then ensure_slotdir >/dev/null || exit 2; fi
   CLAIM_SEEN=""
   if [[ -n "$SLOT" && "$(awk '{print $2}' "$(SLOTDIR_FOR)/slot-$SLOT" 2>/dev/null)" == "$SLUG" ]]; then
     CLAIM_SEEN="$(cat "$(SLOTDIR_FOR)/slot-$SLOT" 2>/dev/null)"
@@ -1203,7 +1242,10 @@ if [[ "$cmd" == "down" ]]; then
   # What could not be verified reclaimed. Any entry withholds the claim and the
   # exit 0 below (worktree-c02): releasing over it left resources no claim tracks.
   unreclaimed=""
-  ( cd "$COMPOSE_DIR" && env "${envs[@]}" docker compose -p "$CPROJ" --profile '*' down -v --rmi local --remove-orphans ) \
+  # Bounded: a wedged daemon hung both calls here for good. A legitimate `down -v`
+  # can take minutes, hence its own, longer deadline.
+  ( cd "$COMPOSE_DIR" && with_timeout "${AIDEX_DOWN_TIMEOUT:-300}" \
+      env "${envs[@]}" docker compose -p "$CPROJ" --profile '*' down -v --rmi local --remove-orphans ) \
     || unreclaimed="compose down failed (exit $?)"
 
   # `--rmi local` cannot reach untagged layers this project built; nothing else
@@ -1212,7 +1254,7 @@ if [[ "$cmd" == "down" ]]; then
   # layers found here were orphaned by rebuilds *during* the worktree's life
   # (Playwright's global-setup `up -d --build`), and the generated test-e2e.sh
   # reclaims each one at the end of the run that orphaned it (BL-372/BL-377).
-  dangling="$(docker images -f dangling=true -f "label=com.docker.compose.project=$CPROJ" -q | tr '\n' ' ')"
+  dangling="$(with_timeout "${AIDEX_DOCKER_TIMEOUT:-30}" docker images -f dangling=true -f "label=com.docker.compose.project=$CPROJ" -q | tr '\n' ' ')"
   if [[ -n "${dangling// /}" ]]; then
     info "reclaiming untagged layers built by $CPROJ: $dangling"
     docker rmi $dangling >/dev/null 2>&1
