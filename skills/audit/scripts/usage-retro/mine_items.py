@@ -65,7 +65,7 @@ def configure(args):
     require_projects_root()
 
 FM = re.compile(r'^---\n(.*?)\n---', re.S)
-TOKEN = re.compile(r'\bBL-\d{3}\b|\b20\d\d-\d\d-\d\d-[a-z0-9][a-z0-9-]{2,70}\b')
+TOKEN = re.compile(r'\bBL-\d{3,}\b|\b20\d\d-\d\d-\d\d-[a-z0-9][a-z0-9-]{2,70}\b')
 
 REVERT = re.compile(r'git\s+(checkout\s+--|revert|reset\s+--hard|stash|restore)')
 # THE runner vocabulary for this package. mine_slow_tests.py imports it from here
@@ -212,9 +212,34 @@ def tx_dirs_for(proj):
     mine_slow_tests.project_of); this one was the odd copy out.
     """
     a = proj.replace("_", "-")
+    # A longer-named sibling that is a SEPARATE project (`.context`, and not a git
+    # worktree of this one) owns its own dirs: `dash-template-ws` is not a subdir
+    # session of `dash`. A worktree of the project IS the project.
+    def separate_project(sdir):
+        if not os.path.isdir(os.path.join(sdir, ".context")):
+            return False
+        # A wrapper worktree links the parent's `.context` and has no root `.git`.
+        if (os.path.realpath(os.path.join(sdir, ".context"))
+                == os.path.realpath(os.path.join(PROJ_ROOT, proj, ".context"))):
+            return False
+        try:
+            with open(os.path.join(sdir, ".git")) as fh:
+                link = fh.readline().strip()
+        except OSError:
+            return True
+        want = os.path.realpath(os.path.join(PROJ_ROOT, proj, ".git", "worktrees"))
+        return not (link.startswith("gitdir:")
+                    and os.path.realpath(os.path.join(sdir, link[len("gitdir:"):].strip())).startswith(want + os.sep))
+
+    siblings = [os.path.basename(sd.rstrip("/")).replace("_", "-")
+                for sd in glob.glob(PROJ_ROOT + "/*/")
+                if os.path.basename(sd.rstrip("/")).replace("_", "-").startswith(a + "-")
+                and separate_project(sd)]
     out = []
     for d in glob.glob(TX_ROOT + "/*/"):
         core = short_project_dir(os.path.basename(d.rstrip("/")))
+        if any(core == o or core.startswith(o + "-") for o in siblings):
+            continue
         if core == proj or core == a or core.startswith(proj + "-") or core.startswith(a + "-"):
             out.append(d)
     return out
@@ -686,7 +711,7 @@ def main():
     for proj, its in sorted(by_proj.items()):
         # slug -> item ; id -> item (ids are project-scoped)
         slug_map = {it["slug"]: it for it in its}
-        id_map = {it["id"]: it for it in its if re.match(r'^BL-\d{3}$', it["id"] or "")}
+        id_map = {it["id"]: it for it in its if re.match(r'^BL-\d{3,}$', it["id"] or "")}
         keys = set(slug_map) | set(id_map)
         if not keys:
             continue

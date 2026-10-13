@@ -372,5 +372,35 @@ rm -rf "$TXP"
 printf '%s\n' "$out_p" | grep '^TOTAL' | grep >/dev/null ' 0\.012040$' \
   || fail "(p) haiku-5-5 must be priced per request (high tier above 100k, exactly 100k low), TOTAL 0.012040: $out_p"
 
+# ---------------------------------------------------------------------------
+# (q) LOOP-013 w1-ur2 audit-c26: only an `advisor_message` iteration is an advisor.
+#     A `fallback_message` iteration (the request was retried on another model) is
+#     labelled by its own type, so fallback spend is not reported as advisor spend.
+#     Layer: script over a synthetic one-turn main transcript under mktemp.
+TXQ="$(mktemp -d)"; mkdir -p "$TXQ/-Users-user-Documents-projects-demo-ws"
+python3 - "$TXQ/-Users-user-Documents-projects-demo-ws/s1.jsonl" <<'PYQ'
+import json, sys
+def it(t, m):
+    return {"type": t, "model": m, "input_tokens": 100, "output_tokens": 10,
+            "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}
+with open(sys.argv[1], "w") as f:
+    f.write(json.dumps({"type": "assistant", "isSidechain": False, "timestamp": "2026-10-07T10:00:00.000Z",
+        "message": {"id": "q1", "role": "assistant", "model": "claude-sonnet-5-20260201",
+                    "content": [{"type": "text", "text": "."}],
+                    "usage": {"input_tokens": 100, "cache_creation_input_tokens": 0,
+                              "cache_read_input_tokens": 0, "output_tokens": 10,
+                              "iterations": [it("message", "claude-sonnet-5-20260201"),
+                                             it("advisor_message", "claude-opus-5-20260301"),
+                                             it("fallback_message", "claude-haiku-5-5")]}}}) + "\n")
+PYQ
+out_q="$(python3 "$RETRO/subagent_spend.py" --transcripts-root "$TXQ" 2>&1)"
+rm -rf "$TXQ"
+grep -qE '^main \(advisor\) claude-opus-5-20260301 ' <<<"$out_q" \
+  || fail "(q) the advisor_message iteration must stay the 'main (advisor)' row: $out_q"
+grep -qE '^main \(advisor\) claude-haiku-5-5 ' <<<"$out_q" \
+  && fail "(q) a fallback_message iteration must not be labelled advisor: $out_q"
+grep -qE '^main \(fallback_message\) claude-haiku-5-5 ' <<<"$out_q" \
+  || fail "(q) a fallback_message iteration must get its own label: $out_q"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — subagent_spend: <synthetic> excluded, split message.id counted once from the last line, dedupe per PROJECT with the launch replay credited to main, non-message iterations priced on their own model, flat cache-creation beats a stale dict, sidechain turns attributed, inherited label only where the meta named no model, broken meta warns without inheriting, partial USD marked, TOTAL equals the printed rows"

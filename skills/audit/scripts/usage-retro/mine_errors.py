@@ -14,7 +14,7 @@ Aidex-specific view: any error whose signature mentions an aidex script, skill o
 
 Usage:  mine_errors.py [--since ISO] [--days N] [--top N]
 """
-import json, os, glob, re, argparse, datetime
+import json, os, glob, re, argparse, datetime, sys
 from collections import Counter, defaultdict
 
 TX_ROOT = os.environ.get("CLAUDE_PROJECTS_ROOT") or os.path.expanduser("~/.claude/projects")
@@ -56,8 +56,8 @@ def parse_ts(s):
 
 
 def short_project(name):
-    return (name.replace("-Users-user-Documents-projects-", "")
-                .replace("-Users-user-", "~/"))
+    # Generic, not the author's home: any `-<home>-projects-` prefix is stripped.
+    return re.sub(r"^-.*-projects-", "", name) or name
 
 
 def normalize(txt):
@@ -85,6 +85,8 @@ def main():
 
     now = datetime.datetime.now(datetime.timezone.utc)
     cutoff = parse_ts(args.since) if args.since else now - datetime.timedelta(days=args.days)
+    if cutoff is None:
+        sys.exit(f"ERROR: --since {args.since!r} is not an ISO date or timestamp.")
 
     by_tool = Counter()
     by_sig = Counter()
@@ -105,7 +107,7 @@ def main():
             # map tool_use id -> tool name, then match tool_result by id
             names = {}
             try:
-                fh = open(f)
+                fh = open(f, errors="replace")
             except OSError:
                 continue
             with fh:
