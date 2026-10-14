@@ -1,4 +1,4 @@
-# Facets of the aidex suite — spec files for `usage-retro --facet`
+# Facets of the aidex suite — spec files for `usage-retro <facet>`
 
 A facet is one slice of the suite that `usage-retro` can analyse on its own (plan
 `usage-retro-facets`, consultation `2026-09-11-retro-por-aristas`). Each facet is one

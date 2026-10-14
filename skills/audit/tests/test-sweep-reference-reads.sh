@@ -41,7 +41,11 @@ sess("b", "aidex:alpha", "/x/skills/alpha/references/shared.md")
 sess("c", "other:alpha", "/x/skills/alpha/references/shared.md")
 PY
 
+# audit-c34: a transcript line that is not JSON is counted and reported, never dropped silently
+printf 'not json\n{"truncated":\n' >> "$W/tx/-Users-u-Documents-projects-p/b.jsonl"
+
 out="$(python3 "$SWEEP" --skills-dir "$W/skills" --projects-root "$W/tx" --min-fired 1 2>&1)"
+grep -qE '^2 unparseable' <<<"$out" || fail "(e) expected a count of 2 unparseable lines: $out"
 grep -qE '^alpha +shared\.md +2 +1 ' <<<"$out" \
   || fail "(a)(b)(c) expected alpha/shared.md fired 2, read 1 (own read only): $out"
 grep -qE '^beta ' <<<"$out" \
@@ -52,6 +56,14 @@ mkdir -p "$W/empty/-Users-u-Documents-projects-p"
 out_d="$(python3 "$SWEEP" --skills-dir "$W/skills" --projects-root "$W/empty" 2>&1)"; rc_d=$?
 [[ $rc_d -ne 0 ]] || fail "(d) no firings must exit non-zero, got rc=0: $out_d"
 grep -q 'NEVER read' <<<"$out_d" && fail "(d) no firings must not print a clean count: $out_d"
+
+#   (e2) a corpus of nothing but a bad line: the count still reaches stderr and --json
+mkdir -p "$W/bad/-Users-u-Documents-projects-p"
+printf 'not json\n' > "$W/bad/-Users-u-Documents-projects-p/x.jsonl"
+out_e="$(python3 "$SWEEP" --skills-dir "$W/skills" --projects-root "$W/bad" --json "$W/bad.json" 2>&1)"
+grep -qE '^1 unparseable' <<<"$out_e" || fail "(e2) expected '1 unparseable' before the no-firing exit: $out_e"
+[[ "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("skipped"))' "$W/bad.json" 2>&1)" == 1 ]] \
+  || fail "(e2) --json lacks skipped == 1"
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — sweep-reference-reads: aidex:<skill> firings counted, a read is credited only to the skill whose references/ folder it came from"

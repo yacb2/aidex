@@ -77,6 +77,7 @@ def main():
     fired_pairs = collections.Counter()          # (skill, ref) -> sessions fired
     how = collections.defaultdict(collections.Counter)
 
+    skipped = 0                                  # transcript lines that are not JSON
     for f in glob.glob(a.projects_root + "/*/*.jsonl"):
         try:
             lines = open(f, errors="replace").read().splitlines()
@@ -88,7 +89,8 @@ def main():
                 continue
             try:
                 o = json.loads(l)
-            except Exception:
+            except ValueError:
+                skipped += 1
                 continue
             if o.get("type") != "assistant":
                 continue
@@ -121,6 +123,9 @@ def main():
                         how[(sk, ref)][t] += 1
 
     if not fired_pairs:
+        print(f"{skipped} unparseable transcript line(s) skipped", file=sys.stderr)
+        if a.json:
+            json.dump(dict(rows=[], skills_fired={}, skipped=skipped), open(a.json, "w"), indent=2)
         sys.exit(f"ERROR: no session under {a.projects_root} fired a skill that cites a "
                  f"reference (skills read from {a.skills_dir}); not a clean result.")
 
@@ -141,10 +146,11 @@ def main():
     never = [r for r in rows if r["read"] == 0]
     print(f"\n{len(rows)} (skill, reference) pairs with >= {a.min_fired} firings")
     print(f"{len(never)} were NEVER read in any session where the citing skill fired")
+    print(f"{skipped} unparseable transcript line(s) skipped")
     print("\nBash hits include greps done while working ON a file. Rates are upper bounds.")
 
     if a.json:
-        json.dump(dict(rows=rows, skills_fired=dict(fired_count)),
+        json.dump(dict(rows=rows, skills_fired=dict(fired_count), skipped=skipped),
                   open(a.json, "w"), indent=2)
         print(f"\nwrote {a.json}")
 

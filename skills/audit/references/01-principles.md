@@ -105,7 +105,7 @@ in the chain is queryable: "what is escalated but not yet planned?" is a row wit
 **Practical:** each transition adds a marker back to the finding, in the `<type>/<filename>`
 form (D-03) — never a relative markdown link. The inventory row accumulates them:
 
-- `Escalated To: backlog/2026-04-12-export-csv.md` after `/aidex:audit escalate`
+- `Escalated To: backlog/2026-04-12-export-csv` after `/aidex:audit escalate`
 - `Escalated To: plan/2026-04-15-export.md` once planning starts
 - the closing commit SHA in `Notes`, per the board's own header table
 

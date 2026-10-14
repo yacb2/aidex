@@ -105,7 +105,7 @@ def scan(since=None):
                 continue
             try:
                 o = json.loads(l)
-            except Exception:
+            except ValueError:
                 continue
             if is_real_user(o):
                 saw_user = True
@@ -126,7 +126,12 @@ def scan(since=None):
                 elif name == "Artifact":
                     mark("artifacts-local-first")
                 elif name == "Skill":
-                    if (inp.get("skill") or "") in RUN_SKILLS:
+                    # aidex fires as `aidex:<name>`; another plugin's `x:<name>` is a
+                    # different skill.
+                    sk = inp.get("skill") or ""
+                    if sk.startswith("aidex:"):
+                        sk = sk[len("aidex:"):]
+                    if sk in RUN_SKILLS:
                         mark("autonomy")
                 elif name == "Bash":
                     cmd = str(inp.get("command", ""))

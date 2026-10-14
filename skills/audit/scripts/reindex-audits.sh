@@ -124,6 +124,16 @@ run_counts() {
   local slug="$1" inv="$2"
   [[ -n "$inv" ]] || { printf '?\t?'; return 0; }
   awk -F'|' -v run="$slug" '
+    # Whole comma-separated tokens, never a substring: a slug that is the prefix of
+    # another run must not claim that run'"'"'s findings.
+    function has_run(cell, want,   parts, k, n, t) {
+      n = split(cell, parts, ",")
+      for (k = 1; k <= n; k++) {
+        t = parts[k]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", t)
+        if (t == want) return 1
+      }
+      return 0
+    }
     BEGIN { in_comment=0; open=0; total=0;
             resolved=" closed done escalated fixed dropped wontfix " }
     {
@@ -131,6 +141,8 @@ run_counts() {
       if (index(line,"<!--")>0) in_comment=1
       if (in_comment) { if (index(line,"-->")>0) in_comment=0; next }
       if (line !~ /^\|/) next
+      # A cell quoting a pipe (\|) is one cell: hide the escape before the width test.
+      gsub(/\\[|]/, "\037")
       # Audit Runs is column 7 of 9 (NF==11) since BL-057, column 9 of 11 (NF==13)
       # on older boards. Reading $10 on a 9-column board reads Escalated To, so every
       # run count silently comes out zero.
@@ -139,7 +151,7 @@ run_counts() {
       gsub(/^[[:space:]]+|[[:space:]]+$/,"",status)
       if (id=="" || id=="ID" || id=="—") next
       if (status !~ /open|doing|triaged|escalated|in-progress|closed|dropped|fixed|wontfix|done/) next
-      if (index(runs, run)==0) next
+      if (!has_run(runs, run)) next
       total++
       if (index(resolved, " " status " ")==0) open++
     }
