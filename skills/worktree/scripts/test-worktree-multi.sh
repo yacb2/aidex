@@ -130,6 +130,20 @@ bash "$SCRIPT" remove --slug feat-t --dest "$DEST_T" >/dev/null 2>&1 || fail "re
 grep -q '^torn:feat-t$' "$TMP/teardown.log" 2>/dev/null || fail "remove: teardown ran without the <slug> substituted (got: $(cat "$TMP/teardown.log" 2>/dev/null))"
 [[ ! -e "$DEST_T" ]] || fail "remove: dest still exists after a successful teardown"
 
+# --- a single-quoted worktree_down (valid YAML) is unwrapped like a double-quoted one ---
+# check-overview.sh strips either quote, so it passes such a doc; the consumer kept the
+# single quotes and eval ran ONE word, "'_scripts/down.sh <slug>'", which is no command.
+rm -f "$TMP/torn" "$TMP/teardown.log"
+DEST_Q="$TMP/ws-wt-feat-t"
+bash "$SCRIPT" create --slug feat-t --branch feat/t --repo backend --dest "$DEST_Q" >/dev/null 2>&1
+printf -- "---\ntitle: \"t\"\nworktree_up: \"\"\nworktree_down: '_scripts/down.sh <slug>'\n---\n## Procedure\n## Usage log\n" \
+  > "$WS/.context/worktrees/00-index.md"
+bash "$SCRIPT" remove --slug feat-t --dest "$DEST_Q" >/dev/null 2>&1 \
+  || fail "remove: a single-quoted worktree_down must run, not die as 'command not found'"
+grep -q '^torn:feat-t$' "$TMP/teardown.log" 2>/dev/null \
+  || fail "remove: single-quoted worktree_down never executed the recorded teardown"
+rm -rf "$DEST_Q"; git -C "$WS/backend" worktree prune; git -C "$WS/backend" branch -D feat/t >/dev/null 2>&1
+
 # --- --skip-teardown removes the dir without touching Docker ---
 rm -f "$TMP/torn" "$TMP/teardown.log"
 DEST_S="$TMP/ws-wt-feat-s"

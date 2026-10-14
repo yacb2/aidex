@@ -66,6 +66,7 @@ set -euo pipefail
 
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../conventions/scripts" && pwd -P)/_lib.sh"
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/wt-env-marker.sh"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/wt-frontmatter.sh"
 
 usage() {
   # Print the whole leading comment block, whatever its length — a hardcoded
@@ -348,14 +349,9 @@ else
     DOC="$ROOT/.context/worktrees/00-index.md"
     WT_DOWN=""
     if [[ -f "$DOC" ]]; then
-      # awk, not a sed RANGE: `/^---$/,/^---$/` re-opens on every later pair of
-      # `---`, so a `worktree_down:` line anywhere below the front matter was
-      # picked up -- and this value is EVAL'd as the teardown recipe. Bounded to
-      # the leading block, and a document that does not open with one yields
-      # nothing at all.
-      WT_DOWN="$(awk 'NR==1{if($0!="---")exit;next} $0=="---"{exit} {print}' "$DOC" \
-                 | sed -n 's/^worktree_down: *//p' | sed -n 1p)"
-      WT_DOWN="${WT_DOWN%\"}"; WT_DOWN="${WT_DOWN#\"}"
+      # The leading front-matter block only (wt_fm_block): this value is EVAL'd as the
+      # teardown recipe, and a `worktree_down:` below the front matter must not be it.
+      WT_DOWN="$(wt_fm_unquote "$(wt_fm_block "$DOC" | sed -n 's/^worktree_down: *//p' | sed -n 1p)")"
     fi
 
     if [[ -z "$WT_DOWN" ]]; then

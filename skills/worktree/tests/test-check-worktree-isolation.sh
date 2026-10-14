@@ -67,6 +67,7 @@ case "$1" in
       printf '{"services":{"api":{"image":"x","container_name":"cn","ports":["${P:-8000}:8000"]}}}'
     else
       sfx="${MY_SFX:-}${WT_SUFFIX:-}"; [[ -n "${FAKE_ONLY_MYSFX:-}" ]] && sfx="${MY_SFX:-}"
+      [[ -n "${FAKE_FIXED_NAME:-}" ]] && sfx=""
       printf '{"services":{"api":{"image":"x","container_name":"cn%s","ports":["8000:8000"]}}}' "$sfx"
     fi ;;
 esac
@@ -115,6 +116,14 @@ p="$(mk_compose_project mysuffix 'WT_SUFFIX_VAR="MY_SFX"')"
 out="$(PATH="$TMP/bin:$PATH" FAKE_ONLY_MYSFX=1 bash "$CHECK" "$p" 2>&1)"; rc=$?
 [[ "$rc" -eq 0 ]] || fail "mysuffix: a container_name that varies with WT_SUFFIX_VAR is not a finding, got: $out"
 grep -q 'container_name' <<<"$out" && fail "mysuffix: false container_name blocker, got: $out"
+
+# 3b'. ...and it must be the variable the check VARIES: a container_name that ignores
+# WT_SUFFIX_VAR is a finding only when the check was told the variable's name (the
+# container_name rule is skipped without one), so this fails if the name is not read.
+p="$(mk_compose_project fixedname 'WT_SUFFIX_VAR="MY_SFX"')"
+out="$(PATH="$TMP/bin:$PATH" FAKE_FIXED_NAME=1 bash "$CHECK" "$p" 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "fixedname: a container_name that does not vary with WT_SUFFIX_VAR must fail, got: $out"
+grep -q 'container_name' <<<"$out" || fail "fixedname: must report the container_name finding, got: $out"
 
 # 3c. A failed --no-interpolate render must not silently switch the literal-port
 # finding off.

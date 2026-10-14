@@ -53,5 +53,18 @@ out="$(STUB_UP=1 snap diff "$TMP/empty.snap")"; rc=$?
 out="$(STUB_UP=0 snap diff "$TMP/up.snap")"; rc=$?
 [[ $rc -eq 2 ]] || fail "up at take, down at diff must exit 2 (got $rc): $out"
 
+# worktree-s30: a wedged daemon accepts the socket and never answers `docker info`.
+# The sibling probes are bounded by AIDEX_DOCKER_TIMEOUT; this one hung `take` forever.
+# It must come back as "daemon unavailable" (placeholder snapshot) within the deadline.
+# The stub sleeps 10 s and dies on its own; the 2 s deadline must beat it, so the
+# elapsed ceiling (6 s: deadline + the 2 s kill grace) sits below the stub's sleep.
+mkdir -p "$TMP/wedged"
+printf '#!/bin/sh\n[ "$1" = info ] && sleep 10\nexit 0\n' > "$TMP/wedged/docker"; chmod +x "$TMP/wedged/docker"
+t0=$SECONDS
+PATH="$TMP/wedged:$PATH" AIDEX_DOCKER_TIMEOUT=2 bash "$SNAP" take "$TMP/wedged.snap" >/dev/null 2>&1
+[[ $((SECONDS - t0)) -lt 6 ]] || fail "take: a wedged 'docker info' took $((SECONDS - t0)) s (deadline 2 s)"
+grep -q '^# docker unavailable' "$TMP/wedged.snap" 2>/dev/null \
+  || fail "take: a timed-out 'docker info' must leave the unavailable placeholder, got: $(cat "$TMP/wedged.snap" 2>/dev/null)"
+
 if [[ $failures -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — docker-snapshot: unreachable daemon is not clean, a retag is not residue"

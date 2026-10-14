@@ -34,7 +34,8 @@ set -uo pipefail
 cmd="${1:-}"; shift || true
 case "$cmd" in take|diff) ;; *) die "usage: docker-snapshot.sh {take <file>|diff <before> [after]}" ;; esac
 
-docker_ok() { command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; }
+# A wedged daemon accepts the socket and never answers: bounded like the sibling probes.
+docker_ok() { command -v docker >/dev/null 2>&1 && with_timeout "${AIDEX_DOCKER_TIMEOUT:-30}" docker info >/dev/null 2>&1; }
 
 # owner ID KIND — the compose project a resource belongs to, or "-".
 owner() {

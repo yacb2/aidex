@@ -29,6 +29,7 @@ set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 . "$(cd "$SELF_DIR/../../conventions/scripts" && pwd -P)/_lib.sh"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/wt-config.sh"
 
 CENSUS=false
 TARGET=""
@@ -55,7 +56,7 @@ run_all_for() {  # run_all_for <project-root> -> 0 clean, 1 findings
   local cf cfg="$root/.context/worktrees/config.env" suffix_args=()
   # The project's own suffix variable, when its config names one.
   if [[ -f "$cfg" ]] && grep -qE '^[[:space:]]*WT_SUFFIX_VAR=' "$cfg"; then
-    suffix_args=(--suffix-var "$(sed -n 's/^[[:space:]]*WT_SUFFIX_VAR=["'"'"']\{0,1\}\([^"'"'"']*\).*/\1/p' "$cfg" | sed -n 1p)")
+    suffix_args=(--suffix-var "$(wt_cfg_field "$cfg" WT_SUFFIX_VAR)")
   fi
   for cf in docker-compose.yml docker-compose.yaml compose.yml compose.yaml; do
     if [[ -f "$root/$cf" ]]; then

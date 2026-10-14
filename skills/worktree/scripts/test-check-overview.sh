@@ -173,6 +173,42 @@ bash "$SCRIPT" "$DOC" >/dev/null 2>&1 && fail "Procedure naming a nonexistent sc
 write_doc 's|historical entry, kept verbatim.|torn down with _scripts/worktree-down.sh alpha.|'
 bash "$SCRIPT" "$DOC" >/dev/null 2>&1 || fail "a usage-log entry naming a removed script is history and must pass"
 
+# --- script resolution: front matter and Procedure resolve a script the same way ---
+# Both name a script relative to the project, or by bare basename to the shipped
+# skill; a missing one is a gap at each site, with each site's own message.
+mkdir -p "$TMP/proj/_scripts"; : > "$TMP/proj/_scripts/up.sh"
+write_doc 's|^worktree_up: .*|worktree_up: "_scripts/up.sh <slug>"|'
+bash "$SCRIPT" "$DOC" >/dev/null 2>&1 || fail "front matter naming a project-relative script that exists: should pass"
+write_doc 's|^worktree_up: .*|worktree_up: "_scripts/gone.sh <slug>"|'
+out="$(bash "$SCRIPT" "$DOC" 2>&1)" && fail "front matter naming a missing project-relative script: should fail"
+grep -q "front-matter: 'worktree_up' names a script that does not exist: _scripts/gone.sh" <<<"$out" \
+  || fail "front matter naming a missing script: failed for some other reason -- $out"
+write_doc 's|worktree.sh new <slug> --branch <b>|_scripts/up.sh <slug>|'
+bash "$SCRIPT" "$DOC" >/dev/null 2>&1 || fail "Procedure naming a project-relative script that exists: should pass"
+write_doc 's|worktree.sh new <slug> --branch <b>|_scripts/gone.sh <slug>|'
+out="$(bash "$SCRIPT" "$DOC" 2>&1)" && fail "Procedure naming a missing project-relative script: should fail"
+grep -q "## Procedure names a script that does not exist: _scripts/gone.sh" <<<"$out" \
+  || fail "Procedure naming a missing script: failed for some other reason -- $out"
+
+# --- worktree_down quoting: either YAML quote wraps the value (the consumer unwraps both) ---
+write_doc "s|^worktree_down: .*|worktree_down: 'worktree.sh down <slug>'|"
+bash "$SCRIPT" "$DOC" >/dev/null 2>&1 || fail "single-quoted worktree_down: should pass"
+write_doc "s|^worktree_down: .*|worktree_down: ''|"
+out="$(bash "$SCRIPT" "$DOC" 2>&1)" && fail "empty single-quoted worktree_down: should fail"
+grep -q "'worktree_down' is empty" <<<"$out" || fail "empty single-quoted worktree_down: failed for some other reason -- $out"
+
+# --- an unbalanced quote is not a value: the consumer's eval would die on it ---
+write_doc "s|^worktree_down: .*|worktree_down: \"worktree.sh down <slug>|"
+out="$(bash "$SCRIPT" "$DOC" 2>&1)" && fail "worktree_down with an opening quote only: should fail"
+grep -q "'worktree_down' has an unbalanced quote" <<<"$out" || fail "unclosed worktree_down quote: failed for some other reason -- $out"
+write_doc "s|^worktree_down: .*|worktree_down: \"|"
+out="$(bash "$SCRIPT" "$DOC" 2>&1)" && fail "worktree_down of a lone quote: should fail"
+grep -q "'worktree_down' is empty" <<<"$out" || fail "lone-quote worktree_down: failed for some other reason -- $out"
+# A value that opens with a quoted word and goes on unquoted is valid shell, not unbalanced.
+write_doc "s|^worktree_down: .*|worktree_down: \"worktree.sh\" down <slug> --branch <branch>|"
+out="$(bash "$SCRIPT" "$DOC" 2>&1)"
+grep -q "unbalanced" <<<"$out" && fail "quoted first word then args: wrongly reported unbalanced -- $out"
+
 # --- dangling backlog ref fails ---
 write_doc 's|backlog/2026-07-01-active-item.md|backlog/2026-01-01-does-not-exist.md|'
 bash "$SCRIPT" "$DOC" >/dev/null 2>&1 && fail "dangling backlog ref: should fail"
