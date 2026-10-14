@@ -24,6 +24,7 @@
 # value is validated the way register-item.sh validates it, and `updated` is stamped.
 set -euo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../conventions/scripts" && pwd -P)/_lib.sh"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/_backlog-lib.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
 TARGET="" ESTIMATE="" SURFACE="" VERIFY="" TOUCHES="" DEPENDS="" NO_INDEX=0
@@ -63,7 +64,6 @@ fi
 
 ROOT="$(find_project_root)"
 BACKLOG_DIR="$ROOT/.context/backlog"
-read_id() { awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2; exit}' "$1"; }
 FILE=""
 if [[ "$TARGET" =~ ^[Bb][Ll]-[0-9]+$ ]]; then
   T="$(echo "$TARGET" | tr '[:lower:]' '[:upper:]')"
@@ -73,17 +73,16 @@ elif [[ -f "$TARGET" ]]; then FILE="$TARGET"
 elif [[ -f "$BACKLOG_DIR/$TARGET" ]]; then FILE="$BACKLOG_DIR/$TARGET"
 else die "cannot resolve target: $TARGET"; fi
 
-esc() { printf '%s' "$1" | tr '\n\r\t' '   ' | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'; }
 TODAY="$(date +%Y-%m-%d)"
 # One awk pass: rewrite a key where present, insert the absent ones before the closing
 # `---` (the insert-if-missing idiom close-item.sh and stamp_escalated_to already use —
 # a rewrite-only branch is a silent no-op on an item that predates the field).
 # Escaped values go through ENVIRON, never `-v`: awk -v re-reads backslash escapes and
-# undid esc(), so `"` and `\` landed raw in the double-quoted scalar.
+# undid yaml_escape(), so `"` and `\` landed raw in the double-quoted scalar.
 # A private temp next to the item, carrying its mode (cp -p), renamed over it: a shared
 # `$FILE.tmp` let one writer truncate the file another was about to move into place.
 TMPF="$(mktemp "$(dirname "$FILE")/.$(basename "$FILE").XXXXXX")" && cp -p "$FILE" "$TMPF" || { rm -f "$TMPF"; die "could not rewrite $FILE"; }
-DI_VER="$(esc "$VERIFY")" DI_TOU="$(esc "$TOUCHES")" DI_DEP="$(esc "$DEPENDS")" \
+DI_VER="$(yaml_escape "$VERIFY")" DI_TOU="$(yaml_escape "$TOUCHES")" DI_DEP="$(yaml_escape "$DEPENDS")" \
 awk -v today="$TODAY" \
     -v est="$ESTIMATE" -v sur="$SURFACE" \
     -v setver="$SET_VERIFY" -v settou="$SET_TOUCHES" -v setdep="$SET_DEPENDS" '

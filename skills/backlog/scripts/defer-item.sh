@@ -22,6 +22,7 @@ set -euo pipefail
 # while _lib.sh consumers wrote to the main tree. Pinned by
 # conventions/scripts/test-find-project-root.sh (no private copies).
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../conventions/scripts" && pwd -P)/_lib.sh"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/_backlog-lib.sh"
 
 # --- dispatcher: strip leading "backlog" if present ---
 [[ "${1:-}" == "backlog" ]] && shift
@@ -51,7 +52,6 @@ BACKLOG_DIR="$ROOT/.context/backlog"
 DEFERRED_DIR="$BACKLOG_DIR/_deferred"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-read_id() { awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2; exit}' "$1"; }
 
 # --- resolve target to a file within the expected source directory ---
 resolve_in() {
@@ -84,9 +84,8 @@ resolve_in() {
   printf '%s\n' "$file"
 }
 
-# YAML double-quoted scalar body; passed to awk through ENVIRON, never `-v` (awk -v
+# The reason is yaml_escape'd (_backlog-lib.sh) and passed to awk through ENVIRON, never `-v` (awk -v
 # re-reads backslash escapes, so `C:\new` became a newline inside the front matter).
-esc() { printf '%s' "$1" | tr '\n\r\t' '   ' | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'; }
 
 # Rewrite item $1 with awk (remaining args) through a private temp next to it that
 # carries its mode (cp -p), renamed over it: a shared `$FILE.tmp` let one writer
@@ -109,7 +108,7 @@ if [[ "$ACTION" == "defer" ]]; then
 
   # set/append blocked_by + stamp updated; status → open (a `doing` item deferred
   # mid-sweep is not being worked any more — it kept `doing` on 2026-08-28)
-  DI_REASON="$(esc "$REASON")" rewrite "$FILE" -v today="$TODAY" '
+  DI_REASON="$(yaml_escape "$REASON")" rewrite "$FILE" -v today="$TODAY" '
     BEGIN { d=0; infm=0; seen_blocked=0; reason=ENVIRON["DI_REASON"] }
     d==1 && /^status:[[:space:]]*"?doing"?[[:space:]]*$/ { print "status: open"; next }
     /^---[[:space:]]*$/ {

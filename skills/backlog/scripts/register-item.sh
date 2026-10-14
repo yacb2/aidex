@@ -61,19 +61,7 @@ set -euo pipefail
 # while _lib.sh consumers wrote to the main tree. Pinned by
 # conventions/scripts/test-find-project-root.sh (no private copies).
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../conventions/scripts" && pwd -P)/_lib.sh"
-
-# Escape a value for a double-quoted YAML scalar.
-#
-# Without this, `--title` and `--blocked-by` land raw inside `key: "$VALUE"`. A title
-# containing a newline followed by `---` terminates the front-matter early: every key
-# after it (id included) becomes body prose, the id reader returns empty, and the id is
-# re-minted for the next item. A double quote closes the scalar and lets a second key be
-# injected, which a last-write-wins parser honours. Found 2026-08-10 by review.
-yaml_escape() {
-  printf '%s' "$1" \
-    | tr '\n\r\t' '   ' \
-    | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
-}
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/_backlog-lib.sh"
 
 # Convert a title to a kebab-case slug (3–6 meaningful words). The newline strip is
 # load-bearing: sed is line-oriented, so without it a multi-line title produced a

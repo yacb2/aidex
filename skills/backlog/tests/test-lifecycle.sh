@@ -56,6 +56,31 @@ check "harvest: the short form of a recorded full sha adds nothing" '[[ "$(grep 
 bash "$SCRIPTS/harvest-commit.sh" --sha f6f6f6f --message "Backlog: BL-7" >/dev/null 2>&1 || true
 bash "$SCRIPTS/harvest-commit.sh" --sha f6f6f6f6f6f6f6f6f6f6 --message "Backlog: BL-7" >/dev/null 2>&1 || true
 check "harvest: the full form of a recorded short sha adds nothing" '[[ "$(grep "^commits:" "$HV" | tr -d \" | tr " " "\n" | grep -c "^f6f6f6f")" == "1" ]]'
+# backlog-s35: every commits: shape harvest meets, pinned before it shares its append with close-item
+hv_shape() { # hv_shape <label> <existing commits line or ''> <sha> <expected commits line>
+  local f; f="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "harvest shape $1" --priority P3 2>/dev/null)"
+  if [[ -n "$2" ]]; then sed -i.bak "s|^commits:.*|$2|" "$f" && rm -f "$f.bak"; else sed -i.bak '/^commits:/d' "$f" && rm -f "$f.bak"; fi
+  bash "$SCRIPTS/harvest-commit.sh" --sha "$3" --message "Backlog: $(awk '/^---/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2}' "$f")" >/dev/null 2>&1 || true
+  if [[ "$(grep -c "^commits:" "$f")" == 1 && "$(grep "^commits:" "$f")" == "$4" ]]; then ok "harvest shape: $1"
+  else bad "harvest shape $1: $(grep "^commits:" "$f")"; fi
+}
+hv_shape "empty list" 'commits: []' 1a1a1a1 'commits: "1a1a1a1"'
+hv_shape "no commits line" '' 2b2b2b2 'commits: "2b2b2b2"'
+hv_shape "repo labels kept verbatim" 'commits: "backend aaaaaaa"' 3c3c3c3 'commits: "backend aaaaaaa 3c3c3c3"'
+hv_shape "spaces after the closing quote" 'commits: "aaaaaaa"   ' 4d4d4d4 'commits: "aaaaaaa 4d4d4d4"'
+hv_shape "a unquoted value" 'commits: aaaaaaa' 5e5e5e5 'commits: "aaaaaaa 5e5e5e5"'
+hv_shape "a non-hex token is not a prefix match" 'commits: "abcdefz"' abcdef 'commits: "abcdefz abcdef"'
+# re-harvesting an already recorded sha leaves the file byte-identical, whatever shape its commits: line has
+hv_untouched() { # hv_untouched <label> <existing commits line> <sha>
+  local f before; f="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "harvest untouched $1" --priority P3 2>/dev/null)"
+  sed -i.bak "s|^commits:.*|$2|" "$f" && rm -f "$f.bak"; before="$(cat "$f")"
+  bash "$SCRIPTS/harvest-commit.sh" --sha "$3" --message "Backlog: $(awk '/^---/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2}' "$f")" >/dev/null 2>&1 || true
+  if [[ "$(cat "$f")" == "$before" ]]; then ok "harvest untouched: $1"; else bad "harvest untouched $1: $(grep "^commits:" "$f")"; fi
+}
+hv_untouched "recorded, unquoted" 'commits: abc1234' abc1234
+hv_untouched "recorded, trailing comment" 'commits: "abc1234"  # note' abc1234
+hv_untouched "recorded, two values" 'commits: "abc1234" "x"' abc1234
+hv_untouched "recorded short, full cited" 'commits: abc1234' abc1234def5678
 
 echo "== start: type:bug routes into RED->GREEN (BL-134) =="
 # The route is keyed on front-matter, never on phrasing: bugfix fired on
@@ -215,6 +240,16 @@ AFTER_ID="$(awk '/^---/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2}' "$AFTER"
 check "id not reused after defer (D-09)" '[[ -n "$AFTER_ID" && "$AFTER_ID" != "$DEF_ID" ]]'
 bash "$SCRIPTS/harvest-commit.sh" --sha fedc999 --message "Backlog: $DEF_ID" >/dev/null 2>&1
 check "harvest reaches _deferred items" 'grep -q "fedc999" ".context/backlog/_deferred/$(basename "$DEF")"'
+# backlog-s30: one id in both _deferred/ and _archive/ (a rename/rename merge) resolves to the
+# deferred copy, the live one: register-item's backlog_files order (active, _deferred, _archive)
+mkdir -p .context/backlog/_archive
+DUPN="2026-01-01-dup-both.md"
+printf -- '---\nid: BL-950\ntitle: "dup"\nstatus: open\ncommits: ""\n---\n' > ".context/backlog/_deferred/$DUPN"
+printf -- '---\nid: BL-950\ntitle: "dup"\nstatus: done\ncommits: ""\n---\n' > ".context/backlog/_archive/$DUPN"
+bash "$SCRIPTS/harvest-commit.sh" --sha d0d0d0d --message "Backlog: BL-950" >/dev/null 2>&1
+check "harvest: an id in both _deferred and _archive stamps the live deferred copy" \
+  'grep -q "d0d0d0d" ".context/backlog/_deferred/$DUPN" && ! grep -q "d0d0d0d" ".context/backlog/_archive/$DUPN"'
+rm -f ".context/backlog/_deferred/$DUPN" ".context/backlog/_archive/$DUPN"
 
 echo "== origin_ref is a marker, not a path (BL-055) =="
 # --request takes a path for convenience; what gets STORED must be the

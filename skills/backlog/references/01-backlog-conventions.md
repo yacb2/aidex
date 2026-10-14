@@ -341,7 +341,7 @@ See [The deferred layer](#the-deferred-layer-_deferred). Deferring is **reversib
 
 When someone starts work. Use `start-item.sh <BL-id>` rather than editing the field —
 it sets `status: doing`, bumps `updated`, and rebuilds the index in one pass. If a plan
-exists, set `escalated_to: plan/<filename>` and add a link in Notes.
+exists, set `escalated_to: plan/<filename>` and add a link in Notes. If the item's acceptance criterion is machine-checkable (a gate the work should iterate against), it may instead link a loop-spec in `.context/loops/`; the default stays a plan.
 
 **`type: bug` routes into RED→GREEN here.** Starting a bug item prints the
 regression-test-first procedure (`bugfix`), because the front-matter field is a

@@ -96,6 +96,20 @@ run --only >/dev/null 2>&1; [[ $? -eq 2 ]] && ok "5 --only with no leg is a usag
 { hdr_p e2e; printf '  7 passed (2.0m)\nsweep-gate-exit=0\n'; } > "$TMP/e2e.log"
 OUT="$(run --only e2e --from-log "$TMP/e2e.log")"; RC=$?
 [[ $RC -eq 0 && "$OUT" == *"leg=e2e exit=0 count=7 secs=-"* ]] && ok "5 --from-log scores the detached log" || bad "5 from-log: rc=$RC $OUT"
+# backlog-c18: the detached leg runs elsewhere, so the gate never timed it and the report's
+# gate-time share left e2e out. The printed invocation now records its own seconds and
+# --from-log scores them; a log without the marker (older invocation, hand-written) stays secs=-.
+printf '#!/usr/bin/env bash\nsleep 1\nprintf "3 passed\\n"\n' > "$P/bin/slow"; chmod +x "$P/bin/slow"
+printf '#!/usr/bin/env bash\nprintf "1 passed\\n"\n' > "$P/bin/pre1"; chmod +x "$P/bin/pre1"
+for PRE in "" "e2e_pre_cmd: bin/pre1"; do
+  profile "e2e_suite_cmd: bin/slow" ${PRE:+"$PRE"} "e2e_detached: true"
+  run --only e2e >/dev/null
+  ( cd "$P" && bash -c "$(sed -n 's/^  cd /cd /p' "$TMP/err")" )
+  OUT="$(run --only e2e --from-log "$P/_tmp/sweep-gate/e2e.log")"; RC=$?
+  [[ $RC -eq 0 && "$OUT" =~ leg=e2e\ exit=0\ count=3\ secs=[1-9][0-9]*($|[[:space:]]) ]] \
+    && ok "5 the detached leg's seconds are recorded and scored (${PRE:-no pre-command})" || bad "5 detached secs (${PRE:-no pre-command}): rc=$RC $OUT"
+done
+profile "backend_suite_cmd: bin/be" "frontend_suite_cmd: bin/fe" "build_cmd: bin/bd" "e2e_suite_cmd: bin/e2" "e2e_detached: true"
 { hdr_p e2e; printf '  7 passed (2.0m)\n'; } > "$TMP/e2e.log"
 OUT="$(run --only e2e --from-log "$TMP/e2e.log")"; RC=$?
 [[ $RC -eq 2 ]] && grep -q 'carries no `sweep-gate-exit' "$TMP/err" \

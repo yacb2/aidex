@@ -143,4 +143,22 @@ W="$(reg --title "empty what")"; WID="$(idof "$W")"
 add_row "$W" test "" "3 passed"
 bash "$SCRIPTS/close-item.sh" "$WID" --sweep --no-index >/dev/null 2>&1 && ok "a row with an empty what cell but a proof is accepted" || bad "empty-what row refused"
 
+# backlog-s35: the park branch records the resolving commits through the same append as the
+# archive pass and harvest-commit. Each commits: shape a parked item can carry, pinned.
+park_commits() { # park_commits <label> <existing commits line or ''> <commit> <expected commits line>
+  local f id
+  f="$(reg --title "park commits $1" --surface ops)"; id="$(idof "$f")"
+  add_row "$f" smoke "census" "proofs/census.txt: 0 findings"; add_row "$f" owner "wording" ""
+  if [[ -n "$2" ]]; then sed -i.bak "s|^commits:.*|$2|" "$f" && rm -f "$f.bak"; else sed -i.bak '/^commits:/d' "$f" && rm -f "$f.bak"; fi
+  bash "$SCRIPTS/close-item.sh" "$id" --sweep --commit "$3" --no-index >/dev/null 2>&1
+  [[ -f "$f" ]] && grep -q '^awaiting: owner$' "$f" && [[ "$(grep -c '^commits:' "$f")" == 1 && "$(grep '^commits:' "$f")" == "$4" ]] \
+    && ok "park commits: $1" || bad "park commits $1: $(grep '^commits:' "$f" 2>&1)"
+}
+park_commits "empty value" 'commits: ""' abc1234 'commits: "abc1234"'
+park_commits "empty list" 'commits: []' abc1234 'commits: "abc1234"'
+park_commits "no commits line" '' abc1234 'commits: "abc1234"'
+park_commits "repo labels kept verbatim" 'commits: "backend aaaaaaa"' bbbbbbb 'commits: "backend aaaaaaa bbbbbbb"'
+park_commits "same commit, short vs full" 'commits: "abc1234"' abc1234def5678 'commits: "abc1234"'
+park_commits "spaces after the closing quote are trimmed" 'commits: "aaaaaaa"   ' bbbbbbb 'commits: "aaaaaaa bbbbbbb"'
+
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — verification gate: $PASS cells"; exit 0; }; echo "$FAIL failure(s)"; exit 1

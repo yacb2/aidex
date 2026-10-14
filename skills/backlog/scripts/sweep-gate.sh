@@ -332,7 +332,9 @@ for leg in "${LEGS[@]}"; do
     # comes from the log, so a leg that ran nothing cannot be scored green by hand.
     [[ -n "$EXIT_RC" ]] && rc="$EXIT_RC"
     [[ -n "$rc" ]] || die "$FROM_LOG carries no \`sweep-gate-exit=<rc>\` marker — the detached run has not finished, or was not launched with the printed invocation (a log written by hand is scored with --exit <rc>)"
-    count="$(count_in "$leg" "$FROM_LOG")"; secs="-"
+    count="$(count_in "$leg" "$FROM_LOG")"
+    # the printed invocation times itself (sweep-gate-secs=); a log without it stays "-"
+    secs="$(grep -oE '^sweep-gate-secs=[0-9]+' "$FROM_LOG" | tail -1 | cut -d= -f2 || true)"; secs="${secs:--}"
   elif [[ "$leg" == "e2e" && "$E2E_DETACHED" == "true" ]]; then
     # Printed, not run: `sweep-execution-policy.md` §3 made mechanical. The marker line
     # is what --from-log scores; without it a detached run has an exit code nobody kept.
@@ -353,10 +355,10 @@ for leg in "${LEGS[@]}"; do
     # relative cd must land where the invariant computed (BL-558). The marker between the
     # pre-command and the leg is what count_in scores from (BL-559).
     if [[ -n "$(pre_of "$leg")" ]]; then
-      printf '  cd %q && (unset CDPATH; printf '"'"'%%s\\n'"'"' %q; (%s) && echo && echo %q && (%s)) > %q 2>&1; echo "sweep-gate-exit=$?" >> %q\n' \
-        "$RUN_IN" "$hdr" "$(pre_of "$leg")" "$LEG_MARK" "$(cmd_of "$leg")" "$log" "$log" >&2
+      printf '  cd %q && t0=$(date +%%s) && (unset CDPATH; printf '"'"'%%s\\n'"'"' %q; (%s) && echo && echo %q && (%s)) > %q 2>&1; echo "sweep-gate-exit=$?" >> %q; echo "sweep-gate-secs=$(( $(date +%%s) - t0 ))" >> %q\n' \
+        "$RUN_IN" "$hdr" "$(pre_of "$leg")" "$LEG_MARK" "$(cmd_of "$leg")" "$log" "$log" "$log" >&2
     else
-      printf '  cd %q && (unset CDPATH; printf '"'"'%%s\\n'"'"' %q; %s) > %q 2>&1; echo "sweep-gate-exit=$?" >> %q\n' "$RUN_IN" "$hdr" "$(cmd_of "$leg")" "$log" "$log" >&2
+      printf '  cd %q && t0=$(date +%%s) && (unset CDPATH; printf '"'"'%%s\\n'"'"' %q; %s) > %q 2>&1; echo "sweep-gate-exit=$?" >> %q; echo "sweep-gate-secs=$(( $(date +%%s) - t0 ))" >> %q\n' "$RUN_IN" "$hdr" "$(cmd_of "$leg")" "$log" "$log" "$log" >&2
     fi
     # the scoring run carries this run's work-list: with two running lists it could not
     # detect one, and an unstamped PASS is claimed by every report of the day (BL-489).
