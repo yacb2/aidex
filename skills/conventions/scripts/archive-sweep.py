@@ -31,7 +31,8 @@ import argparse, json, os, re, shutil, subprocess, sys
 TERMINAL = {"done", "dropped", "superseded"}
 ACTIVE = {"open", "doing"}
 FM_STATUS = re.compile(r"^status:\s*[\"']?([a-z-]+)[\"']?\s*$", re.M)
-FM_COMMITS = re.compile(r"^commits:\s*[\"']?(.*?)[\"']?\s*$", re.M)
+FM_COMMITS = re.compile(r"^commits:[ \t]*[\"']?(.*?)[\"']?[ \t]*$", re.M)
+FM_COMMITS_LIST = re.compile(r"^commits:[ \t]*\n((?:[ \t]+-[^\n]*(?:\n|$))+)", re.M)
 SHA = re.compile(r"\b[0-9a-f]{7,40}\b")
 
 
@@ -50,7 +51,11 @@ def frontmatter(path):
     block = text[3:end] if end != -1 else text
     s = FM_STATUS.search(block)
     c = FM_COMMITS.search(block)
-    return (s.group(1) if s else None), (SHA.findall(c.group(1)) if c else [])
+    shas = SHA.findall(c.group(1)) if c else []
+    lst = FM_COMMITS_LIST.search(block)  # list form: `commits:` then `  - <sha>` lines
+    if lst:
+        shas = SHA.findall(lst.group(1))
+    return (s.group(1) if s else None), shas
 
 
 def is_repo(d):
@@ -173,7 +178,8 @@ def _archive_companions(ctx, rel_path, archive_to):
     prefix = TIER_PREFIX.get(tier)
     if not prefix:
         return ""
-    ref = f"{prefix}/{os.path.basename(rel_path)}"
+    # the anchor names the path under the tier: audit/<methodology>/<run>, not audit/<run>
+    ref = f"{prefix}/{rel_path.split('/', 1)[1]}"
     dest = os.path.join(ctx, os.path.dirname(archive_to))
     lib = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_lib.sh")
     try:

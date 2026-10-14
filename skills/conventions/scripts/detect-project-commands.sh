@@ -42,7 +42,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -n "$PROJECT" ]]; then
-  ROOT="$(cd "$PROJECT" && pwd -P)"
+  ROOT="$(cd "$PROJECT" 2>/dev/null && pwd -P)" || die "project directory not found: $PROJECT"
 else
   ROOT="$(find_project_root)"
 fi
@@ -167,10 +167,10 @@ if [[ -f "$WT_DOC" ]]; then
   [[ -n "$m" ]] && { worktree_down_command="$m"; worktree_down_source=".context/worktrees/00-index.md"; }
 fi
 wt_script() {
-  # $1 = up|down; prints the first root-level or scripts/ worktree-<dir>*.sh, if any.
+  # $1 = up|down; prints the first EXECUTABLE root-level or scripts/ worktree-<dir>*.sh, if any.
   local cand
   for cand in "$ROOT"/worktree-"$1"*.sh "$ROOT"/scripts/worktree-"$1"*.sh; do
-    [[ -f "$cand" ]] && { printf '%s\n' "${cand#"$ROOT"/}"; return 0; }
+    [[ -f "$cand" && -x "$cand" ]] && { printf '%s\n' "${cand#"$ROOT"/}"; return 0; }
   done
   return 0
 }

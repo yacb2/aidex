@@ -57,6 +57,9 @@ build() {
   fm done > "$ctx/audits/ux/2026-01-07-closed-run/index.md"
   fm open > "$ctx/audits/ux/2026-01-08-open-run/index.md"
   fm done > "$ctx/audits/ux/00-inventory.md"   # a BOARD, not a run — must never move
+  # An audit run's companion is anchored audit/<methodology>/<run> (00-global §3), not audit/<run>.
+  printf '<meta name="artifact-anchor" content="audit/ux/2026-01-07-closed-run">\n' \
+    > "$ctx/audits/ux/2026-01-07-closed-run-report.html"
 }
 
 # --- dry run: every tier reported, nothing touched --------------------------------
@@ -125,6 +128,9 @@ pass "--apply archives exactly the terminal set and says indexes are not regener
 [[ -e "$WS/.context/backlog/2026-01-02-bl-002-live-report.html" ]] \
   || fail "--apply moved a LIVE item's companion"
 pass "--apply takes the rendered companion with the artifact, and leaves a live one alone"
+[[ -e "$WS/.context/audits/_archive/2026-01-07-closed-run-report.html" ]] \
+  || fail "--apply stranded an audit run's companion (anchor audit/<methodology>/<run>)"
+pass "an audit run's companion (anchored with its methodology) travels with the run"
 
 # A second run is a no-op: the pass has to be idempotent to be schedulable.
 OUT_2="$(python3 "$SCRIPT" "$WS/.context" 2>&1)"
@@ -151,6 +157,22 @@ python3 "$SCRIPT" "$GW/.context" --apply >/dev/null 2>&1
 [[ -f "$GW/.context/backlog/2026-01-09-bl-003-drifted.md" ]] \
   || fail "--apply archived a status-drift item; only the terminal set may move"
 pass "status drift is reported on landed commits only, and --apply never resolves it"
+# List-form commits: only the first line used to be read (`\s*` crossed the newline), so one
+# landed + one missing commit read as "all landed" and drift was claimed wrongly.
+fm open "commits:
+  - $SHA
+  - deadbee
+"        > "$GW/.context/backlog/2026-01-15-bl-005-listform.md"
+OUT_L="$(python3 "$SCRIPT" "$GW/.context" 2>&1)"
+grep -q 'bl-005-listform' <<<"$OUT_L" && fail "list-form commits with an unlanded sha were reported as drift"
+pass "a list-form commits: with an unlanded sha is not reported as drift"
+fm open "commits:
+  - $SHA
+  - $SHA
+"        > "$GW/.context/backlog/2026-01-16-bl-006-listlanded.md"
+OUT_L="$(python3 "$SCRIPT" "$GW/.context" 2>&1)"
+grep -q 'bl-006-listlanded' <<<"$OUT_L" || fail "list-form commits that all landed were not reported as drift: $OUT_L"
+pass "a list-form commits: whose items all landed IS reported as drift"
 rm -rf "$GW"
 
 # --- no git above .context/: report the other half, say so, never crash ------------

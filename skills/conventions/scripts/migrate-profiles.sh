@@ -54,15 +54,17 @@ if [[ "$APPLY" -eq 1 ]] && tracked .gitignore && [[ -n "$(git status --porcelain
   exit 1
 fi
 
-# 2. Move the profiles.
+# 2. Move the profiles. KEPT = old names that stay at the root (target exists, or the move
+# failed): step 3 must leave their whitelist lines alone or the kept file becomes ignored.
+KEPT=""
 for pair in $PAIRS; do
   old=".context/${pair%%:*}" new=".context/profiles/${pair##*:}"
   [[ -f "$old" ]] || continue
-  if [[ -e "$new" ]]; then echo "skip: $old (target $new already exists)"; continue; fi
+  if [[ -e "$new" ]]; then echo "skip: $old (target $new already exists)"; KEPT="$KEPT ${pair%%:*}"; continue; fi
   if tracked "$old"; then how="git mv"; else how="mv (untracked or ignored: not in git history)"; fi
   if [[ "$APPLY" -eq 0 ]]; then echo "would move: $old -> $new [$how]"; continue; fi
-  mkdir -p .context/profiles
-  if tracked "$old"; then git mv "$old" "$new"; else mv "$old" "$new"; fi
+  if mkdir -p .context/profiles && { if tracked "$old"; then git mv "$old" "$new"; else mv "$old" "$new"; fi; }; then :
+  else echo "FAILED to move $old -> $new (left in place)" >&2; KEPT="$KEPT ${pair%%:*}"; continue; fi
   if tracked "$new"; then echo "moved: $old -> $new [git mv]"
   else echo "UNTRACKED-MOVED $new (now versionable: check for secrets, then git add)"; fi
 done
@@ -71,13 +73,16 @@ if [[ "$DEPLOY" -eq 0 && -f .context/deploy-profile.md ]]; then
 fi
 
 # 3. Rewrite the whitelist lines for the profiles being migrated.
-if [[ -f .gitignore ]]; then
-  alts=""; for pair in $PAIRS; do n="${pair%%:*}"; alts="$alts|${n//./\\.}"; done
+alts=""; for pair in $PAIRS; do n="${pair%%:*}"; case " $KEPT " in *" $n "*) continue ;; esac; alts="$alts|${n//./\\.}"; done
+# a kept (skipped or failed) pair means profiles/ holds its file: the whitelist is still owed
+force=0; [[ -n "$KEPT" ]] && force=1
+if [[ -f .gitignore && ( -n "$alts" || "$force" -eq 1 ) ]]; then
+  [[ -n "$alts" ]] || alts="|__none__"   # nothing to rewrite: match no line
   OLD_RE="^!\\.context/(${alts#|})$"
   lastend=0; grep -q '^# BP-ROOT-WHITELIST:END' .gitignore && lastend="$(grep -n '^# BP-ROOT-WHITELIST:END' .gitignore | tail -1 | cut -d: -f1)"
   have=0; grep -qx '!\.context/profiles/' .gitignore && have=1   # never add the whitelist twice
   tmp="$(mktemp "${TMPDIR:-/tmp}/aidex.XXXXXX")"
-  awk -v re="$OLD_RE" -v done_init="$have" -v lastend="$lastend" '
+  awk -v re="$OLD_RE" -v done_init="$have" -v lastend="$lastend" -v force="$force" '
     BEGIN { done = done_init }
     /^# BP-ROOT-WHITELIST:START/ { bp = 1 }
     {
@@ -95,9 +100,16 @@ if [[ -f .gitignore ]]; then
     }
     /^# BP-ROOT-WHITELIST:END/ {
       bp = 0
-      if (pending && NR == lastend) {
+      if (NR == lastend && (pending || (force && !done))) {
+        done = 1
         print "!.context/profiles/"; print "!.context/profiles/**"; pending = 0
         print "placed: !.context/profiles/ + ** right after BP-ROOT-WHITELIST:END (fork-owned area, last match wins)" > "/dev/stderr"
+      }
+    }
+    END {
+      if (force && !done) {
+        print "!.context/profiles/"; print "!.context/profiles/**"
+        print "placed: !.context/profiles/ + ** at the end of the file (a kept legacy file left nothing to rewrite)" > "/dev/stderr"
       }
     }
   ' .gitignore > "$tmp" 2> "$tmp.log"

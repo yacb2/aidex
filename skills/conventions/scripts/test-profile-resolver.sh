@@ -45,6 +45,12 @@ done
 sh_resolve "$CTX" nonsense >/dev/null 2>&1 && fail "sh_resolve accepted an unknown profile name"
 py_resolve "$CTX" nonsense >/dev/null 2>&1 && fail "py_resolve accepted an unknown profile name"
 
+# The twins are equally quiet on a refusal: exit non-zero, nothing printed, no traceback (c21).
+err="$(py_resolve "$CTX" nonsense 2>&1 >/dev/null)"
+[[ -z "$err" ]] || fail "py_resolve printed on an unknown name (bash twin is silent): $err"
+err="$(python3 "$HERE/profiles.py" 2>&1 >/dev/null)"; rc=$?
+[[ $rc -ne 0 && "$err" != *Traceback* ]] || fail "profiles.py with no arguments: rc=$rc, traceback instead of a refusal: $err"
+
 # Writers get the new path only.
 w="$(. "$HERE/_lib.sh"; profile_write_path "$CTX" artifact)"
 [[ "$w" == "$CTX/profiles/artifact.md" ]] || fail "profile_write_path gave '$w'"

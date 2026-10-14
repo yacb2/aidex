@@ -68,6 +68,32 @@ assert "non-directory --root is exit 3" \
 assert "unknown flag is exit 3" \
   "rc 3 --root '$TMP' --glob '$G' --pattern 'x' --bogus"
 
+# --- an invalid regex is a usage error, not a failed predicate (c32) ------------
+assert "invalid --pattern regex is exit 3, not a FAIL verdict" \
+  "rc 3 --root '$TMP' --glob '$G' --pattern '[unclosed' --newest"
+
+# --- an unreadable target is a grep failure, not a bad regex (c32) --------------
+if [ "$(id -u)" -ne 0 ]; then
+  mkdir -p "$TMP/locked"; printf 'direction: meetings\n' > "$TMP/locked/body.md"; chmod 000 "$TMP/locked/body.md"
+  lock_out="$(bash "$GRADE" --root "$TMP/locked" --glob 'body.md' --pattern 'direction' 2>&1 || true)"
+  assert "unreadable target is reported as a grep failure" "[[ '$lock_out' == *'grep failed on'* ]]"
+  assert "unreadable target is not blamed on the regex" "[[ '$lock_out' != *'not a valid extended regex'* ]]"
+  chmod 644 "$TMP/locked/body.md"
+fi
+
+# --- a trailing slash on --root still resolves (c33) ----------------------------
+assert "--root with a trailing slash resolves the same artifact" \
+  "rc 0 --root '$TMP/' --glob 'communications/meetings/2026-08-06-acme-kickoff/body.md' --pattern 'direction: meetings'"
+
+assert "--root with several trailing slashes resolves too" \
+  "rc 0 --root '$TMP//' --glob 'communications/meetings/2026-08-06-acme-kickoff/body.md' --pattern 'direction: meetings'"
+
+# --- '*' is one path segment: a deeper misfiled artifact is not a match (c34) ---
+mkdir -p "$TMP/misfiled/a/deeper"
+printf 'direction: meetings\n' > "$TMP/misfiled/a/deeper/body.md"
+assert "a deeper misfiled file does not satisfy a one-segment '*'" \
+  "rc 2 --root '$TMP/misfiled' --glob '*/body.md' --pattern 'direction: meetings'"
+
 echo
 [ "$fail" -eq 0 ] && echo "test_eval_grade_artifact.sh: all assertions passed"
 exit "$fail"
