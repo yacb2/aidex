@@ -100,7 +100,12 @@ if [[ "${RUN_DOCKER_TESTS:-0}" == "1" ]]; then
     TESTS+=("$_wt")
   done
 else
-  DOCKER_SKIPPED=(skills/worktree/scripts/test-*.sh)
+  # test-orphan-sweep.sh stubs docker via PATH and needs no daemon, so the default
+  # run keeps it; every other worktree test stays behind RUN_DOCKER_TESTS=1.
+  TESTS+=(skills/worktree/scripts/test-orphan-sweep.sh)
+  for _wt in skills/worktree/scripts/test-*.sh; do
+    [[ "$_wt" == */test-orphan-sweep.sh ]] || DOCKER_SKIPPED+=("$_wt")
+  done
 fi
 DOCKER_SKIPPED=("${DOCKER_SKIPPED[@]:-}")
 [[ -z "${DOCKER_SKIPPED[0]:-}" ]] && DOCKER_SKIPPED=()
