@@ -72,18 +72,22 @@ INV=""
 [[ -z "$INV" && -f "$AUDITS_DIR/INVENTORY.md" ]] && INV="$AUDITS_DIR/INVENTORY.md"
 [[ -n "$INV" ]] || die "no inventory governs $RUN_SLUG (expected $PARENT/00-inventory.md)"
 
-# --- collect this run's unresolved rows as "severity<TAB>id<TAB>module<TAB>summary" ---
+# --- collect this run's unresolved rows as "severity<TAB>id<TAB>module<TAB>summary<TAB>unmarkable" ---
 # Column width branches like close-audit.sh: the canonical 9-column board parses
 # as NF==11, the pre-2026-08-06 board (First Seen / Last Updated) as NF==13.
 # Reading a fixed index on the wrong width silently returns another cell.
 # Each escaped \| is held as US while a row is split (same hiding as
 # normalize_inventory / mark_row_escalated), so a cell quoting a pipe stays one
 # cell; it is restored wherever a cell is printed or the row rewritten.
+# A row with an HTML comment on it is still listed (close-audit.sh counts it too),
+# but the last field flags it 1 (read as $NF: a Module or Summary cell may hold a tab);
+# the mark below passes such a row through untouched.
 collect_rows() {
   awk "$AWK_UNESC$AWK_HAS_RUN"'
     BEGIN { in_comment = 0 }
     {
       line = $0
+      unmarkable = (in_comment || index($0, "<!--") > 0 || index($0, "-->") > 0)
       while (1) {
         if (in_comment) {
           e = index(line, "-->"); if (e == 0) { line = ""; break }
@@ -114,7 +118,7 @@ collect_rows() {
       if (status !~ /^(open|doing|triaged|in-progress)$/) next
       if (!has_run(runs, run) && !has_run(runs, rundate)) next
       if (sev == "" || sev == "—") sev = "P?"
-      print sev "\t" id "\t" module "\t" summ
+      print sev "\t" id "\t" module "\t" summ "\t" unmarkable
     }
   ' run="$RUN_SLUG" rundate="$RUN_DATE" "$INV"
 }
@@ -149,6 +153,12 @@ HELD="$(awk -v run="$RUN_SLUG" -v rundate="$RUN_DATE" "$AWK_HAS_RUN"'
 if [[ -n "$HELD" ]]; then
   die "$RUN_SLUG is already held by $HELD — archive that spec and clear its markers before re-emitting"
 fi
+
+# Refuse before anything is written when a listed row could not be marked doing
+# (same rule as finding_row_markable): the spec would hold a row the gate keeps RED
+# and the mark never moves.
+UNMARKABLE="$(printf '%s\n' "$ROWS" | awk -F'\t' '$NF == 1 { printf " %s", $2 }')"
+[[ -z "$UNMARKABLE" ]] || die "finding(s)$UNMARKABLE carry an HTML comment on the row and cannot be marked doing; move the comment off the row, then re-emit; nothing written"
 
 COUNT="$(printf '%s\n' "$ROWS" | wc -l | tr -d ' ')"
 RUN_REF="$RUN_SLUG"

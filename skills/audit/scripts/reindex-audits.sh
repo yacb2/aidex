@@ -32,12 +32,12 @@ case "${1:-}" in
   *) printf 'unknown option: %s\n' "$1" >&2; exit 2 ;;
 esac
 
-# Shared resolver. This file used to carry its own copy, three fixes behind:
-# no $HOME boundary, no project-marker fallback, and no linked-worktree hop --
-# so from inside a worktree it wrote into a directory that vanishes on teardown
-# while _lib.sh consumers wrote to the main tree. Pinned by
-# conventions/scripts/test-find-project-root.sh (no private copies).
-. "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../conventions/scripts" && pwd -P)/_lib.sh"
+# The audit _lib.sh: it sources the shared conventions/scripts/_lib.sh (the
+# resolver; this file used to carry its own copy, three fixes behind -- no $HOME
+# boundary, no project-marker fallback, no linked-worktree hop -- pinned by
+# conventions/scripts/test-find-project-root.sh, no private copies) and defines
+# AWK_HAS_RUN, the Audit Runs token match run_counts uses.
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/_lib.sh"
 
 ROOT="$(find_project_root)"
 AUDITS_DIR="$ROOT/.context/audits"
@@ -134,17 +134,9 @@ has_md() {
 run_counts() {
   local slug="$1" inv="$2"
   [[ -n "$inv" ]] || { printf '?\t?'; return 0; }
-  awk -F'|' -v run="$slug" '
-    # Whole comma-separated tokens, never a substring: a slug that is the prefix of
-    # another run must not claim that run'"'"'s findings.
-    function has_run(cell, want,   parts, k, n, t) {
-      n = split(cell, parts, ",")
-      for (k = 1; k <= n; k++) {
-        t = parts[k]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", t)
-        if (t == want) return 1
-      }
-      return 0
-    }
+  # has_run (AWK_HAS_RUN, _lib.sh): whole comma-separated tokens, never a substring,
+  # so a slug that is the prefix of another run does not claim that run's findings.
+  awk -F'|' -v run="$slug" "$AWK_HAS_RUN"'
     BEGIN { in_comment=0; open=0; total=0;
             resolved=" closed done escalated fixed dropped wontfix " }
     {

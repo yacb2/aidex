@@ -160,8 +160,8 @@ AWK_UNESC='function unesc(s,   out, i) {
 
 # awk function: does an Audit Runs cell list `want` as a whole comma-separated
 # token? Never a substring: `2026-10-14-foo` must not claim `2026-10-14-foo-bar`,
-# nor a same-day run (only a bare date token names the date). Same rule as the
-# inline copies in close-audit.sh and reindex-audits.sh.
+# nor a same-day run (only a bare date token names the date). Used by AWK_MARK
+# below, close-audit.sh, reindex-audits.sh and remediation-loop-spec.sh.
 AWK_HAS_RUN='function has_run(cell, want,   parts, k, n, t) {
   n = split(cell, parts, ",")
   for (k = 1; k <= n; k++) {
@@ -282,7 +282,7 @@ mark_row_escalated() {
 
 # awk program for mark_row_escalated and finding_row_markable (-v id, link, today).
 # Exit: 4 the selected row is done, 5 it is dropped, 3 no row to rewrite; the first two write nothing.
-AWK_MARK="$AWK_UNESC"'
+AWK_MARK="$AWK_UNESC$AWK_HAS_RUN"'
     BEGIN { in_comment = 0 }
     {
       # Track whether the CURRENT line is inside a multi-line HTML comment.
@@ -341,7 +341,7 @@ AWK_MARK="$AWK_UNESC"'
       # nothing to stamp, and writing cell 9 there would overwrite Escalated To.
       if (wide) cells[9] = " " today " "
       runs = cells[c_runs]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", runs)
-      if (index(runs, today) == 0) {
+      if (!has_run(runs, today)) {
         if (runs == "" || runs == "—") runs = today
         else runs = runs ", " today
       }

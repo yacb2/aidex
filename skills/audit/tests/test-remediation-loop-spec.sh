@@ -227,6 +227,42 @@ grep '^| UX-1 ' "$A/ux/00-inventory.md" | grep >/dev/null -E '\| doing \| P1 \| 
 [[ "$(grep '^| UX-3 ' "$A/ux/00-inventory.md")" == "$UX3" ]] \
   || fail "whole token: 2026-07-10-ux-mobile's UX-3 row was rewritten: $(grep '^| UX-3 ' "$A/ux/00-inventory.md")"
 
+# ---------- 6d. a row the mark cannot rewrite (an HTML comment on the row) ----------
+# The gate lists it (close-audit.sh counts it too), but the mark passes a commented
+# row through untouched (same rule as finding_row_markable): emitting would list it
+# in the spec and never move it to doing. Refused before anything is written.
+mkdir -p "$A/cmt/2026-07-12-cmt"
+cat > "$A/cmt/00-inventory.md" <<'EOF'
+| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |
+|---|---|---|---|---|---|---|---|---|
+| CMT-1 | bug | api | plain row | open | P1 | 2026-07-12 | — | — |
+| CMT-2 | bug | api | commented row | open | P2 | 2026-07-12 | — | seen <!-- recheck --> |
+| CMT-3 | bug | api | redirect /a --> /b loops | open | P2 | 2026-07-12 | — | — |
+| CMT-4 | bug | api | comment opens here | open | P2 | 2026-07-12 | — | n | <!-- start
+end -->
+EOF
+# CMT-5 has a literal tab in Summary (printf, not the heredoc): the flag must not be
+# read positionally from the TAB-separated record.
+printf '| CMT-5 | bug | api | tab\there | open | P2 | 2026-07-12 | — | x <!-- y --> |\n' >> "$A/cmt/00-inventory.md"
+echo "# m" > "$A/cmt/00-methodology.md"; echo "# c" > "$A/cmt/00-changelog.md"
+printf -- '---\ntitle: "cmt"\nstatus: doing\ncreated: 2026-07-12\nupdated: 2026-07-12\nmethodology: cmt\n---\n' \
+  > "$A/cmt/2026-07-12-cmt/index.md"
+CMT_GATE="$(bash "$EMIT" 2026-07-12-cmt --check 2>&1)"; rc=$?
+[[ $rc -eq 1 && "$CMT_GATE" == *CMT-2* ]] || fail "commented row: the gate must still list CMT-2 as unresolved, rc $rc: $CMT_GATE"
+# --dry-run refuses too: a preview that lists a row the emit would refuse is a false preview.
+CMT_DRY="$(bash "$EMIT" 2026-07-12-cmt --dry-run 2>&1)"; rc=$?
+[[ $rc -ne 0 && "$CMT_DRY" == *"cannot be marked"* ]] || fail "commented row: --dry-run should refuse like emit, rc $rc: $CMT_DRY"
+before="$(cksum < "$A/cmt/00-inventory.md")"
+CMT_OUT="$(bash "$EMIT" 2026-07-12-cmt 2>&1)"; rc=$?
+# CMT-2 holds both markers, CMT-3 only a bare -->, CMT-4 only an opener closed on the
+# next line: each marker alone must flag its row. CMT-1 is plain and must not be named.
+[[ $rc -ne 0 && "$CMT_OUT" == *"cannot be marked"* && "$CMT_OUT" == *CMT-2* \
+   && "$CMT_OUT" == *CMT-3* && "$CMT_OUT" == *CMT-4* && "$CMT_OUT" == *CMT-5* \
+   && "$CMT_OUT" != *" CMT-1"* ]] \
+  || fail "commented row: emit should refuse naming CMT-2 CMT-3 CMT-4 CMT-5 (not CMT-1) as unmarkable, rc $rc: $CMT_OUT"
+[[ -z "$(ls .context/loops/*-remediate-cmt.md 2>/dev/null)" ]] || fail "commented row: a refused emit left a spec behind"
+[[ "$(cksum < "$A/cmt/00-inventory.md")" == "$before" ]] || fail "commented row: a refused emit rewrote the inventory"
+
 # ---------- 7. refusals ----------
 # Re-emit while a live spec still holds the rows: the marker only fills an EMPTY
 # cell, so a second spec would list rows that point at the first one.
