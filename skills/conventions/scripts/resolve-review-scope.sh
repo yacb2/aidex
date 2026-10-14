@@ -77,15 +77,10 @@ git rev-parse --git-dir >/dev/null 2>&1 || die "not a git repository"
 
 # Files changed for a base. `-` means working tree vs HEAD.
 changed_files() { # base [pathspec]
-  local base="$1" ps="${2:-}"
+  local base="$1" ps="${2:-}" ref
+  ref="$base"; [ "$base" = "-" ] && ref="HEAD"
   {
-    if [ "$base" = "-" ]; then
-      if [ -n "$ps" ]; then git diff --name-only HEAD -- "$ps" 2>/dev/null
-      else git diff --name-only HEAD 2>/dev/null; fi
-    else
-      if [ -n "$ps" ]; then git diff --name-only "$base" -- "$ps" 2>/dev/null
-      else git diff --name-only "$base" 2>/dev/null; fi
-    fi
+    git diff --name-only "$ref" -- ${ps:+"$ps"} 2>/dev/null
     # `git diff` never lists untracked files, so a new file would never be reviewed.
     # Only the working-diff scope adds them: the cumulative scopes must keep their
     # anchor when a directory of untracked artefacts sits in the tree. An explicit
@@ -146,12 +141,9 @@ case "$scope" in
   working-diff)
     base="-"; anchor="head"
     ;;
-  branch-vs-main)
-    resolve_cumulative || empty=1
-    ;;
-  worktree-cumulative)
+  branch-vs-main|worktree-cumulative)
     # A linked worktree forks from wherever it was created; that is the same
-    # merge-base question, so it shares the resolver rather than duplicating it.
+    # merge-base question as a branch's, so both scopes share one arm.
     resolve_cumulative || empty=1
     ;;
   module-path)

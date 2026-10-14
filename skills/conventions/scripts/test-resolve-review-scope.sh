@@ -138,6 +138,21 @@ else
   err "--base HEAD~1 expected files='mod/m.txt' anchor='explicit', got files='$out' anchor='$anchor'"
 fi
 
+# --- case 7b: --base names a ref that is also a tracked directory ------------
+# `git diff --name-only main` is "ambiguous argument" when ./main exists; without a
+# bare `--` the list came back empty (stderr hidden) and the scope exited 3.
+R5b=$(make_repo refpath)
+mkdir -p "$R5b/main"; printf 'x\n' > "$R5b/main/f.txt"; git -C "$R5b" add -A; git -C "$R5b" commit -qm dir
+git -C "$R5b" push -q origin main
+git -C "$R5b" checkout -qb feat
+printf 'c1\n' >> "$R5b/a.txt"; git -C "$R5b" commit -qam c1
+out=$( cd "$R5b" && "$SCRIPT" --files --base main working-diff ); rc=$?
+if [ "$out" = "a.txt" ] && [ "$rc" -eq 0 ]; then
+  ok "--base <ref> still resolves when a tracked directory has the ref's name"
+else
+  err "--base main with a main/ directory expected files='a.txt' rc=0, got files='$out' rc=$rc"
+fi
+
 # --- case 8: worktree-cumulative resolves inside a real linked worktree -----
 # The enum documents this scope, so it needs a case in a genuine `git worktree`,
 # not just a diverged branch that happens to share the code path.
