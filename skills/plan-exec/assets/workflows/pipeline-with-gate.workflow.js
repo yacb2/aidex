@@ -293,7 +293,6 @@ const results = []
 const batchedAsks = []
 if (!(cfg.phases || []).length) throw new Error('pipeline: args.phases is empty or missing')
 for (const p of cfg.phases) {
-  phase('Execute')
   const phaseSpec = {
     id: p.id,
     gateCmd: p.gateCmd,

@@ -166,7 +166,7 @@ open_pending() {
       if (l !~ /^ui-surface: phase [0-9A-Za-z._-]+ · /) next
       sub(/^ui-surface: phase /, "", l); ph = l; sub(/ · .*/, "", ph); sub(/^[^ ]+ · /, "", l)
       n = split(l, f, " · ")
-      if (n == 3 && f[1] == "pending-owner" && f[2] ~ /^[^ <>]+\.html$/ && f[2] !~ /[<>]/ && f[3] ~ ("^cells: " id "(," id ")*$")) {
+      if (n == 3 && f[1] == "pending-owner" && f[2] ~ /^[^ <>]+\.html$/ && f[3] ~ ("^cells: " id "(," id ")*$")) {
         open_[ph] = f[2] "\t" substr(f[3], 8); order[++k] = ph; next }
       if (n == 2 && f[2] ~ /^owner: /) {
         v = substr(f[2], 8); ok = 0
@@ -252,11 +252,10 @@ if [[ "$s" =~ ^[^[:space:]\<\>·]+\.html\ ·\ owner:\ (approved|approved\ ([1-9]
 elif [ "$visual" -eq 0 ] && [[ "$s" =~ $pend_re ]]; then
   ok=1
   # Refused on the final phase; not provable as non-final is refused too (header: PENDING-OWNER).
-  rows="$(phase_rows)"
-  last="$(tail -n 1 <<<"$rows" | cut -f1)"
+  # rows and last come from the final-phase check above (same visual==0 guard).
   if [ -z "$last" ]; then
     ok=0; miss "part 1 (pending-owner): no '## Phases Overview' table to prove phase $phase is not the final phase — pending-owner is refused; get the owner's verdict"
-  elif ! cut -f1 <<<"$rows" | grep >/dev/null -Fx -- "$phase"; then
+  elif ! grep >/dev/null -Fx -- "$phase" <<<"$rows"; then
     ok=0; miss "part 1 (pending-owner): phase $phase is not a row of the '## Phases Overview' table — pending-owner is refused"
   fi
 fi
