@@ -45,9 +45,16 @@ One block per item, in the order given, nothing else:
 
 - `id:` the item id
 - `verdict:` `resolved` | `partially` | `not`
+- `lines:` one entry per acceptance line: `written for this line: yes|no` plus the evidence
+  (commit SHA or path) that shows who wrote the code and for which item. Mark `no` when the
+  code predates the item or was written for another item, and say so.
 - `evidence:` the path (with line) or commit SHA that shows it. A verdict without one is
   invalid: if you cannot cite, answer `not` and say what you could not find.
 - `residual:` for `partially`, what acceptance the code still does not meet. Also name any
   reason the item may be open that code cannot show (a deferred decision, a follow-up owed).
+
+**A `partially` or `resolved` verdict needs at least one line marked `yes`.** If every line is
+`no`, the verdict is `not`; a residual that says the code predates the item contradicts a
+`partially`.
 
 The caller reports your verdicts to the user; closing is its decision, never yours.

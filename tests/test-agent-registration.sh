@@ -85,4 +85,10 @@ for f in "$ROOT"/agents/*.md; do
   grep -q '^description: Launched by /aidex:' <<<"$head" || err "(d) agents/$n.md description does not start 'Launched by /aidex:'"
 done
 
+# (e) BL-809: backlog-reader states the per-line "written for this line" field and the rule that
+#     partially/resolved needs a yes line (a partially resting on "no" lines was the live-run defect)
+br="$ROOT/agents/backlog-reader.md"
+grep -q 'written for this line: yes|no' "$br" || err "(e) agents/backlog-reader.md lacks the per-line 'written for this line: yes|no' field"
+grep -q 'needs at least one line marked `yes`' "$br" || err "(e) agents/backlog-reader.md lacks the rule that partially/resolved needs a yes line"
+
 [[ $fail -eq 0 ]] && echo "PASS: agents registered flat under agents/, launched by aidex:<name>, no launch-by-prompt text" || exit 1

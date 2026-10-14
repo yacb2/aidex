@@ -59,8 +59,10 @@ single-agent baseline of that same plan, the threshold is the structural rule ab
   non-empty `depends_on` forming a single chain → `pipeline-with-gate`; if two or more phases
   are edge-free (empty/omitted `depends_on`) and can run in parallel → `fan-out-with-gate`.
   When unsure, the sequential pipeline is the safe default (it never mis-orders).
-- **Before a `fan-out-with-gate` launch of a multi-file plan** (a plan folder; a single-file plan
-  has no `**Files:**` lists to check) run
+- **A single-file plan never uses `fan-out-with-gate`**: it has no `**Files:**` lists, so nothing
+  can prove its edge-free phases disjoint, and they would race in one working tree. Run it with
+  `pipeline-with-gate`.
+- **Before a `fan-out-with-gate` launch of a multi-file plan** (a plan folder) run
   `python3 ${CLAUDE_PLUGIN_ROOT}/skills/plan-exec/scripts/plan-waves.py <plan-dir> --fanout`.
   Exit 0 and no output: launch. Exit 1 prints one stderr line, and it tells the causes apart:
   `fan-out wave N: ... share <file>` or `... declares no **Files:** paths` means the plan must be
