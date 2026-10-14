@@ -32,7 +32,7 @@ has_pipefail() {
   while IFS= read -r lib; do
     [[ -n "$lib" && -f "$root/$(dirname "$f")/$lib" ]] \
       && grep >/dev/null -E '^[[:space:]]*set .*pipefail' "$root/$(dirname "$f")/$lib" && return 0
-  done < <(sed -nE 's#^[[:space:]]*(source|\.)[[:space:]]+.*/([A-Za-z0-9_.-]+\.sh)["[:space:]]*$#\2#p' "$root/$f")
+  done < <(sed -nE 's,^[[:space:]]*(source|\.)[[:space:]]+.*/([A-Za-z0-9_.-]+\.sh)["[:space:]]*(#.*)?$,\2,p' "$root/$f")
   return 1
 }
 
@@ -107,12 +107,17 @@ cat > "$FIX/skills/x/sourcer.sh" <<'EOS'
 . "$SCRIPT_DIR/lib.sh"
 v="$(produce | head -1)"
 EOS
+cat > "$FIX/skills/x/commented.sh" <<'EOS'
+. "$SCRIPT_DIR/lib.sh"   # sets pipefail
+v="$(produce | head -1)"
+EOS
 cat > "$FIX/skills/x/nopipefail.sh" <<'EOS'
 produce | grep -q needle
 EOS
 got="$(scan "$FIX")"
 [[ "$(printf '%s\n' "$got" | grep -c '^skills/x/bad.sh:')" == 14 ]] || fail "detector should flag the 14 unsafe pipes of bad.sh, got: $got"
 printf '%s\n' "$got" | grep >/dev/null '^skills/x/sourcer.sh:2:' || fail "detector missed a pipe in a script that sources a pipefail lib: $got"
+printf '%s\n' "$got" | grep >/dev/null '^skills/x/commented.sh:2:' || fail "detector missed a pipe in a sourcer whose source line ends in a comment: $got"
 for root in tests hooks; do
   printf '%s\n' "$got" | grep >/dev/null "^$root/bad.sh:" || fail "detector did not scan $root/: $got"
 done

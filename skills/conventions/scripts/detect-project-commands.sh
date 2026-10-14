@@ -16,9 +16,8 @@
 # Without --refresh, an existing cache file is read as-is (no re-scan).
 # With --refresh, always re-scans and overwrites the cache.
 
-set -uo pipefail
-
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+# _lib.sh sets -euo pipefail for this script (_lib.sh:10).
 . "$SCRIPTS_DIR/_lib.sh"
 
 PROJECT=""
