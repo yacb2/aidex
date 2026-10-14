@@ -255,6 +255,89 @@ printf '%s' "$out" | grep >/dev/null 'RESOURCE image: myproj-wt-alive' \
   && fail "--slug attributed an unjudged image by its name: $out" \
   || pass "--slug does not attribute an unjudged image by name"
 
+echo "== every other docker call is bounded and a timeout is degraded (Q28a) =="
+# Inventory calls (ps, volume ls, images, dangling ids, dangling label, network
+# ls) and the per-class follow-ups: a wedged one must leave the sweep reported
+# incomplete, never an empty inventory read as "No orphaned". HANG is a glob over
+# the stub's argument string (that call ignores ALRM and sleeps 6 s); ORPH names
+# the one call that carries orphan evidence, every other call answers with the
+# live worktree only -- so when HANG hides ORPH, a sweep that trusts the empty
+# answer has nothing to report.
+mkdir -p "$TMP/hbin"
+cat > "$TMP/hbin/docker" <<'SHIM'
+#!/usr/bin/env bash
+[[ "$*" == $HANG ]] && { trap '' ALRM; exec sleep 6; }
+who=alive; [[ "$*" == $ORPH ]] && who=gone
+case "$*" in
+  info) ;;
+  ps*) echo myproj-wt-$who ;;
+  "volume ls"*) echo myproj-wt-${who}_pgdata ;;
+  "images --format"*) echo myproj-wt-$who ;;
+  "images -f dangling=true -q") echo abc ;;
+  "images -f dangling=true -f label="*) echo abc ;;
+  "image inspect"*) ;;
+  "inspect -f"*) echo myproj-wt-$who ;;
+  "network ls"*) echo myproj-wt-${who}_default ;;
+  "network inspect"*) echo 0 ;;
+esac
+exit 0
+SHIM
+chmod +x "$TMP/hbin/docker"
+# "<hung call>|<call that carries the orphan evidence>"
+for pair in "ps*|ps*" "volume ls*|volume ls*" "images --format*|images --format*" \
+            "network ls*|network ls*" "images -f dangling=true -q|inspect -f*" \
+            "inspect -f*|inspect -f*" "images -f dangling=true -f label=*|inspect -f*" \
+            "network inspect*|network ls*"; do
+  HANG="${pair%%|*}" ORPH="${pair#*|}"
+  for mode in plain check slug; do
+    args=(); [[ $mode == slug ]] && args=(--slug gone); [[ $mode == check ]] && args=(--check)
+    t0=$SECONDS
+    out="$( cd "$ROOT" && PATH="$TMP/hbin:$PATH" HANG="$HANG" ORPH="$ORPH" AIDEX_DOCKER_TIMEOUT=1 bash "$SCRIPT" ${args[@]+"${args[@]}"} 2>&1 )"; code=$?
+    el=$((SECONDS - t0))
+    [[ "$el" -le 5 ]] || fail "$HANG ($mode): a wedged call held the sweep for ${el} s (deadline 1 s)"
+    printf '%s' "$out" | grep >/dev/null 'did not answer within 1 s' \
+      && pass "$HANG ($mode): the timeout is reported" \
+      || fail "$HANG ($mode): no 'did not answer' note: $out"
+    printf '%s' "$out" | grep >/dev/null -e 'No orphaned' -e 'no Docker resources attributable' \
+      && fail "$HANG ($mode): a timed-out call was read as an all-clear: $out" \
+      || pass "$HANG ($mode): not an all-clear"
+    printf '%s' "$out" | grep >/dev/null 'sweep incomplete (degraded)' \
+      && pass "$HANG ($mode): reported incomplete" \
+      || fail "$HANG ($mode): sweep not reported incomplete: $out"
+    printf '%s' "$out" | grep >/dev/null -e 'docker network rm' -e 'docker rmi abc' \
+      && fail "$HANG ($mode): a reclaim command was printed for a resource the timed-out call was meant to judge: $out"
+    want=0; [[ $mode != plain ]] && want=1
+    [[ "$code" -eq "$want" ]] && pass "$HANG ($mode): exit $want" \
+      || fail "$HANG ($mode): expected exit $want, got $code"
+  done
+done
+
+echo "== a network whose inspect timed out stays listed, never force-removable; an empty answer is not 0 =="
+for case in hang empty; do
+  if [[ $case == hang ]]; then H="network inspect*"; else H="none"; fi
+  mkdir -p "$TMP/nbin2"
+  cat > "$TMP/nbin2/docker" <<'SHIM'
+#!/usr/bin/env bash
+[[ "$*" == $HANG ]] && { trap '' ALRM; exec sleep 6; }
+case "$*" in
+  "network ls"*) echo myproj-wt-gone_default ;;
+  "network inspect"*) exit 0 ;;
+esac
+exit 0
+SHIM
+  chmod +x "$TMP/nbin2/docker"
+  out="$( cd "$ROOT" && PATH="$TMP/nbin2:$PATH" HANG="$H" AIDEX_DOCKER_TIMEOUT=1 bash "$SCRIPT" 2>&1 )"
+  printf '%s' "$out" | grep >/dev/null 'ORPHAN network: myproj-wt-gone_default' \
+    && pass "$case: the network is still listed" || fail "$case: the network vanished from the list: $out"
+  printf '%s' "$out" | grep >/dev/null 'docker network rm' \
+    && fail "$case: a force-remove command was printed without an attached count: $out" \
+    || pass "$case: no 'docker network rm'"
+  if [[ $case == hang ]]; then
+    printf '%s' "$out" | grep >/dev/null '1 orphan(s) found' \
+      && pass "hang: the unjudged orphan network is counted" || fail "hang: the listed orphan network was not counted: $out"
+  fi
+done
+
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
 [[ "$FAIL" -eq 0 ]]

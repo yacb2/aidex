@@ -83,17 +83,15 @@ elif [[ $APPLY -eq 0 ]]; then
   echo "  archive all at once: bash $SCRIPT_DIR/sweep.sh --apply"
   [[ $CHECK -eq 1 ]] && exit 1
 else
-  # --reindex also exits 1 AFTER writing the index (id guard); only an unchanged index is stale
-  INDEX_FILE="$BACKLOG_DIR/00-index.md"
-  INDEX_BEFORE="$(cksum <"$INDEX_FILE" 2>/dev/null || true)"
+  # --reindex exits 4 AFTER writing the index (id guard); any other non-zero exit is a stale index
   IDX_RC=0
   bash "$SCRIPT_DIR/register-item.sh" --reindex >/dev/null || IDX_RC=$?
   if [[ $IDX_RC -eq 0 ]]; then
     echo "done: $moved item(s) archived; index rebuilt"
-  elif [[ "$(cksum <"$INDEX_FILE" 2>/dev/null || true)" == "$INDEX_BEFORE" ]]; then
+  elif [[ $IDX_RC -eq 4 ]]; then
+    echo "done: $moved item(s) archived; index rebuilt, but reindex reported an id problem (exit $IDX_RC)"
+  else
     echo "done: $moved item(s) archived; index is stale (reindex exit $IDX_RC); rebuild it with: bash $SCRIPT_DIR/register-item.sh --reindex" >&2
     exit "$IDX_RC"
-  else
-    echo "done: $moved item(s) archived; index rebuilt, but reindex reported an id problem (exit $IDX_RC)"
   fi
 fi

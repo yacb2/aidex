@@ -44,7 +44,8 @@
 #   --source-id <BL-id>            (with --escalate-to) stamp this existing item as the source
 #   --list                         list open entries grouped by priority (P0 → P3 + Blocked)
 #   --reindex                      regenerate 00-index.md from front-matter, then exit
-#                                  (exits 1 if any id is duplicated or is not a BL-NNN shape)
+#                                  exit 0 clean; exit 4 = index WRITTEN but the id guard failed (an id is
+#                                  duplicated or not a BL-NNN shape); exit 1 = index not written (stale)
 #   --check-ids                    run only that id guard, read-only (no index write); exit 1 on any problem
 #   --no-index                     skip auto-regen of 00-index.md after writing entry
 #
@@ -627,8 +628,8 @@ regen_index() {
   write_index "$dir" || rc=$?
   lock_drop
   [[ $rc -eq 0 ]] || return $rc
-  # Last statement: its status becomes regen_index's, so callers can act on it.
-  report_duplicate_ids "$dir"
+  # 4 = the index is written but the id guard failed; 2 (lock) and write_index's rc mean it is not.
+  report_duplicate_ids "$dir" || return 4
 }
 
 write_index() {
@@ -864,8 +865,9 @@ fi
 
 # --- handle --reindex ---
 if [[ $REINDEX_ONLY -eq 1 ]]; then
-  regen_index "$BACKLOG_DIR" || exit 1
-  exit 0
+  rc=0; regen_index "$BACKLOG_DIR" || rc=$?
+  [[ $rc -eq 0 || $rc -eq 4 ]] || rc=1
+  exit "$rc"
 fi
 
 # --- handle --list (grouped by priority, with Blocked section) ---
@@ -1230,11 +1232,11 @@ if [[ -n "$ESCALATE_TO" ]]; then
   fi
   printf '  %s\n' "$SRC_FILE" >&2
 
-  # Regenerate both indexes; a pre-existing dup/nonconforming id (rc 1) must not abort
-  # and stays quiet. A lock that could not be taken (rc 2) left an index stale: say so.
+  # Regenerate both indexes; a pre-existing dup/nonconforming id (rc 4: index written) must
+  # not abort and stays quiet. Any other non-zero rc (1 not written, 2 lock) left an index stale: say so.
   for IDX_DIR in "$BACKLOG_DIR" "$TARGET_BACKLOG"; do
     IDX_RC=0; IDX_ERR="$(regen_index "$IDX_DIR" 2>&1 >/dev/null)" || IDX_RC=$?
-    [[ $IDX_RC -ne 2 ]] || { printf '%s\n' "$IDX_ERR" >&2; warn "warning: $IDX_DIR/00-index.md was not rebuilt — run register-item.sh --reindex in that project"; }
+    [[ $IDX_RC -eq 0 || $IDX_RC -eq 4 ]] || { printf '%s\n' "$IDX_ERR" >&2; warn "warning: $IDX_DIR/00-index.md was not rebuilt — run register-item.sh --reindex in that project"; }
   done
 
   printf '%s\n' "$SRC_FILE"
@@ -1341,9 +1343,9 @@ print_define_verdict "$ITEM_ID" "$OUT_FILE"
 if [[ $NO_INDEX -eq 0 ]]; then
   # A pre-existing duplicate must not fail a registration — the entry is already
   # written, and aborting here would only lose the caller's path on stdout.
-  # A lock that could not be taken (rc 2) left the index stale: say so.
+  # rc 4 = written, id guard failed: quiet. Any other non-zero rc (1 not written, 2 lock) left the index stale: say so.
   IDX_RC=0; regen_index "$BACKLOG_DIR" || IDX_RC=$?
-  [[ $IDX_RC -ne 2 ]] || warn "warning: $BACKLOG_DIR/00-index.md was not rebuilt — run register-item.sh --reindex"
+  [[ $IDX_RC -eq 0 || $IDX_RC -eq 4 ]] || warn "warning: $BACKLOG_DIR/00-index.md was not rebuilt — run register-item.sh --reindex"
 fi
 
 # Emit the path to stdout so callers (like /aidex:audit escalate) can capture it
