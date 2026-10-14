@@ -210,6 +210,9 @@ colour mode in its metadata and its own viewport. Properties that matter:
 - The theme is planted before the first paint (an init script on every document in the
   context), because a store defaulting to "system" makes the mode a property of the
   machine running the test.
+  This contract's shipped example plants it in `localStorage`. An App Router app that reads
+  the theme from a cookie on the server cannot be planted that way: pin the cookie on the
+  context instead (`context.addCookies`; `04-react-next-port.md`, findings section 2).
 - Any non-gallery spec in the same directory runs in a **separate, baseline-less**
   project. Without that split, every cell gets a fifth copy with nothing to compare.
 - The four gallery projects **depend on the meta-suite's project** (§ 1b), so it runs
@@ -369,6 +372,8 @@ the harness copies this table into its own record and edits the rows its setup c
 | **`-darwin` baselines only** | Baselines exist for one platform. On any other OS every cell fails as a missing snapshot. |
 | **Contrast judged on the first screenful** (unless § 4b is adopted) | The accessibility pass sees what is rendered in the viewport; anything below it is reported as "incomplete" and is not gated. |
 | **The layout check is a settle check, not a layout-shift metric** | Both samples are taken *after* the cell reports ready, so a shift between first paint and ready is invisible to it. Its positive control is the meta-suite's seeded moving element; it has not fired on a real gallery cell. |
+| **Client-session assumption** | A driven cell's persona and data come from `page.route` mocks, which reach browser requests only. Where the session (`/auth/me/`) or any Server Component data is fetched on a Next server, a route mock cannot change it: log in as another seeded user and pass fixtures as props (`04-react-next-port.md`, findings section 2). |
+| **`localStorage` theme assumption** | The theme is planted in `localStorage` before first paint. A cookie theme read on the server needs the cookie pinned on the context instead (§ 3). |
 | **Breakpoint duplicated** | The harness restates the CSS framework's breakpoint as a number; a theme that changes it drifts silently. |
 | **Known-defect guards proven on seeded input only** | The meta-suite exercises the scoping and the rot guard against seeded defects; a list with no real entry has still never been exercised against real input. |
 | **The lockstep test parses source by regex** | A reformat is a false red, not a false green — but it is still a red nobody caused. |
