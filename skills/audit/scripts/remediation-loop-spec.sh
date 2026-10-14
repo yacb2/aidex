@@ -80,7 +80,7 @@ INV=""
 # normalize_inventory / mark_row_escalated), so a cell quoting a pipe stays one
 # cell; it is restored wherever a cell is printed or the row rewritten.
 collect_rows() {
-  awk "$AWK_UNESC"'
+  awk "$AWK_UNESC$AWK_HAS_RUN"'
     BEGIN { in_comment = 0 }
     {
       line = $0
@@ -112,7 +112,7 @@ collect_rows() {
       if (id == "" || id == "ID" || id == "—") next
       if (status !~ /^(open|doing|done|dropped|triaged|in-progress|closed|escalated)$/) next
       if (status !~ /^(open|doing|triaged|in-progress)$/) next
-      if (index(runs, run) == 0 && index(runs, rundate) == 0) next
+      if (!has_run(runs, run) && !has_run(runs, rundate)) next
       if (sev == "" || sev == "—") sev = "P?"
       print sev "\t" id "\t" module "\t" summ
     }
@@ -134,7 +134,7 @@ fi
 [[ -n "$ROWS" ]] || die "$RUN_SLUG has no unresolved findings — nothing to remediate"
 
 # Refuse a second emit while a live remediation spec still owns these rows.
-HELD="$(awk -v run="$RUN_SLUG" -v rundate="$RUN_DATE" '
+HELD="$(awk -v run="$RUN_SLUG" -v rundate="$RUN_DATE" "$AWK_HAS_RUN"'
   /^\|/ {
     row = $0; gsub(/\\[|]/, "\037", row)
     n = split(row, c, "|"); if (n < 11) next
@@ -142,7 +142,7 @@ HELD="$(awk -v run="$RUN_SLUG" -v rundate="$RUN_DATE" '
     runs = c[i_runs]; esc = c[i_esc]
     gsub(/^[[:space:]]+|[[:space:]]+$/, "", runs)
     gsub(/^[[:space:]]+|[[:space:]]+$/, "", esc)
-    if (index(runs, run) == 0 && index(runs, rundate) == 0) next
+    if (!has_run(runs, run) && !has_run(runs, rundate)) next
     if (esc ~ /^loop\/.*-remediate-/) { print esc; exit }
   }
 ' "$INV")"
@@ -341,7 +341,7 @@ mv "$TMP" "$LOOP_FILE"
 # requires of a finding whose work is under way (validate-audit enforces it).
 MARKER="loop/$(basename "$LOOP_FILE" .md)"
 TMP2="$(mktemp "${TMPDIR:-/tmp}/aidex.XXXXXX")"
-awk -v marker="$MARKER" -v run="$RUN_SLUG" -v rundate="$RUN_DATE" "$AWK_UNESC"'
+awk -v marker="$MARKER" -v run="$RUN_SLUG" -v rundate="$RUN_DATE" "$AWK_UNESC$AWK_HAS_RUN"'
   BEGIN { in_comment = 0 }
   {
     line = $0; skip = in_comment; probe = line
@@ -369,7 +369,7 @@ awk -v marker="$MARKER" -v run="$RUN_SLUG" -v rundate="$RUN_DATE" "$AWK_UNESC"'
     gsub(/^[[:space:]]+|[[:space:]]+$/, "", esc)
     if (id == "" || id == "ID" || id == "—") { print $0; next }
     if (status !~ /^(open|doing|triaged|in-progress)$/) { print $0; next }
-    if (index(runs, run) == 0 && index(runs, rundate) == 0) { print $0; next }
+    if (!has_run(runs, run) && !has_run(runs, rundate)) { print $0; next }
     c[i_status] = " doing "
     if (esc == "" || esc == "—") c[i_esc] = " " marker " "
     out = c[1]

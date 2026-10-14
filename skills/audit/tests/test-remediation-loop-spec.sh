@@ -191,6 +191,42 @@ PRE_OUT="$(bash "$EMIT" 2026-07-10-pipes 2>&1)"
 printf '%s' "$PRE_OUT" | grep >/dev/null 'already held by loop/' \
   || fail "escaped pipe: re-emit not refused by the held-marker check, got: $PRE_OUT"
 
+# ---------- 6c. a run owns whole Audit Runs tokens, never a substring ----------
+# `2026-07-10-ux` is a prefix of `2026-07-10-ux-mobile`, and its date is a
+# substring of every same-day slug: a substring test let the run gate on, list,
+# mark and be refused by the other run's rows. A bare-date token still names
+# every run of that date (legacy rows; cells 1-6b rely on it).
+mkdir -p "$A/ux/2026-07-10-ux" "$A/ux/2026-07-10-ux-mobile"
+cat > "$A/ux/00-inventory.md" <<'EOF'
+| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |
+|---|---|---|---|---|---|---|---|---|
+| UX-1 | bug | web | desktop finding | done | P1 | 2026-06-01-old, 2026-07-10-ux | — | — |
+| UX-2 | bug | web | mobile finding | open | P1 | 2026-07-10-ux-mobile | — | — |
+| UX-3 | bug | web | held by mobile | doing | P2 | 2026-07-10-ux-mobile | loop/2026-07-11-remediate-ux-mobile | — |
+EOF
+echo "# m" > "$A/ux/00-methodology.md"; echo "# c" > "$A/ux/00-changelog.md"
+for r in ux ux-mobile; do
+  printf -- '---\ntitle: "%s"\nstatus: doing\ncreated: 2026-07-10\nupdated: 2026-07-10\nmethodology: ux\n---\n' "$r" \
+    > "$A/ux/2026-07-10-$r/index.md"
+done
+UX2='| UX-2 | bug | web | mobile finding | open | P1 | 2026-07-10-ux-mobile | — | — |'
+UX3='| UX-3 | bug | web | held by mobile | doing | P2 | 2026-07-10-ux-mobile | loop/2026-07-11-remediate-ux-mobile | — |'
+bash "$EMIT" 2026-07-10-ux --check >/dev/null 2>&1
+[[ $? -eq 0 ]] || fail "whole token: gate RED on 2026-07-10-ux with its only row done — another run's row was claimed"
+sed -i.bak 's/^| UX-1 \(.*\)| done |/| UX-1 \1| open |/' "$A/ux/00-inventory.md" && rm -f "$A/ux/00-inventory.md.bak"
+UX_OUT="$(bash "$EMIT" 2026-07-10-ux 2>&1)" || fail "whole token: emit for 2026-07-10-ux exited non-zero"
+printf '%s' "$UX_OUT" | grep >/dev/null 'already held by loop/' \
+  && fail "whole token: emit refused by 2026-07-10-ux-mobile's held marker, got: $UX_OUT"
+USPEC="$(ls .context/loops/*-remediate-ux.md 2>/dev/null | sed -n 1p)"
+grep -q '\*\*UX-1\*\*' "${USPEC:-/dev/null}" || fail "whole token: UX-1 (multi-token Audit Runs cell) missing from the work-list"
+grep -q '\*\*UX-2\*\*' "${USPEC:-/dev/null}" && fail "whole token: UX-2 belongs to 2026-07-10-ux-mobile — must not be in the work-list"
+grep '^| UX-1 ' "$A/ux/00-inventory.md" | grep >/dev/null -E '\| doing \| P1 \| 2026-06-01-old, 2026-07-10-ux \| loop/[0-9-]+-remediate-ux \|' \
+  || fail "whole token: UX-1 should be doing + marker, row: $(grep '^| UX-1 ' "$A/ux/00-inventory.md")"
+[[ "$(grep '^| UX-2 ' "$A/ux/00-inventory.md")" == "$UX2" ]] \
+  || fail "whole token: 2026-07-10-ux-mobile's UX-2 row was rewritten: $(grep '^| UX-2 ' "$A/ux/00-inventory.md")"
+[[ "$(grep '^| UX-3 ' "$A/ux/00-inventory.md")" == "$UX3" ]] \
+  || fail "whole token: 2026-07-10-ux-mobile's UX-3 row was rewritten: $(grep '^| UX-3 ' "$A/ux/00-inventory.md")"
+
 # ---------- 7. refusals ----------
 # Re-emit while a live spec still holds the rows: the marker only fills an EMPTY
 # cell, so a second spec would list rows that point at the first one.

@@ -158,6 +158,20 @@ AWK_UNESC='function unesc(s,   out, i) {
 }
 '
 
+# awk function: does an Audit Runs cell list `want` as a whole comma-separated
+# token? Never a substring: `2026-10-14-foo` must not claim `2026-10-14-foo-bar`,
+# nor a same-day run (only a bare date token names the date). Same rule as the
+# inline copies in close-audit.sh and reindex-audits.sh.
+AWK_HAS_RUN='function has_run(cell, want,   parts, k, n, t) {
+  n = split(cell, parts, ",")
+  for (k = 1; k <= n; k++) {
+    t = parts[k]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", t)
+    if (t == want) return 1
+  }
+  return 0
+}
+'
+
 # Extract "<summary>\t<severity>" for a finding row from the inventory.
 # Prints empty if not found. Skips HTML comment blocks so template example rows
 # never pollute the match. Summary is cell 5, status cell 6, severity cell 7.
