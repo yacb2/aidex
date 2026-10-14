@@ -193,7 +193,7 @@ for candidate in \
 do
   [[ -f "$candidate" && -x "$candidate" ]] && { NEWLOOP="$candidate"; break; }
 done
-[[ -n "$NEWLOOP" ]] || die "loop script not found. Run './install.sh --update' to install it."
+[[ -n "$NEWLOOP" ]] || die "loop script not found: the aidex plugin install looks incomplete; reinstall it with 'claude plugin install aidex@aidex' or run /reload-plugins."
 
 info "Emitting remediation loop-spec for $RUN_SLUG ($COUNT unresolved findings)"
 LOOP_FILE="$("$NEWLOOP" new "$SLUG")"

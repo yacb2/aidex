@@ -129,10 +129,10 @@ by `tests/test-subagent-spend.sh` against `tests/fixtures/subagent-spend-corpus.
   session was using, so its row reads `<model> (inherited)`. A meta that exists and
   cannot be read is a third case: type `unknown`, no label, a warning on stderr.
 
-Two shapes the rest of this package does not handle. Agent transcripts also live
+Two shapes to keep in mind. Agent transcripts also live
 **nested** at `subagents/workflows/wf_*/agent-*.jsonl` — 7,289 of the author's against
-3,164 at the flat depth, so the one-level glob `iter_tool_events` uses omits two thirds
-of them. And `<synthetic>` placeholder turns carry a full `usage` block, so they are
+3,164 at the flat depth, so a one-level glob would omit two thirds of them; both this
+script and `iter_tool_events` glob recursively. And `<synthetic>` placeholder turns carry a full `usage` block, so they are
 skipped by model, the same predicate `extract.py` applies to the adjacency channel.
 
 **This instrument deliberately diverges from `~/.claude/hooks/delegation_saving.py`,

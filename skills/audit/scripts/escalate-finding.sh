@@ -147,7 +147,7 @@ do
 done
 
 if [[ -z "$REGISTER" ]]; then
-  die "backlog script not found. Run './install.sh --update' to install it."
+  die "backlog script not found: the aidex plugin install looks incomplete; reinstall it with 'claude plugin install aidex@aidex' or run /reload-plugins."
 fi
 
 # Extract Summary (cell 5) and Severity (cell 7) for the finding row.

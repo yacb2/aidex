@@ -171,7 +171,7 @@ For each finding, compare evidence `ts` against `git -C <aidex> log`. Status:
 - `LIKELY-FIXED` — all evidence predates a plausibly-addressing commit; confirm no recurrence.
 - `VERIFY-SHIPPED` — a commit clearly implements it; confirm propagation.
 - `SPLIT` — evidence straddles a fix; note both sides.
-A commit date is necessary but not sufficient (install.sh must run for the canon to go live).
+A commit date is necessary but not sufficient (the commit must be loaded, by a session start or `/reload-plugins`, for the canon to go live).
 
 ## Taxonomy
 

@@ -27,7 +27,6 @@ DEFAULT_DIR = os.path.normpath(os.path.join(HERE, "..", "..", "references", "fac
 
 REQUIRED = ("title", "label", "lexicon", "skills", "slash", "scripts", "paths",
             "primary_source")
-OPTIONAL = ("reader", "sub_objectives")
 PRIMARY_SOURCES = ("pages", "transcript", "items", "events")
 
 
@@ -142,8 +141,6 @@ def load_path(path):
     if spec["primary_source"] not in PRIMARY_SOURCES:
         raise FacetError(f"ERROR: {path}: primary_source {spec['primary_source']!r} is not one of "
                          f"{', '.join(PRIMARY_SOURCES)}")
-    if not spec["skills"] and not spec["slash"] and not spec["lexicon"]:
-        raise FacetError(f"ERROR: {path}: a facet with no lexicon, skills or slash admits nothing")
     for label, rx in spec["lexicon"].items():
         try:
             re.compile(rx, re.I)
@@ -201,8 +198,7 @@ def compiled(root=None):
     """[(name, lexicon_re, skills_set, slash_set)] ready for the admission gate."""
     out = []
     for s in load_all(root):
-        rx = re.compile("|".join(f"(?:{v})" for v in s["lexicon"].values()), re.I) \
-            if s["lexicon"] else None
+        rx = re.compile("|".join(f"(?:{v})" for v in s["lexicon"].values()), re.I)
         out.append((s["name"], rx, set(s["skills"]), set(s["slash"])))
     return out
 
@@ -224,7 +220,7 @@ def facets_for(record, table):
         slash = "/" + slash
     hits = []
     for name, rx, skills, slashes in table:
-        if (rx and rx.search(p)) or (fired & skills) or (slash and slash in slashes):
+        if rx.search(p) or (fired & skills) or (slash and slash in slashes):
             hits.append(name)
     return hits
 

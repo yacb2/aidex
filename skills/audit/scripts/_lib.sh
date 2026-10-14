@@ -56,24 +56,6 @@ methodology_name() {
   esac
 }
 
-is_known_type() {
-  normalize_type "$1" > /dev/null 2>&1
-}
-
-# Resolve the inventory file: canonical 00-inventory.md, else legacy INVENTORY.md.
-# Prints the path, or dies if neither exists.
-# Usage: resolve_inventory <audits_dir>
-resolve_inventory() {
-  local audits_dir="$1"
-  if [[ -f "$audits_dir/00-inventory.md" ]]; then
-    printf '%s\n' "$audits_dir/00-inventory.md"
-  elif [[ -f "$audits_dir/INVENTORY.md" ]]; then
-    printf '%s\n' "$audits_dir/INVENTORY.md"
-  else
-    die "inventory not found: expected $audits_dir/00-inventory.md (or legacy INVENTORY.md)"
-  fi
-}
-
 # Locate which inventory holds a finding id under the CANON layout: searches each
 # audits/<methodology>/00-inventory.md (skipping the folders validate-audit.sh
 # skips: _archive, methodology, _deferred), then the legacy root boards. The two
@@ -346,5 +328,3 @@ AWK_MARK="$AWK_UNESC"'
     }
     END { if (closed) exit 4; if (dropped) exit 5; if (!hit) exit 3 }
 '
-
-# Compute the relative path from a base file's directory to a target file.

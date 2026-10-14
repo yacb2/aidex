@@ -48,10 +48,6 @@ def normalize(txt):
     return s[:220]
 
 
-def tool_name_for(objs_by_id, tuid):
-    return objs_by_id.get(tuid, "?")
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--since", default=None)

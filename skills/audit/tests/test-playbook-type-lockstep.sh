@@ -109,7 +109,7 @@ check "04-playbooks.md still points at $NO_TEMPLATE outside the table" \
       "grep -q '\`$NO_TEMPLATE\`' '$PLAYBOOKS'"
 
 # --- sites 7-9: the copies outside this skill ------------------------------------
-# Only reachable from a repo checkout: install.sh ships skills/ and rules/, not README.md,
+# Only reachable from a repo checkout: the plugin ships skills/, not README.md,
 # so in the installed ${CLAUDE_PLUGIN_ROOT}/skills/ tree these three are absent. Skipping is printed, never counted as a pass.
 PROSE_SITES=("$PLAYBOOKS")
 if [[ -f "$README" && -f "$CONV_SKILL" && -f "$CONV_AUDIT" ]]; then

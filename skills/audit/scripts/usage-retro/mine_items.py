@@ -507,7 +507,7 @@ def _result_text(b):
     return c if isinstance(c, str) else str(c)
 
 
-def iter_tool_events(tx_root, since=None, until=None, projects=None):
+def iter_tool_events(tx_root, since=None, until=None):
     """Yield dicts: session, parent_session, project, bucket, agent ('main'|'sub'),
     ts, tool, command, script (skills/<skill>/scripts/<file> or ''), read_only (bool),
     out (basename of --out on a wrap-report.sh event, else ''), is_error (bool),
@@ -530,8 +530,6 @@ def iter_tool_events(tx_root, since=None, until=None, projects=None):
     for pdir in sorted(glob.glob(tx_root.rstrip("/") + "/*/")):
         dname = os.path.basename(pdir.rstrip("/"))
         proj = short_project_dir(dname)
-        if projects and proj not in projects:
-            continue
         bucket = bucket_for(dname)
         files = [(f, "main", None) for f in glob.glob(pdir + "*.jsonl")]
         # Recursive: a Workflow run nests its agents in subagents/workflows/wf_*/

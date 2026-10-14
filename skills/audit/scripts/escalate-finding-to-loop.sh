@@ -145,7 +145,7 @@ do
 done
 
 if [[ -z "$NEWLOOP" ]]; then
-  die "loop script not found. Run './install.sh --update' to install it."
+  die "loop script not found: the aidex plugin install looks incomplete; reinstall it with 'claude plugin install aidex@aidex' or run /reload-plugins."
 fi
 
 info "Scaffolding loop-spec for $FINDING_ID via loop"
@@ -169,18 +169,14 @@ awk -v goal="$GOAL_TEXT" -v prov="$PROV_TEXT" -v gate="$GATE_TEXT" '
 mv "$TMP" "$LOOP_FILE"
 
 # Back-link (canon forward+back invariant): the loop-spec front-matter carries
-# origin_ref pointing at the finding. Replace an existing origin_ref line, else
-# insert one before the closing front-matter delimiter.
-if grep -q '^origin_ref:' "$LOOP_FILE"; then
-  sed -i.bak -E "s|^origin_ref: .*|origin_ref: $ORIGIN_REF|" "$LOOP_FILE" && rm -f "$LOOP_FILE.bak"
-else
-  TMP2="$(mktemp "$LOOP_FILE.XXXXXX")"
-  cp -p "$LOOP_FILE" "$TMP2"
-  awk -v ref="$ORIGIN_REF" '
-    /^---[[:space:]]*$/ { c++; if (c == 2) print "origin_ref: " ref }
-    { print }
-  ' "$LOOP_FILE" > "$TMP2" && mv "$TMP2" "$LOOP_FILE"
-fi
+# origin_ref pointing at the finding. The template never writes one, so insert it
+# before the closing front-matter delimiter.
+TMP2="$(mktemp "$LOOP_FILE.XXXXXX")"
+cp -p "$LOOP_FILE" "$TMP2"
+awk -v ref="$ORIGIN_REF" '
+  /^---[[:space:]]*$/ { c++; if (c == 2) print "origin_ref: " ref }
+  { print }
+' "$LOOP_FILE" > "$TMP2" && mv "$TMP2" "$LOOP_FILE"
 
 # Canon cross-ref MARKER (D-03), never a markdown relative link.
 MARKER="loop/$(basename "$LOOP_FILE" .md)"

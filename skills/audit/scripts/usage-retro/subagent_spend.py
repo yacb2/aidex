@@ -178,9 +178,9 @@ def walk(tx_root):
 
     Main transcripts are `<root>/<project>/*.jsonl`. Agent transcripts live one level
     under `subagents/` AND nested in `subagents/workflows/wf_*/` — 7,289 of the
-    author's are at the nested depth against 3,164 at the flat one, so the one-level
-    glob the rest of this package uses omits two thirds of them. The recursive glob
-    also picks up `journal.jsonl`, which carries no assistant turn and contributes
+    author's are at the nested depth against 3,164 at the flat one, so a one-level
+    glob would omit two thirds of them. The recursive glob (the same one
+    `iter_tool_events` uses) also picks up `journal.jsonl`, which carries no assistant turn and contributes
     nothing.
 
     Row keys: `main`; `("A", model, iteration type)` for an iteration inside a main turn, so that
