@@ -76,8 +76,11 @@ INV=""
 # Column width branches like close-audit.sh: the canonical 9-column board parses
 # as NF==11, the pre-2026-08-06 board (First Seen / Last Updated) as NF==13.
 # Reading a fixed index on the wrong width silently returns another cell.
+# Each escaped \| is held as US while a row is split (same hiding as
+# normalize_inventory / mark_row_escalated), so a cell quoting a pipe stays one
+# cell; it is restored wherever a cell is printed or the row rewritten.
 collect_rows() {
-  awk '
+  awk "$AWK_UNESC"'
     BEGIN { in_comment = 0 }
     {
       line = $0
@@ -94,10 +97,11 @@ collect_rows() {
         }
       }
       if (line !~ /^\|/) next
+      gsub(/\\[|]/, "\037", line)
       n = split(line, c, "|")
       if (n < 11) next
-      id = c[2]; summ = c[5]; status = c[6]; sev = c[7]
-      module = c[4]
+      id = c[2]; summ = unesc(c[5]); status = c[6]; sev = c[7]
+      module = unesc(c[4])
       runs = (n >= 13 ? c[10] : c[8])
       gsub(/^[[:space:]]+|[[:space:]]+$/, "", id)
       gsub(/^[[:space:]]+|[[:space:]]+$/, "", summ)
@@ -132,7 +136,8 @@ fi
 # Refuse a second emit while a live remediation spec still owns these rows.
 HELD="$(awk -v run="$RUN_SLUG" -v rundate="$RUN_DATE" '
   /^\|/ {
-    n = split($0, c, "|"); if (n < 11) next
+    row = $0; gsub(/\\[|]/, "\037", row)
+    n = split(row, c, "|"); if (n < 11) next
     i_runs = (n >= 13 ? 10 : 8); i_esc = (n >= 13 ? 11 : 9)
     runs = c[i_runs]; esc = c[i_esc]
     gsub(/^[[:space:]]+|[[:space:]]+$/, "", runs)
@@ -336,7 +341,7 @@ mv "$TMP" "$LOOP_FILE"
 # requires of a finding whose work is under way (validate-audit enforces it).
 MARKER="loop/$(basename "$LOOP_FILE" .md)"
 TMP2="$(mktemp "${TMPDIR:-/tmp}/aidex.XXXXXX")"
-awk -v marker="$MARKER" -v run="$RUN_SLUG" -v rundate="$RUN_DATE" '
+awk -v marker="$MARKER" -v run="$RUN_SLUG" -v rundate="$RUN_DATE" "$AWK_UNESC"'
   BEGIN { in_comment = 0 }
   {
     line = $0; skip = in_comment; probe = line
@@ -353,7 +358,8 @@ awk -v marker="$MARKER" -v run="$RUN_SLUG" -v rundate="$RUN_DATE" '
     }
     if (skip || index($0, "<!--") > 0 || index($0, "-->") > 0) { print $0; next }
     if ($0 !~ /^\|/) { print $0; next }
-    n = split($0, c, "|")
+    row = $0; gsub(/\\[|]/, "\037", row)
+    n = split(row, c, "|")
     if (n < 11) { print $0; next }
     i_status = 6; i_runs = (n >= 13 ? 10 : 8); i_esc = (n >= 13 ? 11 : 9)
     id = c[2]; status = c[i_status]; runs = c[i_runs]; esc = c[i_esc]
@@ -368,7 +374,7 @@ awk -v marker="$MARKER" -v run="$RUN_SLUG" -v rundate="$RUN_DATE" '
     if (esc == "" || esc == "—") c[i_esc] = " " marker " "
     out = c[1]
     for (i = 2; i <= n; i++) out = out "|" c[i]
-    print out
+    print unesc(out)
   }
 ' "$INV" > "$TMP2" && mv "$TMP2" "$INV"
 

@@ -154,6 +154,43 @@ printf '%s' "$lrow" | grep >/dev/null -E '\| 2026-05-01 \| 2026-06-02 \| 2026-07
 bash "$EMIT" 2026-07-04-legacy-board --check >/dev/null 2>&1
 [[ $? -eq 1 ]] || fail "legacy board: gate should be RED while PERF-1 is unresolved"
 
+# ---------- 6b. a Summary quoting a pipe (\|) is one cell ----------
+# Split on a raw "|", the escape shifts Status/Severity one cell right: the row
+# is read as status 'b" in the router', silently dropped from gate, work-list
+# and marking, and its held marker is never seen on re-emit.
+mkdir -p "$A/pipes/2026-07-10-pipes"
+cat > "$A/pipes/00-inventory.md" <<'EOF'
+| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |
+|---|---|---|---|---|---|---|---|---|
+| PIPE-1 | bug | api | greps "a\|b" in the router | open | P0 | 2026-07-10 | — | — |
+| PIPE-2 | bug | mod\|x | module pipe | open | P1 | 2026-07-10 | — | — |
+| PIPE-3 | bug | api | notes pipe | open | P2 | 2026-07-10 | — | see a\|b |
+| PIPE-4 | bug | api | done "a\|b" | done | P1 | 2026-07-10 | — | Closed: abc1234 — a\|b |
+EOF
+echo "# m" > "$A/pipes/00-methodology.md"; echo "# c" > "$A/pipes/00-changelog.md"
+printf -- '---\ntitle: "pipes"\nstatus: doing\ncreated: 2026-07-10\nupdated: 2026-07-10\nmethodology: pipes\n---\n' \
+  > "$A/pipes/2026-07-10-pipes/index.md"
+bash "$EMIT" 2026-07-10-pipes --check >/dev/null 2>&1
+[[ $? -eq 1 ]] || fail "escaped pipe: gate should be RED while PIPE-1 is open"
+bash "$EMIT" 2026-07-10-pipes >/dev/null 2>&1 || fail "escaped pipe: emit exited non-zero"
+PSPEC="$(ls .context/loops/*remediate-pipes*.md 2>/dev/null | sed -n 1p)"
+grep -qF '**PIPE-1** (api) — greps "a\|b" in the router' "${PSPEC:-/dev/null}" \
+  || fail "escaped pipe: PIPE-1 missing from the work-list or its summary altered"
+prow="$(grep '^| PIPE-1 ' "$A/pipes/00-inventory.md")"
+[[ "$prow" =~ ^'| PIPE-1 | bug | api | greps "a\|b" in the router | doing | P0 | 2026-07-10 | loop/'[0-9-]+'-remediate-pipes | — |'$ ]] \
+  || fail "escaped pipe: row should be doing + marker with Summary and Severity intact, row: $prow"
+grep -qF '**PIPE-2** (mod\|x) — module pipe' "${PSPEC:-/dev/null}" \
+  || fail "escaped pipe: PIPE-2 Module cell not restored in the work-list"
+grep -q $'\037' "${PSPEC:-/dev/null}" && fail "escaped pipe: a raw US placeholder leaked into the loop-spec"
+prow3="$(grep '^| PIPE-3 ' "$A/pipes/00-inventory.md")"
+[[ "$prow3" =~ ^'| PIPE-3 | bug | api | notes pipe | doing | P2 | 2026-07-10 | loop/'[0-9-]+'-remediate-pipes | see a\|b |'$ ]] \
+  || fail "escaped pipe: Notes-only \\| row should be doing + marker with Notes intact, row: $prow3"
+[[ "$(grep '^| PIPE-4 ' "$A/pipes/00-inventory.md")" == '| PIPE-4 | bug | api | done "a\|b" | done | P1 | 2026-07-10 | — | Closed: abc1234 — a\|b |' ]] \
+  || fail "escaped pipe: the done PIPE-4 row was not left byte-identical"
+PRE_OUT="$(bash "$EMIT" 2026-07-10-pipes 2>&1)"
+printf '%s' "$PRE_OUT" | grep >/dev/null 'already held by loop/' \
+  || fail "escaped pipe: re-emit not refused by the held-marker check, got: $PRE_OUT"
+
 # ---------- 7. refusals ----------
 # Re-emit while a live spec still holds the rows: the marker only fills an EMPTY
 # cell, so a second spec would list rows that point at the first one.
