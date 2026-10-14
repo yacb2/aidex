@@ -53,8 +53,9 @@ The bug-fix workflow is these nine steps — the agent table and prose below key
    push, deploy, or the end of an unattended run — not this commit**
    (`decision/2026-08-24-full-suite-gate-moves-from-commit-to-integration`). Committing on a selected run is legitimate and must never be
    silent: state which subset ran and that the full suite has not. A selection marked
-   `# INCOMPLETE` is the one exception that still forces the full suite before the
-   commit — an unmapped change is unknown scope, so the selection proves nothing.
+   `# INCOMPLETE` does not cover everything that moved: unmapped scope still
+   requires the full suite before integration, not in-phase — an unmapped change is
+   unknown scope, so the selection proves nothing.
    That same command also names, on stderr, any file in your diff that **measurably
    breaks** and has no E2E reaching it. Write that spec now, before the fix lands —
    against a disposable database, never dev (`skills/coverage/SKILL.md § What the generated test-e2e.sh guarantees`).

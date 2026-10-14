@@ -55,8 +55,8 @@ single-agent baseline of that same plan, the threshold is the structural rule ab
     implementation transcript. Its `passed` boolean is the gate (mirrors `proof.passed`); a
     failing review routes to the conditional arbiter. Run it **after** the implementing form when
     you want a review that is not contaminated by the implementer's grown session.
-- **Choose the form by plan shape** (see "Deriving `args`" below): if **every** phase has a
-  non-empty `depends_on` forming a single chain → `pipeline-with-gate`; if two or more phases
+- **Choose the form by plan shape** (see "Deriving `args`" below): if **every phase after the
+  first** depends on the one before it (a single chain) → `pipeline-with-gate`; if two or more phases
   are edge-free (empty/omitted `depends_on`) and can run in parallel → `fan-out-with-gate`.
   When unsure, the sequential pipeline is the safe default (it never mis-orders).
 - **A single-file plan never uses `fan-out-with-gate`**: it has no `**Files:**` lists, so nothing
@@ -78,7 +78,7 @@ single-agent baseline of that same plan, the threshold is the structural rule ab
   via `{scriptPath}` re-invoke (picks up edits, runs fresh).
 - **Review form launch (separate invocation, after implementation):**
   `args = JSON.stringify({ planPath, diffCmd, successCriteria, standards_ref, reviewModel,
-  reviewEffort, reviewAgentType, autonomySurface, preAuthorized, maxRetries })`. `diffCmd` is the Bash command the
+  reviewEffort, reviewAgentType, autonomySurface })`. `diffCmd` is the Bash command the
   reviewer runs to get the cumulative diff (e.g. `cd <repo> && git diff <base>...HEAD`).
   `standards_ref` is the **push** side of push/pull — a standard/rule text handed **only** to the
   reviewer, so it can enforce a rule the implementer was never shown; omit it to review against the
