@@ -131,8 +131,11 @@ command — no project-specific variant:
 
 ```
 COMPOSE_PROJECT_NAME=<project>-wt-<slug>          # -wt- is the sweep marker
-worktree_down: docker compose -p <project>-wt-<slug> down -v --rmi local --remove-orphans
+worktree_down: bash ${CLAUDE_PLUGIN_ROOT}/skills/worktree/scripts/worktree.sh down <slug>
 ```
+
+`worktree.sh down` runs `docker compose -p <project>-wt-<slug> down -v --rmi local --remove-orphans`,
+releases the slot claim and removes the directory; never record the raw compose command in its place.
 
 `<project>` is the main repo's basename. `--rmi local` removes exactly the
 compose-built default-tagged images (`<project>-backend` etc.) while custom-tagged dev

@@ -87,8 +87,9 @@ If Tier 2 applies, which strategy isolates the environment:
 - **Naming/teardown contract:** every Tier-2 project names its compose project
   `<project>-wt-<slug>` (the `-wt-` infix is the sweep marker — without it a compose
   project is an unattributable bare slug) and tears down with
-  `docker compose -p <project>-wt-<slug> down -v --rmi local --remove-orphans`. Record
-  this verbatim as the doc's `worktree_down` field — see
+  `worktree.sh down <slug>` (it runs the compose down, releases the claim and removes
+  the directory; never hand-roll `docker compose -p … down` in its place). The doc's
+  `worktree_down` field records that command — see
   `conventions/references/worktree-conventions.md` for the full contract.
 - **Concrete cleanup steps** for a Tier-2 worktree closing out: drop the isolated DB,
   stop/remove the isolated compose project/containers/network, reclaim images built

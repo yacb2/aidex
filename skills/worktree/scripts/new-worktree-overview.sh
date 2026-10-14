@@ -3,7 +3,7 @@
 # Usage: new-worktree-overview.sh
 #
 # One file per project (not one per topic) — refuses to overwrite an existing doc.
-# Self-contained: inlines its helpers so it does not depend on a sibling _lib.sh.
+# Sources the shared helpers from conventions/scripts/_lib.sh.
 # On success, prints the created file path to stdout.
 
 set -euo pipefail
