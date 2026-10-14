@@ -22,8 +22,13 @@ backlog is well-formed and answers only about order.
    paths and commits its body cites, each commit with the repo it lives in (`commit_repos` in
    `--json`, `"."` for the dir holding `.context/`). Items with no anchor are marked; they are not worth a
    subagent, because a reviewer would have nothing to open.
-2. Fan out **one `aidex:backlog-reader` (`subagent_type`) per anchored item**. Give it the item's title,
-   acceptance and anchors, and ask a single question: *does the current code satisfy this?*
+2. Fan out **one `aidex:backlog-reader` (`subagent_type`) per batch of about five anchored
+   items** (ceil(N/5) readers, all in one message). Each launch pays a startup floor of about
+   22-24k tokens, so one reader per item spends most of its cost before reading anything;
+   one reader for all items costs more again, because every item re-reads the ones before it
+   (measured 2026-10-14 on 27 items: batches of 4-5 cost 68% less than one per item).
+   Spread the heavy items (most anchors) across batches. Give the reader each item's title, item file, acceptance and anchors, and
+   ask a single question per item: *does the current code satisfy this?*
    Require a **cited path or commit** in the answer — an unevidenced "looks done" is the
    thing this action exists to replace.
 3. Report the suspected-resolved set to the user and stop. **Never close an item from this
