@@ -3,7 +3,8 @@
 # Usage: new-communication.sh <received|sent|meeting|call> <slug> [--channel <email|whatsapp|other>]
 #   <received|sent>: async correspondence direction; received goes under received/, sent under sent/.
 #   <meeting|call>:  synchronous, multi-party conversation; both go under meetings/ (no direction).
-#   <slug>: kebab-case identifier, e.g. "client-pricing-question"
+#   <slug>: kebab-case identifier, e.g. "client-pricing-question". A leading YYYY-MM-DD- in
+#           the slug is dropped and the entry's date is used (owner Q47).
 #   --channel: async only; defaults to email. Ignored for meeting/call (the kind is the channel).
 #
 # Reads the workspace communications style profile (.context/profiles/communication.md) and
@@ -178,6 +179,24 @@ fi
 
 ROOT="$(find_project_root)"
 DATE_ISO="$(today_iso)"
+
+# A slug that already starts with a date would put the date in the folder name twice
+# (`2026-10-13-2026-10-13-reunion`, owner Q47): strip it and keep the entry's date only.
+# The date-only check runs on what is left after the strip, so `2026-10-13-2026-10-13`
+# is refused too.
+GIVEN_SLUG="$SLUG"
+SLUG_DATE=""
+if [[ "$SLUG" =~ ^([0-9]{4}-[0-9]{2}-[0-9]{2})- ]]; then
+  SLUG_DATE="${BASH_REMATCH[1]}"
+  SLUG="${SLUG#"$SLUG_DATE"-}"
+fi
+if [[ "$SLUG" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+  die "slug is only a date: $GIVEN_SLUG (the entry date is added for you; give a name, e.g. reunion)"
+fi
+if [[ -n "$SLUG_DATE" && "$SLUG_DATE" != "$DATE_ISO" ]]; then
+  warn "note: slug date $SLUG_DATE differs from the entry date $DATE_ISO; using $DATE_ISO"
+fi
+
 ENTRY_DIR="$ROOT/.context/communications/$FOLDER/$DATE_ISO-$SLUG"
 OUT="$ENTRY_DIR/body.md"
 
