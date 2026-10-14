@@ -7,8 +7,9 @@ a real criterion — is § Definition contract of
 below it is NEEDS-DECISION for `sweep-eligible.py` and `triage.sh` reports the count.
 The run: `define-check.py` (read-only — what each item lacks, what its body already
 tells a script: touches candidates, cross-repo paths, cited ids, clusters); then, per
-underdefined item, read the item **and the code it names**, and write the verdict with
-`define-item.sh` — `estimate` and `## Acceptance` included, without asking (a wrong size
+underdefined item, read the item **and the code it names**, and write the front-matter verdict with
+`define-item.sh` (`estimate`, `surface`, `verify`, `touches`, `depends`) and `## Acceptance` into the body by
+editing the file — both without asking (a wrong size
 only defers at the sweep). What stays the owner's:
 `priority`, a hold, a cost decision — write it as `blocked_by` or an `owner` row, never
 as a guess. Clusters that read as one change get `depends: merge:BL-NNN`; ones that

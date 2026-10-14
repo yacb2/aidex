@@ -9,7 +9,7 @@ model-policy: per-stage
 
 # Backlog
 
-Create and manage consistent, machine-readable entries in `.context/backlog/` with origin tracking and lifecycle (register · list · close).
+Create and manage consistent, machine-readable entries in `.context/backlog/` with origin tracking and lifecycle (register · list · defer · close).
 
 ---
 
@@ -19,7 +19,7 @@ Create and manage consistent, machine-readable entries in `.context/backlog/` wi
 |---|---|---|
 | `/aidex:backlog` | [scripts/register-item.sh](scripts/register-item.sh) | Interactive: prompt for title, origin, priority |
 | `/aidex:backlog --origin manual --title "<title>" [--type] [--priority] [--estimate] [--surface] [--verify] [--touches] [--depends] [--context] [--acceptance …]` | same | Non-interactive manual entry. Given all six contract fields plus a Context and an Acceptance it lands **defined** in one step; every registration ends with `define-check.py`'s verdict for the new id and, when underdefined, the exact `define-item.sh` command. Nothing is mandatory: a bare stub still registers |
-| `/aidex:backlog --origin audit --finding <id>` | same | From an audit finding (called by `/aidex:audit escalate`) |
+| `/aidex:backlog --origin audit --title "<title>" --finding <id> [--audit-run <run>]` | same | From an audit finding (`/aidex:audit escalate`) |
 | `/aidex:backlog --origin issue --issue <id>` | same | From an issue tracker ID |
 | `/aidex:backlog --origin plan --plan <slug>` | same | Deferred mid-run from a plan (called by `plan-exec`'s between-phase checkpoint) |
 | `/aidex:backlog --origin sweep [--worklist <file>]` | same | Discovered mid-sweep: registered, judged against the kickoff criteria, appended to the queue — never asked |
@@ -163,7 +163,7 @@ open ⇄ _deferred (blocked) → doing → done / dropped
 2. **_deferred (blocked)** — open but cannot start: an external blocker exists. The
    item is moved to `backlog/_deferred/`, `status` stays `open`, and `blocked_by`
    MUST be populated. It is **not** in the active queue and is **not** `_archive/`
-   (archive is terminal). Use `defer` to park it and `reactivate` to bring it back.
+   (archive is terminal). `defer-item.sh defer` parks it, `reactivate` brings it back.
 3. **doing** — active work, opened with `start-item.sh` rather than by editing
    `status` by hand. That script is also the **bug route**: an item with
    `type: bug` prints the RED→GREEN procedure on start, so bug work enters the
@@ -176,10 +176,9 @@ Deferring is reversible (open ⇄ `_deferred/`); closing is terminal (→ `_arch
 
 - **Defer/reactivate** moves the file between the active root and `backlog/_deferred/`,
   sets/clears `blocked_by`, stamps `updated`, and rebuilds the index. The `00-index.md`
-  lists deferred items under `## Deferred`. Use the `defer` / `reactivate` sub-actions
-  rather than moving files or editing `blocked_by` by hand.
+  lists deferred items under `## Deferred`. Use `defer-item.sh` rather than moving files or editing `blocked_by` by hand.
 - **Closing** an item is an atomic operation (status → record commit → move to
-  `_archive/` → rebuild index). Use the `close` sub-action rather than editing
+  `_archive/` → rebuild index). Use `close-item.sh` rather than editing
   `status` by hand. The `00-index.md` keeps a one-liner per closed item under
   `## Closed`; full bodies live in `_archive/`.
 

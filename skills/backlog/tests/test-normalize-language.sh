@@ -53,6 +53,16 @@ RC=$?
 check "clean backlog exits 0" '[[ $RC -eq 0 ]]'
 check "clean backlog says so" '[[ "$OUT" == *"no Spanish-dominant backlog bodies"* ]]'
 
+# backlog-c28: a violation of ANOTHER validator rule makes validate.py exit 1; the language
+# sweep is clean, so pipefail must not turn that into this script's exit 1.
+WS2="$(mktemp -d)"; trap 'rm -rf "$WS" "$WS2"' EXIT
+mkdir -p "$WS2/.context/backlog"
+printf -- '---\ntitle: "Bad priority"\nid: BL-001\nstatus: open\ncreated: 2026-08-24\nupdated: 2026-08-24\norigin: manual\npriority: P9\ntype: task\n---\n\n# Bad priority\n\nAn English body that says nothing wrong about language at all, written plainly.\n' > "$WS2/.context/backlog/2026-08-24-bl-001-bad.md"
+python3 "$SCRIPTS/../../conventions/scripts/validate.py" --type backlog "$WS2/.context" >/dev/null 2>&1; VRC=$?
+OUT3="$(bash "$SCRIPTS/normalize-language.sh" "$WS2/.context" 2>/dev/null)"; RC3=$?
+check "fixture: the validator itself exits non-zero on the unrelated violation" '[[ $VRC -ne 0 ]]'
+check "a clean language check exits 0 even when the validator exits 1" '[[ $RC3 -eq 0 && "$OUT3" == *"no Spanish-dominant"* ]]'
+
 # A Spanish-dominant item — reported, by name.
 cat > "$WS/.context/backlog/2026-08-24-bl-002-spanish-item.md" <<'EOF'
 ---

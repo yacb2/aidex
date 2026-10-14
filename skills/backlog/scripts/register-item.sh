@@ -829,7 +829,7 @@ write_index() {
 
     if [[ ${#DEFERRED_SORTED[@]} -gt 0 ]]; then
       printf '## Deferred\n\n'
-      printf '_Open but blocked — parked in [`_deferred/`](_deferred/), not in the active queue. Reactivate with `defer`/`reactivate`:_\n\n'
+      printf '_Open but blocked — parked in [`_deferred/`](_deferred/), not in the active queue. Reactivate with `defer-item.sh reactivate`:_\n\n'
       emit_rows "${DEFERRED_SORTED[@]}"
       printf '\n'
     fi

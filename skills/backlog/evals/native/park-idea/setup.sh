@@ -13,9 +13,9 @@ updated: 2026-09-01
 origin: manual
 origin_ref: ""
 priority: P2
-type: feature
+type: improvement
 estimate: S
-surface: backend
+surface: internal
 verify: ""
 blocked_by: ""
 escalated_to: ""

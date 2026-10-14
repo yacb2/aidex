@@ -26,7 +26,7 @@ import argparse, json, os, re, sys
 
 PRIORITIES = ("P0", "P1", "P2", "P3")
 ESTIMATES = ("XS", "S", "M", "L", "XL")
-FIELD = {k: re.compile(rf"^{k}:\s*[\"']?(.*?)[\"']?\s*$", re.M)
+FIELD = {k: re.compile(rf"^{k}:[ \t]*[\"']?(.*?)[\"']?\s*$", re.M)
          for k in ("id", "title", "status", "priority", "estimate", "blocked_by", "type")}
 
 
@@ -57,13 +57,26 @@ def sort_key(item):
     return (p, e, item["file"])
 
 
+def default_context():
+    """Nearest `.context/` above the cwd, never past $HOME (validate.py find_context_dir)."""
+    cur, home = os.path.realpath(os.getcwd()), os.environ.get("HOME")
+    stop = os.path.realpath(home) if home and os.path.isdir(home) else None
+    while cur != stop:
+        if os.path.isdir(os.path.join(cur, ".context")):
+            return os.path.join(cur, ".context")
+        if os.path.dirname(cur) == cur:
+            break
+        cur = os.path.dirname(cur)
+    return os.path.abspath(".context")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("context", nargs="?", default=None)
     ap.add_argument("--json", dest="json_out")
     args = ap.parse_args()
 
-    ctx = os.path.abspath(args.context or ".context")
+    ctx = os.path.abspath(args.context) if args.context else default_context()
     base = os.path.join(ctx, "backlog")
     if not os.path.isdir(base):
         print(f"error: no backlog/ under {ctx}", file=sys.stderr)
