@@ -266,6 +266,7 @@ echo "== every other docker call is bounded and a timeout is degraded (Q28a) =="
 mkdir -p "$TMP/hbin"
 cat > "$TMP/hbin/docker" <<'SHIM'
 #!/usr/bin/env bash
+echo "$*" >> "$CLOG"
 [[ "$*" == $HANG ]] && { trap '' ALRM; exec sleep 6; }
 who=alive; [[ "$*" == $ORPH ]] && who=gone
 case "$*" in
@@ -291,8 +292,8 @@ for pair in "ps*|ps*" "volume ls*|volume ls*" "images --format*|images --format*
   HANG="${pair%%|*}" ORPH="${pair#*|}"
   for mode in plain check slug; do
     args=(); [[ $mode == slug ]] && args=(--slug gone); [[ $mode == check ]] && args=(--check)
-    t0=$SECONDS
-    out="$( cd "$ROOT" && PATH="$TMP/hbin:$PATH" HANG="$HANG" ORPH="$ORPH" AIDEX_DOCKER_TIMEOUT=1 bash "$SCRIPT" ${args[@]+"${args[@]}"} 2>&1 )"; code=$?
+    t0=$SECONDS; CLOG="$TMP/hlog"; : > "$CLOG"
+    out="$( cd "$ROOT" && PATH="$TMP/hbin:$PATH" CLOG="$CLOG" HANG="$HANG" ORPH="$ORPH" AIDEX_DOCKER_TIMEOUT=1 bash "$SCRIPT" ${args[@]+"${args[@]}"} 2>&1 )"; code=$?
     el=$((SECONDS - t0))
     [[ "$el" -le 5 ]] || fail "$HANG ($mode): a wedged call held the sweep for ${el} s (deadline 1 s)"
     printf '%s' "$out" | grep >/dev/null 'did not answer within 1 s' \
@@ -306,11 +307,75 @@ for pair in "ps*|ps*" "volume ls*|volume ls*" "images --format*|images --format*
       || fail "$HANG ($mode): sweep not reported incomplete: $out"
     printf '%s' "$out" | grep >/dev/null -e 'docker network rm' -e 'docker rmi abc' \
       && fail "$HANG ($mode): a reclaim command was printed for a resource the timed-out call was meant to judge: $out"
+    # Breaker (owner 2026-10-14): the hung call is the last one docker ever sees,
+    # and the warning counts exactly one timeout.
+    last="$(tail -1 "$CLOG")"
+    [[ "$last" == $HANG ]] && pass "$HANG ($mode): no docker call after the deadline hit" \
+      || fail "$HANG ($mode): docker was called after the deadline hit (last: $last)"
+    printf '%s' "$out" | grep -E >/dev/null '1 docker call\(s\) timed out; [0-9]+ skipped after the breaker tripped' \
+      && pass "$HANG ($mode): one timeout, the rest skipped" \
+      || fail "$HANG ($mode): warning does not count one timeout and the skipped calls: $out"
     want=0; [[ $mode != plain ]] && want=1
     [[ "$code" -eq "$want" ]] && pass "$HANG ($mode): exit $want" \
       || fail "$HANG ($mode): expected exit $want, got $code"
   done
 done
+out="$( cd "$ROOT" && PATH="$TMP/hbin:$PATH" CLOG="$TMP/hlog" HANG="ps*" ORPH=none AIDEX_DOCKER_TIMEOUT=1 bash "$SCRIPT" 2>&1 )"
+printf '%s' "$out" | grep >/dev/null '1 docker call(s) timed out; 4 skipped after the breaker tripped' \
+  && pass "ps* hang: 4 inventory calls skipped" || fail "ps* hang: expected '4 skipped': $out"
+
+echo "== a non-timeout failure of an inventory call does not trip the breaker =="
+mkdir -p "$TMP/fbin"
+cat > "$TMP/fbin/docker" <<'SHIM'
+#!/usr/bin/env bash
+echo "$*" >> "$CLOG"
+case "$*" in ps*) exit 1 ;; esac
+exit 0
+SHIM
+chmod +x "$TMP/fbin/docker"
+CLOG="$TMP/flog"; : > "$CLOG"
+out="$( cd "$ROOT" && PATH="$TMP/fbin:$PATH" CLOG="$CLOG" AIDEX_DOCKER_TIMEOUT=1 bash "$SCRIPT" 2>&1 )"
+grep >/dev/null '^network ls' "$CLOG" && pass "ps exit 1: the sweep goes on to network ls" \
+  || fail "ps exit 1: the sweep stopped after a non-timeout failure: $(cat "$CLOG")"
+printf '%s' "$out" | grep >/dev/null 'skipped after the breaker' \
+  && fail "ps exit 1: breaker reported on a non-timeout failure: $out" || pass "ps exit 1: no breaker report"
+
+echo "== a dangling project whose lookup is skipped by the breaker stays listed, unjudged =="
+mkdir -p "$TMP/dbin"
+cat > "$TMP/dbin/docker" <<'SHIM'
+#!/usr/bin/env bash
+echo "$*" >> "$CLOG"
+case "$*" in
+  "images -f dangling=true -q") printf '%s\n' d1 d2 ;;
+  "inspect -f"*d1) echo myproj-wt-gonea ;;
+  "inspect -f"*d2) echo myproj-wt-goneb ;;
+  "images -f dangling=true -f label="*)
+    [[ "$MODE" == hang ]] && { trap '' ALRM; exec sleep 6; }
+    [[ "$*" == *gonea* ]] && echo d1
+    [[ "$*" == *goneb* ]] && echo d2 ;;
+esac
+exit 0
+SHIM
+chmod +x "$TMP/dbin/docker"
+CLOG="$TMP/dlog"; : > "$CLOG"
+out="$( cd "$ROOT" && PATH="$TMP/dbin:$PATH" CLOG="$CLOG" MODE=hang AIDEX_DOCKER_TIMEOUT=1 bash "$SCRIPT" 2>&1 )"
+for p in gonea goneb; do
+  printf '%s' "$out" | grep >/dev/null "dangling images: myproj-wt-$p (not judged)" \
+    && pass "dangling $p: listed as not judged" || fail "dangling $p: vanished from the listing: $out"
+done
+n="$(grep -c '^images -f dangling=true -f label=' "$CLOG")"
+[[ "$n" -eq 1 ]] && pass "dangling: the second lookup was skipped by the breaker" \
+  || fail "dangling: $n label lookups reached docker (breaker should stop at 1)"
+printf '%s' "$out" | grep >/dev/null '2 orphan(s) found' \
+  && pass "dangling: both unjudged projects are counted" || fail "dangling: unjudged projects not counted: $out"
+printf '%s' "$out" | grep >/dev/null 'docker rmi' && fail "dangling: a removal command was printed: $out" \
+  || pass "dangling: no removal command"
+: > "$CLOG"
+out="$( cd "$ROOT" && PATH="$TMP/dbin:$PATH" CLOG="$CLOG" MODE=ok AIDEX_DOCKER_TIMEOUT=1 bash "$SCRIPT" 2>&1 )"
+printf '%s' "$out" | grep >/dev/null 'dangling images: myproj-wt-gonea (1)' && printf '%s' "$out" | grep >/dev/null '  docker rmi d1' \
+  && pass "dangling healthy: judged and reclaimable" || fail "dangling healthy: not judged on a healthy daemon: $out"
+printf '%s' "$out" | grep >/dev/null 'not judged' && fail "dangling healthy: reported not judged: $out" \
+  || pass "dangling healthy: nothing unjudged"
 
 echo "== a network whose inspect timed out stays listed, never force-removable; an empty answer is not 0 =="
 for case in hang empty; do
@@ -336,6 +401,48 @@ SHIM
     printf '%s' "$out" | grep >/dev/null '1 orphan(s) found' \
       && pass "hang: the unjudged orphan network is counted" || fail "hang: the listed orphan network was not counted: $out"
   fi
+done
+
+echo "== the first deadline hit trips a breaker: no further docker call (owner 2026-10-14) =="
+# Layer: script-level, stubbed docker. Four orphan-named images and an `image inspect`
+# that hangs: without the breaker each one waits the deadline (N x dt) and a later
+# call may still judge/print; with it exactly one call waits and the rest stay unjudged.
+mkdir -p "$TMP/cbin"
+cat > "$TMP/cbin/docker" <<'SHIM'
+#!/usr/bin/env bash
+echo "$*" >> "$CLOG"
+case "$1 ${2:-}" in
+  "info ") exit 0 ;;
+  "images --format") printf '%s\n' myproj-wt-g1 myproj-wt-g2 myproj-wt-g3 myproj-wt-g4 ;;
+  "image inspect") [[ "$MODE" == hang ]] && { trap '' ALRM; exec sleep 6; }; exit 1 ;;
+  *) exit 0 ;;
+esac
+SHIM
+chmod +x "$TMP/cbin/docker"
+for mode in hang fail; do
+  CLOG="$TMP/clog-$mode"; : > "$CLOG"
+  for flag in "" --check; do
+    : > "$CLOG"
+    out="$( cd "$ROOT" && PATH="$TMP/cbin:$PATH" CLOG="$CLOG" MODE=$mode AIDEX_DOCKER_TIMEOUT=1 bash "$SCRIPT" $flag 2>&1 )"; code=$?
+    n="$(grep -c '^image inspect' "$CLOG")"
+    if [[ $mode == hang ]]; then
+      [[ "$n" -eq 1 ]] && pass "hang ${flag:-plain}: one image inspect waited the deadline" \
+        || fail "hang ${flag:-plain}: $n image inspect calls reached docker (breaker should stop at 1): $out"
+      printf '%s' "$out" | grep >/dev/null '1 docker call(s) timed out; 3 skipped after the breaker tripped' \
+        && pass "hang ${flag:-plain}: warning counts the timeout and the skipped calls" \
+        || fail "hang ${flag:-plain}: warning does not state timed-out and skipped counts: $out"
+      printf '%s' "$out" | grep >/dev/null -e 'ORPHAN image' -e 'No orphaned' -e 'docker rmi' \
+        && fail "hang ${flag:-plain}: a skipped image was judged (orphan or clean): $out" \
+        || pass "hang ${flag:-plain}: skipped images are neither orphan nor clean"
+      want=0; [[ -n $flag ]] && want=1
+      [[ "$code" -eq "$want" ]] && pass "hang ${flag:-plain}: exit $want" || fail "hang ${flag:-plain}: expected exit $want, got $code"
+    else
+      [[ "$n" -eq 4 ]] && pass "fail ${flag:-plain}: a non-timeout failure does not trip the breaker (4 inspects)" \
+        || fail "fail ${flag:-plain}: $n image inspect calls (a plain failure must not stop the sweep): $out"
+      printf '%s' "$out" | grep >/dev/null 'skipped after the breaker' \
+        && fail "fail ${flag:-plain}: breaker reported on a non-timeout failure: $out" || pass "fail ${flag:-plain}: no breaker report"
+    fi
+  done
 done
 
 echo

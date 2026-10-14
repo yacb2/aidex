@@ -26,8 +26,9 @@
 # Degrades gracefully when docker is not on PATH or the daemon is
 # unreachable: prints a note and exits 0 (a --check gate cannot fail on an
 # environment that has no Docker to begin with). A daemon that answers but
-# times out on any call leaves that part unjudged: the sweep is reported
-# incomplete, and --check / --slug exit 1 (never a clean bill).
+# times out on any call leaves that part unjudged, and so does everything after
+# it (the first deadline hit trips a breaker: no further docker call is made):
+# the sweep is reported incomplete, and --check / --slug exit 1 (never a clean bill).
 
 set -uo pipefail
 
@@ -155,13 +156,18 @@ fi
 # dk VAR docker-args... — run docker under the deadline and put its stdout in
 # VAR. A deadline hit is reported and counted as degraded (VAR left empty): an
 # empty inventory from a wedged daemon must never read as "No orphans".
-degraded=0
+# Circuit breaker: after the first deadline hit no further docker call is made
+# (N images would otherwise cost N x dt); each skipped call counts as degraded.
+degraded=0 skipped=0 tripped=0
 dk() {
   local v="$1" o r=0; shift
+  if [[ $tripped -eq 1 ]]; then
+    skipped=$((skipped + 1)); degraded=$((degraded + 1)); printf -v "$v" '%s' ''; return
+  fi
   o="$(with_timeout "$dt" docker "$@" 2>/dev/null)" || r=$?
   if [[ $r -eq 142 ]]; then
     echo "docker did not answer within ${dt} s running: docker $* (not judged)."
-    degraded=$((degraded + 1)); o=""
+    degraded=$((degraded + 1)); o=""; tripped=1
   fi
   printf -v "$v" '%s' "$o"
 }
@@ -233,10 +239,11 @@ while IFS= read -r img; do
   [[ -z "$img" ]] && continue
   [[ "$img" == "$PREFIX"* ]] || continue
   irc=0
+  if [[ $tripped -eq 1 ]]; then skipped=$((skipped + 1)); degraded=$((degraded + 1)); continue; fi
   lbl="$(with_timeout "$dt" docker image inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' "$img" 2>/dev/null)" || irc=$?
   if [[ $irc -eq 142 ]]; then
     echo "docker did not answer within ${dt} s reading the label of image $img (not judged)."
-    degraded=$((degraded + 1))
+    degraded=$((degraded + 1)); tripped=1
     continue
   fi
   in_scope "$img" "$lbl" || continue
@@ -260,7 +267,13 @@ while IFS= read -r proj; do
   [[ -z "$proj" ]] && continue
   in_scope "$proj" || continue
   is_known "$proj" && continue
+  before=$degraded
   dk ids images -f dangling=true -f "label=com.docker.compose.project=$proj" -q
+  if [[ $degraded -gt $before ]]; then
+    echo "$LABEL dangling images: $proj (not judged)"
+    orphans_found=$((orphans_found + 1))
+    continue
+  fi
   ids="$(tr '\n' ' ' <<< "$ids")"
   ids="${ids% }"
   [[ -z "$ids" ]] && continue
@@ -298,7 +311,7 @@ while IFS= read -r net; do
 done <<< "$networks"
 
 echo
-[[ "$degraded" -gt 0 ]] && warn "sweep incomplete (degraded): $degraded docker call(s) timed out, not judged."
+[[ "$degraded" -gt 0 ]] && warn "sweep incomplete (degraded): $((degraded - skipped)) docker call(s) timed out; $skipped skipped after the breaker tripped; not judged."
 if [[ "$orphans_found" -gt 0 ]]; then
   if [[ -n "$SLUG" ]]; then
     warn "$orphans_found resource group(s) attributable to $SCOPE."
