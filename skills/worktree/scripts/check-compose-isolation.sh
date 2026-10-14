@@ -46,7 +46,9 @@ done
 
 [[ -f "$FILE" ]] || die "compose file not found: $FILE"
 
-if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
+# A wedged daemon accepts the socket and never answers: bounded like the sibling probes.
+if ! command -v docker >/dev/null 2>&1 \
+   || ! with_timeout "${AIDEX_DOCKER_TIMEOUT:-30}" docker info >/dev/null 2>&1; then
   echo "docker unavailable — skipping compose isolation check (degraded)."
   exit 0
 fi

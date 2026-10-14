@@ -47,8 +47,7 @@ forks off — must never be made silently. Before creating a worktree or feature
   new work to unrelated unreleased commits. Resolve the base deliberately; don't fork off
   the ambient checkout unnoticed.
 
-This rule applies wherever a branch is created — this skill's Procedure commands, the
-`suggest` recommendation, and the sibling skills that create branches without going
+This rule applies wherever a branch is created — this skill's Procedure commands and the sibling skills that create branches without going
 through here (`plan-exec` at its Isolation step, `bugfix` at branch creation).
 To fork from anything but the default branch, pass `worktree.sh new ... --base <commit-ish>`.
 
@@ -204,7 +203,7 @@ substitute an eyeball.
 
 ### Doc-shape check
 
-Whenever an existing `00-index.md` is read (no-args status and `suggest`), run the
+Whenever an existing `00-index.md` is read (no-args status), run the
 mechanical shape check before using it:
 
 ```bash
@@ -235,18 +234,11 @@ while its second worktree collides with the first.
 
 ## `suggest` (retired)
 
-There is no tier to suggest. When asked which worktree to use for a task, answer
-with the command:
+There is no tier to suggest: answer with `worktree.sh new <slug> --branch <branch>`,
+resolving the base branch first (branch-base rule above). A project whose `config.env`
+does not exist yet needs `bootstrap`, not a guess.
 
-```bash
-bash "${CLAUDE_SKILL_DIR}/scripts/worktree.sh" new <slug> --branch <branch>
-```
-
-The only judgement left is **which participants** the work touches — pass
-`--repo` per participant to narrow it, or let `WT_PARTICIPANTS` apply. Resolve
-the base branch explicitly first (branch-base rule above).
-
-A project whose `config.env` does not exist yet needs `bootstrap`, not a guess.
+## Runner limits
 
 `worktree.sh down` bounds its Docker calls: `AIDEX_DOWN_TIMEOUT` (default 300 s) for
 `compose down`, `AIDEX_DOCKER_TIMEOUT` (default 30 s) for the other daemon calls. Each
@@ -261,7 +253,7 @@ other value makes `new`, `up`, `down` and `list` refuse with exit 2, naming it.
 
 | The user wants to… | Route to |
 |---|---|
-| Actually create/enter a worktree right now | native `EnterWorktree` / `ExitWorktree` |
+| Create a worktree right now (own database, ports or containers) | `worktree.sh new` (this skill); native `EnterWorktree` / `ExitWorktree` only for a single-repo, code-only checkout with no services |
 | Plan multi-step work (no worktree decision) | `plan` |
 | Design an agentic loop | `loop` |
 | Run one agent per worktree in parallel, decided as an orchestration | `workflow` |

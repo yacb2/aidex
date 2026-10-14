@@ -76,7 +76,7 @@ If Tier 2 applies, which strategy isolates the environment:
   exactly what's missing (e.g. "no template-clone script; compose file hardcodes
   `container_name`"). Do **not** build the isolation mechanism as part of recording
   this axis — that is a separate, project-scoped follow-up, not something `bootstrap`
-  or `suggest` do.
+  does.
 
 ### Axis 4 — Lifecycle & cleanup
 
@@ -109,7 +109,7 @@ If Tier 2 applies, which strategy isolates the environment:
 A real task's answer is a **tuple** across all four axes, never a single letter grade
 — for example: "Tier 2, scope = backend + frontend only, infra strategy = clone
 partial, lifecycle = persistent." Never collapse this into "case A/B/C"; each axis is
-a genuinely separate decision, and the interview (and `suggest`) must resolve each one
+a genuinely separate decision, and the interview must resolve each one
 on its own.
 
 ## Cross-cutting concern: unversioned infra wrappers
