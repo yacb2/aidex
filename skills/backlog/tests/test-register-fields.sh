@@ -25,7 +25,7 @@ F="$(bash "$REG" --origin manual --title "gap lane renders" --surface behaviour 
 [[ "$(fm "$F" estimate)" == "S" ]] && ok "estimate still survives the positional hand-off" || bad "estimate: '$(fm "$F" estimate)'"
 [[ "$(fm "$F" blocked_by)" == "seed video 4" ]] && ok "blocked_by still survives" || bad "blocked_by: '$(fm "$F" blocked_by)'"
 grep -q '^## Verification' "$F" && grep -q '^| kind | what | proof |' "$F" && ok "body carries the ## Verification table skeleton" || bad "no Verification skeleton"
-# the skeleton must sit between Acceptance and Notes, where sweep-eligible.py's section reader expects sections
+# the skeleton must sit between Acceptance and Notes, where define-check.py's section reader expects sections
 awk '/^## Acceptance/{a=NR} /^## Verification/{v=NR} /^## Notes/{n=NR} END{exit !(a<v && v<n)}' "$F" && ok "section order Acceptance < Verification < Notes" || bad "section order"
 
 D="$(bash "$REG" --origin manual --title "defaults" 2>/dev/null)"

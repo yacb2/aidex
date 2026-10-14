@@ -55,21 +55,6 @@
 
 set -euo pipefail
 
-# --- shared helpers (inlined so this script works standalone if audit's _lib.sh is absent) ---
-
-if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
-  C_RED=$'\033[31m' C_GREEN=$'\033[32m' C_YELLOW=$'\033[33m' C_BLUE=$'\033[34m'
-  C_DIM=$'\033[2m' C_BOLD=$'\033[1m' C_RESET=$'\033[0m'
-else
-  C_RED='' C_GREEN='' C_YELLOW='' C_BLUE='' C_DIM='' C_BOLD='' C_RESET=''
-fi
-
-info() { printf '%s%s%s\n' "$C_BLUE" "$*" "$C_RESET" >&2; }
-ok()   { printf '%s%s%s\n' "$C_GREEN" "$*" "$C_RESET" >&2; }
-warn() { printf '%s%s%s\n' "$C_YELLOW" "$*" "$C_RESET" >&2; }
-err()  { printf '%s%s%s\n' "$C_RED" "$*" "$C_RESET" >&2; }
-die()  { err "error: $*"; exit 2; }
-
 # Shared resolver. This file used to carry its own copy, three fixes behind:
 # no $HOME boundary, no project-marker fallback, and no linked-worktree hop --
 # so from inside a worktree it wrote into a directory that vanishes on teardown
@@ -881,7 +866,7 @@ if [[ $LIST_ONLY -eq 1 ]]; then
     # trim inside awk — piping through xargs broke on unbalanced quotes (apostrophes)
     #
     # The front-matter boundary is load-bearing, and this was the one reader missing it
-    # — read_fm_fields, read_closed_fields and read_deferred_fields all track it. Without
+    # — read_dir_fields tracks it. Without
     # it `$1 == key` matches body prose too. A generated item is immune (it always carries
     # every key, and the first match wins), so only a hand-authored item with the key
     # absent from its header reaches the defect: a line in the body starting `blocked_by:`
