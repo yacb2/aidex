@@ -120,6 +120,7 @@ const WORK_SCHEMA = {
     proof: { type: 'string' },
     blocked_reason: { type: 'string' },
     pending_actions: { type: 'array', items: { type: 'string' } },
+    asks: { type: 'array', items: { type: 'string' } },
   },
   additionalProperties: false,
 }
@@ -163,8 +164,13 @@ async function runPhase(phase, ctx) {
   // line), from EVERY attempt, returned on EVERY path: the orchestrator routes them to a
   // bugfix run, so a line dropped here is a bug nobody routes.
   const outOfScopeBugs = []
+  // Deny actions sent back as unvetted: a later attempt may drop one only with an `asks` line
+  // for it, so the owner learns the run wanted it.
+  const owed = new Set()
   for (let attempt = 1; attempt <= K + 1; attempt++) {
     const work = await phase.implement(feedback, attempt)
+    // Owner-facing asks from EVERY attempt, kept on every path (the director path included).
+    for (const q of (work && work.asks) || []) ask(q)
     for (const line of String((work && work.summary) || '').split('\n')) {
       const bug = line.trim()
       if (bug.startsWith('OUT-OF-SCOPE BUG:') && !outOfScopeBugs.includes(bug)) outOfScopeBugs.push(bug)
@@ -186,20 +192,25 @@ async function runPhase(phase, ctx) {
       return { phaseId: phase.id, passed: false, attempts: attempt, escalated: v || { verdict: 'ASK', reason: 'arbiter unavailable on blocked implementer', unavailable: true }, asks, outOfScopeBugs }
     }
     // Publication/deny path: actions the implementer REPORTED instead of performing.
-    let unvetted = false
-    for (const action of (work && work.pending_actions) || []) {
+    const reported = (work && work.pending_actions) || []
+    for (const a of owed) {
+      if (asks.some((q) => q.toLowerCase().includes(a.toLowerCase()))) owed.delete(a)
+    }
+    for (const action of reported) {
       // Only a real verdict is remembered: a null (transient arbiter failure) is asked again.
       let c = verdicts.get(action)
       if (!c) { c = await checkAction(action, ctx); if (c) verdicts.set(action, c) }
       if (c && c.verdict === 'STOP') return { phaseId: phase.id, passed: false, attempts: attempt, escalated: c, asks, outOfScopeBugs }
       if (c && c.verdict === 'ASK') ask(c.batched_question || `Authorize: ${action}?`)
       // A deny action with no verdict (arbiter unavailable) fails closed: never to the gate.
-      if (!c && DENY_RE.test(action)) unvetted = true
+      if (c) owed.delete(action)
+      else if (DENY_RE.test(action)) owed.add(action)
       // CONTINUE: pre-authorized or outside pub/deny — nothing to gate.
     }
-    if (unvetted) {
+    if (owed.size > 0) {
       if (attempt > K) return { phaseId: phase.id, passed: false, attempts: attempt, escalated: { verdict: 'STOP', reason: 'arbiter returned no verdict on a deny-set action; failing closed', unavailable: true }, asks, outOfScopeBugs }
-      feedback = 'Your reported deny-set action could not be ruled on; re-report it or finish the phase without it.'
+      feedback = `Your reported deny-set action could not be ruled on: ${[...owed].map((a) => JSON.stringify(a)).join('; ')}. ` +
+        'Re-report it with exactly this text, or add a line quoting it to asks (finishing the phase without it).'
       continue
     }
     let proof = await verify(phase.id, phase.gateCmd)
