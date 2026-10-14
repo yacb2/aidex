@@ -50,11 +50,10 @@ WL="$(resolve_worklist --with-archive "$WL_DIR" "$ARG")"
 [[ -n "${WL:-}" && -f "$WL" ]] || die "worklist not found: $ARG"
 
 if [[ $PRINT -eq 1 ]]; then
-  python3 "$SCRIPT_DIR/sweep-report.py" "$ROOT" "$WL" --print
+  python3 "$SCRIPT_DIR/sweep-report.py" "$ROOT" "$WL"
   exit 0
 fi
 if [[ -z "$OUT" ]]; then
-  mkdir -p "$ROOT/.context/worklists/_archive"
   OUT="$ROOT/.context/worklists/_archive/$(basename "$WL" .md)-report.md"
 fi
 python3 "$SCRIPT_DIR/sweep-report.py" "$ROOT" "$WL" --out "$OUT"

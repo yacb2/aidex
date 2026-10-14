@@ -5,7 +5,7 @@ Never hand-narrated: every section is derived from the work-list, the backlog it
 queued (active or archived), the gate history sweep-gate.sh appends, and git. Called by
 sweep-report.sh, which resolves the project root and the output path.
 
-usage: sweep-report.py <project-root> <worklist-path> [--out <file>] [--print]
+usage: sweep-report.py <project-root> <worklist-path> [--out <file>]   (no --out: print to stdout)
 
 The report is a `.context/` record and is English (D-04). The page a person reads is
 built from it by the model through /aidex:artifact in the profile's language (BL-482).
@@ -215,7 +215,7 @@ def render(root, wl_path):
     out.append('')
     out.append('Generated from disk by `sweep-report.sh` on {today}; anchored to `worklist/{wl}` (status `{status}`, gate policy publish `{publish}`).'
                .format(today=today, wl=wl_file, status=wl_fm.get('status', '?'),
-                       publish=wl_fm.get('publish', '?') if 'publish' in wl_fm else 'see worklist'))
+                       publish=wl_fm.get('publish', 'see worklist')))
     out.append('')
     out.append('## Metrics')
     out.append('')
@@ -305,7 +305,7 @@ def main():
     if '--out' in sys.argv:
         out = sys.argv[sys.argv.index('--out') + 1]
     text = render(root, wl)
-    if '--print' in sys.argv or not out:
+    if not out:
         sys.stdout.write(text)
         return
     os.makedirs(os.path.dirname(out) or '.', exist_ok=True)

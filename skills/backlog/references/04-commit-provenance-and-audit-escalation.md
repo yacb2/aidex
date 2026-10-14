@@ -20,6 +20,6 @@ directly (no plan); in the **plan** (per phase) when escalated — never both.
 When called by `/aidex:audit escalate <id>`, the skill:
 
 1. Creates the entry with `origin: audit`
-2. Sets `origin_ref: audit/<audit-run>/<finding-id>` (e.g., `audit/20260415-login-redesign/BUG-01-3`)
+2. Sets `origin_ref: audit/<methodology>/<audit-run>/<finding-id>` (e.g., `audit/ux/2026-04-15-login-redesign/BUG-01-3`); a pre-D-02 run with no methodology folder gets the flat `audit/<audit-run>/<finding-id>` (`register-item.sh` resolves the methodology off disk)
 3. Pulls the finding's summary from INVENTORY.md as the entry title
 4. Returns the entry path for the caller to link back in INVENTORY
