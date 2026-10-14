@@ -125,4 +125,21 @@ bash "$DEF" "$G" --estimate S --no-index >/dev/null 2>&1; RC=$?; chmod 644 "$G"
 [[ $RC -ne 0 && -z "$(find "$B" -maxdepth 1 -type f ! -name '*.md')" ]] \
   && ok "c52: a failed rewrite removes its temp file" || bad "c52: rc=$RC stray=$(find "$B" -maxdepth 1 -type f ! -name '*.md')"
 
+# backlog-s32: define-item resolves its target through the same resolver as close/start/defer:
+# a bare slug works, the index is refused (it used to report "Triaged" for it), and a path
+# outside the active tier (register-item hands it an _archive/ path) is still accepted.
+H="$(reg --title "hotel item")"
+bash "$DEF" hotel-item --estimate L --no-index >/dev/null 2>&1; RC=$?
+[[ $RC -eq 0 && "$(awk '$1=="estimate:"{print $2; exit}' "$H")" == "L" ]] \
+  && ok "s32: define-item accepts the bare slug" || bad "s32: slug rc=$RC estimate=$(grep '^estimate:' "$H")"
+printf '# Backlog\n' > "$B/00-index.md"
+IDX_SUM="$(cksum < "$B/00-index.md")"
+bash "$DEF" 00-index.md --estimate S --no-index >/dev/null 2>"$TMP/e32"; RC=$?
+[[ $RC -eq 2 && "$(cksum < "$B/00-index.md")" == "$IDX_SUM" ]] && grep -q "is the index" "$TMP/e32" \
+  && ok "s32: define-item refuses the index and leaves it untouched" || bad "s32: index rc=$RC err=$(cat "$TMP/e32")"
+mkdir -p "$B/_archive"; mv "$H" "$B/_archive/"
+bash "$DEF" "$B/_archive/$(basename "$H")" --estimate XS --no-index >/dev/null 2>&1; RC=$?
+[[ $RC -eq 0 && "$(awk '$1=="estimate:"{print $2; exit}' "$B/_archive/$(basename "$H")")" == "XS" ]] \
+  && ok "s32: define-item still writes an _archive/ path (register-item relies on it)" || bad "s32: archive path rc=$RC"
+
 echo "passed=$PASS failed=$FAIL"; [[ $FAIL -eq 0 ]]

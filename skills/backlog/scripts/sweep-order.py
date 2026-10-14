@@ -13,16 +13,17 @@ usage: sweep-order.py <backlog-dir> [--include BL-N,..] [--exclude BL-N,..]
                       [--format json|summary|refs]
 Exit 2 on a `depends:` cycle (a queue that cannot be ordered is a kickoff error).
 """
-import argparse, json, os, re, sys
+import argparse, importlib, json, os, sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+define_check = importlib.import_module('define-check')
 
 
 def fm(path):
-    t = open(path).read()
-    m = re.match(r'---\n(.*?)\n---', t, re.S)
-    return {k: v.strip().strip('"') for k, v in re.findall(r'^([\w_]+):[ \t]*(.*)$', m.group(1), re.M)} if m else {}
+    return (define_check.parse(path) or {'fm': {}})['fm']
 
 
-RANK = {'XS': 0, 'S': 1, 'M': 2, 'L': 3, 'XL': 4}
+RANK = define_check.ESTIMATE_RANK
 
 
 class Cycle(Exception):

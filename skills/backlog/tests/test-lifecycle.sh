@@ -419,6 +419,14 @@ S_RC=0; A_OUT="$(bash "$SCRIPTS/start-item.sh" fix-the-parser --no-index 2>&1)" 
 check "an ambiguous exact slug exits 2 naming 'ambiguous', both items unchanged" '[[ $S_RC -eq 2 && "$A_OUT" == *"ambiguous"* ]] && ! grep -q "^status: doing$" "$S1" "$S2"'
 S_RC=0; bash "$SCRIPTS/start-item.sh" parser --no-index >/dev/null 2>&1 || S_RC=$?
 check "a partial word is not a slug" '[[ $S_RC -eq 2 ]] && ! grep -q "^status: doing$" "$S1"'
+C_RC=0; bash "$SCRIPTS/close-item.sh" thing --no-index >/dev/null 2>&1 || C_RC=$?
+check "close-item: a partial word of a single item is not its slug" '[[ $C_RC -eq 2 && -f "$S3" ]]'
+# backlog-s32: start-item reads the id with quotes stripped; the shared resolver keeps that (close/defer read it raw)
+Q="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "quoted id item" --priority P2 --no-index 2>/dev/null)"
+QID="$(awk '$1=="id:"{print $2; exit}' "$Q")"; sed -i.bak "s/^id: .*/id: \"$QID\"/" "$Q" && rm -f "$Q.bak"
+S_RC=0; bash "$SCRIPTS/start-item.sh" "$QID" --no-index >/dev/null 2>&1 || S_RC=$?
+check "start-item resolves a quoted id: field by its BL id" '[[ $S_RC -eq 0 ]] && grep -q "^status: doing$" "$Q"'
+sed -i.bak "s/^id: .*/id: $QID/" "$Q" && rm -f "$Q.bak"   # a quoted id is nonconforming to the reindex guard
 C_RC=0; bash "$SCRIPTS/close-item.sh" second-thing --no-index >/dev/null 2>&1 || C_RC=$?
 check "close-item accepts the bare slug" '[[ $C_RC -eq 0 && -f ".context/backlog/_archive/$(basename "$S3")" ]]'
 IDX_SUM="$(cksum < .context/backlog/00-index.md)"

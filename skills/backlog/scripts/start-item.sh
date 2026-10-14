@@ -27,6 +27,7 @@ set -euo pipefail
 # while _lib.sh consumers wrote to the main tree. Pinned by
 # conventions/scripts/test-find-project-root.sh (no private copies).
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../conventions/scripts" && pwd -P)/_lib.sh"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/_backlog-lib.sh"
 
 TARGET="" NO_INDEX=0 IDX_RC=0
 while [[ $# -gt 0 ]]; do
@@ -49,16 +50,15 @@ read_field() {
     sub(/^[^:]*:[[:space:]]*/,""); gsub(/^"|"$/,""); print; exit}' "$1"
 }
 
+# start-item reads the id with quotes stripped (read_field); the other scripts read it raw (backlog-s31).
+start_read_id() { read_field "$1" id; }
+
 # --- resolve target to an active backlog item ---
-FILE=""
-if [[ "$TARGET" =~ ^[Bb][Ll]-[0-9]+$ ]]; then
-  TARGET_UC="$(echo "$TARGET" | tr '[:lower:]' '[:upper:]')"
-  for f in "$BACKLOG_DIR"/*.md; do
-    [[ -f "$f" ]] || continue
-    [[ "$(read_field "$f" id)" == "$TARGET_UC" ]] && { FILE="$f"; break; }
-  done
-  # A deferred item is open-but-blocked, not startable — say which, don't guess.
-  if [[ -z "$FILE" ]]; then
+FILE="$(resolve_backlog_target "$BACKLOG_DIR" "$TARGET" start_read_id)"
+if [[ -z "$FILE" ]]; then
+  if [[ "$TARGET" =~ ^[Bb][Ll]-[0-9]+$ ]]; then
+    TARGET_UC="$(echo "$TARGET" | tr '[:lower:]' '[:upper:]')"
+    # A deferred item is open-but-blocked, not startable — say which, don't guess.
     for f in "$BACKLOG_DIR"/_deferred/*.md; do
       [[ -f "$f" ]] || continue
       [[ "$(read_field "$f" id)" == "$TARGET_UC" ]] && \
@@ -66,26 +66,10 @@ if [[ "$TARGET" =~ ^[Bb][Ll]-[0-9]+$ ]]; then
     done
     die "no active backlog item with id $TARGET_UC (already closed?)"
   fi
-elif [[ -f "$TARGET" ]]; then
-  FILE="$TARGET"
-elif [[ -f "$BACKLOG_DIR/$TARGET" ]]; then
-  FILE="$BACKLOG_DIR/$TARGET"
-elif [[ -f "$BACKLOG_DIR/$TARGET.md" ]]; then
-  FILE="$BACKLOG_DIR/$TARGET.md"
-else
-  # a slug: the item whose name is <date>-bl-<n>-<slug>.md with exactly this slug (never
-  # 00-index.md, never a partial word); several are refused, never the first by date
-  m=()
-  for f in "$BACKLOG_DIR"/*.md; do
-    [[ "$(basename "$f")" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}-bl-[0-9]+-(.*)\.md$ && "${BASH_REMATCH[1]}" == "$TARGET" ]] && m+=("$f")
-  done
-  [[ ${#m[@]} -le 1 ]] || die "ambiguous slug '$TARGET' matches: $(for f in "${m[@]}"; do printf '%s ' "$(basename "$f")"; done)"
-  [[ ${#m[@]} -eq 1 ]] || die "cannot resolve target: $TARGET"
-  FILE="${m[0]}"
+  die "cannot resolve target: $TARGET"
 fi
 
 [[ "$(dirname "$FILE")" == "$BACKLOG_DIR" ]] || die "target is not an active backlog item: $FILE"
-[[ "$(basename "$FILE")" != "00-index.md" ]] || die "target is the index, not a backlog item: $FILE"
 
 TODAY="$(date +%Y-%m-%d)"
 

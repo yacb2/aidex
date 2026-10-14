@@ -10,7 +10,7 @@
 # `triage.sh` (the health report) stays READ-ONLY by contract; this is the writer.
 #
 # Usage:
-#   define-item.sh <BL-id | path> [--estimate XS|S|M|L|XL] [--surface internal|behaviour|ui|ops]
+#   define-item.sh <BL-id | slug | filename | path> [--estimate XS|S|M|L|XL] [--surface internal|behaviour|ui|ops]
 #                   [--verify "<how it will be proven>"] [--touches "<path, path, …>"]
 #                   [--depends "<BL-NNN[, BL-NNN…]>"] [--no-index]
 #
@@ -42,7 +42,7 @@ while [[ $# -gt 0 ]]; do
     *)          TARGET="$1"; shift ;;
   esac
 done
-[[ -n "$TARGET" ]] || die "target required: <BL-id | path>"
+[[ -n "$TARGET" ]] || die "target required: <BL-id | slug | filename | path>"
 [[ -n "$ESTIMATE$SURFACE" || $SET_VERIFY -eq 1 || $SET_TOUCHES -eq 1 || $SET_DEPENDS -eq 1 ]] || die "nothing to write — give at least one verdict flag"
 
 [[ -z "$ESTIMATE" ]] || case "$ESTIMATE" in XS|S|M|L|XL) ;; *) die "invalid estimate: $ESTIMATE" ;; esac
@@ -64,14 +64,11 @@ fi
 
 ROOT="$(find_project_root)"
 BACKLOG_DIR="$ROOT/.context/backlog"
-FILE=""
-if [[ "$TARGET" =~ ^[Bb][Ll]-[0-9]+$ ]]; then
-  T="$(echo "$TARGET" | tr '[:lower:]' '[:upper:]')"
-  for f in "$BACKLOG_DIR"/*.md; do [[ -f "$f" && "$(read_id "$f")" == "$T" ]] && { FILE="$f"; break; }; done
-  [[ -n "$FILE" ]] || die "no active backlog item with id $T"
-elif [[ -f "$TARGET" ]]; then FILE="$TARGET"
-elif [[ -f "$BACKLOG_DIR/$TARGET" ]]; then FILE="$BACKLOG_DIR/$TARGET"
-else die "cannot resolve target: $TARGET"; fi
+FILE="$(resolve_backlog_target "$BACKLOG_DIR" "$TARGET")"
+if [[ -z "$FILE" ]]; then
+  [[ "$TARGET" =~ ^[Bb][Ll]-[0-9]+$ ]] && die "no active backlog item with id $(echo "$TARGET" | tr '[:lower:]' '[:upper:]')"
+  die "cannot resolve target: $TARGET"
+fi
 
 TODAY="$(date +%Y-%m-%d)"
 # One awk pass: rewrite a key where present, insert the absent ones before the closing

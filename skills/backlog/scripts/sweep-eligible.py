@@ -105,12 +105,11 @@ def queued_elsewhere(root):
 
 
 def parse(path):
-    t = open(path).read()
-    m = re.match(r'---\n(.*?)\n---', t, re.S)
-    if not m:
+    d = define_check.parse(path)
+    if d is None:
         return None
-    fm = {k: v.strip().strip('"') for k, v in re.findall(r'^([\w_]+):[ \t]*(.*)$', m.group(1), re.M)}
-    dc = define_check.check(ROOT, {'file': os.path.basename(path), 'fm': fm, 'body': t[m.end():], 'text': t})
+    fm = d['fm']
+    dc = define_check.check(ROOT, d)
     return {
         'missing': dc['missing'],
         'cross_repo': dc['cross_repo'],
@@ -122,7 +121,7 @@ def parse(path):
         'priority': fm.get('priority', '-'),
         'estimate': fm.get('estimate', '-'),
         'blocked_by': fm.get('blocked_by', ''),
-        'signals': body_signals(t),
+        'signals': body_signals(d['text']),
     }
 
 
@@ -172,7 +171,7 @@ def main():
             eligible.append(i)
 
     # cheapest first inside each priority, oldest first on ties
-    rank = {'XS': 0, 'S': 1, 'M': 2, 'L': 3, 'XL': 4, '-': 5}
+    rank = dict(define_check.ESTIMATE_RANK, **{'-': 5})  # '-': no estimate, ahead of an unknown one
     eligible.sort(key=lambda i: (i['priority'], rank.get(i['estimate'].upper(), 9), i['file']))
 
     review.sort(key=lambda i: (i['priority'], rank.get(i['estimate'].upper(), 9), i['file']))

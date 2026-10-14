@@ -53,37 +53,6 @@ DEFERRED_DIR="$BACKLOG_DIR/_deferred"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 
-# --- resolve target to a file within the expected source directory ---
-resolve_in() {
-  local srcdir="$1" file=""
-  if [[ "$TARGET" =~ ^[Bb][Ll]-[0-9]+$ ]]; then
-    local target_uc; target_uc="$(echo "$TARGET" | tr '[:lower:]' '[:upper:]')"
-    for f in "$srcdir"/*.md; do
-      [[ -f "$f" ]] || continue
-      [[ "$(read_id "$f")" == "$target_uc" ]] && { file="$f"; break; }
-    done
-  elif [[ -f "$TARGET" ]]; then
-    file="$TARGET"
-  elif [[ -f "$srcdir/$TARGET" ]]; then
-    file="$srcdir/$TARGET"
-  elif [[ -f "$srcdir/$TARGET.md" ]]; then
-    file="$srcdir/$TARGET.md"
-  else
-    # slug match: one file whose name ends in -<slug>.md, else one whose name contains
-    # the slug (c22 pins this); 00-index.md is never a candidate. Several in a tier are
-    # refused, never the first by date.
-    local m=()
-    for f in "$srcdir"/*-"$TARGET".md; do [[ -f "$f" && "$(basename "$f")" != "00-index.md" ]] && m+=("$f"); done
-    if [[ ${#m[@]} -eq 0 ]]; then
-      for f in "$srcdir"/*"$TARGET"*.md; do [[ -f "$f" && "$(basename "$f")" != "00-index.md" ]] && m+=("$f"); done
-    fi
-    [[ ${#m[@]} -le 1 ]] || die "ambiguous slug '$TARGET' matches: $(for f in "${m[@]}"; do printf '%s ' "$(basename "$f")"; done)"
-    file="${m[0]:-}"
-  fi
-  [[ "$(basename "${file:-x}")" != "00-index.md" ]] || die "target is the index, not a backlog item: $file"
-  printf '%s\n' "$file"
-}
-
 # The reason is yaml_escape'd (_backlog-lib.sh) and passed to awk through ENVIRON, never `-v` (awk -v
 # re-reads backslash escapes, so `C:\new` became a newline inside the front matter).
 
@@ -100,7 +69,7 @@ TODAY="$(date +%Y-%m-%d)"
 
 if [[ "$ACTION" == "defer" ]]; then
   [[ -n "$REASON" ]] || die "--reason \"<blocker>\" is required when deferring"
-  FILE="$(resolve_in "$BACKLOG_DIR")"
+  FILE="$(resolve_backlog_target "$BACKLOG_DIR" "$TARGET" read_id fuzzy)"
   [[ -n "$FILE" && -f "$FILE" ]] || die "cannot resolve active backlog item: $TARGET"
   [[ "$(dirname "$FILE")" == "$BACKLOG_DIR" ]] || die "target is not an active backlog item: $FILE"
   DEST="$DEFERRED_DIR/$(basename "$FILE")"
@@ -148,7 +117,7 @@ if [[ "$ACTION" == "defer" ]]; then
 
 elif [[ "$ACTION" == "reactivate" ]]; then
   [[ -d "$DEFERRED_DIR" ]] || die "no _deferred/ directory at $DEFERRED_DIR"
-  FILE="$(resolve_in "$DEFERRED_DIR")"
+  FILE="$(resolve_backlog_target "$DEFERRED_DIR" "$TARGET" read_id fuzzy)"
   [[ -n "$FILE" && -f "$FILE" ]] || die "cannot resolve deferred item: $TARGET"
   [[ "$(dirname "$FILE")" == "$DEFERRED_DIR" ]] || die "target is not a deferred item: $FILE"
   DEST="$BACKLOG_DIR/$(basename "$FILE")"

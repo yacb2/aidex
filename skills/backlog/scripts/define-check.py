@@ -29,6 +29,9 @@ import argparse, json, os, re, sys
 
 MIN_FIELDS = ('type', 'priority', 'estimate', 'surface', 'verify', 'touches')
 SURFACES = ('internal', 'behaviour', 'ui', 'ops')
+# The estimate scale, cheapest first: sweep-eligible.py and sweep-order.py sort by it.
+# tests/test-define-check.sh pins it against the reference table and the other restatements.
+ESTIMATE_RANK = {'XS': 0, 'S': 1, 'M': 2, 'L': 3, 'XL': 4}
 
 
 def find_root(start=None):
@@ -59,12 +62,18 @@ def acceptance_body(text):
     return '\n'.join(lines).strip()
 
 
+def unquote(v):
+    """A front-matter value without its quotes: 'x' or "x" (register-item writes the latter)."""
+    v = v.strip()
+    return v[1:-1] if len(v) >= 2 and v[0] == v[-1] == "'" else v.strip('"')
+
+
 def parse(path):
     t = open(path, encoding='utf-8').read()
     m = re.match(r'---\n(.*?)\n---', t, re.S)
     if not m:
         return None
-    fm = {k: v.strip().strip('"') for k, v in re.findall(r'^([\w_]+):[ \t]*(.*)$', m.group(1), re.M)}
+    fm = {k: unquote(v) for k, v in re.findall(r'^([\w_]+):[ \t]*(.*)$', m.group(1), re.M)}
     body = t[m.end():]
     return {'file': os.path.basename(path), 'fm': fm, 'body': body, 'text': t}
 

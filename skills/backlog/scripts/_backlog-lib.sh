@@ -56,3 +56,44 @@ yaml_escape() {
 # The raw `id:` value of a file's front-matter, or empty. Quotes are NOT stripped here: that
 # policy is an owner question (backlog-s31); register-item.sh read_entry_id is a different reader.
 read_id() { awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2; exit}' "$1"; }
+
+# resolve_backlog_target <srcdir> <target> [id_reader] [fuzzy]: print the item file <target> names
+# inside <srcdir>, or print nothing when none does. close-item, start-item, defer-item and
+# define-item each carried a copy of this and the copies drifted (define-item had no slug form
+# and no index guard). A target is, in order: a BL id (matched by `id_reader <file>`, default
+# read_id; start-item passes a quote-stripping reader), an existing path, <srcdir>/<target>,
+# <srcdir>/<target>.md, then a slug: the item named <date>-bl-<n>-<slug>.md with exactly this slug,
+# or with `fuzzy` (defer-item: it is undoable by reactivate, c22) the one ending in -<slug>.md,
+# else the one containing the slug. Several matches die naming them, never the first by date; the
+# index is never an item. The caller still decides what directory the file must be in.
+resolve_backlog_target() {
+  local srcdir="$1" target="$2" reader="${3:-read_id}" fuzzy="${4:-}" file="" f m=()
+  if [[ "$target" =~ ^[Bb][Ll]-[0-9]+$ ]]; then
+    local target_uc; target_uc="$(echo "$target" | tr '[:lower:]' '[:upper:]')"
+    for f in "$srcdir"/*.md; do
+      [[ -f "$f" ]] || continue
+      [[ "$("$reader" "$f")" == "$target_uc" ]] && { file="$f"; break; }
+    done
+  elif [[ -f "$target" ]]; then
+    file="$target"
+  elif [[ -f "$srcdir/$target" ]]; then
+    file="$srcdir/$target"
+  elif [[ -f "$srcdir/$target.md" ]]; then
+    file="$srcdir/$target.md"
+  else
+    if [[ -n "$fuzzy" ]]; then
+      for f in "$srcdir"/*-"$target".md; do [[ -f "$f" && "$(basename "$f")" != "00-index.md" ]] && m+=("$f"); done
+      if [[ ${#m[@]} -eq 0 ]]; then
+        for f in "$srcdir"/*"$target"*.md; do [[ -f "$f" && "$(basename "$f")" != "00-index.md" ]] && m+=("$f"); done
+      fi
+    else
+      for f in "$srcdir"/*.md; do
+        [[ "$(basename "$f")" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}-bl-[0-9]+-(.*)\.md$ && "${BASH_REMATCH[1]}" == "$target" ]] && m+=("$f")
+      done
+    fi
+    [[ ${#m[@]} -le 1 ]] || die "ambiguous slug '$target' matches: $(for f in "${m[@]}"; do printf '%s ' "$(basename "$f")"; done)"
+    file="${m[0]:-}"
+  fi
+  [[ "$(basename "${file:-x}")" != "00-index.md" ]] || die "target is the index, not a backlog item: $file"
+  printf '%s\n' "$file"
+}

@@ -123,4 +123,49 @@ PY2
 OUT="$(python3 "$SCRIPTS/sweep-eligible.py" 2>/dev/null)"
 grep -q "«A decision is recorded on whether AD rewriting runs at 0.2.»" <<<"$OUT" && ok "the REVIEW table prints the whole quoted sentence on its own line" || bad "table quote: $(grep -A1 "$SID" <<<"$OUT")"
 
+# backlog-s34: the item readers agree on a single-quoted value (YAML allows it; quick-wins and
+# detect-resolved already read it). sweep-eligible and sweep-order each carried a copy of the
+# define-check reader that stripped double quotes only, so `estimate: 'S'` ranked after XL and
+# `surface: 'ui'` fell to internal.
+Q="$(reg --title "single quoted" --estimate S --surface internal --verify "tests/test_gap.py")"; QID="$(idof "$Q")"
+accept "$Q"; context "$Q"; bash "$SCRIPTS/define-item.sh" "$Q" --touches "src/gap/lane.py" --no-index >/dev/null 2>&1
+sed -i.bak -e "s/^estimate: .*/estimate: 'S'/" -e "s/^surface: .*/surface: 'ui'/" "$Q" && rm -f "$Q.bak"
+J="$(python3 "$SCRIPTS/sweep-eligible.py" --json 2>/dev/null)"
+python3 - "$J" "$QID" <<'PY2'
+import json,sys; r=json.loads(sys.argv[1]); it=[i for i in r['eligible'] if i['id']==sys.argv[2]]
+assert it, "not eligible"; assert it[0]['estimate'] == 'S', it[0]['estimate']
+PY2
+[[ $? -eq 0 ]] && ok "sweep-eligible reads estimate: 'S' as S" || bad "single-quoted estimate: $(python3 -c 'import json,sys; print([i["estimate"] for i in json.loads(sys.argv[1])["eligible"]])' "$J")"
+SURF="$(python3 "$SCRIPTS/sweep-order.py" "$TMP/p/.context/backlog" --format json <<<"$J" | python3 -c 'import json,sys; print([i["surface"] for c in json.load(sys.stdin)["queue"] for i in c["items"] if i["id"]==sys.argv[1]][0])' "$QID")"
+[[ "$SURF" == "ui" ]] && ok "sweep-order reads surface: 'ui' as ui" || bad "single-quoted surface read as '$SURF'"
+
+# backlog-s34: the estimate scale is restated in code; every restatement matches the reference
+# table (references/01-backlog-conventions.md, `estimate` row), so one edit cannot miss a site.
+REF="$SCRIPTS/../references/01-backlog-conventions.md"
+SCALE="$(grep -m1 '^| `estimate` |' "$REF" | python3 -c 'import re,sys; print(" ".join(re.findall(r"`([A-Z]+)`", sys.stdin.read().split("|")[2])))')"
+# Python-side sites are read as values (importlib), so a reshaped declaration still gets checked;
+# the two shell sites are checked by behaviour: every reference value is accepted, XXL refused (rc 2).
+SITES="$(python3 - "$SCRIPTS" <<'PY2'
+import importlib, sys
+s = sys.argv[1]; sys.path.insert(0, s)
+rank = importlib.import_module('define-check').ESTIMATE_RANK
+print('define-check', ' '.join(sorted(rank, key=rank.get)))
+print('quick-wins.py', ' '.join(importlib.import_module('quick-wins').ESTIMATES))
+print('estimate-calibration.py', ' '.join(importlib.import_module('estimate-calibration').BUCKETS))
+PY2
+)"; SRC=$?
+[[ $SRC -eq 0 ]] || bad "estimate-scale site extraction crashed rc=$SRC"
+[[ "$(cut -d' ' -f1 <<<"$SITES" | sort | tr '\n' ' ')" == "define-check estimate-calibration.py quick-wins.py " ]] || bad "estimate-scale python sites read: $SITES"
+[[ "$SCALE" == "XS S M L XL" ]] || bad "estimate scale not read from the reference: '$SCALE'"
+while read -r site scale; do
+  [[ "$scale" == "$SCALE" ]] && ok "estimate scale in $site matches the reference" || bad "estimate scale in $site is '$scale', reference says '$SCALE'"
+done <<<"$SITES"
+for v in $SCALE; do
+  bash "$SCRIPTS/define-item.sh" "$Q" --estimate "$v" --no-index >/dev/null 2>&1 && reg --title "scale $v" --estimate "$v" >/dev/null \
+    && ok "define-item.sh and register-item.sh accept estimate $v" || bad "estimate $v refused by define-item.sh or register-item.sh"
+done
+bash "$SCRIPTS/define-item.sh" "$Q" --estimate XXL --no-index >/dev/null 2>&1; RCD=$?
+reg --title "scale XXL" --estimate XXL >/dev/null; RCR=$?
+[[ $RCD -eq 2 && $RCR -eq 2 ]] && ok "estimate XXL is refused with rc 2 by define-item.sh and register-item.sh" || bad "estimate XXL: define-item rc=$RCD register-item rc=$RCR (want 2 and 2)"
+
 echo; [[ $FAIL -eq 0 ]] && echo "OK — define-check: $PASS cells" || { echo "$FAIL failure(s)"; exit 1; }

@@ -64,34 +64,13 @@ BACKLOG_DIR="$ROOT/.context/backlog"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # --- resolve target to an active backlog file ---
-FILE=""
-if [[ "$TARGET" =~ ^[Bb][Ll]-[0-9]+$ ]]; then
-  TARGET_UC="$(echo "$TARGET" | tr '[:lower:]' '[:upper:]')"
-  for f in "$BACKLOG_DIR"/*.md; do
-    [[ -f "$f" ]] || continue
-    [[ "$(read_id "$f")" == "$TARGET_UC" ]] && { FILE="$f"; break; }
-  done
-  [[ -n "$FILE" ]] || die "no active backlog item with id $TARGET_UC (already closed?)"
-elif [[ -f "$TARGET" ]]; then
-  FILE="$TARGET"
-elif [[ -f "$BACKLOG_DIR/$TARGET" ]]; then
-  FILE="$BACKLOG_DIR/$TARGET"
-elif [[ -f "$BACKLOG_DIR/$TARGET.md" ]]; then
-  FILE="$BACKLOG_DIR/$TARGET.md"
-else
-  # a slug: the item whose name is <date>-bl-<n>-<slug>.md with exactly this slug (never
-  # 00-index.md, never a partial word); several are refused, never the first by date
-  m=()
-  for f in "$BACKLOG_DIR"/*.md; do
-    [[ "$(basename "$f")" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}-bl-[0-9]+-(.*)\.md$ && "${BASH_REMATCH[1]}" == "$TARGET" ]] && m+=("$f")
-  done
-  [[ ${#m[@]} -le 1 ]] || die "ambiguous slug '$TARGET' matches: $(for f in "${m[@]}"; do printf '%s ' "$(basename "$f")"; done)"
-  [[ ${#m[@]} -eq 1 ]] || die "cannot resolve target: $TARGET"
-  FILE="${m[0]}"
+FILE="$(resolve_backlog_target "$BACKLOG_DIR" "$TARGET")"
+if [[ -z "$FILE" ]]; then
+  [[ "$TARGET" =~ ^[Bb][Ll]-[0-9]+$ ]] && die "no active backlog item with id $(echo "$TARGET" | tr '[:lower:]' '[:upper:]') (already closed?)"
+  die "cannot resolve target: $TARGET"
 fi
 
 [[ "$(dirname "$FILE")" == "$BACKLOG_DIR" ]] || die "target is not an active backlog item: $FILE"
-[[ "$(basename "$FILE")" != "00-index.md" ]] || die "target is the index, not a backlog item: $FILE"
 
 TODAY="$(date +%Y-%m-%d)"
 COMMITS_STR="${COMMITS[*]:-}"
