@@ -170,4 +170,33 @@ else
 fi
 ( cd "$p4" && bash "$WT" down cp --force ) >/dev/null 2>&1
 
+# --- case 5: the bookkeeping exclude must not hide the user's own .env (BL-770) ----
+# `create` writes its bookkeeping lines into the main repo's SHARED info/exclude. A bare
+# `.env` there matched a .env at any depth, so a user's untracked config/.env in the
+# root checkout was invisible to git status and the dirty check, and the plain `down`
+# deleted it with the checkout. Only the generated root /.env is aidex's.
+p5="$TMP/proj5"
+mkdir -p "$p5/.context/worktrees" "$p5/backend" "$p5/config"
+printf 'WT_PARTICIPANTS=". backend"\n' > "$p5/.context/worktrees/config.env"
+printf 'k: v\n' > "$p5/config/settings.yml"
+( cd "$p5" && git_q init . && git_q config user.email t@example.com && git_q config user.name t \
+  && git_q config core.excludesFile /dev/null \
+  && git_q add -A && git_q commit -qm init )
+( cd "$p5/backend" && git_q init . && git_q config user.email t@example.com && git_q config user.name t \
+  && echo hi > f.txt && git_q add -A && git_q commit -qm init )
+( cd "$p5" && bash "$WT" new ue --branch wt/ue --no-infra ) >/dev/null 2>&1
+D5="$p5/../proj5-wt-ue"
+if [[ -e "$D5/.git" ]]; then
+  printf 'SECRET=user\n' > "$D5/config/.env"
+  oute="$( cd "$p5" && bash "$WT" down ue 2>&1 )"; rce=$?
+  [[ -f "$D5/config/.env" ]] && ok "a plain down keeps the user's own untracked config/.env" \
+    || fail "down rc=$rce deleted the user's untracked config/.env with the root checkout"
+  printf '%s' "$oute" | grep >/dev/null -F '?? config/.env' \
+    && ok "the refusal names the user's .env as uncommitted work" \
+    || fail "the dirty check did not see config/.env: $(printf '%s' "$oute" | tail -2 | tr '\n' ' ')"
+else
+  fail "case 5: new did not create the root checkout"
+fi
+( cd "$p5" && bash "$WT" down ue --force ) >/dev/null 2>&1
+
 if [[ $failures -eq 0 ]]; then echo "OK — root participant"; else echo "$failures failure(s)"; exit 1; fi
