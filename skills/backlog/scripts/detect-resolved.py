@@ -49,7 +49,7 @@ def split_frontmatter(text):
 
 
 def field(block, key):
-    m = re.search(rf"^{key}:\s*[\"']?(.*?)[\"']?\s*$", block, re.M)
+    m = re.search(rf"^{key}:[ \t]*[\"']?(.*?)[\"']?\s*$", block, re.M)
     return m.group(1).strip() if m else ""
 
 
@@ -101,6 +101,19 @@ def anchors_for(body, ctx, repos):
     return paths[:8], missing[:4], commits, commit_repos, skills[:6]
 
 
+def default_context():
+    """Nearest `.context/` above the cwd, never past $HOME (validate.py find_context_dir)."""
+    cur, home = os.path.realpath(os.getcwd()), os.environ.get("HOME")
+    stop = os.path.realpath(home) if home and os.path.isdir(home) else None
+    while cur != stop:
+        if os.path.isdir(os.path.join(cur, ".context")):
+            return os.path.join(cur, ".context")
+        if os.path.dirname(cur) == cur:
+            break
+        cur = os.path.dirname(cur)
+    return os.path.abspath(".context")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("context", nargs="?", default=None)
@@ -108,7 +121,7 @@ def main():
     ap.add_argument("--limit", type=int, default=0, help="only the first N open items")
     args = ap.parse_args()
 
-    ctx = os.path.abspath(args.context or ".context")
+    ctx = os.path.abspath(args.context) if args.context else default_context()
     base = os.path.join(ctx, "backlog")
     if not os.path.isdir(base):
         print(f"error: no backlog/ under {ctx}", file=sys.stderr)

@@ -188,8 +188,8 @@ spelled out in Stage 3 (BL-363).
    `worklist/<file>`; `research/` is for investigations, not for what a run did —
    owner, 2026-08-27): closed items with commits and rows, the parked items, the owner
    rows aggregated, NEEDS-DECISION unchanged and unattempted, deferrals and mid-flight
-   skips, emergent growth, the gate rows verbatim (only runs inside the work-list's
-   window, created to close — BL-480), and the per-sweep metrics.
+   skips, emergent growth, the gate rows verbatim (runs stamped with this work-list;
+   a legacy unstamped run only inside its window, created to close — BL-480, BL-489), and the per-sweep metrics.
 
    It writes only that markdown and prints the page step on stderr (`page: build with
    /aidex:artifact (Route S) -> <report>.spec.md -> <report>.html`).

@@ -31,7 +31,8 @@ if [[ -z "$CONTEXT_DIR" ]]; then
 fi
 [[ -d "$CONTEXT_DIR" ]] || { printf 'error: no .context/ at %s\n' "$CONTEXT_DIR" >&2; exit 2; }
 
-python3 "$VALIDATOR" --type backlog --json "$CONTEXT_DIR" \
+# validate.py exits 1 on ANY violation; pipefail must not make that this script's verdict.
+{ python3 "$VALIDATOR" --type backlog --json "$CONTEXT_DIR" || true; } \
   | python3 -c "
 import json, sys
 

@@ -193,6 +193,18 @@ check "bare invocation writes nothing (dry-run default)" '[[ "$BEFORE" == "$AFTE
 bash "$SCRIPTS/migrate-priorities.sh" --apply >/dev/null 2>&1 || true
 check "--apply migrates the legacy value" 'grep -q "^priority: P1$" "$LEGACY"'
 rm -f "$LEGACY"
+# backlog-c05: trimming with xargs died on an apostrophe and set -e stopped the run halfway
+printf -- '---\ntitle: "quoted priority"\nid: BL-901\nstatus: open\ncreated: 2026-01-02\nupdated: 2026-01-02\npriority: Medium (don'"'"'t wait)\n---\n\nbody\n' > "$LEGACY"
+bash "$SCRIPTS/migrate-priorities.sh" --apply >/dev/null 2>&1 || true
+check "--apply survives an apostrophe in a priority note" 'grep -q "^priority: P2$" "$LEGACY"'
+rm -f "$LEGACY"
+# a quoted legacy value: single quotes, and double quotes with trailing spaces, are one pair to strip
+for q in "'High'" '"High"  '; do
+  printf -- '---\ntitle: "quoted"\nid: BL-902\nstatus: open\ncreated: 2026-01-02\nupdated: 2026-01-02\npriority: %s\n---\n\nbody\n' "$q" > "$LEGACY"
+  bash "$SCRIPTS/migrate-priorities.sh" --apply >/dev/null 2>&1 || true
+  check "--apply reads priority $q as High -> P1" 'grep -q "^priority: P1$" "$LEGACY"'
+  rm -f "$LEGACY"
+done
 
 echo "== closed-section windowing =="
 # BL-058: the ## Closed section windows to the most recent 20 closures plus a

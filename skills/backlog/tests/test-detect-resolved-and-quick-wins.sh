@@ -243,6 +243,52 @@ python3 "$QW" "$WS/nothing" >/dev/null 2>&1; [[ $? -eq 2 ]] || fail "quick-wins:
 python3 "$DR" "$WS/nothing" >/dev/null 2>&1; [[ $? -eq 2 ]] || fail "detect-resolved: missing backlog must exit 2"
 pass "both exit 2 on a context with no backlog/"
 
+# --- backlog-c06/c07: an EMPTY key must not capture the next front-matter line ------
+# `^key:\s*` let the \s* cross the newline, so `blocked_by:` (empty) read `type: task` and
+# the item landed under Blocked; an empty `priority:` read the next line as its priority.
+CTX3="$WS/ws3/.context"; mkdir -p "$CTX3/backlog" "$WS/ws3/sub"
+cat > "$CTX3/backlog/2026-01-12-bl-020-e.md" <<'EOF'
+---
+title: "item BL-020"
+id: BL-020
+status: open
+priority:
+blocked_by:
+type: task
+---
+
+# item BL-020
+EOF
+OUT_E="$(python3 "$QW" "$CTX3" 2>&1)"
+grep -q 'Blocked (1)' <<<"$OUT_E" && fail "backlog-c06: an empty blocked_by captured the next line and parked the item"
+python3 "$DR" "$CTX3" --json "$WS/dr6.json" >/dev/null 2>&1
+python3 - "$WS/dr6.json" <<'PY' || fail "backlog-c07: an empty priority captured the next front-matter line"
+import json, sys
+r = {r["id"]: r for r in json.load(open(sys.argv[1]))["items"]}["BL-020"]
+assert r["priority"] == "", r["priority"]
+PY
+pass "an empty front-matter key reads as empty, not as the next line"
+
+# --- backlog-c39: with no argument the backlog is found from a subdirectory ----------
+( cd "$WS/ws3/sub" && python3 "$QW" >/dev/null 2>&1 ); [[ $? -eq 0 ]] \
+  || fail "backlog-c39: quick-wins with no argument did not find .context/ from a subdirectory"
+pass "quick-wins with no argument finds .context/ above the cwd"
+( cd "$WS/ws3/sub" && python3 "$DR" >/dev/null 2>&1 ); [[ $? -eq 0 ]] \
+  || fail "backlog-c39: detect-resolved with no argument did not find .context/ from a subdirectory"
+pass "detect-resolved with no argument finds .context/ above the cwd"
+
+# The walk stops at the NEAREST .context/ (validate.py find_context_dir): one without a
+# backlog/ is an error, never a reason to keep climbing to an outer project's backlog.
+mkdir -p "$WS/ws4/.context/backlog" "$WS/ws4/child/.context" "$WS/ws4/child/src" "$WS/ws5/.context/backlog" "$WS/ws5/child/src"
+for S in "$QW" "$DR"; do
+  ( cd "$WS/ws4/child/src" && python3 "$S" >/dev/null 2>&1 ); RCN=$?
+  [[ $RCN -eq 2 ]] || fail "backlog-c39: $(basename "$S") climbed past the nearest .context/ (rc=$RCN, want 2)"
+  # ... and never past $HOME: a backlog above HOME is not this project's
+  ( cd "$WS/ws5/child/src" && HOME="$WS/ws5/child" python3 "$S" >/dev/null 2>&1 ); RCH=$?
+  [[ $RCH -eq 2 ]] || fail "backlog-c39: $(basename "$S") walked past \$HOME (rc=$RCH, want 2)"
+done
+pass "no-argument default stops at the nearest .context/ and at \$HOME (exit 2)"
+
 if [[ $FAILURES -gt 0 ]]; then
   printf '\n%d check(s) failed\n' "$FAILURES"
   exit 1

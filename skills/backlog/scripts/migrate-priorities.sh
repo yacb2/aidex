@@ -93,12 +93,11 @@ for f in "$DIR"/*.md; do
     /^---$/ { fm++; next }
     fm == 1 && /^priority:[[:space:]]/ {
       sub(/^priority:[[:space:]]*/, "")
-      gsub(/^"|"$/, "")
       print; exit
     }
-  ' "$f" | xargs)"
+  ' "$f" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g' | sed -E "s/^(\"(.*)\"|'(.*)')\$/\\2\\3/")"
 
-  body_prio="$(awk -F': ' '/^\*\*Priority\*\*:/ { sub(/^\*\*Priority\*\*:[[:space:]]*/, ""); print; exit }' "$f" | xargs)"
+  body_prio="$(awk -F': ' '/^\*\*Priority\*\*:/ { sub(/^\*\*Priority\*\*:[[:space:]]*/, ""); print; exit }' "$f" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g' | sed -E "s/^(\"(.*)\"|'(.*)')\$/\\2\\3/")"
 
   raw=""
   source=""
