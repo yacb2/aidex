@@ -14,7 +14,7 @@ Measured on one project 2026-08-24 (research/2026-08-24-small-sweep-throughput-a
 four commits each, across two repos — were both in that group.
 
 Usage:
-  sweep-eligible.py [--size XS,S] [--json] [--needs-decision]
+  sweep-eligible.py [--size XS,S] [--json]
 """
 import argparse, json, os, re, subprocess, sys
 
@@ -130,7 +130,6 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--size', default='', help='comma-separated estimates to keep, e.g. XS,S')
     ap.add_argument('--json', action='store_true')
-    ap.add_argument('--needs-decision', action='store_true', help='print only the excluded items')
     a = ap.parse_args()
     sizes = [s.strip().upper() for s in a.size.split(',') if s.strip()]
 
@@ -186,19 +185,18 @@ def main():
                           'open_worklists': open_wl}, indent=2))
         return
 
-    if not a.needs_decision:
-        print(f'ELIGIBLE ({len(eligible)}) — defined (define-check.py), in this repo, no autonomy signal')
-        for i in eligible:
-            print(f"  {i['id']:8} {i['priority']:3} {i['estimate']:3}  {i['title'][:70]}")
-        print()
-        print(f'REVIEW ({len(review)}) — defined, but read the body before starting')
-        for i in review:
-            # the reason carries the quoted sentence; a 34-char column cut it at «A decision
-            label, _, quote = i['reason'].partition(' — ')
-            print(f"  {i['id']:8} {i['priority']:3} {i['estimate']:3}  {label[:34]:34} {i['title'][:40]}")
-            if quote:
-                print(f"  {'':8} {'':3} {'':3}  {quote}")
-        print()
+    print(f'ELIGIBLE ({len(eligible)}) — defined (define-check.py), in this repo, no autonomy signal')
+    for i in eligible:
+        print(f"  {i['id']:8} {i['priority']:3} {i['estimate']:3}  {i['title'][:70]}")
+    print()
+    print(f'REVIEW ({len(review)}) — defined, but read the body before starting')
+    for i in review:
+        # the reason carries the quoted sentence; a 34-char column cut it at «A decision
+        label, _, quote = i['reason'].partition(' — ')
+        print(f"  {i['id']:8} {i['priority']:3} {i['estimate']:3}  {label[:34]:34} {i['title'][:40]}")
+        if quote:
+            print(f"  {'':8} {'':3} {'':3}  {quote}")
+    print()
     print(f'NEEDS-DECISION ({len(needs)}) — route to the user, never into the run')
     for i in needs:
         print(f"  {i['id']:8} {i['priority']:3} {i['estimate']:3}  {i['reason'][:40]:40} {i['title'][:40]}")

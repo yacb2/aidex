@@ -126,14 +126,14 @@ caller_tree() {  # prints the caller's worktree root when it is another checkout
 }
 CALLER_TREE="$(caller_tree || true)"
 
-commit_on_trunk() {  # commit_on_trunk <sha> → prints the tree that carries it; exit 1 if none, 3 if no repo at all
+commit_on_trunk() {  # commit_on_trunk <sha> → exit 0 if a searched tree carries it, 1 if none, 3 if no repo at all
   local sha="$1" repo any=0
   for repo in ${CALLER_TREE:+"$CALLER_TREE"} "$ROOT" "$ROOT"/*/; do
     [[ -d "$repo/.git" || -f "$repo/.git" ]] || continue
     any=1
     if git -C "$repo" cat-file -e "$sha^{commit}" 2>/dev/null \
        && git -C "$repo" merge-base --is-ancestor "$sha" HEAD 2>/dev/null; then
-      printf '%s' "$(basename "${repo%/}")"; return 0
+      return 0
     fi
   done
   [[ $any -eq 1 ]] && return 1 || return 3

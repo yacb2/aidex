@@ -18,7 +18,6 @@
 # Usage:
 #   migrate-priorities.sh              # default: DRY-RUN — print what would change
 #   migrate-priorities.sh --apply      # write the changes
-#   migrate-priorities.sh --dir <path> # operate on a custom backlog dir
 #
 # Dry-run by default, like sweep.sh and migrate-ids.sh beside it in the same
 # table: a bare invocation used to rewrite front-matter in place with no preview
@@ -34,20 +33,16 @@ set -euo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../conventions/scripts" && pwd -P)/_lib.sh"
 
 DRY_RUN=1
-DIR=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --apply)   DRY_RUN=0; shift ;;
     --dry-run) DRY_RUN=1; shift ;;   # accepted, and now redundant
-    --dir)     DIR="$2"; shift 2 ;;
     -h|--help) sed -n '3,/^$/p' "$0" | sed 's/^# \?//'; exit 0 ;;
     *) die "unknown option: $1" ;;
   esac
 done
 
-if [[ -z "$DIR" ]]; then
-  DIR="$(find_project_root)/.context/backlog"
-fi
+DIR="$(find_project_root)/.context/backlog"
 [[ -d "$DIR" ]] || die "no backlog directory at $DIR"
 
 normalize() {

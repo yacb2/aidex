@@ -8,7 +8,7 @@ than left to the names.
 
 | Action | Question | Reads |
 |---|---|---|
-| `triage` | *Is the backlog itself healthy?* Malformed ids, duplicates, items closed but never archived, cross-artifact drift. | front-matter + the index |
+| `triage` | *Is the backlog itself healthy?* Malformed ids, duplicates, items closed but never archived, cross-artifact drift, items too thin to start (the `definition` check). | front-matter + the index, and the body for the `definition` check (`define-check.py`) |
 | `quick-wins` | *What should I do first?* | front-matter only — **never a body** |
 | `detect-resolved` | *Is any of this already done?* | bodies, for the paths and commits they cite |
 

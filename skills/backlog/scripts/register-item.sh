@@ -798,8 +798,6 @@ write_index() {
 
     emit_section() {
       local heading="$1"; shift
-      local first="${1:-}"
-      [[ -z "$first" ]] && return
       printf '## %s\n\n' "$heading"
       emit_rows "$@"
       printf '\n'

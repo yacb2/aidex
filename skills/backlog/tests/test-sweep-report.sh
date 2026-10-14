@@ -311,5 +311,11 @@ grep -q "| items closed | 1 |" <<<"$RM" \
 mkdir -p "$TMP/bare" && ( cd "$TMP/bare" && python3 "$SCRIPTS/sweep-report.py" "$P" "$WLM" --out bare-report.md >/dev/null 2>"$TMP/bare.err" ); BARE_RC=$?
 [[ $BARE_RC -eq 0 && -f "$TMP/bare/bare-report.md" ]] \
   && ok "c29: --out <bare filename> writes the report in the current directory" || bad "bare --out: rc=$BARE_RC $(tail -1 "$TMP/bare.err")"
+# backlog-s21: a work-list without a top-level publish key anchors as 'see worklist'
+printf -- '---\ntitle: "no publish key"\nstatus: active\ncreated: %s\nmode: sweep\n---\n\n## Queue (in execution order)\n\n## Deferred / emergent\n' "$(day 0)" > .context/worklists/s21-nopublish.md
+RB="$(bash "$SCRIPTS/sweep-report.sh" .context/worklists/s21-nopublish.md --print 2>/dev/null)"
+grep -q 'gate policy publish `see worklist`' <<<"$RB" \
+  && ok "s21: a work-list without publish: anchors as 'see worklist'" || bad "anchor no publish: $(grep 'gate policy' <<<"$RB")"
+rm -f .context/worklists/s21-nopublish.md
 
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — sweep report: $PASS cells"; exit 0; }; echo "$FAIL failure(s)"; exit 1
