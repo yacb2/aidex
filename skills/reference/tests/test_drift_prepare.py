@@ -231,15 +231,18 @@ class PrepareTest(unittest.TestCase):
 
     def test_dropped_reference_does_not_cover(self):
         # BL-740: a dropped, superseded reference is nothing a maintainer would edit.
-        m = self.run_prepare(
-            {"code/billing/pay.py": PAD, "code/auth/login.py": PAD},
-            {"old.md": "---\nstatus: dropped\n---\nPayment lives in code/billing/pay.py.\n",
-             "live.md": "---\nstatus: done\n---\nLogin lives in code/auth/login.py.\n",
-             "body.md": "status: dropped is only prose here; code/auth/login.py.\n"}, budget=150)
-        k = self.kept(m)
-        self.assertEqual(list(k), ["code/auth"])
-        self.assertEqual(k["code/auth"]["references"],
-                         [".context/references/body.md", ".context/references/live.md"])
+        for delim in ("---\n", "--- \n"):  # the delimiter is `---` plus optional whitespace
+            with self.subTest(delim=delim):
+                self.fresh()
+                m = self.run_prepare(
+                    {"code/billing/pay.py": PAD, "code/auth/login.py": PAD},
+                    {"old.md": f"{delim}status: dropped\n{delim}Payment lives in code/billing/pay.py.\n",
+                     "live.md": "---\nstatus: done\n---\nLogin lives in code/auth/login.py.\n",
+                     "body.md": "status: dropped is only prose here; code/auth/login.py.\n"}, budget=150)
+                k = self.kept(m)
+                self.assertEqual(list(k), ["code/auth"])
+                self.assertEqual(k["code/auth"]["references"],
+                                 [".context/references/body.md", ".context/references/live.md"])
 
     def test_topic_index_file_is_a_real_reference(self):
         m = self.run_prepare(

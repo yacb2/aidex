@@ -76,7 +76,7 @@ def read_text_file(path):
 
 
 def collect(root):
-    """Return repos [(abs, rel)], files {rel: (repo_rel, tokens, text)}."""
+    """Return files {rel: (repo_rel, tokens, text)} of every non-excluded text file the repos track."""
     abs_repos = find_repos(root)
     rels = [os.path.relpath(r, root).replace(os.sep, "/") for r in abs_repos]
     files = {}
@@ -93,7 +93,7 @@ def collect(root):
             if got is None:
                 continue
             files[rel] = (rr, got[0] // 4, got[1])
-    return rels, abs_repos, files
+    return files
 
 
 DATA_EXT = {".jsonl", ".json", ".csv", ".tsv", ".ndjson", ".log", ".txt", ".lock"}

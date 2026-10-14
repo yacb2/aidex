@@ -518,6 +518,11 @@ check   "the topic->protocol map is reported"                  "$outt" "architec
 check   "a substitution module naming no environment is flagged" "$outt" "02-bad.md"
 nocheck "a substitution module that names one is not flagged"    "$outt" "01-ok.md"
 nocheck "a surface module is never asked for an environment"     "$outt" "features/01-f.md"
+# a stray profile inside a substitution topic is not a module: never swept for an environment
+printf -- '# stray profile\n' > "$PT/.context/references/architecture/00-profile.md"
+outs="$(python3 "$CENSUS" --root "$PT" --advisory 2>&1)"
+nocheck "a stray 00-profile.md in a substitution topic is not swept" "$outs" "architecture/00-profile.md: swept"
+rm "$PT/.context/references/architecture/00-profile.md"
 
 # a profile with no topics block must say the choice is unchecked, not stay silent
 outq="$(python3 "$CENSUS" --root "$P" --advisory 2>&1)"

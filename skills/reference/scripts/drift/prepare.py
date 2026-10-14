@@ -43,8 +43,6 @@ SYMBOL_RE = re.compile(
 TICKS_RE = re.compile(r"`([^`\n]+)`")
 IDENT_RE = re.compile(r"[A-Za-z_]\w*")
 COMPOUND_RE = re.compile(r"[a-z][A-Z]")
-FRONT_RE = re.compile(r"\A---\n(.*?)\n---", re.S)
-DROPPED_RE = re.compile(r"^status:\s*[\"']?dropped[\"']?\s*$", re.M)
 _spec = importlib.util.spec_from_file_location(
     "docs_census", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs-census.py"))
 census = importlib.util.module_from_spec(_spec)
@@ -81,8 +79,7 @@ def read_references(root):
             continue
         text = p.read_text(errors="replace")
         # A dropped reference is nothing a maintainer would edit (BL-740).
-        front = FRONT_RE.match(text)
-        if front and DROPPED_RE.search(front.group(1)):
+        if census.parse_frontmatter(text).get("status") == "dropped":
             continue
         refs[p.relative_to(root).as_posix()] = text
     return refs
@@ -122,9 +119,10 @@ def forms(unit):
     return root_rel, repo_rel + alias
 
 
-def declares(path, unit):
-    """Does a `covers:` path name the unit: one of its files, its directory, or a directory above."""
-    root_rel, repo_rel = forms(unit)
+def declares(path, forms_of_unit):
+    """Does a `covers:` path name the unit: one of its files, its directory, or a directory above.
+    forms_of_unit is forms(unit)."""
+    root_rel, repo_rel = forms_of_unit
     return (path in root_rel + repo_rel
             or any(p.startswith(path + "/") for p in root_rel)
             or "/" in path and any(p.startswith(path + "/") for p in repo_rel))
@@ -149,7 +147,7 @@ def prepare(root, work, budget=BUDGET):
     root, work = Path(root).resolve(), Path(work).resolve()
     refuse_tracked_work(root, work)
     (work / "manifest.json").unlink(missing_ok=True)  # a failed run leaves no old selection
-    _, _, files = module_map.collect(str(root))
+    files = module_map.collect(str(root))
     if not files:  # "0 covered units" must never mean nothing was examined
         sys.exit(f"prepare: no tracked files under {root}")
     all_units = module_map.build_units(files, budget)
@@ -174,10 +172,11 @@ def prepare(root, work, budget=BUDGET):
 
     kept, skipped = [], []
     for u in all_units:
-        names = sum(forms(u), [])
+        unit_forms = forms(u)
+        names = sum(unit_forms, [])
         covering = [r for r, text in refs.items()
                     if any(cites(text, p) for p in names) or u["id"] in by_symbol[r]
-                    or any(declares(p, u) for p in header[r])]
+                    or any(declares(p, unit_forms) for p in header[r])]
         if not covering:
             continue
         if u["extract"]:
