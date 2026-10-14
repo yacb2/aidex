@@ -18,7 +18,6 @@ LOG="$TMP/sql.log"
 make_stub() {
   cat > "$TMP/psql" <<EOF
 #!/usr/bin/env bash
-for a in "\$@"; do :; done
 sql="\${!#}"
 echo "\$sql" >> "$LOG"
 case "\$sql" in

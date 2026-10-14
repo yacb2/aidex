@@ -85,7 +85,7 @@ cleanup() {
   # would otherwise leave a `sleep 600` holding a deleted directory — this
   # plan's own subject.
   for p in $STRAY_PIDS; do kill "$p" 2>/dev/null; done
-  for s in a b c d fail1; do ( cd "$WS" 2>/dev/null && bash "$WT" down "$s" ) >/dev/null 2>&1; done
+  for s in a b c d fail1 p1 p2 p3 p4 r1 r2 r3 r4 codeonly; do ( cd "$WS" 2>/dev/null && bash "$WT" down "$s" ) >/dev/null 2>&1; done
   rm -rf "$TMP" "$SLOTDIR"
   [[ -n "${RUNLOCK:-}" ]] && rm -rf "$RUNLOCK"
 }
@@ -707,7 +707,7 @@ cp "$CONF_BASE" "$CONF"
 cat >> "$WS/.context/worktrees/config.env" <<'ENV'
 WT_READY_CMD='false'
 ENV
-# shorten the wait by pointing the readiness loop at a stack that is already up
+# The readiness loop in worktree.sh (`new`) has no shortcut: this case waits its full 60 s.
 ( bash "$WT" new fail1 --branch feat/fail1 ) >/dev/null 2>&1
 rc=$?
 [[ "$rc" -ne 0 ]] || fail "rollback: a create whose readiness never succeeds must exit non-zero"

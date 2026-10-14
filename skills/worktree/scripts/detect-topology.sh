@@ -9,7 +9,6 @@
 
 set -uo pipefail
 
-SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../conventions/scripts" && pwd -P)/_lib.sh"
 
 ROOT="$(find_project_root)"
@@ -72,7 +71,7 @@ patterns=(
   "docker-compose*.yml" "docker-compose*.yaml" "compose.yml" "compose.yaml"
   "Dockerfile*"
   "Procfile"
-  "dev.sh" "dev.ch" "start.sh"
+  "dev.sh" "start.sh"
   "test-e2e.sh"
 )
 for depth_glob in "$ROOT"/ "$ROOT"/*/; do

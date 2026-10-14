@@ -431,6 +431,32 @@ git -C "$PS" -c user.email=t@t -c user.name=t commit -q -m init
 out="$( cd "$PS" && bash "$WT_SH" down l1 --delete-branch 2>&1 )" \
   || fail "tracked link: down must remove a root checkout that tracks a symlink -- $out"
 [[ ! -e "$TMP/sproj-wt-l1" ]] || fail "tracked link: the root checkout must be gone"
+# The slot env file is recognised by its line-1 marker at two sites in worktree-multi.sh:
+# the dirty precheck (swept) and the sweep that deletes it. A root checkout whose
+# /.env is NOT excluded shows `?? .env`, so both are reached: the generated file is
+# removed with the worktree, a project's own .env still blocks it.
+# The generator's own line 1, so rewording the writer alone turns this red.
+. "$(dirname "$SCRIPT")/wt-env-marker.sh"
+PM="$TMP/mkproj"
+mkdir -p "$PM/.context/worktrees"
+git -C "$PM" init -q -b main
+echo 'WT_PARTICIPANTS="."' > "$PM/.context/worktrees/config.env"
+git -C "$PM" add -A
+git -C "$PM" -c user.email=t@t -c user.name=t commit -q -m init
+for m in k1 k2; do
+  out="$( cd "$PM" && bash "$WT_SH" new $m --branch b$m --no-infra 2>&1 )" || fail "marker: new $m failed -- $out"
+done
+_ex="$(git -C "$TMP/mkproj-wt-k1" rev-parse --git-path info/exclude)"
+grep -vxF '/.env' "$_ex" > "$TMP/mex" || true; cat "$TMP/mex" > "$_ex"
+printf '%s\nK=1\n' "$WT_ENV_MARKER" > "$TMP/mkproj-wt-k1/.env"
+printf 'K=2\n' > "$TMP/mkproj-wt-k2/.env"
+out="$( cd "$PM" && bash "$WT_SH" down k1 2>&1 )" \
+  || fail "marker: a generated slot .env must not block or survive down -- $out"
+[[ ! -e "$TMP/mkproj-wt-k1" ]] || fail "marker: the root checkout holding a generated .env must be gone"
+out="$( cd "$PM" && bash "$WT_SH" down k2 2>&1 )" \
+  && fail "marker: a project's own .env must still block down -- $out"
+[[ -e "$TMP/mkproj-wt-k2/.env" ]] || fail "marker: a project's own .env must be left in place"
+( cd "$PM" && bash "$WT_SH" down k2 --force >/dev/null 2>&1 )
 
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"
