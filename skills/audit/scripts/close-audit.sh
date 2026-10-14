@@ -48,17 +48,8 @@ INV=""
 # run folder's date prefix.
 RUN_DATE="${RUN_SLUG:0:10}"
 if [[ -n "$INV" ]]; then
-  UNRESOLVED="$(awk -F'|' -v run="$RUN_SLUG" -v rundate="$RUN_DATE" '
-    # Whole comma-separated tokens, never a substring: `2026-10-14-foo` must not claim
-    # `2026-10-14-foo-bar`, nor a same-day run (only a bare date token names the date).
-    function has_run(cell, want,   parts, k, n, t) {
-      n = split(cell, parts, ",")
-      for (k = 1; k <= n; k++) {
-        t = parts[k]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", t)
-        if (t == want) return 1
-      }
-      return 0
-    }
+  # has_run (AWK_HAS_RUN, _lib.sh): whole comma-separated tokens, never a substring.
+  UNRESOLVED="$(awk -F'|' -v run="$RUN_SLUG" -v rundate="$RUN_DATE" "$AWK_HAS_RUN"'
     /^\|/ {
       # A cell quoting a pipe (\|) is one cell: hide the escape before the width test.
       gsub(/\\[|]/, "\037")

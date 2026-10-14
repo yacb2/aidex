@@ -72,15 +72,22 @@ INV=""
 [[ -z "$INV" && -f "$AUDITS_DIR/INVENTORY.md" ]] && INV="$AUDITS_DIR/INVENTORY.md"
 [[ -n "$INV" ]] || die "no inventory governs $RUN_SLUG (expected $PARENT/00-inventory.md)"
 
-# --- collect this run's unresolved rows as "severity<TAB>id<TAB>module<TAB>summary" ---
+# --- collect this run's unresolved rows as "severity<TAB>id<TAB>module<TAB>summary<TAB>unmarkable" ---
 # Column width branches like close-audit.sh: the canonical 9-column board parses
 # as NF==11, the pre-2026-08-06 board (First Seen / Last Updated) as NF==13.
 # Reading a fixed index on the wrong width silently returns another cell.
+# Each escaped \| is held as US while a row is split (same hiding as
+# normalize_inventory / mark_row_escalated), so a cell quoting a pipe stays one
+# cell; it is restored wherever a cell is printed or the row rewritten.
+# A row with an HTML comment on it is still listed (close-audit.sh counts it too),
+# but the last field flags it 1 (read as $NF: a Module or Summary cell may hold a tab);
+# the mark below passes such a row through untouched.
 collect_rows() {
-  awk '
+  awk "$AWK_UNESC$AWK_HAS_RUN"'
     BEGIN { in_comment = 0 }
     {
       line = $0
+      unmarkable = (in_comment || index($0, "<!--") > 0 || index($0, "-->") > 0)
       while (1) {
         if (in_comment) {
           e = index(line, "-->"); if (e == 0) { line = ""; break }
@@ -94,10 +101,11 @@ collect_rows() {
         }
       }
       if (line !~ /^\|/) next
+      gsub(/\\[|]/, "\037", line)
       n = split(line, c, "|")
       if (n < 11) next
-      id = c[2]; summ = c[5]; status = c[6]; sev = c[7]
-      module = c[4]
+      id = c[2]; summ = unesc(c[5]); status = c[6]; sev = c[7]
+      module = unesc(c[4])
       runs = (n >= 13 ? c[10] : c[8])
       gsub(/^[[:space:]]+|[[:space:]]+$/, "", id)
       gsub(/^[[:space:]]+|[[:space:]]+$/, "", summ)
@@ -108,9 +116,9 @@ collect_rows() {
       if (id == "" || id == "ID" || id == "—") next
       if (status !~ /^(open|doing|done|dropped|triaged|in-progress|closed|escalated)$/) next
       if (status !~ /^(open|doing|triaged|in-progress)$/) next
-      if (index(runs, run) == 0 && index(runs, rundate) == 0) next
+      if (!has_run(runs, run) && !has_run(runs, rundate)) next
       if (sev == "" || sev == "—") sev = "P?"
-      print sev "\t" id "\t" module "\t" summ
+      print sev "\t" id "\t" module "\t" summ "\t" unmarkable
     }
   ' run="$RUN_SLUG" rundate="$RUN_DATE" "$INV"
 }
@@ -130,20 +138,27 @@ fi
 [[ -n "$ROWS" ]] || die "$RUN_SLUG has no unresolved findings — nothing to remediate"
 
 # Refuse a second emit while a live remediation spec still owns these rows.
-HELD="$(awk -v run="$RUN_SLUG" -v rundate="$RUN_DATE" '
+HELD="$(awk -v run="$RUN_SLUG" -v rundate="$RUN_DATE" "$AWK_HAS_RUN"'
   /^\|/ {
-    n = split($0, c, "|"); if (n < 11) next
+    row = $0; gsub(/\\[|]/, "\037", row)
+    n = split(row, c, "|"); if (n < 11) next
     i_runs = (n >= 13 ? 10 : 8); i_esc = (n >= 13 ? 11 : 9)
     runs = c[i_runs]; esc = c[i_esc]
     gsub(/^[[:space:]]+|[[:space:]]+$/, "", runs)
     gsub(/^[[:space:]]+|[[:space:]]+$/, "", esc)
-    if (index(runs, run) == 0 && index(runs, rundate) == 0) next
+    if (!has_run(runs, run) && !has_run(runs, rundate)) next
     if (esc ~ /^loop\/.*-remediate-/) { print esc; exit }
   }
 ' "$INV")"
 if [[ -n "$HELD" ]]; then
   die "$RUN_SLUG is already held by $HELD — archive that spec and clear its markers before re-emitting"
 fi
+
+# Refuse before anything is written when a listed row could not be marked doing
+# (same rule as finding_row_markable): the spec would hold a row the gate keeps RED
+# and the mark never moves.
+UNMARKABLE="$(printf '%s\n' "$ROWS" | awk -F'\t' '$NF == 1 { printf " %s", $2 }')"
+[[ -z "$UNMARKABLE" ]] || die "finding(s)$UNMARKABLE carry an HTML comment on the row and cannot be marked doing; move the comment off the row, then re-emit; nothing written"
 
 COUNT="$(printf '%s\n' "$ROWS" | wc -l | tr -d ' ')"
 RUN_REF="$RUN_SLUG"
@@ -336,7 +351,7 @@ mv "$TMP" "$LOOP_FILE"
 # requires of a finding whose work is under way (validate-audit enforces it).
 MARKER="loop/$(basename "$LOOP_FILE" .md)"
 TMP2="$(mktemp "${TMPDIR:-/tmp}/aidex.XXXXXX")"
-awk -v marker="$MARKER" -v run="$RUN_SLUG" -v rundate="$RUN_DATE" '
+awk -v marker="$MARKER" -v run="$RUN_SLUG" -v rundate="$RUN_DATE" "$AWK_UNESC$AWK_HAS_RUN"'
   BEGIN { in_comment = 0 }
   {
     line = $0; skip = in_comment; probe = line
@@ -353,7 +368,8 @@ awk -v marker="$MARKER" -v run="$RUN_SLUG" -v rundate="$RUN_DATE" '
     }
     if (skip || index($0, "<!--") > 0 || index($0, "-->") > 0) { print $0; next }
     if ($0 !~ /^\|/) { print $0; next }
-    n = split($0, c, "|")
+    row = $0; gsub(/\\[|]/, "\037", row)
+    n = split(row, c, "|")
     if (n < 11) { print $0; next }
     i_status = 6; i_runs = (n >= 13 ? 10 : 8); i_esc = (n >= 13 ? 11 : 9)
     id = c[2]; status = c[i_status]; runs = c[i_runs]; esc = c[i_esc]
@@ -363,12 +379,12 @@ awk -v marker="$MARKER" -v run="$RUN_SLUG" -v rundate="$RUN_DATE" '
     gsub(/^[[:space:]]+|[[:space:]]+$/, "", esc)
     if (id == "" || id == "ID" || id == "—") { print $0; next }
     if (status !~ /^(open|doing|triaged|in-progress)$/) { print $0; next }
-    if (index(runs, run) == 0 && index(runs, rundate) == 0) { print $0; next }
+    if (!has_run(runs, run) && !has_run(runs, rundate)) { print $0; next }
     c[i_status] = " doing "
     if (esc == "" || esc == "—") c[i_esc] = " " marker " "
     out = c[1]
     for (i = 2; i <= n; i++) out = out "|" c[i]
-    print out
+    print unesc(out)
   }
 ' "$INV" > "$TMP2" && mv "$TMP2" "$INV"
 

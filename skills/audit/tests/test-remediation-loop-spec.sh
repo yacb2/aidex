@@ -154,6 +154,115 @@ printf '%s' "$lrow" | grep >/dev/null -E '\| 2026-05-01 \| 2026-06-02 \| 2026-07
 bash "$EMIT" 2026-07-04-legacy-board --check >/dev/null 2>&1
 [[ $? -eq 1 ]] || fail "legacy board: gate should be RED while PERF-1 is unresolved"
 
+# ---------- 6b. a Summary quoting a pipe (\|) is one cell ----------
+# Split on a raw "|", the escape shifts Status/Severity one cell right: the row
+# is read as status 'b" in the router', silently dropped from gate, work-list
+# and marking, and its held marker is never seen on re-emit.
+mkdir -p "$A/pipes/2026-07-10-pipes"
+cat > "$A/pipes/00-inventory.md" <<'EOF'
+| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |
+|---|---|---|---|---|---|---|---|---|
+| PIPE-1 | bug | api | greps "a\|b" in the router | open | P0 | 2026-07-10 | — | — |
+| PIPE-2 | bug | mod\|x | module pipe | open | P1 | 2026-07-10 | — | — |
+| PIPE-3 | bug | api | notes pipe | open | P2 | 2026-07-10 | — | see a\|b |
+| PIPE-4 | bug | api | done "a\|b" | done | P1 | 2026-07-10 | — | Closed: abc1234 — a\|b |
+EOF
+echo "# m" > "$A/pipes/00-methodology.md"; echo "# c" > "$A/pipes/00-changelog.md"
+printf -- '---\ntitle: "pipes"\nstatus: doing\ncreated: 2026-07-10\nupdated: 2026-07-10\nmethodology: pipes\n---\n' \
+  > "$A/pipes/2026-07-10-pipes/index.md"
+bash "$EMIT" 2026-07-10-pipes --check >/dev/null 2>&1
+[[ $? -eq 1 ]] || fail "escaped pipe: gate should be RED while PIPE-1 is open"
+bash "$EMIT" 2026-07-10-pipes >/dev/null 2>&1 || fail "escaped pipe: emit exited non-zero"
+PSPEC="$(ls .context/loops/*remediate-pipes*.md 2>/dev/null | sed -n 1p)"
+grep -qF '**PIPE-1** (api) — greps "a\|b" in the router' "${PSPEC:-/dev/null}" \
+  || fail "escaped pipe: PIPE-1 missing from the work-list or its summary altered"
+prow="$(grep '^| PIPE-1 ' "$A/pipes/00-inventory.md")"
+[[ "$prow" =~ ^'| PIPE-1 | bug | api | greps "a\|b" in the router | doing | P0 | 2026-07-10 | loop/'[0-9-]+'-remediate-pipes | — |'$ ]] \
+  || fail "escaped pipe: row should be doing + marker with Summary and Severity intact, row: $prow"
+grep -qF '**PIPE-2** (mod\|x) — module pipe' "${PSPEC:-/dev/null}" \
+  || fail "escaped pipe: PIPE-2 Module cell not restored in the work-list"
+grep -q $'\037' "${PSPEC:-/dev/null}" && fail "escaped pipe: a raw US placeholder leaked into the loop-spec"
+prow3="$(grep '^| PIPE-3 ' "$A/pipes/00-inventory.md")"
+[[ "$prow3" =~ ^'| PIPE-3 | bug | api | notes pipe | doing | P2 | 2026-07-10 | loop/'[0-9-]+'-remediate-pipes | see a\|b |'$ ]] \
+  || fail "escaped pipe: Notes-only \\| row should be doing + marker with Notes intact, row: $prow3"
+[[ "$(grep '^| PIPE-4 ' "$A/pipes/00-inventory.md")" == '| PIPE-4 | bug | api | done "a\|b" | done | P1 | 2026-07-10 | — | Closed: abc1234 — a\|b |' ]] \
+  || fail "escaped pipe: the done PIPE-4 row was not left byte-identical"
+PRE_OUT="$(bash "$EMIT" 2026-07-10-pipes 2>&1)"
+printf '%s' "$PRE_OUT" | grep >/dev/null 'already held by loop/' \
+  || fail "escaped pipe: re-emit not refused by the held-marker check, got: $PRE_OUT"
+
+# ---------- 6c. a run owns whole Audit Runs tokens, never a substring ----------
+# `2026-07-10-ux` is a prefix of `2026-07-10-ux-mobile`, and its date is a
+# substring of every same-day slug: a substring test let the run gate on, list,
+# mark and be refused by the other run's rows. A bare-date token still names
+# every run of that date (legacy rows; cells 1-6b rely on it).
+mkdir -p "$A/ux/2026-07-10-ux" "$A/ux/2026-07-10-ux-mobile"
+cat > "$A/ux/00-inventory.md" <<'EOF'
+| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |
+|---|---|---|---|---|---|---|---|---|
+| UX-1 | bug | web | desktop finding | done | P1 | 2026-06-01-old, 2026-07-10-ux | — | — |
+| UX-2 | bug | web | mobile finding | open | P1 | 2026-07-10-ux-mobile | — | — |
+| UX-3 | bug | web | held by mobile | doing | P2 | 2026-07-10-ux-mobile | loop/2026-07-11-remediate-ux-mobile | — |
+EOF
+echo "# m" > "$A/ux/00-methodology.md"; echo "# c" > "$A/ux/00-changelog.md"
+for r in ux ux-mobile; do
+  printf -- '---\ntitle: "%s"\nstatus: doing\ncreated: 2026-07-10\nupdated: 2026-07-10\nmethodology: ux\n---\n' "$r" \
+    > "$A/ux/2026-07-10-$r/index.md"
+done
+UX2='| UX-2 | bug | web | mobile finding | open | P1 | 2026-07-10-ux-mobile | — | — |'
+UX3='| UX-3 | bug | web | held by mobile | doing | P2 | 2026-07-10-ux-mobile | loop/2026-07-11-remediate-ux-mobile | — |'
+bash "$EMIT" 2026-07-10-ux --check >/dev/null 2>&1
+[[ $? -eq 0 ]] || fail "whole token: gate RED on 2026-07-10-ux with its only row done — another run's row was claimed"
+sed -i.bak 's/^| UX-1 \(.*\)| done |/| UX-1 \1| open |/' "$A/ux/00-inventory.md" && rm -f "$A/ux/00-inventory.md.bak"
+UX_OUT="$(bash "$EMIT" 2026-07-10-ux 2>&1)" || fail "whole token: emit for 2026-07-10-ux exited non-zero"
+printf '%s' "$UX_OUT" | grep >/dev/null 'already held by loop/' \
+  && fail "whole token: emit refused by 2026-07-10-ux-mobile's held marker, got: $UX_OUT"
+USPEC="$(ls .context/loops/*-remediate-ux.md 2>/dev/null | sed -n 1p)"
+grep -q '\*\*UX-1\*\*' "${USPEC:-/dev/null}" || fail "whole token: UX-1 (multi-token Audit Runs cell) missing from the work-list"
+grep -q '\*\*UX-2\*\*' "${USPEC:-/dev/null}" && fail "whole token: UX-2 belongs to 2026-07-10-ux-mobile — must not be in the work-list"
+grep '^| UX-1 ' "$A/ux/00-inventory.md" | grep >/dev/null -E '\| doing \| P1 \| 2026-06-01-old, 2026-07-10-ux \| loop/[0-9-]+-remediate-ux \|' \
+  || fail "whole token: UX-1 should be doing + marker, row: $(grep '^| UX-1 ' "$A/ux/00-inventory.md")"
+[[ "$(grep '^| UX-2 ' "$A/ux/00-inventory.md")" == "$UX2" ]] \
+  || fail "whole token: 2026-07-10-ux-mobile's UX-2 row was rewritten: $(grep '^| UX-2 ' "$A/ux/00-inventory.md")"
+[[ "$(grep '^| UX-3 ' "$A/ux/00-inventory.md")" == "$UX3" ]] \
+  || fail "whole token: 2026-07-10-ux-mobile's UX-3 row was rewritten: $(grep '^| UX-3 ' "$A/ux/00-inventory.md")"
+
+# ---------- 6d. a row the mark cannot rewrite (an HTML comment on the row) ----------
+# The gate lists it (close-audit.sh counts it too), but the mark passes a commented
+# row through untouched (same rule as finding_row_markable): emitting would list it
+# in the spec and never move it to doing. Refused before anything is written.
+mkdir -p "$A/cmt/2026-07-12-cmt"
+cat > "$A/cmt/00-inventory.md" <<'EOF'
+| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |
+|---|---|---|---|---|---|---|---|---|
+| CMT-1 | bug | api | plain row | open | P1 | 2026-07-12 | — | — |
+| CMT-2 | bug | api | commented row | open | P2 | 2026-07-12 | — | seen <!-- recheck --> |
+| CMT-3 | bug | api | redirect /a --> /b loops | open | P2 | 2026-07-12 | — | — |
+| CMT-4 | bug | api | comment opens here | open | P2 | 2026-07-12 | — | n | <!-- start
+end -->
+EOF
+# CMT-5 has a literal tab in Summary (printf, not the heredoc): the flag must not be
+# read positionally from the TAB-separated record.
+printf '| CMT-5 | bug | api | tab\there | open | P2 | 2026-07-12 | — | x <!-- y --> |\n' >> "$A/cmt/00-inventory.md"
+echo "# m" > "$A/cmt/00-methodology.md"; echo "# c" > "$A/cmt/00-changelog.md"
+printf -- '---\ntitle: "cmt"\nstatus: doing\ncreated: 2026-07-12\nupdated: 2026-07-12\nmethodology: cmt\n---\n' \
+  > "$A/cmt/2026-07-12-cmt/index.md"
+CMT_GATE="$(bash "$EMIT" 2026-07-12-cmt --check 2>&1)"; rc=$?
+[[ $rc -eq 1 && "$CMT_GATE" == *CMT-2* ]] || fail "commented row: the gate must still list CMT-2 as unresolved, rc $rc: $CMT_GATE"
+# --dry-run refuses too: a preview that lists a row the emit would refuse is a false preview.
+CMT_DRY="$(bash "$EMIT" 2026-07-12-cmt --dry-run 2>&1)"; rc=$?
+[[ $rc -ne 0 && "$CMT_DRY" == *"cannot be marked"* ]] || fail "commented row: --dry-run should refuse like emit, rc $rc: $CMT_DRY"
+before="$(cksum < "$A/cmt/00-inventory.md")"
+CMT_OUT="$(bash "$EMIT" 2026-07-12-cmt 2>&1)"; rc=$?
+# CMT-2 holds both markers, CMT-3 only a bare -->, CMT-4 only an opener closed on the
+# next line: each marker alone must flag its row. CMT-1 is plain and must not be named.
+[[ $rc -ne 0 && "$CMT_OUT" == *"cannot be marked"* && "$CMT_OUT" == *CMT-2* \
+   && "$CMT_OUT" == *CMT-3* && "$CMT_OUT" == *CMT-4* && "$CMT_OUT" == *CMT-5* \
+   && "$CMT_OUT" != *" CMT-1"* ]] \
+  || fail "commented row: emit should refuse naming CMT-2 CMT-3 CMT-4 CMT-5 (not CMT-1) as unmarkable, rc $rc: $CMT_OUT"
+[[ -z "$(ls .context/loops/*-remediate-cmt.md 2>/dev/null)" ]] || fail "commented row: a refused emit left a spec behind"
+[[ "$(cksum < "$A/cmt/00-inventory.md")" == "$before" ]] || fail "commented row: a refused emit rewrote the inventory"
+
 # ---------- 7. refusals ----------
 # Re-emit while a live spec still holds the rows: the marker only fills an EMPTY
 # cell, so a second spec would list rows that point at the first one.

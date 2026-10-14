@@ -126,6 +126,19 @@ out="$(bash "$SCRIPTS/escalate-finding.sh" F-2 2>&1)"; rc=$?
 [[ $rc -ne 0 && "$out" == *"already done"* ]] || fail "c01: a done row with \\| in its summary should be refused as already done, rc $rc: $out"
 [[ -z "$(ls .context/backlog/*.md 2>/dev/null | grep -v 00-index)" ]] || fail "c01: the done row was escalated again (backlog entry created)"
 
+# --- awkmark: today is appended to Audit Runs unless the cell holds it as a whole
+# token; a same-day run slug (<today>-foo) is not the bare date ---
+new_project awkmark
+mkdir -p "$A/ux"
+INV="$A/ux/00-inventory.md"
+printf '| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |\n|---|---|---|---|---|---|---|---|---|\n| F-1 | bug | auth | Same-day slug | open | P1 | %s-foo | — | — |\n| F-2 | bug | auth | Already today | open | P1 | 2026-06-01, %s | — | — |\n' "$TODAY" "$TODAY" > "$INV"
+( . "$SCRIPTS/_lib.sh"; mark_row_escalated "$INV" F-1 backlog/bl-1 )
+want="| F-1 | bug | auth | Same-day slug | done | P1 | $TODAY-foo, $TODAY | backlog/bl-1 | — |"
+[[ "$(row_of "$INV" F-1)" == "$want" ]] || fail "awkmark: a same-day slug must not stand for today, want: $want got: $(row_of "$INV" F-1)"
+( . "$SCRIPTS/_lib.sh"; mark_row_escalated "$INV" F-2 backlog/bl-2 )
+want="| F-2 | bug | auth | Already today | done | P1 | 2026-06-01, $TODAY | backlog/bl-2 | — |"
+[[ "$(row_of "$INV" F-2)" == "$want" ]] || fail "awkmark: today already a whole token must not be appended twice, want: $want got: $(row_of "$INV" F-2)"
+
 # --- audit-c06: find_audit_run matches the id as a whole token, never a substring ---
 new_project c06
 R="$A/sec"
