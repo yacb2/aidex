@@ -37,6 +37,7 @@ set -euo pipefail
 # while _lib.sh consumers wrote to the main tree. Pinned by
 # conventions/scripts/test-find-project-root.sh (no private copies).
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../conventions/scripts" && pwd -P)/_lib.sh"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/_backlog-lib.sh"
 
 TARGET="" STATUS="done" SUPERSEDED="" ESCALATED="" REASON="" NO_INDEX=0 SWEEP=0
 COMMITS=()
@@ -63,7 +64,6 @@ BACKLOG_DIR="$ROOT/.context/backlog"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # --- resolve target to an active backlog file ---
-read_id() { awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2; exit}' "$1"; }
 FILE=""
 if [[ "$TARGET" =~ ^[Bb][Ll]-[0-9]+$ ]]; then
   TARGET_UC="$(echo "$TARGET" | tr '[:lower:]' '[:upper:]')"
@@ -188,20 +188,6 @@ done
 # as closed, or it gets archived by mistake. worklist-close.sh refuses to end the run
 # while any queued item is parked; the report aggregates every parked row.
 # Every other empty proof cell refuses. A placeholder cell (proof_is_placeholder) counts as empty.
-# Append the cited shas to a `commits:` value (c14). The existing value is kept verbatim
-# (it may carry repeated repo labels); a cited sha is skipped when it is the same commit as
-# a token already there: equal, or both 7+ hex with one a prefix of the other.
-MERGE_AWK='function ishex(s) { return (s ~ /^[0-9a-f]+$/ && length(s) >= 7) }
-function same(x, y) { if (x == y) return 1; if (ishex(x) && ishex(y)) return (index(x, y) == 1 || index(y, x) == 1); return 0 }
-function merge(val, add,   n, a, m, t, i, j, dup, out) {
-  out = val; gsub(/^ +| +$/, "", out); m = split(val, t, " "); n = split(add, a, " ")
-  for (i = 1; i <= n; i++) {
-    dup = 0; for (j = 1; j <= m; j++) if (same(a[i], t[j])) dup = 1
-    if (!dup) { out = out (out == "" ? "" : " ") a[i]; t[++m] = a[i] }
-  }
-  return out
-}
-'
 read_fm() { awk -v k="$2" '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1==k":"{
   sub(/^[^:]*:[[:space:]]*/,""); gsub(/^"|"$/,""); print; exit}' "$1"; }
 verification_rows() {  # -> "kind<TAB>what<TAB>proof" per data row

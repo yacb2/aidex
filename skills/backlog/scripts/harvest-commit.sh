@@ -23,6 +23,7 @@ set -euo pipefail
 # while _lib.sh consumers wrote to the main tree. Pinned by
 # conventions/scripts/test-find-project-root.sh (no private copies).
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../conventions/scripts" && pwd -P)/_lib.sh"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/_backlog-lib.sh"
 
 SHA="" MSG=""
 while [[ $# -gt 0 ]]; do
@@ -42,39 +43,13 @@ ROOT="$(find_project_root)"
 BACKLOG_DIR="$ROOT/.context/backlog"
 PLANS_DIR="$ROOT/.context/plans"
 
-# append a sha to the `commits:` field of a front-matter file (idempotent per sha)
-append_commit() {
-  local file="$1" sha="$2"
-  # already recorded: a whole token of the front-matter `commits:` value, never a substring
-  # of the body or of another hash
-  # (the same commit = equal, or both 7+ hex with one a prefix of the other: short vs full)
-  awk -v sha="$sha" 'function ishex(s){return (s ~ /^[0-9a-f]+$/ && length(s)>=7)}
-    function same(x,y){if(x==y)return 1; if(ishex(x)&&ishex(y))return (index(x,y)==1||index(y,x)==1); return 0}
-    /^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && /^commits:/{gsub(/"/,""); for(i=2;i<=NF;i++) if(same($i,sha)) f=1} END{exit !f}' "$file" 2>/dev/null && return 0
-  awk -v sha="$sha" '
-    BEGIN { d=0; infm=0; seen=0 }
-    /^---[[:space:]]*$/ {
-      d++
-      if (d==1){infm=1; print; next}
-      if (d==2){ if(!seen) print "commits: \"" sha "\""; infm=0; print; next }
-    }
-    infm==1 && $0 ~ /^commits:/ {
-      val=$0; sub(/^commits:[[:space:]]*/,"",val); gsub(/"/,"",val)
-      gsub(/^[[:space:]]+|[[:space:]]+$/,"",val)
-      if (val=="" || val=="[]") print "commits: \"" sha "\""
-      else                      print "commits: \"" val " " sha "\""
-      seen=1; next
-    }
-    { print }
-  ' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
-}
-
-# locate a backlog item file (active, _archive, or _deferred) by id
+# locate a backlog item file (active, _deferred, or _archive) by id. The order is register-item.sh
+# backlog_files': a deferred item is live where an archived copy of the same id is closed.
 backlog_file_by_id() {
   local id="$1" f fid
-  for f in "$BACKLOG_DIR"/*.md "$BACKLOG_DIR"/_archive/*.md "$BACKLOG_DIR"/_deferred/*.md; do
+  for f in "$BACKLOG_DIR"/*.md "$BACKLOG_DIR"/_deferred/*.md "$BACKLOG_DIR"/_archive/*.md; do
     [[ -f "$f" ]] || continue
-    fid="$(awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2; exit}' "$f")"
+    fid="$(read_id "$f")"
     # numeric compare: BL-7 in a trailer is BL-007 on disk (ids are zero-padded to 3+ digits)
     [[ "$fid" =~ ^BL-[0-9]+$ && $((10#${fid#BL-})) -eq $((10#${id#BL-})) ]] && { printf '%s\n' "$f"; return 0; }
   done

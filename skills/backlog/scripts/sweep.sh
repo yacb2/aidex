@@ -23,6 +23,7 @@ esac
 # while _lib.sh consumers wrote to the main tree. Pinned by
 # conventions/scripts/test-find-project-root.sh (no private copies).
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../conventions/scripts" && pwd -P)/_lib.sh"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/_backlog-lib.sh"
 
 ROOT="$(find_project_root)"
 BACKLOG_DIR="$ROOT/.context/backlog"
@@ -30,7 +31,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [[ -d "$BACKLOG_DIR" ]] || { echo "no backlog dir at $BACKLOG_DIR" >&2; exit 0; }
 
 read_status() { awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="status:"{gsub(/["\047]/,"",$2); print $2; exit}' "$1"; }
-read_id()     { awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2; exit}' "$1"; }
 
 moved=0 collided=0
 # Only when applying: a dry-run must not touch the tree, or a read-only caller

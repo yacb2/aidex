@@ -157,30 +157,10 @@ re-copy the schema here; author entries via the script or straight from that tab
 
 ```
 open ⇄ _deferred (blocked) → doing → done / dropped
+                               └──→ awaiting owner (sweep only) → done
 ```
 
-1. **open** — entry created, not yet scheduled
-2. **_deferred (blocked)** — open but cannot start: an external blocker exists. The
-   item is moved to `backlog/_deferred/`, `status` stays `open`, and `blocked_by`
-   MUST be populated. It is **not** in the active queue and is **not** `_archive/`
-   (archive is terminal). `defer-item.sh defer` parks it, `reactivate` brings it back.
-3. **doing** — active work, opened with `start-item.sh` rather than by editing
-   `status` by hand. That script is also the **bug route**: an item with
-   `type: bug` prints the RED→GREEN procedure on start, so bug work enters the
-   regression-test-first cycle from the backlog lifecycle instead of depending on
-   a bug-report phrasing that tracked work never uses. A plan may exist in `.context/plans/` (link in Notes). If the item's acceptance criterion is machine-checkable (a gate the work should iterate against), it may instead link an `loop` loop-spec in `.context/loops/`. Default stays a plan.
-4. **done** — shipped; archived to `_archive/` **on close** (D-10), not after a delay
-5. **dropped** — won't do; reason in Notes; archived on close
-
-Deferring is reversible (open ⇄ `_deferred/`); closing is terminal (→ `_archive/`).
-
-- **Defer/reactivate** moves the file between the active root and `backlog/_deferred/`,
-  sets/clears `blocked_by`, stamps `updated`, and rebuilds the index. The `00-index.md`
-  lists deferred items under `## Deferred`. Use `defer-item.sh` rather than moving files or editing `blocked_by` by hand.
-- **Closing** an item is an atomic operation (status → record commit → move to
-  `_archive/` → rebuild index). Use `close-item.sh` rather than editing
-  `status` by hand. The `00-index.md` keeps a one-liner per closed item under
-  `## Closed`; full bodies live in `_archive/`.
+Every state and rule lives once, in [references/01-backlog-conventions.md](references/01-backlog-conventions.md#lifecycle); this skill does not restate them. Move an item only through its script, never by editing `status`, `blocked_by` or the file's folder by hand: `start-item.sh` (`doing`; a `type: bug` item prints the RED→GREEN route), `defer-item.sh defer|reactivate` (`_deferred/`, not a close), `close-item.sh` (`done`/`dropped`, archived on close, D-10; with `--sweep` and every other row proven, an unanswered `owner` row parks the item as `awaiting: owner` instead).
 
 ---
 
