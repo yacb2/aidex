@@ -157,7 +157,7 @@ looks_like_status() {
 validate_inventory() {
   local inv="$1" scope="$2"
   local legacy_here=0 parsed_here=0 pipe_rows=0 oversize_notes=0 unparsed_ids=""
-  local line row pipe_count c_id c_type c_module c_summary c_status c_severity c_first c_last c_runs c_escalated rest notes nb
+  local line row pipe_count c_id c_status c_escalated rest notes nb
   local id status escalated mapped
 
   # Soft budget: board file > 30 KB (warn only, never a violation).
@@ -188,9 +188,9 @@ validate_inventory() {
     # the new width would report every unmigrated project as unparseable.
     # 9 cols -> 10 pipes, 11 cols -> 12 pipes.
     if [[ "$pipe_count" -ge 12 ]]; then
-      IFS='|' read -r _ c_id c_type c_module c_summary c_status c_severity _c_first _c_last c_runs c_escalated rest <<< "$row"
+      IFS='|' read -r _ c_id _ _ _ c_status _ _ _ _ c_escalated rest <<< "$row"
     else
-      IFS='|' read -r _ c_id c_type c_module c_summary c_status c_severity c_runs c_escalated rest <<< "$row"
+      IFS='|' read -r _ c_id _ _ _ c_status _ _ c_escalated rest <<< "$row"
     fi
     id="$(trim "$(unescape_pipes "${c_id:-}")")"
     status="$(trim "$(unescape_pipes "${c_status:-}")")"

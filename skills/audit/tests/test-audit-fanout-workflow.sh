@@ -68,6 +68,11 @@ const finding = (d) => ({ findings: [{ id: d + '-1', title: 't ' + d, severity: 
   await run(cfg({}), { 'analyze:sec': finding('sec'), 'analyze:ux': finding('ux'), completeness: { missing: [] } })
   expect(/Covered dimensions: sec, ux\./.test(calls.find((c) => c.opts.label === 'completeness').prompt), 'c20: healthy run lost its covered list')
 
+  // s37: the default escalate action is CONTINUE with no arbiter call
+  const base = { 'analyze:sec': finding('sec'), 'analyze:ux': finding('ux'), completeness: { missing: [] } }
+  r = await run(cfg({}), base)
+  expect(r.escalate && r.escalate.verdict === 'CONTINUE' && !calls.some((c) => c.opts.label === 'arbiter'), 's37: the default escalate action consulted the arbiter or did not CONTINUE: ' + JSON.stringify(r.escalate))
+
   if (bad.length) { bad.forEach((m) => console.log('FAIL: ' + m)); console.log(bad.length + ' failure(s)'); process.exit(1) }
   console.log('OK — P0 accepted, null critic/escalate survive, a failed analyst is reported and not called covered')
 })().catch((e) => { console.log('FAIL: harness: ' + e.stack); process.exit(1) })

@@ -183,7 +183,7 @@ PROXIMITY = 120             # DIRECTIVE  <-> SHAPE
 DELIVERABLE_PROXIMITY = 260  # SHAPE      <-> DELIVERABLE
 
 
-def detect(text, proximity=PROXIMITY, deliverable_proximity=DELIVERABLE_PROXIMITY):
+def detect(text):
     """Labels whose shape-object satisfies the full three-part conjunction.
 
     Order matters for cost, not for correctness: both position lists are built
@@ -201,8 +201,8 @@ def detect(text, proximity=PROXIMITY, deliverable_proximity=DELIVERABLE_PROXIMIT
     for label, rx in SHAPE.items():
         for m in rx.finditer(text):
             at = m.start()
-            if any(abs(at - d) <= proximity for d in directives) and \
-               any(abs(at - v) <= deliverable_proximity for v in deliverables):
+            if any(abs(at - d) <= PROXIMITY for d in directives) and \
+               any(abs(at - v) <= DELIVERABLE_PROXIMITY for v in deliverables):
                 out.append(label)
                 break
     return out

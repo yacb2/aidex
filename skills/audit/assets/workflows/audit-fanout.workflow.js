@@ -7,11 +7,15 @@
 // The per-analyst gate is a SCHEMA gate, not a Bash gate: agent() retries on invalid output
 // against FINDING_SCHEMA, so each analyst is self-healing. There is no `gateCmd` / Bash verifier
 // in the Analyze phase — the schema IS the pass criterion. The CORE's runPhase() / verify() are
-// embedded (drift-lock requirement) but used only at the escalate boundary, not per analyst.
+// embedded (drift-lock requirement) but this form never calls them. Only checkAction() runs, at
+// the escalate boundary: the default escalate action matches neither the publication nor the
+// deny set, so it returns CONTINUE without consulting the arbiter; a custom escalateAction that
+// crosses one of them is put to the arbiter, except a publication action listed in preAuthorized,
+// which also returns CONTINUE with no arbiter call (checkAction, CORE block).
 //
 // CONTRACT: launched by the audit skill via the `Workflow` tool with
 //   args = JSON.stringify({ dimensions: [{id, prompt}], autonomySurface, preAuthorized,
-//                           maxRetries, escalateAction })
+//                           escalateAction })
 // `args` arrives as a JSON STRING -> parseArgs() does JSON.parse.
 //
 // CORE INVARIANT: the block between CORE:START/CORE:END is the canonical durability CORE,
@@ -25,7 +29,7 @@
 
 export const meta = {
   name: 'audit-fanout',
-  description: 'Run an audit as a durable fan-out of analyst agents, schema-gated, with a completeness critic and arbiter at escalate',
+  description: 'Run an audit as a durable fan-out of analyst agents, schema-gated, with a completeness critic and an escalate gate that consults the arbiter only for a publication or deny action',
   phases: [
     { title: 'Analyze', detail: 'one analyst per dimension, schema-gated' },
     { title: 'Synthesize', detail: 'dedup + completeness critic + escalate gate' },
@@ -281,13 +285,12 @@ async function checkAction(action, ctx) {
 
 // ── Case-specific part: the audit fan-out form ───────────────────────────────────────────────
 // One analyst agent per dimension (schema-gated, self-healing). A plain-JS dedup barrier follows.
-// A completeness critic reviews coverage across all dimensions. The arbiter gates the escalate step.
+// A completeness critic reviews coverage across all dimensions. The escalate step consults the arbiter only when escalateAction crosses the publication or deny set.
 
 const cfg = parseArgs()
 const ctx = {
   autonomySurface: cfg.autonomySurface || 'deny: destructive/data-loss. ask: push/publish/deploy/release/merge-into-trunk. else: proceed+log.',
   preAuthorized: cfg.preAuthorized || [],
-  maxRetries: cfg.maxRetries ?? 2,
 }
 
 // Schema that every analyst must satisfy. agent() retries on invalid output — this IS the gate.
@@ -345,7 +348,7 @@ for (const f of found) {
 }
 log(`dedup: ${found.length} raw -> ${deduped.length} unique findings`)
 
-// Phase 2: Synthesize — completeness critic + arbiter at escalate gate.
+// Phase 2: Synthesize — completeness critic + escalate gate (arbiter only for a publication or deny action).
 phase('Synthesize')
 
 // Completeness critic: identifies under-covered or missing dimensions.

@@ -107,5 +107,18 @@ STATUS_OUT="$(CLAUDE_SKILL_DIR="$SKILL_DIR" bash -c "$STATUS_BLOCK" 2>&1)"
 # --- duplicate run refused ---
 bash "$SCRIPTS/new-audit.sh" ux login-redesign >/dev/null 2>&1 && fail "duplicate run should be refused"
 
+# --- audit-s42: a reindex that fails (duplicate finding id) is reported, not swallowed ---
+# The scaffold itself still succeeds: the roll-up is best-effort.
+D42="$TMP/s42"; mkdir -p "$D42/.context/audits/ux"; cd "$D42"
+dup_row='| UX-01-1 | bug | auth | dup | open | P1 | r | — | n |'
+printf '%s\n%s\n' "$dup_row" "$dup_row" > .context/audits/ux/00-inventory.md
+out="$(bash "$SCRIPTS/new-audit.sh" ux s42-run 2>&1)"; rc=$?
+[[ "$rc" -eq 0 ]] || fail "s42: a failed reindex must not block the scaffold (rc=$rc): $out"
+[[ "$out" == *"index not regenerated"*"duplicate finding id"* ]] || fail "s42: the failed reindex was silent: $out"
+out="$(bash "$SCRIPTS/new-audit.sh" --standalone s42-solo 2>&1)"; rc=$?
+[[ "$rc" -eq 0 ]] || fail "s42: standalone: a failed reindex must not block the scaffold (rc=$rc): $out"
+[[ "$out" == *"index not regenerated"* ]] || fail "s42: standalone scaffold swallowed the reindex failure: $out"
+cd "$TMP"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — canon methodology scaffold, alias normalization, standalone one-shot, dup refusal"

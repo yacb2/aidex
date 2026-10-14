@@ -133,5 +133,5 @@ EOF
 # 7. record — last, so a failed step above leaves the ledger as it was
 python3 "$RETRO/facet_coverage.py" record --facet "$FACET" --from "$FROM" --to "$TO" --run "$(basename "$RUN")" --ledger "$LEDGER"
 RUN_READY=1
-bash "$AUDIT_SCRIPTS/reindex-audits.sh" >/dev/null 2>&1 || true
+if ! reindex_err="$(bash "$AUDIT_SCRIPTS/reindex-audits.sh" 2>&1 >/dev/null)"; then warn "index not regenerated: $reindex_err"; fi
 ok "facet run ready: $RUN"
