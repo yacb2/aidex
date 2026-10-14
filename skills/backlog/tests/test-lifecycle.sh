@@ -34,6 +34,29 @@ check "harvest records sha" 'grep -q "commits: \"abc1234\"" "$NEW"'
 bash "$SCRIPTS/harvest-commit.sh" --sha abc1234 --message "Backlog: $ID" >/dev/null 2>&1
 check "harvest idempotent (no dup)" '[[ "$(grep -c abc1234 "$NEW")" == "1" ]]'
 
+# backlog-c16: the trailer key is matched case-insensitively and so is its prefix strip; an
+# unpadded id (BL-7) is the padded BL-007 on disk
+mkdir -p .context/plans; printf -- '---\ncommits: ""\n---\n' > .context/plans/hplan.md
+bash "$SCRIPTS/harvest-commit.sh" --sha c16aaaa --message "PLAN: hplan" >/dev/null 2>&1 || true
+check "harvest: an upper-case PLAN: trailer is recorded" 'grep -q "^commits: \"c16aaaa\"$" .context/plans/hplan.md'
+HV="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "harvest unpadded id" --priority P3 2>/dev/null)"
+sed -i.bak 's/^id: .*/id: BL-007/' "$HV" && rm -f "$HV.bak"
+bash "$SCRIPTS/harvest-commit.sh" --sha c16bbbb --message "Backlog: BL-7" >/dev/null 2>&1 || true
+check "harvest: an unpadded id (BL-7) reaches BL-007" 'grep -q "^commits: \"c16bbbb\"$" "$HV"'
+bash "$SCRIPTS/harvest-commit.sh" --sha c16dddd --message "BACKLOG:BL-7" >/dev/null 2>&1 || true
+check "harvest: an upper-case BACKLOG:BL-7 trailer (no space) is recorded" 'grep -q "^commits: \"c16bbbb c16dddd\"$" "$HV"'
+# backlog-c15: the guard reads the commits field, token by token; short and full forms of
+# one commit (either a prefix of the other, 7+ hex) are the same commit
+printf '\nprose mentioning c15cccc in the body\n' >> "$HV"
+bash "$SCRIPTS/harvest-commit.sh" --sha c15cccc --message "Backlog: BL-7" >/dev/null 2>&1 || true
+check "harvest: a sha only mentioned in the body is still recorded" 'grep -q "^commits: \"c16bbbb c16dddd c15cccc\"$" "$HV"'
+bash "$SCRIPTS/harvest-commit.sh" --sha e5e5e5e5e5e5e5e5e5e5 --message "Backlog: BL-7" >/dev/null 2>&1 || true
+bash "$SCRIPTS/harvest-commit.sh" --sha e5e5e5e --message "Backlog: BL-7" >/dev/null 2>&1 || true
+check "harvest: the short form of a recorded full sha adds nothing" '[[ "$(grep "^commits:" "$HV" | tr -d \" | tr " " "\n" | grep -c "^e5e5e5e")" == "1" ]]'
+bash "$SCRIPTS/harvest-commit.sh" --sha f6f6f6f --message "Backlog: BL-7" >/dev/null 2>&1 || true
+bash "$SCRIPTS/harvest-commit.sh" --sha f6f6f6f6f6f6f6f6f6f6 --message "Backlog: BL-7" >/dev/null 2>&1 || true
+check "harvest: the full form of a recorded short sha adds nothing" '[[ "$(grep "^commits:" "$HV" | tr -d \" | tr " " "\n" | grep -c "^f6f6f6f")" == "1" ]]'
+
 echo "== start: type:bug routes into RED->GREEN (BL-134) =="
 # The route is keyed on front-matter, never on phrasing: bugfix fired on
 # 3 of 103 eligible bug items because backlog reached the work first.
@@ -62,6 +85,11 @@ check "starting a deferred item points at reactivate" '[[ "$DEFB_OUT" == *"react
 echo "== close warns on a bug item with no proof (BL-134) =="
 NOPROOF="$(bash "$SCRIPTS/close-item.sh" "$BUG_ID" 2>&1 >/dev/null)"
 check "bug close with no proof warns" '[[ "$NOPROOF" == *"no RED->GREEN proof"* ]]'
+# backlog-c19: a quoted `type: "bug"` is still a bug item and gets the same warning
+C19="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "quoted type bug" --priority P3 --type bug 2>/dev/null)"
+sed -i.bak 's/^type: bug$/type: "bug"/' "$C19" && rm -f "$C19.bak"
+C19_OUT="$(NO_COLOR=1 bash "$SCRIPTS/close-item.sh" "$(awk '/^---/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2}' "$C19")" 2>&1 >/dev/null || true)"
+check "bug close with a quoted type: \"bug\" and no proof warns" '[[ "$C19_OUT" == *"no RED->GREEN proof"* ]]'
 PROVEN="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "proven bug" --priority P2 --type bug 2>/dev/null)"
 PROVEN_ID="$(awk '/^---/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2}' "$PROVEN")"
 printf -- '\nRED: AssertionError expected full IBAN / GREEN: vitest 730/730\n' >> "$PROVEN"
@@ -102,6 +130,30 @@ check "item left active dir" '[[ ! -f "$NEW" ]]'
 check "item now in _archive" '[[ -f ".context/backlog/_archive/$(basename "$NEW")" ]]'
 check "index has Closed section" 'grep -q "## Closed" .context/backlog/00-index.md'
 check "closed item appears with id" 'grep -q "BL-001" .context/backlog/00-index.md'
+# backlog-c14: a sha the item already carries, or cited twice, is recorded once
+C14="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "dup commit" --priority P3 2>/dev/null)"
+C14ID="$(awk '/^---/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2}' "$C14")"
+bash "$SCRIPTS/harvest-commit.sh" --sha c14aaaa --message "Backlog: $C14ID" >/dev/null 2>&1 || true
+bash "$SCRIPTS/close-item.sh" "$C14ID" --commit c14aaaa --commit c14bbbb --commit c14bbbb >/dev/null 2>&1 || true
+check "close records each cited sha once (existing and repeated)" 'grep -q "^commits: \"c14aaaa c14bbbb\"$" ".context/backlog/_archive/$(basename "$C14")"'
+C14B="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "dup commit no field" --priority P3 2>/dev/null)"
+sed -i.bak '/^commits:/d' "$C14B" && rm -f "$C14B.bak"
+bash "$SCRIPTS/close-item.sh" "$(awk '/^---/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2}' "$C14B")" --commit c14cccc --commit c14cccc >/dev/null 2>&1 || true
+check "close with no commits: line writes a repeated sha once" 'grep -q "^commits: \"c14cccc\"$" ".context/backlog/_archive/$(basename "$C14B")"'
+C14C="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "multi repo commits" --priority P3 2>/dev/null)"
+sed -i.bak 's/^commits: .*/commits: "backend aaaaaaa backend bbbbbbb"/' "$C14C" && rm -f "$C14C.bak"
+bash "$SCRIPTS/close-item.sh" "$(awk '/^---/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2}' "$C14C")" --commit ccccccc >/dev/null 2>&1 || true
+check "close keeps an existing multi-repo commits value verbatim (repeated labels)" 'grep -q "^commits: \"backend aaaaaaa backend bbbbbbb ccccccc\"$" ".context/backlog/_archive/$(basename "$C14C")"'
+C14D="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "short then full" --priority P3 2>/dev/null)"
+sed -i.bak 's/^commits: .*/commits: "d4d4d4d"/' "$C14D" && rm -f "$C14D.bak"
+bash "$SCRIPTS/close-item.sh" "$(awk '/^---/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2}' "$C14D")" --commit d4d4d4d0123456789 >/dev/null 2>&1 || true
+check "close: a full sha whose short form is recorded adds nothing" 'grep -q "^commits: \"d4d4d4d\"$" ".context/backlog/_archive/$(basename "$C14D")"'
+# backlog-c12: an archive collision refuses (rc 2) BEFORE the item is rewritten
+C12="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "collision" --priority P3 2>/dev/null)"
+C12ID="$(awk '/^---/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2}' "$C12")"; cp "$C12" ".context/backlog/_archive/$(basename "$C12")"; C12_SUM="$(cksum < "$C12")"
+C12_RC=0; C12_OUT="$(bash "$SCRIPTS/close-item.sh" "$C12ID" --reason "again" 2>&1)" || C12_RC=$?
+check "close: an archive collision exits 2 naming it and leaves the item byte-identical" '[[ $C12_RC -eq 2 && "$C12_OUT" == *"archive collision"* && -f "$C12" && "$(cksum < "$C12")" == "$C12_SUM" ]]'
+rm -f ".context/backlog/_archive/$(basename "$C12")"
 
 echo "== sweep =="
 # A legacy done item lingering in the active root: registration archives a done item
@@ -114,6 +166,24 @@ bash "$SCRIPTS/sweep.sh" --apply >/dev/null 2>&1
 check "sweep archived it" '[[ -f ".context/backlog/_archive/$(basename "$LEGACY")" ]]'
 SWEEP_AGAIN="$(bash "$SCRIPTS/sweep.sh" 2>&1 || true)"
 check "sweep idempotent" '[[ "$SWEEP_AGAIN" == *"clean"* ]]'
+# backlog-c26: a quoted status is swept; an archive collision is reported, never "clean", and
+# only --check fails on it (fresh project, so no other lingering done item answers for the sweep)
+mkdir -p "$TMP/c26/.context/backlog"; cd "$TMP/c26"
+C26="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "quoted status" --priority P3 2>/dev/null)"
+sed -i.bak 's/^status: open$/status: "done"/' "$C26" && rm -f "$C26.bak"
+C26_OUT="$(bash "$SCRIPTS/sweep.sh" --check 2>&1 || true)"
+check "sweep: a quoted status: \"done\" is found" '[[ "$C26_OUT" == *"would archive (done): $(basename "$C26")"* ]]'
+C26_RC=0; bash "$SCRIPTS/sweep.sh" >/dev/null 2>&1 || C26_RC=$?
+check "sweep: the plain dry-run exits 0 even with an item to archive" '[[ $C26_RC -eq 0 ]]'
+sed -i.bak 's/^status: "done"$/status: done/' "$C26" && rm -f "$C26.bak"
+mkdir -p .context/backlog/_archive; cp "$C26" ".context/backlog/_archive/$(basename "$C26")"
+C26_RC=0; C26_OUT="$(bash "$SCRIPTS/sweep.sh" --check 2>&1)" || C26_RC=$?
+check "sweep --check: a collision-only backlog exits 1 and never reads clean" '[[ $C26_RC -eq 1 && "$C26_OUT" != *"clean"* && "$C26_OUT" == *"collision"* ]]'
+C26_RC=0; C26_OUT="$(bash "$SCRIPTS/sweep.sh" 2>&1)" || C26_RC=$?
+check "sweep: the plain dry-run of a collision-only backlog exits 0 and still reports it" '[[ $C26_RC -eq 0 && "$C26_OUT" != *"clean"* && "$C26_OUT" == *"collision"* ]]'
+C26_RC=0; C26_OUT="$(bash "$SCRIPTS/sweep.sh" --apply 2>&1)" || C26_RC=$?
+check "sweep --apply: a collision-only backlog exits 0 and still reports it" '[[ $C26_RC -eq 0 && "$C26_OUT" != *"clean"* && "$C26_OUT" == *"collision"* ]]'
+cd "$TMP"
 
 # BL-234's companion rule applied to the BATCH path. close-item.sh has called
 # archive_companions since it was written; sweep.sh --apply did a bare `mv` and

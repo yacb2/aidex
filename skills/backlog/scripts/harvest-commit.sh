@@ -45,7 +45,12 @@ PLANS_DIR="$ROOT/.context/plans"
 # append a sha to the `commits:` field of a front-matter file (idempotent per sha)
 append_commit() {
   local file="$1" sha="$2"
-  grep -q "$sha" "$file" 2>/dev/null && return 0   # already recorded
+  # already recorded: a whole token of the front-matter `commits:` value, never a substring
+  # of the body or of another hash
+  # (the same commit = equal, or both 7+ hex with one a prefix of the other: short vs full)
+  awk -v sha="$sha" 'function ishex(s){return (s ~ /^[0-9a-f]+$/ && length(s)>=7)}
+    function same(x,y){if(x==y)return 1; if(ishex(x)&&ishex(y))return (index(x,y)==1||index(y,x)==1); return 0}
+    /^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && /^commits:/{gsub(/"/,""); for(i=2;i<=NF;i++) if(same($i,sha)) f=1} END{exit !f}' "$file" 2>/dev/null && return 0
   awk -v sha="$sha" '
     BEGIN { d=0; infm=0; seen=0 }
     /^---[[:space:]]*$/ {
@@ -66,10 +71,12 @@ append_commit() {
 
 # locate a backlog item file (active, _archive, or _deferred) by id
 backlog_file_by_id() {
-  local id="$1" f
+  local id="$1" f fid
   for f in "$BACKLOG_DIR"/*.md "$BACKLOG_DIR"/_archive/*.md "$BACKLOG_DIR"/_deferred/*.md; do
     [[ -f "$f" ]] || continue
-    [[ "$(awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2; exit}' "$f")" == "$id" ]] && { printf '%s\n' "$f"; return 0; }
+    fid="$(awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2; exit}' "$f")"
+    # numeric compare: BL-7 in a trailer is BL-007 on disk (ids are zero-padded to 3+ digits)
+    [[ "$fid" =~ ^BL-[0-9]+$ && $((10#${fid#BL-})) -eq $((10#${id#BL-})) ]] && { printf '%s\n' "$f"; return 0; }
   done
   return 1
 }
@@ -89,7 +96,7 @@ harvested=0
 
 # --- Backlog: <ids> ---
 while IFS= read -r line; do
-  ids="$(printf '%s' "$line" | sed -E 's/^[Bb]acklog:[[:space:]]*//; s/[,]+/ /g')"
+  ids="$(printf '%s' "$line" | sed -E 's/^[^:]*:[[:space:]]*//; s/[,]+/ /g')"
   for id in $ids; do
     id="$(printf '%s' "$id" | tr '[:lower:]' '[:upper:]')"
     [[ "$id" =~ ^BL-[0-9]+$ ]] || continue
@@ -101,7 +108,7 @@ done < <(printf '%s\n' "$MSG" | grep -iE '^backlog:' || true)
 
 # --- Plan: <slug>[#phase] ---
 while IFS= read -r line; do
-  spec="$(printf '%s' "$line" | sed -E 's/^[Pp]lan:[[:space:]]*//')"
+  spec="$(printf '%s' "$line" | sed -E 's/^[^:]*:[[:space:]]*//')"
   slug="${spec%%#*}"
   slug="$(printf '%s' "$slug" | sed -E 's/[[:space:]]+$//')"
   [[ -n "$slug" ]] || continue

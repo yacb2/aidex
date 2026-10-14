@@ -76,12 +76,18 @@ if wl:
 # pulled eight (BL-482). Parsed once here: line 1 is the id list for the ordering, the
 # rest are the Needs-decision lines. A comma starts a new element only before `BL-<n>`,
 # so a reason keeps its commas. An id no partition list knows is a typo: exit 2.
-EXC_PARSED="$(printf '%s' "$PART" | python3 -c '
-import json, re, sys
+EXC_PARSED="$(printf '%s' "$PART" | SWEEP_INCLUDE="$(printf '%s\n' ${INCLUDE[@]+"${INCLUDE[@]}"})" python3 -c '
+import json, os, re, sys
 d = json.load(sys.stdin)
 titles = {i["id"]: i.get("title", "") for k in ("eligible", "review", "needs_decision") for i in d.get(k, [])}
 listed = {i["id"] for i in d["needs_decision"]}
 ids, lines = [], []
+# an --include id sweep-order cannot queue (review or eligible only) is a typo too: it would queue nothing, silently
+queueable = {i["id"] for k in ("eligible", "review") for i in d.get(k, [])}
+for arg in os.environ.get("SWEEP_INCLUDE", "").split("\n"):
+    for bl in (x.strip() for x in arg.split(",")):
+        if bl and bl not in queueable:
+            sys.exit("sweep-kickoff: --include %s is not a REVIEW or ELIGIBLE item (unknown, needs a decision, or outside --size)" % bl)
 for arg in sys.argv[1:]:
     for e in re.split(r",\s*(?=BL-\d+\b)", arg):
         bl, _, why = e.strip().rstrip(",").partition(":")

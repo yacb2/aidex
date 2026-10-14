@@ -17,7 +17,7 @@ def fm_and_body(text):
     m = re.match(r'---\n(.*?)\n---\n?(.*)', text, re.S)
     if not m:
         return {}, text
-    fm = {k: v.strip().strip('"') for k, v in re.findall(r'^([\w_-]+):\s*(.*)$', m.group(1), re.M)}
+    fm = {k: v.strip().strip('"') for k, v in re.findall(r'^([\w_-]+):[ \t]*(.*)$', m.group(1), re.M)}
     return fm, m.group(2)
 
 
@@ -160,8 +160,8 @@ def render(root, wl_path):
     # for a legacy run carrying no stamp, those INSIDE its date window — from its created
     # date to its close (`updated`) or now. The history is shared by every sweep;
     # unfiltered, the 2026-09-27 report listed 19 runs of earlier ones (BL-480).
-    lo = wl_fm.get('created', '') + 'T00:00:00'
-    hi = (wl_fm.get('updated', '') + 'T23:59:59') if wl_fm.get('status', 'doing') != 'doing' \
+    lo = wl_fm['created'] + 'T00:00:00' if wl_fm.get('created') else ''
+    hi = (wl_fm['updated'] + 'T23:59:59') if wl_fm.get('updated') and wl_fm.get('status', 'doing') != 'doing' \
         else datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
     hist_path = os.path.join(root, '.context', 'proofs', 'sweep-gate', 'gate-history.jsonl')
     runs = []
@@ -187,7 +187,7 @@ def render(root, wl_path):
     seen = set()
     for run in runs:
         for r in run:
-            if 'leg' in r:
+            if 'leg' in r and r.get('exit') != 'pending':
                 if r['leg'] in seen:
                     leg_reruns += 1
                 seen.add(r['leg'])
@@ -308,7 +308,7 @@ def main():
     if '--print' in sys.argv or not out:
         sys.stdout.write(text)
         return
-    os.makedirs(os.path.dirname(out), exist_ok=True)
+    os.makedirs(os.path.dirname(out) or '.', exist_ok=True)
     open(out, 'w', encoding='utf-8').write(text)
     print(out)
 

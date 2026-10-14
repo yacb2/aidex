@@ -136,6 +136,13 @@ sed -i.bak 's/^status: doing/status: done/' "$WLZ" 2>/dev/null && rm -f "$WLZ.ba
 bash "$SCRIPTS/sweep-kickoff.sh" --title "Exclude typo" --slug exclude-typo --exclude "BL-99999" >/dev/null 2>"$TMP/typo.err"; RC=$?
 [[ $RC -eq 2 ]] && grep -q "BL-99999" "$TMP/typo.err" && ! ls .context/worklists/*exclude-typo* >/dev/null 2>&1 \
   && ok "--exclude of an unknown id exits 2 naming it, and writes no work-list" || bad "unknown --exclude: rc=$RC $(cat "$TMP/typo.err")"
+# backlog-c33: --include is validated like --exclude: a typo exits 2 instead of queueing nothing
+bash "$SCRIPTS/sweep-kickoff.sh" --title "Include typo" --slug include-typo --include "$RID,BL-99999" >/dev/null 2>"$TMP/ityp.err"; RC=$?
+[[ $RC -eq 2 ]] && grep -q "BL-99999" "$TMP/ityp.err" && ! ls .context/worklists/*include-typo* >/dev/null 2>&1 \
+  && ok "--include of an unknown id exits 2 naming it, and writes no work-list" || bad "unknown --include: rc=$RC $(cat "$TMP/ityp.err")"
+bash "$SCRIPTS/sweep-kickoff.sh" --title "Include nd" --slug include-nd --include "$NID" >/dev/null 2>"$TMP/ind.err"; RC=$?
+[[ $RC -eq 2 ]] && grep -q "$NID" "$TMP/ind.err" && ! ls .context/worklists/*include-nd* >/dev/null 2>&1 \
+  && ok "--include of a NEEDS-DECISION id (which no queue takes) exits 2 naming it" || bad "needs-decision --include: rc=$RC $(cat "$TMP/ind.err")"
 # a depends cycle cannot be ordered: exit 2, no work-list
 bash "$SCRIPTS/define-item.sh" "$DID" --depends "$BID" --no-index >/dev/null 2>&1
 bash "$SCRIPTS/sweep-kickoff.sh" --title "cycle" --slug cycle >/dev/null 2>"$TMP/err"; RC=$?

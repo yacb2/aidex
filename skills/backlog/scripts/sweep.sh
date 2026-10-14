@@ -29,10 +29,10 @@ BACKLOG_DIR="$ROOT/.context/backlog"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [[ -d "$BACKLOG_DIR" ]] || { echo "no backlog dir at $BACKLOG_DIR" >&2; exit 0; }
 
-read_status() { awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="status:"{print $2; exit}' "$1"; }
+read_status() { awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="status:"{gsub(/["\047]/,"",$2); print $2; exit}' "$1"; }
 read_id()     { awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2; exit}' "$1"; }
 
-moved=0
+moved=0 collided=0
 # Only when applying: a dry-run must not touch the tree, or a read-only caller
 # (compliance-sweep.sh over the whole fleet) creates directories in every project
 # it merely inspects.
@@ -49,6 +49,7 @@ for f in "$BACKLOG_DIR"/*.md; do
   dest="$BACKLOG_DIR/_archive/$base"
   if [[ -e "$dest" ]]; then
     echo "WARN archive collision, skipping: $base" >&2
+    collided=$((collided+1))
     continue
   fi
   if [[ $APPLY -eq 1 ]]; then
@@ -76,18 +77,23 @@ for f in "$BACKLOG_DIR"/*.md; do
 done
 shopt -u nullglob
 
-if [[ $moved -eq 0 ]]; then
+if [[ $moved -eq 0 && $collided -gt 0 ]]; then
+  echo "$collided done/dropped item(s) cannot be archived: archive collision (same file already in _archive/)" >&2
+  if [[ $CHECK -eq 1 ]]; then exit 1; fi
+elif [[ $moved -eq 0 ]]; then
   echo "active backlog is clean — nothing to sweep"
 elif [[ $APPLY -eq 0 ]]; then
   echo "($moved done/dropped item(s) still in the active folder — archive on close, D-10)"
   echo "  archive all at once: bash $SCRIPT_DIR/sweep.sh --apply"
-  [[ $CHECK -eq 1 ]] && exit 1
+  if [[ $collided -gt 0 ]]; then echo "  plus $collided archive collision(s), not archivable" >&2; fi
+  if [[ $CHECK -eq 1 ]]; then exit 1; fi
 else
   # --reindex exits 4 AFTER writing the index (id guard); any other non-zero exit is a stale index
   IDX_RC=0
   bash "$SCRIPT_DIR/register-item.sh" --reindex >/dev/null || IDX_RC=$?
   if [[ $IDX_RC -eq 0 ]]; then
     echo "done: $moved item(s) archived; index rebuilt"
+    if [[ $collided -gt 0 ]]; then echo "$collided archive collision(s) skipped" >&2; fi
   elif [[ $IDX_RC -eq 4 ]]; then
     echo "done: $moved item(s) archived; index rebuilt, but reindex reported an id problem (exit $IDX_RC)"
   else

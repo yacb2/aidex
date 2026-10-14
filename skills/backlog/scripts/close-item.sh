@@ -10,7 +10,8 @@
 #   --status <done|dropped>     default: done
 #   --commit <sha>              resolving commit (repeatable). Use when the item
 #                               was fixed directly, with no plan (D-09 provenance).
-#   --superseded-by <type/ref>  mark superseded (status stays; index shows "superseded →")
+#   --superseded-by <type/ref>  mark superseded (still closes: status is set and the item archived;
+#                               the index shows "superseded →")
 #   --escalated-to <type/ref>   mark handed off (e.g. plan/<slug>)
 #   --reason "<text>"           appended under ## Notes
 #   --no-index                  skip index regeneration
@@ -194,6 +195,20 @@ done
 # as closed, or it gets archived by mistake. worklist-close.sh refuses to end the run
 # while any queued item is parked; the report aggregates every parked row.
 # Every other empty proof cell refuses. A placeholder cell (proof_is_placeholder) counts as empty.
+# Append the cited shas to a `commits:` value (c14). The existing value is kept verbatim
+# (it may carry repeated repo labels); a cited sha is skipped when it is the same commit as
+# a token already there: equal, or both 7+ hex with one a prefix of the other.
+MERGE_AWK='function ishex(s) { return (s ~ /^[0-9a-f]+$/ && length(s) >= 7) }
+function same(x, y) { if (x == y) return 1; if (ishex(x) && ishex(y)) return (index(x, y) == 1 || index(y, x) == 1); return 0 }
+function merge(val, add,   n, a, m, t, i, j, dup, out) {
+  out = val; gsub(/^ +| +$/, "", out); m = split(val, t, " "); n = split(add, a, " ")
+  for (i = 1; i <= n; i++) {
+    dup = 0; for (j = 1; j <= m; j++) if (same(a[i], t[j])) dup = 1
+    if (!dup) { out = out (out == "" ? "" : " ") a[i]; t[++m] = a[i] }
+  }
+  return out
+}
+'
 read_fm() { awk -v k="$2" '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1==k":"{
   sub(/^[^:]*:[[:space:]]*/,""); gsub(/^"|"$/,""); print; exit}' "$1"; }
 verification_rows() {  # -> "kind<TAB>what<TAB>proof" per data row
@@ -250,14 +265,15 @@ if [[ $SWEEP -eq 1 && "$STATUS" == "done" ]]; then
     # Park, do not close: everything mechanical is proven, a judgement is still owed.
     # The resolving commits are kept too: a parked item is proven work whose sha was
     # otherwise lost until the owner closed it by hand (BL-499, 2026-08-28).
-    awk -v today="$TODAY" -v commits="$COMMITS_STR" 'BEGIN{d=0;seen=0;seen_c=0}
+    awk -v today="$TODAY" -v commits="$COMMITS_STR" "$MERGE_AWK"'BEGIN{d=0;seen=0;seen_c=0}
       /^---[[:space:]]*$/ { d++
         if (d==2 && !seen) print "awaiting: owner"
-        if (d==2 && commits!="" && !seen_c) print "commits: \"" commits "\""
+        if (d==2 && commits!="" && !seen_c) print "commits: \"" merge("", commits) "\""
         print; next }
       d==1 && /^awaiting:/ { print "awaiting: owner"; seen=1; next }
       d==1 && commits!="" && /^commits:/ { val=$0; sub(/^commits:[[:space:]]*/,"",val); gsub(/"/,"",val)
-        if (val=="" || val=="[]") print "commits: \"" commits "\""; else print "commits: \"" val " " commits "\""
+        if (val=="" || val=="[]") val=""
+        print "commits: \"" merge(val, commits) "\""
         seen_c=1; next }
       d==1 && /^updated:/ { print "updated: " today; next }
       { print }' "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE"
@@ -267,8 +283,13 @@ if [[ $SWEEP -eq 1 && "$STATUS" == "done" ]]; then
   fi
 fi
 
+# The destination is checked BEFORE the first mutation: a collision found after the rewrite
+# left the item half-closed in the active dir, and each retry appended the reason again (c12).
+DEST="$BACKLOG_DIR/_archive/$(basename "$FILE")"
+[[ ! -e "$DEST" ]] || die "archive collision: $DEST already exists"
+
 # --- mutate front-matter (status, updated, optional superseded_by/escalated_to/commits) ---
-awk -v status="$STATUS" -v today="$TODAY" -v sup="$SUPERSEDED" -v esc="$ESCALATED" -v commits="$COMMITS_STR" '
+awk -v status="$STATUS" -v today="$TODAY" -v sup="$SUPERSEDED" -v esc="$ESCALATED" -v commits="$COMMITS_STR" "$MERGE_AWK"'
   BEGIN { d=0; infm=0; seen_sup=0; seen_esc=0; seen_commits=0 }
   /^---[[:space:]]*$/ {
     d++
@@ -276,7 +297,7 @@ awk -v status="$STATUS" -v today="$TODAY" -v sup="$SUPERSEDED" -v esc="$ESCALATE
     if (d==2) {
       if (sup!="" && !seen_sup) print "superseded_by: " sup
       if (esc!="" && !seen_esc) print "escalated_to: " esc
-      if (commits!="" && !seen_commits) print "commits: \"" commits "\""
+      if (commits!="" && !seen_commits) print "commits: \"" merge("", commits) "\""
       infm=0; print; next
     }
   }
@@ -289,8 +310,8 @@ awk -v status="$STATUS" -v today="$TODAY" -v sup="$SUPERSEDED" -v esc="$ESCALATE
     if (commits!="" && $0 ~ /^commits:/) {
       val=$0; sub(/^commits:[[:space:]]*/,"",val); gsub(/"/,"",val)
       gsub(/^[[:space:]]+|[[:space:]]+$/,"",val)
-      if (val=="" || val=="[]") print "commits: \"" commits "\""
-      else                      print "commits: \"" val " " commits "\""
+      if (val=="[]") val=""
+      print "commits: \"" merge(val, commits) "\""
       seen_commits=1; next
     }
     print; next
@@ -309,7 +330,7 @@ fi
 # up at the other end. Warn, never block — the visual/CSS exception is real, and
 # items predating this carry no proof by construction.
 if [[ "$STATUS" == "done" ]]; then
-  ITEM_TYPE="$(awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="type:"{print $2; exit}' "$FILE")"
+  ITEM_TYPE="$(awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="type:"{gsub(/["\047]/,"",$2); print $2; exit}' "$FILE")"
   if [[ "$ITEM_TYPE" == "bug" ]]; then
     # Both YAML shapes: `proof_links: [a, b]` on one line, and the block list
     # the conventions document (`proof_links:` then indented `- ` entries).
@@ -336,8 +357,6 @@ fi
 
 # --- move to _archive/ ---
 mkdir -p "$BACKLOG_DIR/_archive"
-DEST="$BACKLOG_DIR/_archive/$(basename "$FILE")"
-[[ -e "$DEST" ]] && die "archive collision: $DEST already exists"
 mv "$FILE" "$DEST"
 ok "Closed $(basename "$FILE") → $STATUS · archived"
 # A backlog item's companion is always a sibling, never inside it, so `mv` alone
