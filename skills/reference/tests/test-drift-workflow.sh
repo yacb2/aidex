@@ -166,6 +166,13 @@ rows['51 facts: verify runs in batches of at most 25, each numbered from 0, capp
     assert.ok(lines[0].startsWith('0. '))
   }
   assert.deepStrictEqual([unit(out, 'u').status, unit(out, 'u').facts_extracted, unit(out, 'u').facts_confirmed], ['ok', 51, 50])
+  // reference-c19: the fact past the cap was only logged; the result must count it
+  assert.strictEqual(unit(out, 'u').facts_unverified, 1)
+}
+rows['50 facts: nothing is left unverified'] = async () => {
+  const { out } = await run({ ...base, units: ['u'] }, { u: {
+    extract: { facts: Array.from({ length: 50 }, (_, i) => fact(i + 1)), not_covered: [] }, verify: batchVerify(), compare: { items: [] } } })
+  assert.strictEqual(unit(out, 'u').facts_unverified, 0)
 }
 rows['batched verdicts map back to the right facts'] = async () => {
   const facts = Array.from({ length: 30 }, (_, i) => fact(i + 1))

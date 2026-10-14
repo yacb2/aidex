@@ -3,6 +3,7 @@
 import json
 import os
 import pathlib
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -77,6 +78,29 @@ class Render(unittest.TestCase):
         self.assertEqual([f["reference"] for f in acc], [".context/references/a.md"] * 5)
         self.assertEqual([f["reference"] for f in rej], [".context/references/zzz.md", "HIDDEN"])
 
+    def test_reference_path_is_not_cut_at_a_md_inside_a_directory_name(self):
+        # reference-c11: the lazy match stopped at the first `.md`, so the finding was rejected
+        ref = ".context/references/v1.md-notes/a.md"
+        m = dict(project="p", skipped=[], units=[dict(slug="u1", references=[ref])])
+        self.assertEqual(report.normal_reference(ref, "/p"), ref)
+        self.assertEqual(report.normal_reference(ref + " (Overview)", "/p"), ref)
+        acc, _ = report.split_findings([finding(ref)], m, "/p")
+        self.assertEqual(len(acc), 1)
+
+    def test_manifest_units_with_no_result_are_listed(self):
+        # reference-c16/c17: after a split launch the unlaunched covered units must not vanish from the report
+        out = report.render(result(), MANIFEST)
+        self.assertIn("Units in the manifest with no result (1): u2.", out)
+        both = [dict(slug=s, status="ok", failed_stage=None, facts_extracted=0, facts_confirmed=0, findings=0)
+                for s in ("u1", "u2")]
+        self.assertNotIn("with no result", report.render(result(units=both), MANIFEST))
+
+    def test_facts_past_the_verify_cap_are_reported(self):
+        # reference-c19: the workflow caps verify at 50 facts; the unchecked rest must reach the report
+        units = [dict(slug="u1", status="ok", failed_stage=None, facts_extracted=51, facts_confirmed=50,
+                      facts_unverified=1, findings=0)]
+        self.assertIn("Facts past the verify cap and never checked: 1 in 1 unit(s): u1.", report.render(result(units=units), MANIFEST))
+
     def test_evidence_must_be_a_code_file_line(self):
         for ev, ok in [("x.py:12", True), ("x.py:12-20", True), ("x.py:L12", True), ("src/a/x.ts:3", True),
                        ("12:30 meeting", False), ("see .context/references/a.md:3", False), ("x.py", False),
@@ -86,7 +110,10 @@ class Render(unittest.TestCase):
                        ("grep 'run_job' in backend/apps/x returned no matches", True),
                        ("Glob returned no files", False),
                        ("the file backend/apps/x/a.py is gone", False),
-                       ("grep of .context/references/a.md found nothing", False)]:
+                       ("grep of .context/references/a.md found nothing", False),
+                       # reference-c04: evidence wrapped in backticks or quotes
+                       ("`src/a/x.ts:12`", True), ("'x.py:12-20'", True), ('"x.py:L12"', True),
+                       ("see `src/a/x.ts:12`, then `y.py:3`", True)]:
             with self.subTest(ev):
                 acc, _ = report.split_findings([finding(ev=ev)], MANIFEST, "/p")
                 self.assertEqual(len(acc), 1 if ok else 0)
@@ -162,7 +189,64 @@ class CostEdges(unittest.TestCase):
             self.assertAlmostEqual(report.cost(d)["stages"]["compare"]["usd"], 2.0)
 
 
+class CostGuards(unittest.TestCase):
+    def test_a_journal_start_without_a_label_falls_back_to_the_agent_id(self):
+        # reference-c20: d["label"] raised KeyError and killed the report
+        with tempfile.TemporaryDirectory() as d:
+            pathlib.Path(d, "journal.jsonl").write_text(json.dumps({"type": "started", "agentId": "a1"}) + "\n")
+            pathlib.Path(d, "agent-a1.jsonl").write_text(line("m1", "claude-sonnet-5-5", dict(input_tokens=1_000_000)) + "\n")
+            self.assertAlmostEqual(report.cost(d)["stages"]["a1"]["usd"], 2.0)
+
+    def test_an_unreadable_transcripts_dir_does_not_stop_the_findings(self):
+        import contextlib
+        import io
+        with tempfile.TemporaryDirectory() as d:
+            pathlib.Path(d, "manifest.json").write_text(json.dumps(MANIFEST))
+            pathlib.Path(d, "result.json").write_text(json.dumps(result([finding()])))
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                report.main([os.path.join(d, "result.json"), d, "--transcripts", os.path.join(d, "nope")])
+        self.assertIn("### .context/references/a.md", out.getvalue())
+        self.assertIn("Not available", out.getvalue())
+        self.assertIn("cost unavailable", err.getvalue())
+
+
 class Register(unittest.TestCase):
+    def test_deferred_and_archived_titles_count_as_already_registered(self):
+        # reference-c05: only backlog/*.md was read, so --file re-registered an item that was deferred or closed
+        with tempfile.TemporaryDirectory() as d:
+            for sub in ("_deferred", "_archive"):
+                os.makedirs(os.path.join(d, ".context", "backlog", sub))
+            f1, f2 = finding(detail="in deferred"), finding(detail="in archive")
+            for sub, f in (("_deferred", f1), ("_archive", f2)):
+                t = f"Reference drift ({f['type']}): {f['reference']}:{f['reference_line']} {f['detail']}"
+                pathlib.Path(d, ".context", "backlog", sub, "BL-1.md").write_text(f'---\ntitle: "{t}"\n---\n')
+            stub = os.path.join(d, "stub.sh")
+            pathlib.Path(stub).write_text("#!/usr/bin/env bash\nexit 3\n")
+            self.assertEqual(report.register([f1, f2], d, script=stub), (0, 2))
+
+    def test_identical_findings_in_one_run_register_once(self):
+        # reference-c06: `have` was built once, so two identical findings each became an item
+        with tempfile.TemporaryDirectory() as d:
+            log = os.path.join(d, "calls.log")
+            stub = os.path.join(d, "stub.sh")
+            pathlib.Path(stub).write_text(f'#!/usr/bin/env bash\necho x >> "{log}"\n')
+            self.assertEqual(report.register([finding(), finding()], d, script=stub), (1, 1))
+            self.assertEqual(len(pathlib.Path(log).read_text().splitlines()), 1)
+
+    def test_a_mid_batch_failure_says_how_many_were_registered_first(self):
+        # reference-c18: the raise came with no word on the items already written
+        import contextlib
+        import io
+        with tempfile.TemporaryDirectory() as d:
+            stub = os.path.join(d, "stub.sh")
+            flag = os.path.join(d, "flag")
+            pathlib.Path(stub).write_text(f'#!/usr/bin/env bash\n[ -e "{flag}" ] && exit 3\ntouch "{flag}"\n')
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err), self.assertRaises(subprocess.CalledProcessError):
+                report.register([finding(detail="one"), finding(detail="two")], d, script=stub)
+            self.assertIn("registered 1", err.getvalue())
+
     def test_already_registered_titles_are_skipped_on_the_second_run(self):
         with tempfile.TemporaryDirectory() as d:
             log = os.path.join(d, "calls.log")
