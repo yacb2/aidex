@@ -21,6 +21,30 @@ def fm_and_body(text):
     return fm, m.group(2)
 
 
+def gate_publish(text):
+    # worklist-new.sh writes the policy nested (`gate-policy:` then `  publish: <v>`), which
+    # the flat reader above cannot see (BL-815); no producer writes a top-level `publish:`.
+    # Read like validate-worklist.py: blank and `#` lines are skipped, quotes stripped;
+    # only a direct child (the indent of the block's first child) counts.
+    m = re.match(r'---\n(.*?)\n---', text, re.S)
+    inside, indent = False, None
+    for ln in (m.group(1).splitlines() if m else []):
+        if not ln.strip() or ln.lstrip().startswith('#'):
+            continue
+        if ln[0] not in ' \t':
+            inside = re.match(r'gate-policy:[ \t]*$', ln) is not None
+            continue
+        if not inside:
+            continue
+        lead = ln[:len(ln) - len(ln.lstrip())]
+        indent = lead if indent is None else indent
+        key, _, val = ln.strip().partition(':')
+        val = val.strip().strip('"\'')
+        if lead == indent and key.strip() == 'publish' and val:
+            return val
+    return 'see worklist'
+
+
 def section(body, name):
     m = re.search(r'^## ' + re.escape(name) + r'[^\n]*\n(.*?)(?=^## |\Z)', body, re.S | re.M)
     return m.group(1) if m else ''
@@ -215,7 +239,7 @@ def render(root, wl_path):
     out.append('')
     out.append('Generated from disk by `sweep-report.sh` on {today}; anchored to `worklist/{wl}` (status `{status}`, gate policy publish `{publish}`).'
                .format(today=today, wl=wl_file, status=wl_fm.get('status', '?'),
-                       publish=wl_fm.get('publish', 'see worklist')))
+                       publish=gate_publish(wl_text)))
     out.append('')
     out.append('## Metrics')
     out.append('')
