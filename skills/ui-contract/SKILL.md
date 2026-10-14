@@ -37,8 +37,8 @@ project's page-pattern catalog index, read for levels 2a and 3), then check the 
 markers of `references/01-harness-contract.md` in the repo itself. Never say "absent"
 before those checks ran: a note, a memory or an earlier session is not evidence, a project
 may have adopted the harness since. Present: continue. Absent (every marker checked, none
-found): say so in one line and name the checks; a boilerplate fork can adopt the harness
-migration from its boilerplate. Without a harness the gallery and the gate stop; the design
+found): say so in one line and name the checks; a Vue boilerplate fork can adopt the harness
+migration; a React/Next tree follows `references/04-react-next-port.md`. Without a harness the gallery and the gate stop; the design
 discussion and `ui-contract.md` still proceed, a redesign round shows the BEFORE captured
 from the running app and the contract in words, and no drawing stands in for the skeleton.
 
