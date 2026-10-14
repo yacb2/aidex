@@ -76,6 +76,22 @@ bash "$DIR/worklist-close.sh" "$WL9" >/dev/null 2>"$TMP/err"; RC=$?
 [[ $RC -eq 2 ]] && grep -q "owner rows still unanswered" "$TMP/err" && grep -q "$DID: wording" "$TMP/err" \
   && ok "refused over an owner row whose proof is a placeholder ('awaiting owner')" || bad "placeholder owner: rc=$RC $(cat "$TMP/err")"
 
+# 3a'' · an id present in BOTH _deferred/ (live, owner row unanswered) and _archive/ (closed
+# copy, owner row answered): the lookup order is active, _deferred, _archive (register-item.sh,
+# harvest-commit.sh). Archive-first judged the closed copy and let the run close over a live
+# unanswered owner row.
+E="$(reg --title "dup in deferred and archive")"; EID="$(idof "$E")"
+row "$E" test "t" "1 passed"; row "$E" owner "dup wording" ""
+mkdir -p "$P/.context/backlog/_deferred" "$P/.context/backlog/_archive"
+cp "$E" "$P/.context/backlog/_archive/$(basename "$E")"
+sed -i.bak 's/| owner | dup wording |  |/| owner | dup wording | approved by owner |/' "$P/.context/backlog/_archive/$(basename "$E")" && rm -f "$P/.context/backlog/_archive/$(basename "$E").bak"
+grep -q '| owner | dup wording | approved by owner |' "$P/.context/backlog/_archive/$(basename "$E")" || bad "dup id precondition: archived copy not answered"
+mv "$E" "$P/.context/backlog/_deferred/$(basename "$E")"
+WL10="$(bash "$DIR/worklist-new.sh" --title "Dup id" --mode sweep --ref "backlog:$EID — e")"
+bash "$DIR/worklist-close.sh" "$WL10" >/dev/null 2>"$TMP/err"; RC=$?
+[[ $RC -eq 2 ]] && grep -q "$EID: dup wording" "$TMP/err" \
+  && ok "an id in _deferred and _archive is judged by the deferred (live) copy" || bad "dup id order: rc=$RC $(cat "$TMP/err")"
+
 # 3b · a PLAIN work-list is not gated: an unchecked emergent line still closes (audit kickoffs use this)
 WL3="$(bash "$DIR/worklist-new.sh" --title "Plain" --ref "inline:only inline")"
 bash "$DIR/worklist-advance.sh" "$WL3" --append "inline:loose end" >/dev/null 2>&1

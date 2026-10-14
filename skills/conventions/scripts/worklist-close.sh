@@ -20,12 +20,7 @@
 # keep resolving through the two-folder lookup. Prints "CLOSED <archived path>".
 set -euo pipefail
 
-# Shared resolver — never `git rev-parse --show-toplevel`. That answered the wrong root
-# twice over: inside a linked worktree it is the worktree (which vanishes on teardown),
-# and in a multi-repo workspace it is the sub-repo, not the workspace `.context/`. Every
-# backlog script the sweep chains this with resolves through _lib.sh, so a private
-# resolver here would update the queue in one tree while the item closes in another.
-# Pinned by test-find-project-root.sh (no private copies).
+# Shared resolver (find_project_root in _lib.sh) — never a private one or git rev-parse; see its header.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/_lib.sh"
 ROOT="$(find_project_root)"
 WL_DIR="$ROOT/.context/worklists"
@@ -54,10 +49,8 @@ lock_take "$lock" "${AIDEX_WL_LOCK_WAIT:-30}" || { echo "error: could not lock $
 # another close that held the lock while this one waited has moved the list away
 [[ -f "$file" ]] || { echo "worklist was closed/archived while waiting: $file; nothing written" >&2; exit 2; }
 today="$(date +%F)"
-# archived-ness from the RESOLVED directory, never the spelling: `cd _archive && ./x.md`
-# or a symlinked dir reaches an archived list with no literal `_archive/` in it (BL-591)
-[[ "$(CDPATH= cd -P "$(dirname "$file")" >/dev/null 2>&1 && pwd -P)" == "$(CDPATH= cd -P "$WL_DIR/_archive" >/dev/null 2>&1 && pwd -P)" ]] \
-  && { echo "worklist already archived: $file" >&2; exit 2; }
+# archived-ness from the resolved directory (wl_is_archived, _lib.sh)
+wl_is_archived "$file" "$WL_DIR" && { echo "worklist already archived: $file" >&2; exit 2; }
 # no front matter: refused here, before the --force line or the stamp below writes anything
 has_front_matter "$file" || { echo "no front matter in $file" >&2; exit 2; }
 # archive collision: refused here too, or the --force line and the stamp were already written
@@ -69,34 +62,29 @@ dest="$WL_DIR/_archive/$(basename "$file")"
 # section is a class-(b) record, not a queue the run owes, and audit calls this
 # script that way today. The sweep is where an unanswered owner row or an unreconciled
 # deferral means work silently lost, so that is where the refusal lives.
-sweep=0; grep -qE '^mode:[[:space:]]*["'"'"']?sweep["'"'"']?[[:space:]]*$' "$file" && sweep=1
+sweep=0; wl_is_sweep "$file" && sweep=1
 BACKLOG="$ROOT/.context/backlog"
-item_file() {  # item_file <BL-id> -> path in backlog/ or backlog/_archive/ (or empty)
-  local f
-  for f in "$BACKLOG"/*.md "$BACKLOG"/_archive/*.md "$BACKLOG"/_deferred/*.md; do
-    [[ -f "$f" ]] || continue
-    [[ "$(awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2; exit}' "$f")" == "$1" ]] && { printf '%s' "$f"; return 0; }
-  done
-  # explicit: a no-match ends on a false `[[ ]] &&`, and under `set -e` the caller's
-  # `f="$(item_file …)"` would kill the script on the first id it cannot find
-  return 0
-}
+item_file() { bl_item_file "$BACKLOG" "$1"; }  # <BL-id> -> path in backlog/, _deferred/ or _archive/ (or empty)
 owner_open=""
-while IFS= read -r line; do
-  id="$(grep -oE '\bBL-[0-9]+\b' <<<"$line" | sed -n 1p || true)"; [[ -n "$id" ]] || continue
-  f="$(item_file "$id")"; [[ -n "$f" ]] || continue
-  # unanswered = empty OR a placeholder ("awaiting owner"), the definition close-item.sh
-  # parks on (proof_is_placeholder, _lib.sh); an empty-only test let a parked item's run end
-  while IFS=$'\037' read -r what proof; do
-    if [[ -z "$proof" ]] || proof_is_placeholder "$proof"; then owner_open="$owner_open
-    - $id: $what"; fi
-  done < <(awk 'BEGIN{s=0} /^## /{s=($0 ~ /^## Verification[[:space:]]*$/)} s && /^\|/ {
-      l=$0; sub(/^\|/,"",l); sub(/\|[[:space:]]*$/,"",l); n=split(l,c,"|")
-      for(i=1;i<=n;i++){gsub(/^[[:space:]]+|[[:space:]]+$/,"",c[i])}
-      if (c[1]=="owner") printf "%s\037%s\n", c[2], c[3] }' "$f")
-done < <(wl_queue_grep "$file" "$WL_QUEUE_ITEM.*<!-- ref: backlog -->")
-# `[[ -n ]]`-free: an empty section is fine; an unchecked deferral with no BL-NNN / CLOSE: is not
-unreconciled="$(awk '/^## Deferred/{s=1; next} /^## /{s=0} s && /^- \[ \]/' "$file" | grep -v -E 'BL-[0-9]+|CLOSE:' || true)"
+unreconciled=""
+# the scans below feed only the sweep refusal; a plain work-list never reads them
+if [[ $sweep -eq 1 ]]; then
+  while IFS= read -r line; do
+    id="$(grep -oE '\bBL-[0-9]+\b' <<<"$line" | sed -n 1p || true)"; [[ -n "$id" ]] || continue
+    f="$(item_file "$id")"; [[ -n "$f" ]] || continue
+    # unanswered = empty OR a placeholder ("awaiting owner"), the definition close-item.sh
+    # parks on (proof_is_placeholder, _lib.sh); an empty-only test let a parked item's run end
+    while IFS=$'\037' read -r what proof; do
+      if [[ -z "$proof" ]] || proof_is_placeholder "$proof"; then owner_open="$owner_open
+      - $id: $what"; fi
+    done < <(awk 'BEGIN{s=0} /^## /{s=($0 ~ /^## Verification[[:space:]]*$/)} s && /^\|/ {
+        l=$0; sub(/^\|/,"",l); sub(/\|[[:space:]]*$/,"",l); n=split(l,c,"|")
+        for(i=1;i<=n;i++){gsub(/^[[:space:]]+|[[:space:]]+$/,"",c[i])}
+        if (c[1]=="owner") printf "%s\037%s\n", c[2], c[3] }' "$f")
+  done < <(wl_queue_grep "$file" "$WL_QUEUE_ITEM.*<!-- ref: backlog -->")
+  # `[[ -n ]]`-free: an empty section is fine; an unchecked deferral with no BL-NNN / CLOSE: is not
+  unreconciled="$(awk '/^## Deferred/{s=1; next} /^## /{s=0} s && /^- \[ \]/' "$file" | grep -v -E 'BL-[0-9]+|CLOSE:' || true)"
+fi
 if [[ $sweep -eq 1 && ( -n "$owner_open" || -n "$unreconciled" ) ]]; then
   if [[ $force -eq 0 ]]; then
     echo "close refused for $(basename "$file"):" >&2

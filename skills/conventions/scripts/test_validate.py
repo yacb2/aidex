@@ -1757,6 +1757,27 @@ def check_artifact_lang_lockstep(failures: list[str]) -> None:
                                 f"must read 'es'")
 
 
+def check_iter_skips_archive_audits_communications(failures: list[str]) -> None:
+    """iter_files_for_type walks audits/ and communications/ recursively and skips
+    anything under /_archive/ for both (one shared branch in _iter_md_by_type)."""
+    import tempfile
+    v = _load_validator()
+    with tempfile.TemporaryDirectory() as td:
+        ctx = Path(td) / ".context"
+        keep = {"audits": ["run/index.md"], "communications": ["received/2026-01-01-x/body.md"]}
+        skip = {"audits": ["_archive/old.md"], "communications": ["sent/_archive/2025-01-01-y/body.md"]}
+        for kind in keep:
+            for rel in keep[kind] + skip[kind]:
+                f = ctx / kind / rel
+                f.parent.mkdir(parents=True, exist_ok=True)
+                f.write_text("x\n", encoding="utf-8")
+        for kind in keep:
+            got = sorted(str(p.relative_to(ctx / kind)) for p in v.iter_files_for_type(ctx, kind))
+            if got != sorted(keep[kind]):
+                failures.append(f"iter_files_for_type({kind}) walked {got}; want {sorted(keep[kind])} "
+                                f"(everything under /_archive/ skipped)")
+
+
 def main() -> int:
     failures: list[str] = []
 
@@ -1836,6 +1857,7 @@ def main() -> int:
     check_comm_paste_safe_unit(failures)
     check_comm_direction_and_legacy_unit(failures)
     check_no_emoji(failures)
+    check_iter_skips_archive_audits_communications(failures)
 
     if failures:
         print("FAIL")
