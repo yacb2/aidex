@@ -24,7 +24,9 @@ agent replaces.
 ## The verdict scale
 
 - `resolved`: every acceptance line that code can show is met by the code as it stands now.
-- `partially`: at least one such line is met and at least one is not.
+- `partially`: at least one such line is met by code written for that line, and at least
+  one is not. Infrastructure that already existed, or related work no line asks for, meets
+  nothing: if that is all there is, the verdict is `not`.
 - `not`: none is met.
 
 Count a line as met only when the code was written for that line. Infrastructure that
