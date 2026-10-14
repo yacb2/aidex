@@ -5,13 +5,9 @@
 >
 > Paths in this file are relative to the skill root (`../`), not to this directory.
 
-The default path above is **interactive** (you run the plan turn-by-turn). For
-**unattended/batch** runs ("execute the whole plan while I'm away"), this skill can launch
-the plan as a **durable `Workflow`** instead — each phase a fresh bounded agent, a two-stage
-gate (Bash verifier → conditional arbiter) per phase, crash-resumable via the journal. Use
-this only when the work is **decomposable + machine-verifiable + unattended** and the user
-opted in (the `Workflow` tool is gated and token-heavy). § Promotion at Orient below owns how
-that opt-in is resolved.
+For **unattended/batch** runs, `SKILL.md` § Unattended / batch execution launches the plan as a
+durable `Workflow`. The opt-in is resolved by § Promotion at Orient below; the threshold for when
+batching pays off is § Promotion threshold below.
 
 ## Contents
 
@@ -57,8 +53,9 @@ single-agent baseline of that same plan, the threshold is the structural rule ab
     you want a review that is not contaminated by the implementer's grown session.
 - **Choose the form by plan shape** (see "Deriving `args`" below): if **every phase after the
   first** depends on the one before it (a single chain) → `pipeline-with-gate`; if two or more phases
-  are edge-free (empty/omitted `depends_on`) and can run in parallel → `fan-out-with-gate`.
-  When unsure, the sequential pipeline is the safe default (it never mis-orders).
+  are edge-free (empty/omitted `depends_on`), or the graph has a wave wider than one, and can run
+  in parallel → `fan-out-with-gate`. When unsure, the sequential pipeline is the safe default (it
+  never mis-orders); don't fan out a plan with no real parallelism.
 - **A single-file plan never uses `fan-out-with-gate`**: it has no `**Files:**` lists, so nothing
   can prove its edge-free phases disjoint, and they would race in one working tree. Run it with
   `pipeline-with-gate`.
@@ -136,8 +133,8 @@ For each unchecked phase, in order:
 `hitl-align` phase from the batch: those run in the **interactive** path, never in a `Workflow`
 (defining scope/criteria/design is the human-in-the-loop judgment the promotion threshold
 excludes). Batch **only** `afk-impl` phases (the default when a phase declares no `phase-type`).
-A phase that is `afk-impl` but declares **no machine gate** is also not batch-eligible — run it
-interactively; do not invent a gate. So `phases[]` contains exactly the gated `afk-impl` phases,
+A phase that is `afk-impl` but declares **no machine gate** is also not batch-eligible (see
+`gateCmd` above). So `phases[]` contains exactly the gated `afk-impl` phases,
 in plan order; a plan whose remaining phases are all `hitl-align`/gateless has nothing to batch.
 
 **The acceptance test stays red until the phase closes.** A phase's `tests:` value names the
@@ -149,12 +146,9 @@ phase (it means the wrong test was picked, or the phase was already done). The p
 not proving the phase's Acceptance block. `tests: none` phases (a written reason required) have
 no acceptance test to track — the declared `gateCmd` is still the sole gate.
 
-**Pick the form from the derived `depends_on` shape.** Once every phase's `depends_on` is filled,
-look at the dependency graph: if it is a single chain (each phase depends on the prior), use
-`pipeline-with-gate`. If two or more phases are edge-free (or the graph has a wave wider than one),
-use `fan-out-with-gate` so independent slices run in parallel. The fan-out form wave-schedules on
-`depends_on`; the pipeline form runs the array in order and ignores it. Default to the pipeline
-when the shape is genuinely a chain — don't fan out a plan with no real parallelism.
+**Pick the form** by the rule in "Choose the form by plan shape" above, now applied to the derived
+`depends_on` graph. The fan-out form wave-schedules on `depends_on`; the pipeline form runs the
+array in order and ignores it.
 
 Pass `planPath`, the run's `autonomySurface` (from the plan), `preAuthorized` (any publish the
 plan pre-authorized), and `maxRetries` (default 2). To **resume** a crashed/stopped run, re-invoke

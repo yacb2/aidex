@@ -360,8 +360,6 @@ function review(cfg) {
 const cfg = parseArgs()
 const ctx = {
   autonomySurface: cfg.autonomySurface || 'deny: destructive/data-loss. ask: push/publish/deploy/release/merge-into-trunk. else: proceed+log.',
-  preAuthorized: cfg.preAuthorized || [],
-  maxRetries: cfg.maxRetries ?? 2,
 }
 
 phase('Review') // single sequential stage -> the global phase() call is safe (no concurrency here)
