@@ -130,7 +130,6 @@ find_project_root() {
   printf '%s\n' "$start"
 }
 
-today() { date +%Y%m%d; }
 today_iso() { date +%Y-%m-%d; }
 
 # Render a template: substitute {{KEY}} placeholders with provided values.

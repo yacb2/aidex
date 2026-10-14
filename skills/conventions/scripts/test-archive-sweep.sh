@@ -175,6 +175,20 @@ grep -q 'bl-006-listlanded' <<<"$OUT_L" || fail "list-form commits that all land
 pass "a list-form commits: whose items all landed IS reported as drift"
 rm -rf "$GW"
 
+# --- an inline YAML comment on the status does not hide a terminal artifact ---------
+CM="$(mktemp -d)"; mkdir -p "$CM/.context/requests/_archive"
+printf -- '---\ntitle: "x"\nstatus: done  # shipped\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\n' \
+  > "$CM/.context/requests/2026-01-17-commented.md"
+OUT_C="$(python3 "$SCRIPT" "$CM/.context" 2>&1)"
+grep -q 'commented' <<<"$OUT_C" || fail "status with an inline comment was skipped: $OUT_C"
+pass "a terminal status followed by an inline # comment is still reported"
+printf -- '---\ntitle: "x"\nstatus: "done # x"\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\n' \
+  > "$CM/.context/requests/2026-01-18-quoted-hash.md"
+OUT_C="$(python3 "$SCRIPT" "$CM/.context" 2>&1)"
+grep -q 'quoted-hash' <<<"$OUT_C" && fail "a quoted status containing ' # ' was read as terminal: $OUT_C"
+pass "a quoted status whose value contains ' # ' is not read as terminal"
+rm -rf "$CM"
+
 # --- no git above .context/: report the other half, say so, never crash ------------
 NG="$(mktemp -d)"; build "$NG"
 OUT_NG="$(python3 "$SCRIPT" "$NG/.context" 2>&1)"; RC_NG=$?

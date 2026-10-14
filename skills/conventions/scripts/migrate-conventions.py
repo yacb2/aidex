@@ -79,10 +79,9 @@ DECISION_STATUS = _validate.DECISION_STATUS
 TYPES_WITHOUT_INFERRABLE_STATUS = ("decisions",)
 
 LEGACY_FILENAME = re.compile(r"^(\d{4})(\d{2})(\d{2})-(.+\.md)$")
-ISO_FILENAME = re.compile(r"^\d{4}-\d{2}-\d{2}-[a-z0-9]+(-[a-z0-9]+)*\.md$")
-ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-FM_DELIM = re.compile(r"^---\s*$")
-REQUIRED_FIELDS = ("title", "status", "created", "updated")
+ISO_FILENAME = _validate.ISO_FILENAME
+ISO_DATE = _validate.ISO_DATE
+FM_DELIM = _validate.FM_DELIM
 
 STATUS_MAP = {
     "completed": "done",
@@ -174,11 +173,6 @@ def iso_from_field(val: str) -> str | None:
     return None
 
 
-def slug_from_title(title: str, fallback: str) -> str:
-    s = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
-    return s[:60] or fallback
-
-
 def extract_h1(text: str) -> str | None:
     for line in text.splitlines():
         if line.startswith("# "):
@@ -190,45 +184,15 @@ def extract_h1(text: str) -> str | None:
 
 @dataclass
 class Change:
-    kind: str               # rename | inject-fm | mutate-fm | rewrite-ref | create-dir
+    kind: str               # inject-fm | mutate-fm | rewrite-ref | create-dir
     path: str               # repo-relative
     detail: dict = field(default_factory=dict)
 
 
 # ---------- Planner ----------
 
-IGNORE_NAME = ".aidex-ignore"
-
-
-def load_ignores(context_dir: Path) -> list[str]:
-    """Path prefixes (relative to `.context/`) the migrator must not touch — the
-    same `<context>/.aidex-ignore` file validate.py reads. Vendored/imported
-    subtrees are not aidex artifacts, so renaming them would corrupt a third-party
-    tree (BL-037). One prefix per line, `#` comments and blanks ignored, no globs."""
-    ip = context_dir / IGNORE_NAME
-    if not ip.is_file():
-        return []
-    prefixes: list[str] = []
-    for raw in ip.read_text(encoding="utf-8", errors="replace").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
-        if line.startswith(".context/"):
-            line = line[len(".context/"):]
-        line = line.strip("/")
-        if line:
-            prefixes.append(line)
-    return prefixes
-
-
-def is_ignored(context_dir: Path, path: Path, prefixes: list[str]) -> bool:
-    if not prefixes:
-        return False
-    try:
-        rel = path.resolve().relative_to(context_dir.resolve()).as_posix()
-    except (ValueError, OSError):
-        return False
-    return any(rel == p or rel.startswith(p + "/") for p in prefixes)
+load_ignores = _validate.load_ignores
+is_ignored = _validate.is_ignored
 
 
 def iter_md(context_dir: Path):
@@ -261,7 +225,7 @@ CANONICAL_PREFIX_ZERO_NAMES = (
 )
 
 
-def file_is_exempt_from_rename(type_name: str, p: Path, context_dir: Path) -> bool:
+def file_is_exempt_from_rename(type_name: str, p: Path) -> bool:
     """Subdocs of modular plans/references/research and index files: no rename.
 
     Also exempt legacy audit-root files (INVENTORY/METHODOLOGY/CHANGELOG.md at
@@ -307,7 +271,7 @@ def plan_renames(context_dir: Path, declined: list[str] | None = None) -> dict[P
         if type_name not in ("backlog", "plans", "requests", "decisions",
                              "references", "research", "audits"):
             continue
-        if file_is_exempt_from_rename(type_name, p, context_dir):
+        if file_is_exempt_from_rename(type_name, p):
             continue
 
         name = p.name
@@ -376,17 +340,10 @@ def plan_frontmatter_repairs(
             # Audits use tabular/sub-document content — handle restructure
             # manually, surfaced via detect_manual_review().
             continue
-        # The file may be a sub-document of a modular plan / reference / research topic.
-        # validate.py treats `NN-<slug>.md` inside a subfolder as a subdocument with no FM
-        # requirement — match the same exemption so we don't inject useless FM blocks.
-        if re.match(r"^\d{2}-[a-z0-9-]+\.md$", p.name) and p.name not in (
-            "00-index.md", "00-overview.md", "00-methodology.md", "00-inventory.md", "00-changelog.md",
-        ):
-            parent_type = p.parent.parent.name if p.parent.parent != context_dir else ""
-            if parent_type in ("plans", "references", "research") and p.parent.name not in (
-                parent_type, "_archive",
-            ):
-                continue
+        # A sub-document of a modular plan / reference / research topic needs no front-matter:
+        # validate.py decides what counts, so we never inject a block it does not ask for.
+        if _validate.is_subdocument(rel_parts[0] if rel_parts else "", p):
+            continue
 
         text = p.read_text(encoding="utf-8", errors="replace")
         fm = parse_frontmatter(text)

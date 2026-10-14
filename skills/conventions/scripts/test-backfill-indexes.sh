@@ -31,6 +31,10 @@ printf -- '---\ntitle: Plans\n---\n# Plans\n\nCurated by hand. Do not lose this.
 echo "== dry-run --all =="
 NO_COLOR=1 bash "$BF" --all "$ROOT" --dry-run >/dev/null 2>&1
 check "dry-run wrote nothing for A" '[[ ! -f "$ROOT/projA/.context/plans/00-index.md" ]]'
+dry="$(NO_COLOR=1 bash "$BF" --project "$ROOT/projA" --dry-run 2>&1)"
+check "dry-run message for a missing index says 'would create'" 'printf "%s" "$dry" | grep >/dev/null "plans: would create 00-index.md (dry-run)"'
+dry="$(NO_COLOR=1 bash "$BF" --project "$ROOT/projC" --dry-run --force 2>&1)"
+check "dry-run message for a forced hand-made index says 'would refresh'" 'printf "%s" "$dry" | grep >/dev/null "plans: would refresh 00-index.md (dry-run)"'
 
 echo "== real --all (default: skip hand-made) =="
 out="$(NO_COLOR=1 bash "$BF" --all "$ROOT" 2>&1)"

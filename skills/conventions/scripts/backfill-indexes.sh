@@ -22,13 +22,6 @@
 
 set -euo pipefail
 
-if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
-  C_GREEN=$'\033[32m' C_YELLOW=$'\033[33m' C_BLUE=$'\033[34m' C_DIM=$'\033[2m' C_BOLD=$'\033[1m' C_RESET=$'\033[0m'
-else C_GREEN='' C_YELLOW='' C_BLUE='' C_DIM='' C_BOLD='' C_RESET=''; fi
-info() { printf '%s%s%s\n' "$C_BLUE" "$*" "$C_RESET" >&2; }
-ok()   { printf '%s%s%s\n' "$C_GREEN" "$*" "$C_RESET" >&2; }
-warn() { printf '%s%s%s\n' "$C_YELLOW" "$*" "$C_RESET" >&2; }
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 RP="$SCRIPT_DIR/../../plan/scripts/reindex-plans.sh"
 RA="$SCRIPT_DIR/../../audit/scripts/reindex-audits.sh"
@@ -87,7 +80,8 @@ backfill_one() {
   esac
 
   if [[ $DRY -eq 1 ]]; then
-    info "  $kind: would ${cls/missing/create} ${cls/auto/refresh} 00-index.md (dry-run)"
+    local verb=refresh; [[ "$cls" == "missing" ]] && verb=create
+    info "  $kind: would $verb 00-index.md (dry-run)"
     return 0
   fi
   # a failing reindexer is reported and skipped: under `set -e` it ended the whole run (--all

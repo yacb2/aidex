@@ -558,6 +558,39 @@ def test_context_dir_from_linked_worktree() -> None:
             fail(f"expected None without a main .context, got {got}")
 
 
+def test_subdocument_exemption_matches_validator() -> None:
+    """s12: the migrator skips the files validate.py calls subdocuments, so it never injects
+    front-matter the validator does not ask for (00-methodology in a topic folder, a file
+    nested deeper than topic/)."""
+    print("\ntest: migrator front-matter repair skips what validate.py treats as a subdocument")
+    with tempfile.TemporaryDirectory() as td:
+        ctx = Path(td) / ".context"
+        for rel in ("plans/2026-01-05-topic/00-methodology.md",
+                    "plans/2026-01-05-topic/sub/01-notes.md",
+                    "plans/2026-01-05-topic/02-more.md",
+                    "plans/2026-01-05-topic/00-index.md",
+                    "plans/_archive/01-x.md"):
+            f = ctx / rel
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.write_text("# Notes\n\nBody.\n", encoding="utf-8")
+        injected = sorted(c["path"] for c in run_migrate(ctx)["frontmatter_changes"]
+                          if c["kind"] == "inject-fm")
+        required = [".context/plans/2026-01-05-topic/00-index.md", ".context/plans/_archive/01-x.md"]
+        if injected == required:
+            ok("front-matter injected exactly where validate.py requires it")
+        else:
+            fail(f"expected inject-fm for {required} only, got {injected}")
+        run_migrate(ctx, "--apply")
+        subdocs = {"00-methodology.md", "01-notes.md", "02-more.md"}
+        bare = sorted(f.name for f in (ctx / "plans").rglob("*.md")
+                      if f.name not in subdocs
+                      and validate_mod.parse_frontmatter(f.read_text(encoding="utf-8")) is None)
+        if bare:
+            fail(f"still no front-matter after --apply: {bare}")
+        else:
+            ok("every file validate.py requires front-matter on has it after --apply")
+
+
 if __name__ == "__main__":
     if not MIGRATE_PY.is_file():
         sys.exit(f"FAIL: {MIGRATE_PY} not found")
@@ -571,6 +604,7 @@ if __name__ == "__main__":
     test_context_root_stops_at_home()
     test_inline_comment_in_frontmatter_status()
     test_context_dir_from_linked_worktree()
+    test_subdocument_exemption_matches_validator()
     print()
     if failures:
         print(f"FAILED — {len(failures)} assertion(s)")

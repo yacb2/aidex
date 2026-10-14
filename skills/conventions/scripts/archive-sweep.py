@@ -30,7 +30,7 @@ import argparse, json, os, re, shutil, subprocess, sys
 
 TERMINAL = {"done", "dropped", "superseded"}
 ACTIVE = {"open", "doing"}
-FM_STATUS = re.compile(r"^status:\s*[\"']?([a-z-]+)[\"']?\s*$", re.M)
+FM_STATUS = re.compile(r"^status:\s*([\"']?)([a-z-]+)\1(?:\s+#.*)?\s*$", re.M)
 FM_COMMITS = re.compile(r"^commits:[ \t]*[\"']?(.*?)[\"']?[ \t]*$", re.M)
 FM_COMMITS_LIST = re.compile(r"^commits:[ \t]*\n((?:[ \t]+-[^\n]*(?:\n|$))+)", re.M)
 SHA = re.compile(r"\b[0-9a-f]{7,40}\b")
@@ -55,7 +55,7 @@ def frontmatter(path):
     lst = FM_COMMITS_LIST.search(block)  # list form: `commits:` then `  - <sha>` lines
     if lst:
         shas = SHA.findall(lst.group(1))
-    return (s.group(1) if s else None), shas
+    return (s.group(2) if s else None), shas
 
 
 def is_repo(d):
@@ -145,7 +145,7 @@ def scan(ctx, repos):
                                        os.path.join(archive, os.path.basename(unit)), ctx)})
             elif status in ACTIVE and commits and repos:
                 landed = [c for c in commits if commit_landed(repos, c)]
-                if landed and len(landed) == len(commits):
+                if len(landed) == len(commits):
                     drift.append({"tier": tier, "path": rel, "status": status,
                                   "commits": landed})
     return unarchived, drift

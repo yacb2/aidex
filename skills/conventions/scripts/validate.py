@@ -37,7 +37,6 @@ MIGRATE_COMMS_SH = (Path(__file__).resolve().parents[2]
 TYPES = ["backlog", "plans", "requests", "decisions", "references", "research", "audits",
          "communications", "loops", "worktrees"]
 TYPES_WITH_ARCHIVE = {"backlog", "plans", "requests", "decisions", "loops"}
-TYPES_WITH_INDEX = {"plans": True, "references": True, "research": True, "backlog": True}
 # Acceptable-optional .context/ dirs: never required, may be gitignored. Some ARE
 # scaffolded on demand (worklists by the worklist scripts, workflows by workflow);
 # the rest are project-local. The validator neither requires nor flags them — listed here
@@ -45,7 +44,6 @@ TYPES_WITH_INDEX = {"plans": True, "references": True, "research": True, "backlo
 # empty). Keep in lockstep with 00-global.md §9 (guarded by test_registry_lockstep.py).
 OPTIONAL_TYPES = {"data", "diagrams", "drafts", "experiments", "profiles", "worklists", "workflows"}
 # Communications front-matter vocab (artifacts are EXEMPT from English-only; body is native).
-COMM_CHANNELS = {"email", "whatsapp", "call", "meeting", "other"}
 COMM_DIRECTIONS = {"received", "sent"}          # async, directional (from/to)
 COMM_MEETING_DIR = "meetings"                   # synchronous, participant-based (no direction)
 COMM_ASYNC_CHANNELS = {"email", "whatsapp", "other"}
@@ -1872,29 +1870,11 @@ def load_waivers(context_dir: Path) -> tuple[list[Waiver], int]:
         waivers.append(Waiver(parts[0], parts[1], parts[2] or "-", reason, date))
     return waivers, parse_errors
 
-def waiver_anchor_matches(w: Waiver, project_root: Path) -> bool:
-    """No anchor ("-") always matches. An anchored waiver matches only while the
-    file's sha256 still starts with the recorded prefix — any content change
-    (or a missing file) resurfaces the finding."""
-    if w.anchor in ("", "-"):
-        return True
-    m = WAIVER_ANCHOR_RE.match(w.anchor)
-    if not m:
-        return False
-    target = project_root / w.path
-    if not target.is_file():
-        return False
-    try:
-        digest = hashlib.sha256(target.read_bytes()).hexdigest()
-    except OSError:
-        return False
-    return digest.startswith(m.group(1))
-
 def waiver_state(w: Waiver, project_root: Path) -> str:
     """The state of the file the waiver NAMES: matched | stale-anchor | path-missing.
 
     Three states, because the format already implies three (BL-232) and only one of
-    them used to be visible. `waiver_anchor_matches` collapses the last two into
+    them used to be visible. A bare match/no-match boolean would collapse the last two into
     False, which is right for suppression and wrong for reporting: a content change
     is the anchor doing its job, a moved path is the anchor being unable to.
     """
