@@ -245,8 +245,8 @@ def tx_dirs_for(proj):
     zeros dressed as results, in a file whose own docstring makes "a wrong answer
     that looks like an answer" its stated design constraint.
 
-    Two siblings already derived this correctly (mine_preferences.short,
-    mine_slow_tests.project_of); this one was the odd copy out.
+    mine_preferences.short and mine_slow_tests.project_of now call this function
+    instead of keeping their own decoders (LOOP-013 audit-s32).
     """
     a = proj.replace("_", "-")
     # A longer-named sibling that is a SEPARATE project (`.context`, and not a git

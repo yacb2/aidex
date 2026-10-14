@@ -43,6 +43,7 @@ from collections import defaultdict, Counter
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import mine_items as M
+from extract import parse_ts  # aware datetimes; one reader for the whole pipeline
 
 COMMIT = re.compile(r'\bgit\s+commit\b')
 
@@ -59,15 +60,6 @@ def parse_since(s):
     if not s:
         return None
     return datetime.datetime.fromisoformat(s + "T00:00:00+00:00")
-
-
-def parse_ts(s):
-    if not s:
-        return None
-    try:
-        return datetime.datetime.fromisoformat(s.replace("Z", "+00:00"))
-    except ValueError:
-        return None
 
 
 def test_outcome(txt):

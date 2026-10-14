@@ -62,6 +62,7 @@ from collections import Counter, defaultdict
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import prompt_kinds
+from mine_items import short_project_dir
 
 TX_ROOT = os.environ.get("CLAUDE_PROJECTS_ROOT") or os.path.expanduser("~/.claude/projects")
 
@@ -258,7 +259,7 @@ def iter_human_prompts(root, since=""):
 
 def short(project):
     """`-Users-me-Documents-projects-foo-ws` -> `foo-ws`, for readable output."""
-    return re.sub(r"^-.*-projects-", "", project) or project
+    return short_project_dir(project)
 
 
 def main():

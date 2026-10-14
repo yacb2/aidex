@@ -135,20 +135,7 @@ RUN_REF="$AUDIT_RUN"
 [[ -n "$METHODOLOGY" ]] && RUN_REF="$METHODOLOGY/$AUDIT_RUN"
 
 # Delegate to backlog. Resolve its script path.
-REGISTER=""
-for candidate in \
-  "$SKILL_DIR/../backlog/scripts/register-item.sh" \
-  "$ROOT/skills/backlog/scripts/register-item.sh"
-do
-  if [[ -f "$candidate" && -x "$candidate" ]]; then
-    REGISTER="$candidate"
-    break
-  fi
-done
-
-if [[ -z "$REGISTER" ]]; then
-  die "backlog script not found: the aidex plugin install looks incomplete; reinstall it with 'claude plugin install aidex@aidex' or run /reload-plugins."
-fi
+require_sibling_script REGISTER backlog register-item.sh "$ROOT"
 
 # Extract Summary (cell 5) and Severity (cell 7) for the finding row.
 # Output: "<summary>\t<severity>" — tab-separated so summaries with spaces survive.

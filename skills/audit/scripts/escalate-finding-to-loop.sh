@@ -133,20 +133,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
 fi
 
 # Delegate scaffolding to loop. Resolve its script path.
-NEWLOOP=""
-for candidate in \
-  "$SKILL_DIR/../loop/scripts/new-loop-spec.sh" \
-  "$ROOT/skills/loop/scripts/new-loop-spec.sh"
-do
-  if [[ -f "$candidate" && -x "$candidate" ]]; then
-    NEWLOOP="$candidate"
-    break
-  fi
-done
-
-if [[ -z "$NEWLOOP" ]]; then
-  die "loop script not found: the aidex plugin install looks incomplete; reinstall it with 'claude plugin install aidex@aidex' or run /reload-plugins."
-fi
+require_sibling_script NEWLOOP loop new-loop-spec.sh "$ROOT"
 
 info "Scaffolding loop-spec for $FINDING_ID via loop"
 LOOP_FILE="$("$NEWLOOP" new "$SLUG")"

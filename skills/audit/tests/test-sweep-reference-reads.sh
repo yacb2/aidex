@@ -10,6 +10,8 @@
 #       alpha/references/shared.md citation (bare-basename over-credit)
 #   (d) no firing at all is refused
 #   (c) a read of alpha/references/shared.md IS credited to alpha
+#   (f) audit-s24: mine-reference-reads --when-skill takes the bare name the way the sweep
+#       does, so `--when-skill alpha` finds the sessions that fired `aidex:alpha`
 #
 # Run with: bash skills/audit/tests/test-sweep-reference-reads.sh
 
@@ -64,6 +66,16 @@ out_e="$(python3 "$SWEEP" --skills-dir "$W/skills" --projects-root "$W/bad" --js
 grep -qE '^1 unparseable' <<<"$out_e" || fail "(e2) expected '1 unparseable' before the no-firing exit: $out_e"
 [[ "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("skipped"))' "$W/bad.json" 2>&1)" == 1 ]] \
   || fail "(e2) --json lacks skipped == 1"
+
+#   (f) mine-reference-reads: the Skill tool records `aidex:alpha`; --when-skill alpha must match it.
+#       Its corpus root is ~/.claude/projects, so HOME points at the fixture.
+mkdir -p "$W/home/.claude/projects"
+cp -R "$W/tx/-Users-u-Documents-projects-p" "$W/home/.claude/projects/"
+out_f="$(HOME="$W/home" python3 "$TESTS_DIR/../scripts/mine-reference-reads.py" alpha/references/shared.md --when-skill alpha 2>&1)"
+grep -q 'no sessions in scope' <<<"$out_f" \
+  && fail "(f) --when-skill alpha found no session although aidex:alpha fired: $out_f"
+grep -qE '^alpha +2 +1$' <<<"$out_f" \
+  || fail "(f) expected alpha: 2 in scope, 1 read (the other-plugin other:alpha firing is not alpha): $out_f"
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — sweep-reference-reads: aidex:<skill> firings counted, a read is credited only to the skill whose references/ folder it came from"

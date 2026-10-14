@@ -18,6 +18,9 @@ Usage:
 """
 import argparse, collections, glob, json, os, re, sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _reference_reads import bare_skill, pulls_into_context, tool_uses
+
 PROJECTS = os.path.expanduser("~/.claude/projects")
 # The skills this script ships in: plugin skills no longer live under ~/.claude/skills.
 DEFAULT_SKILLS = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -47,16 +50,6 @@ def collect_citations(skills_dir):
     return out
 
 
-def pulls_into_context(name, inp):
-    if name in ("Read", "NotebookEdit"):
-        return str(inp.get("file_path", ""))
-    if name == "Bash":
-        return str(inp.get("command", ""))
-    if name == "Grep":
-        return str(inp.get("path", "")) + " " + str(inp.get("glob", ""))
-    return ""
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--skills-dir", default=DEFAULT_SKILLS)
@@ -79,38 +72,25 @@ def main():
 
     skipped = 0                                  # transcript lines that are not JSON
     for f in glob.glob(a.projects_root + "/*/*.jsonl"):
+        stats = {}
         try:
-            lines = open(f, errors="replace").read().splitlines()
+            calls = list(tool_uses(f, stats))
         except OSError:
             continue
+        skipped += stats.get("skipped", 0)
         fired, touched = set(), {}
-        for l in lines:
-            if not l.strip():
-                continue
-            try:
-                o = json.loads(l)
-            except ValueError:
-                skipped += 1
-                continue
-            if o.get("type") != "assistant":
-                continue
-            for b in o.get("message", {}).get("content", []) or []:
-                if not (isinstance(b, dict) and b.get("type") == "tool_use"):
-                    continue
-                name, inp = b.get("name") or "", b.get("input") or {}
-                if name == "Skill":
-                    # aidex fires as `aidex:<name>`; citations are keyed bare. Another
-                    # plugin's `x:<name>` is a different skill and is ignored.
-                    sk = inp.get("skill") or ""
-                    if sk.startswith("aidex:"):
-                        sk = sk[len("aidex:"):]
-                    if sk and ":" not in sk:
-                        fired.add(sk)
-                blob = pulls_into_context(name, inp)
-                if blob:
-                    for ref in all_refs:
-                        if f"{ref[0]}/references/{ref[1]}" in blob:
-                            touched.setdefault(ref, set()).add(name)
+        for name, inp in calls:
+            if name == "Skill":
+                # aidex fires as `aidex:<name>`; citations are keyed bare. Another
+                # plugin's `x:<name>` is a different skill and is ignored.
+                sk = bare_skill(inp.get("skill") or "")
+                if sk and ":" not in sk:
+                    fired.add(sk)
+            blob = pulls_into_context(name, inp)
+            if blob:
+                for ref in all_refs:
+                    if f"{ref[0]}/references/{ref[1]}" in blob:
+                        touched.setdefault(ref, set()).add(name)
         if not fired:
             continue
         for sk in fired:

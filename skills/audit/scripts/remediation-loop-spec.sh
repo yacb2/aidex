@@ -186,14 +186,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
 fi
 
 # --- scaffold through loop (it owns id allocation + canon filename) ---
-NEWLOOP=""
-for candidate in \
-  "$SKILL_DIR/../loop/scripts/new-loop-spec.sh" \
-  "$ROOT/skills/loop/scripts/new-loop-spec.sh"
-do
-  [[ -f "$candidate" && -x "$candidate" ]] && { NEWLOOP="$candidate"; break; }
-done
-[[ -n "$NEWLOOP" ]] || die "loop script not found: the aidex plugin install looks incomplete; reinstall it with 'claude plugin install aidex@aidex' or run /reload-plugins."
+require_sibling_script NEWLOOP loop new-loop-spec.sh "$ROOT"
 
 info "Emitting remediation loop-spec for $RUN_SLUG ($COUNT unresolved findings)"
 LOOP_FILE="$("$NEWLOOP" new "$SLUG")"

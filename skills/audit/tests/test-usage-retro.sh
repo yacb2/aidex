@@ -1104,6 +1104,62 @@ out_ur4="$(ur_run a@00:00:05@00:00:30)"
 grep -q 'test runs: fail=1 pass=1' <<<"$out_ur4" \
   || fail "(ur) a session serving one item must keep every run, window or not: $out_ur4"
 
+# ---------------------------------------------------------------------------
+# (w) ONE TIMESTAMP READER (audit-s31). mine_slow_tests and mine_verification kept a
+#     naive parse_ts after extract.parse_ts was fixed to read an offset-less stamp as
+#     UTC. A transcript line with no Z/offset then met the aware --since cutoff:
+#     "can't compare offset-naive and offset-aware datetimes", uncaught, on the first
+#     such line. Layer: script run over a one-file corpus, since the failure is the crash.
+# ---------------------------------------------------------------------------
+w_tx="$(mktemp -d)"; mkdir -p "$w_tx/-Users-u-Documents-projects-p"
+python3 - "$w_tx/-Users-u-Documents-projects-p/s.jsonl" <<'PYW'
+import json, sys
+rows = [
+  {"type": "assistant", "timestamp": "2026-09-01T10:00:00", "message": {"content": [
+      {"type": "tool_use", "id": "t1", "name": "Bash", "input": {"command": "pytest -q"}}]}},
+  {"type": "user", "timestamp": "2026-09-01T10:00:30", "message": {"content": [
+      {"type": "tool_result", "tool_use_id": "t1", "content": "1 passed"}]}},
+]
+open(sys.argv[1], "w").write("\n".join(json.dumps(r) for r in rows) + "\n")
+PYW
+out_w="$(python3 "$RETRO/mine_slow_tests.py" --transcripts-root "$w_tx" --since 2026-08-01 2>&1)"
+grep -q 'offset-naive' <<<"$out_w" && fail "(w) mine_slow_tests crashed on an offset-less transcript timestamp: $out_w"
+grep -q 'Traceback' <<<"$out_w" && fail "(w) mine_slow_tests raised on an offset-less transcript timestamp: $out_w"
+grep -q 'timed test invocations : 1' <<<"$out_w" || fail "(w) offset-less row dropped instead of counted: $out_w"
+rm -rf "$w_tx"
+out_w2="$(python3 -c '
+import sys, datetime
+sys.path.insert(0, sys.argv[1])
+import mine_verification as V, mine_slow_tests as S
+for m in (V, S):
+    t = m.parse_ts("2026-09-01T10:00:00")
+    print(m.__name__, "aware" if t is not None and t.tzinfo else "NAIVE")
+' "$RETRO" 2>&1)"
+grep -q 'NAIVE' <<<"$out_w2" && fail "(w) parse_ts must return an aware datetime in both miners: $out_w2"
+
+# ---------------------------------------------------------------------------
+# (x) ONE PROJECT-NAME DECODER (audit-s32). mine_slow_tests.project_of searched for the
+#     FIRST unanchored `projects-`, where mine_items.short_project_dir (and
+#     mine_preferences.short) strip up to the LAST `-projects-`. A dir whose name merely
+#     ends a word in "projects" came out as a different project, and one with two
+#     `-projects-` segments came out longer. The three must agree.
+# ---------------------------------------------------------------------------
+out_x="$(python3 -c '
+import sys
+sys.path.insert(0, sys.argv[1])
+import mine_items as I, mine_preferences as P, mine_slow_tests as S
+names = ["-Users-me-Documents-projects-foo-ws",
+         "-Users-me-Documents-myprojects-foo",
+         "-Users-me-projects-a-projects-b",
+         "-Users-me-Documents-projects-"]
+bad = [n for n in names if len({I.short_project_dir(n), P.short(n), S.project_of(n)}) != 1]
+print("AGREE" if not bad else "DIVERGED " + repr(bad))
+print(I.short_project_dir(names[0]), I.short_project_dir(names[1]), I.short_project_dir(names[2]))
+' "$RETRO" 2>&1)"
+out_x1="${out_x%%$'\n'*}"; out_x2="${out_x#*$'\n'}"
+[[ "$out_x1" == AGREE ]] || fail "(x) project-name decoders disagree: $out_x"
+[[ "$out_x2" == 'foo-ws -Users-me-Documents-myprojects-foo b' ]] || fail "(x) short_project_dir contract changed: $out_x"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 
 echo "OK — usage-retro: provenance gate (tool_result attributes nothing, real prompt does), strict-span rule at the 3-edit boundary, predicate pinned, roots honoured end-to-end, rootless run refused, project-scoped id resolution, one bad line skips the line not the session, machine-independent transcript prefix, one shared runner vocabulary, mine_errors takes a plain-date --since, tool events walk subagents and parse the exit code, a script is attributed by argv and a wrap carries its --out, census promoted, nested Workflow transcripts walked with their session as parent, pages join the registry by basename, miss? is silent while the skill is already running"

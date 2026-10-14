@@ -44,4 +44,13 @@ run_case backlog escalate-finding.sh F-1
 run_case loop escalate-finding-to-loop.sh F-1 --loop
 run_case remediate remediation-loop-spec.sh 2026-06-01-first-pass
 
-if [[ $failures -eq 0 ]]; then echo "OK — missing-sibling messages print the reinstall command and never run it (3 scripts)"; else exit 1; fi
+# The project-vendored fallback: no plugin sibling, but <project>/skills/loop carries the script.
+# require_sibling_script keeps this second candidate; the stub proves it was the one resolved.
+STUB_RAN="$TMP/loop-stub-ran"
+mkdir -p "$TMP/loop/proj/skills/loop/scripts"
+printf '#!/bin/sh\ntouch "%s"\nexit 1\n' "$STUB_RAN" > "$TMP/loop/proj/skills/loop/scripts/new-loop-spec.sh"
+chmod +x "$TMP/loop/proj/skills/loop/scripts/new-loop-spec.sh"
+(cd "$TMP/loop/proj" && PATH="$TMP/bin:$PATH" bash "$TMP/loop/skills/audit/scripts/escalate-finding-to-loop.sh" F-1 --loop >/dev/null 2>&1)
+[[ -e "$STUB_RAN" ]] || fail "vendored: <project>/skills/loop/scripts/new-loop-spec.sh was not resolved as the fallback sibling"
+
+if [[ $failures -eq 0 ]]; then echo "OK — missing-sibling messages print the reinstall command and never run it (3 scripts) and a project-vendored sibling is the fallback"; else exit 1; fi

@@ -16,6 +16,20 @@ TEMPLATES_DIR="$SKILL_DIR/assets/templates"
 
 # ---- audit-specific helpers only below this line ----
 
+# require_sibling_script <var> <skill> <script> <project-root>: set <var> to the path of
+# another skill's executable script, or die. The plugin ships every skill under one
+# skills/ folder, so the sibling is normally "$SKILL_DIR/../<skill>/scripts/<script>";
+# "<project-root>/skills/..." covers an audit copied out of the plugin into a project
+# that carries its own skills/ folder. Runs in the caller's shell (printf -v, no
+# command substitution) so the die exits the calling script.
+require_sibling_script() {
+  local __var="$1" __skill="$2" __script="$3" __root="$4" __c
+  for __c in "$SKILL_DIR/../$__skill/scripts/$__script" "$__root/skills/$__skill/scripts/$__script"; do
+    if [[ -f "$__c" && -x "$__c" ]]; then printf -v "$__var" '%s' "$__c"; return 0; fi
+  done
+  die "$__skill script not found: the aidex plugin install looks incomplete; reinstall it with 'claude plugin install aidex@aidex' or run /reload-plugins."
+}
+
 # Known audit types — canon SHORT names (decision/2026-07-02-audit-rebuild-canon-decisions)
 AUDIT_TYPES=(ux ai-opportunities security perf a11y hitl retest test-coverage docs-coverage rule-ablation custom)
 
