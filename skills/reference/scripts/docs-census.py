@@ -206,6 +206,18 @@ class Axis:
         return items, None
 
 
+def _record(chunk: str) -> dict[str, str]:
+    """One blank-line separated chunk of `key: value` lines; blank and `#` lines are skipped."""
+    rec: dict[str, str] = {}
+    for line in chunk.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        k, _, v = line.partition(":")
+        rec[k.strip()] = v.strip()
+    return rec
+
+
 def load_profile(path: Path) -> tuple[list[Axis], list[str], str]:
     """Parse the ```census block. Records are blank-line separated key: value.
 
@@ -221,17 +233,11 @@ def load_profile(path: Path) -> tuple[list[Axis], list[str], str]:
     block = m.group(1)
     axes: list[Axis] = []
     for chunk in re.split(r"\n\s*\n", m.group(1).strip()):
-        rec: dict[str, str] = {}
         # Count `axis:` BEFORE the comment skip. Commenting one line out is the
         # most natural way to disable a record, and it used to slip past the
         # counter while the record's other keys still overwrote the previous one.
         axis_lines = len(re.findall(r"^\s*#?\s*axis\s*:", chunk, re.M))
-        for line in chunk.splitlines():
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            k, _, v = line.partition(":")
-            rec[k.strip()] = v.strip()
+        rec = _record(chunk)
         if not rec:
             continue
         if axis_lines > 1:
@@ -276,13 +282,7 @@ def load_topics(path: Path) -> tuple[dict[str, dict], list[str]]:
         return {}, problems
     topics: dict[str, dict] = {}
     for chunk in re.split(r"\n\s*\n", m.group(1).strip()):
-        rec: dict[str, str] = {}
-        for line in chunk.splitlines():
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            k, _, v = line.partition(":")
-            rec[k.strip()] = v.strip()
+        rec = _record(chunk)
         if not rec:
             continue
         name = rec.get("topic", "")
@@ -437,7 +437,7 @@ def parse_iso(stamp: str):
     return datetime.datetime.fromisoformat(stamp)
 
 
-def stale_report(axes: list[Axis], owners, root: Path, refs: Path) -> list[str]:
+def stale_report(axes: list[Axis], owners, root: Path) -> list[str]:
     """Flag items whose SOURCE moved after their owning document last changed.
 
     Modelled on audit's coverage sweep -- the high-signal event there is
@@ -682,7 +682,7 @@ def main() -> int:
     report["errors"] = problems + cover_problems + protocol_problems + report["errors"]
     report["topics"] = {k: v["protocol"] for k, v in sorted(topics.items())}
     if args.stale and not args.dry_run:
-        report["stale"] = stale_report(axes, owners, root, refs)
+        report["stale"] = stale_report(axes, owners, root)
     report["modules_scanned"] = scanned
     report["modules_declaring"] = declaring
 

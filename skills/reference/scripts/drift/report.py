@@ -22,8 +22,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REGISTER = os.path.join(HERE, "..", "..", "..", "backlog", "scripts", "register-item.sh")
 
 # USD per million tokens: (input, cache_create_5m, cache_create_1h, cache_read, output). Keys are model-id
-# prefixes, longest match wins. Copied from the owner's pricing table (platform pricing page, read 2026-10-07):
-# the pilot's pricing.py lives outside this repo. Only the models drift agents can run on.
+# prefixes, longest match wins. Mirrors skills/audit/scripts/usage-retro/pricing.py and must be kept in step
+# with it (an import instead of a copy is undecided).
 PRICES = {
     "claude-opus-5-5": (4, 5, 8, 0.20, 20),
     "claude-opus-5": (5, 6.25, 10, 0.50, 25),

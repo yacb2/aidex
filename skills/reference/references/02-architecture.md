@@ -177,7 +177,7 @@ module, over two days.
 
 ## The sweep, in order
 
-Stages 2, 3 and 5 are unchanged from `01`. Stages 1 and 4 are substituted.
+Stages 2 and 3 follow `01` (with the small additions noted in them). Stages 1 and 4 are substituted, and stage 5 is new.
 
 1. **Code — enumerate, don't read.** Not guards: **branches** (§2), declaration/execution splits
    (§1), string-named references, and the settings surface. Output: a list of configurations.
