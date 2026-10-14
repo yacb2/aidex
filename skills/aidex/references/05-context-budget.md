@@ -109,7 +109,7 @@ Each `agents/*.md` inside an installed plugin is loaded on every session, regard
 
 When a project places a skill under `.claude/skills/<name>/` that shadows a global skill with the same `name` field, both pay metadata cost (global loader still lists it).
 
-- Cross-reference `${CLAUDE_PLUGIN_ROOT}/skills/<name>/SKILL.md` frontmatter `name:` with `.claude/skills/<name>/SKILL.md`.
+- Cross-reference `~/.claude/skills/<name>/SKILL.md` (or `${CLAUDE_PLUGIN_ROOT}/skills/<name>/SKILL.md` for a plugin skill) frontmatter `name:` with `.claude/skills/<name>/SKILL.md`.
 - Compare `description` fields: Jaccard similarity on word sets >0.7 → duplicate.
 - Resolution: either delete the local copy (accept global) or unlink the global (keep local override). Don't keep both.
 

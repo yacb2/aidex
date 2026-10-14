@@ -42,14 +42,15 @@ Standards for creating Claude Code skills with progressive disclosure.
 
 | Scope | Location | Available in |
 |-------|----------|-------------|
-| Global | `${CLAUDE_PLUGIN_ROOT}/skills/<name>/` | All projects |
+| Global (user-installed) | `~/.claude/skills/<name>/` | All projects |
+| Plugin (aidex) | `${CLAUDE_PLUGIN_ROOT}/skills/<name>/` | All projects with the plugin enabled |
 | Project | `.claude/skills/<name>/` | Only that project |
 
 **Resolution order:** Project-level overrides global if same name exists.
 
 **When asked to update a skill:**
 1. Check if the skill exists at project level (`.claude/skills/<name>/`)
-2. If not, check global (`${CLAUDE_PLUGIN_ROOT}/skills/<name>/`)
+2. If not, check global (`~/.claude/skills/<name>/`), then the plugin (`${CLAUDE_PLUGIN_ROOT}/skills/<name>/`)
 3. If both exist, ask which one to update
 4. If the change is project-specific but only a global skill exists, consider creating a project-level copy
 
