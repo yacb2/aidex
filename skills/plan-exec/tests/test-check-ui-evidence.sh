@@ -268,7 +268,8 @@ for h in '## UI contract' '**UI contract:**' '## UI Contract (level 2)' '## UI c
          '## 3. UI contract' '##UI contract' '## UI-contract' '## 3.1 UI contract' '## 3.1. UI contract' '## 3) UI contract' \
          '## A. UI contract' '## The UI contract' '## Section 4: UI contract' '## UI–contract' '#### UI  contract' \
          '## UIcontract' '- **UI contract:** level 2' '1. **UI contract**' '> ## UI contract' '**UI contract** is not needed here' \
-         '# UI Contract 9/10 Implementation Plan' '__UI contract__' '- __UI contract:__ level 1'; do
+         '# UI Contract 9/10 Implementation Plan' '__UI contract__' '- __UI contract:__ level 1' \
+         $'## UI\xc2\xa0contract' $'**\xc2\xa0UI contract:**'; do
   row "UI: '$h'" 1 "part 1" "" -- "$(plan "$(slot)" "$h" '- phase 3 green')" 3
 done
 for m in '- Screen mockups / wireframes (routed to `feat/ui-contract-skill`, which works from the' \
@@ -301,6 +302,12 @@ printf '# Plan\n\n## UI contract\n\n1. Level 1\n' > "$TMP/nolog.md"
 row "refused: UI plan with no Execution log" 2 "no '## Execution log'" "" -- "$TMP/nolog.md" 3
 row "refused: UI plan with an empty Execution log" 2 "empty" "" -- "$(plan "$(slot)" "$UI")" 3
 row "refused: UI evidence only inside a code fence" 2 "empty" "" -- "$(plan "$(slot)" "$UI" '```' "$SURFACE" "$GATE" "$PREDS" '```')" 3
+# one invalid UTF-8 byte must not truncate the read: under a UTF-8 locale `tr` stopped at it
+BAD=$'\xff'
+row "invalid byte: one before the UI contract does not make the plan non-UI" 1 "part 1" "not a UI plan" -- \
+  "$(plan "$(slot)" "P $BAD"$'\n\n'"$UI" '- phase 3 green')" 3
+row "invalid byte: a record after it in the log still counts" 1 "part 1" "$NOT1" -- \
+  "$(plan "$(slot)" "$UI" "$SURFACE" "$GATE" "$PREDS" "- note $BAD" "$S rejected")" 3
 printf '# Phase 3\n\n[← Back to Index](00-index.md)\n\n## Execution log\n\n- phase 3 green\n' > "$TMP/phase.md"
 row "refused: a phase file (it links back to its 00-index.md)" 2 "00-index.md" "" -- "$TMP/phase.md" 3
 
