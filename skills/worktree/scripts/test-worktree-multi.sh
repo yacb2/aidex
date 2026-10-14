@@ -230,6 +230,109 @@ done
 n_ex="$(grep -cx '\.wt-slot' "$PX/.git/info/exclude" 2>/dev/null)"
 [[ "$n_ex" == 1 ]] || fail "exclude: .wt-slot appears $n_ex times in the shared info/exclude, want 1"
 
+# Old runs left a bare `.env` and one bookkeeping block per create in the shared
+# info/exclude (dashboard_template_ws has 13). The next create migrates them, but ONLY
+# inside those blocks (BL-770). Golden file, written by hand: block 1 absorbs the other
+# blocks (`/sub/` from block 2), every user line stays in place and in order (a `.env`
+# that is the SECOND in its block, `!keep.log` before `*.log`), a user section with no
+# blank line before the next block is not swallowed, and the block ends with a blank.
+PM="$TMP/mproj"
+mkdir -p "$PM" && git -C "$PM" init -q -b main
+git -C "$PM" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
+H='# aidex worktree bookkeeping (worktree.sh)'
+EXM="$PM/.git/info/exclude"
+cat > "$EXM" <<EOT
+# user rules
+.env
+*.log
+
+$H
+.wt-slot
+.wt-branch
+.env
+
+$H
+.wt-slot
+.wt-branch
+.env
+/sub/
+# my own
+keep-me
+$H
+.wt-slot
+.wt-branch
+.env
+
+# case A
+*.o
+$H
+.wt-slot
+.wt-branch
+/.env
+.env
+secrets.txt
+
+$H
+.wt-slot
+.wt-branch
+.env
+!keep.log
+*.log
+EOT
+cat > "$TMP/mproj.golden" <<EOT
+# user rules
+.env
+*.log
+
+$H
+.wt-slot
+.wt-branch
+/.env
+/sub/
+
+# my own
+keep-me
+# case A
+*.o
+.env
+secrets.txt
+!keep.log
+*.log
+EOT
+( cd "$PM" && AIDEX_WT_INTERNAL=1 bash "$SCRIPT" create --slug m1 --branch bm1 --repo . --dest "$TMP/mproj-wt-m1" >/dev/null 2>&1 ) \
+  || fail "migrate: root create m1 failed"
+diff -u "$TMP/mproj.golden" "$EXM" >"$TMP/mproj.diff" 2>&1 \
+  || fail "migrate: exclude differs from the golden file: $(tr '\n' '|' < "$TMP/mproj.diff")"
+sum1="$(cksum < "$EXM")"
+( cd "$PM" && AIDEX_WT_INTERNAL=1 bash "$SCRIPT" create --slug m2 --branch bm2 --repo . --dest "$TMP/mproj-wt-m2" >/dev/null 2>&1 ) \
+  || fail "migrate: root create m2 failed"
+[[ "$(cksum < "$EXM")" == "$sum1" ]] || fail "migrate: a second create must leave the exclude file byte-identical"
+[[ -z "$(ls "$PM/.git/info" | grep -v '^exclude$')" ]] || fail "migrate: a temp file was left in info/"
+
+# A block that lacks a wanted line gets it INSIDE the block, not appended after the
+# user's rules that follow it (BL-770): `.wt-branch` must land before the blank line.
+PN="$TMP/wproj"
+mkdir -p "$PN" && git -C "$PN" init -q -b main
+git -C "$PN" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
+cat > "$PN/.git/info/exclude" <<EOT
+$H
+.wt-slot
+/.env
+*.log
+EOT
+cat > "$TMP/wproj.golden" <<EOT
+$H
+.wt-slot
+/.env
+.wt-branch
+
+*.log
+EOT
+( cd "$PN" && AIDEX_WT_INTERNAL=1 bash "$SCRIPT" create --slug w1 --branch bw1 --repo . --dest "$TMP/wproj-wt-w1" >/dev/null 2>&1 ) \
+  || fail "migrate-missing: root create w1 failed"
+diff -u "$TMP/wproj.golden" "$PN/.git/info/exclude" >"$TMP/wproj.diff" 2>&1 \
+  || fail "migrate-missing: exclude differs from the golden file: $(tr '\n' '|' < "$TMP/wproj.diff")"
+
 # With no --base, no origin/HEAD and no main/master, create forked from the
 # ambient checkout (feature-x), first silently, then with a warning. A wrong base
 # is expensive to undo, so it refuses and asks for --base (owner, 2026-10-12 Q4),
