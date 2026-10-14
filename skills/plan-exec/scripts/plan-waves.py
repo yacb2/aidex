@@ -80,7 +80,7 @@ def dep_entries(fm):
     if raw.startswith("["):
         items = raw.strip("[]").split(",")
     elif raw:
-        items = [raw]
+        items = raw.split(",")
     else:
         items = []
         for line in fm[m.end():].split("\n")[1:]:

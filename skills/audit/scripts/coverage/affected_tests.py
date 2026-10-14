@@ -11,8 +11,9 @@ CLI: affected_tests.py <workspace-root> [--since <ref>] [--command]
 nothing else, so a caller can run the selection directly instead of composing it
 from the human-readable report. Exit 3 means "no selection available" — no map, git
 failure, no changed files, nothing matched, or only advisories (e2e-only match,
-no test_hint) — and the caller must fall back to the full suite and say so. The
-reason is always on stderr.
+no test_hint) — and the caller names the narrowest paths it can and says so (the full suite is the
+boundary gate only). The reason is always on stderr. An `# INCOMPLETE` selection
+(unmapped scope) still requires the full suite before integration.
 
 Changed-file collection per repo:
   - default: working tree + staged (`git status --porcelain`)

@@ -86,6 +86,12 @@ d="$TMP/blocklist"
 raw "$d" 1 $'depends_on:\n  - setup\nphase-type: afk-impl' $'**Files:** `a.txt`\n\n'"$UNDONE"
 check "YAML block-list slug dependency blocks" "$d" "blocked (unmet or cyclic dependency): 1"
 
+# plan-exec-c04: an unbracketed comma scalar is a list, not one slug
+d="$TMP/commascalar"
+phase "$d" 1 "" afk-impl '`a.txt`' 1; phase "$d" 2 "" afk-impl '`b.txt`' 0
+raw "$d" 3 $'depends_on: 1, 2\nphase-type: afk-impl' $'**Files:** `c.txt`\n\n'"$UNDONE"
+check "unbracketed comma depends_on is a list" "$d" $'wave 1: 2\nwave 2: 3'
+
 # F4: mutants
 d="$TMP/partial"   # dependency with one ticked and one unticked box is NOT done
 raw "$d" 1 $'depends_on: []\nphase-type: afk-impl' $'**Files:** `a.txt`\n\n'"$CK- [x] A

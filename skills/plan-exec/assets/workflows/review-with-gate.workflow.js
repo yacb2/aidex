@@ -17,7 +17,10 @@
 // CONTRACT: launched by the plan-exec skill via the `Workflow` tool with
 //   args = JSON.stringify({ planPath, diffCmd, successCriteria, standards_ref,
 //                           reviewModel, reviewEffort, reviewAgentType,
-//                           autonomySurface, preAuthorized, maxRetries })
+//                           autonomySurface })
+//   (no `preAuthorized`, no `maxRetries`: this form implements nothing and performs no
+//   action to authorize; a failed review goes to the arbiter, and only a null verdict is
+//   retried, once)
 // `args` arrives as a JSON STRING (Phase-1 gotcha) -> parseArgs() does JSON.parse.
 // - `diffCmd` — a Bash command the reviewer runs to obtain the cumulative diff under review
 //   (e.g. "cd <repo> && git diff main...HEAD"). The script can't run bash; the reviewer is a

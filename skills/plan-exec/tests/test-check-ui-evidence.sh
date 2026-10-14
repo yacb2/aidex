@@ -86,6 +86,11 @@ good "a failing line for phase 3.1 does not touch phase 3" "$SURFACE" "$GATE" "$
 good "a label quoted mid-line is not a record" "$SURFACE" "$GATE" "$PREDS" \
   "- note: the ui-gate: phase 3 · no-snapshot-update · passed=44 failed=3 line was a rerun"
 good "a heading inside a code fence does not end the log" '```' '## not a heading' '```' "$SURFACE" "$GATE" "$PREDS"
+good "a four-backtick fence holding a three-backtick line stays one fence (c18)" '````md' '```' 'example' '````' "$SURFACE" "$GATE" "$PREDS"
+good "a closing fence that carries an info string does not close the fence (c18)" '```' '```js' '```' "$SURFACE" "$GATE" "$PREDS"
+unclosed="$TMP/unclosed.md"
+printf '%s\n' '```markdown' '## Install' '```bash' 'npm i' '```' '```' '' '## UI contract' '' '## Execution log' > "$unclosed"
+row "a file that ends inside an open fence is refused, naming the fence and its line (c18 fail-open)" 2 "unclosed code fence opened on line 6" "" -- "$unclosed" 3
 
 # ================= part 1: near-misses =================
 bad1 "no ui-surface line" "- phase 3 green"
@@ -227,6 +232,9 @@ row "total row: pending on the real last phase is refused" 1 "r/g.html" "" -- \
   "$(ptot '' '- ui-surface: phase 5 · pending-owner · r/g.html · cells: a' "$(PG 5 | sed -n 1p)" "$(PG 5 | sed -n 2p)")" 5
 row "total row: pending on phase 4 is accepted (Total is not a phase)" 0 "pending-owner" "" -- \
   "$(ptot '' '- ui-surface: phase 4 · pending-owner · r/g.html · cells: a' "$(PG 4 | sed -n 1p)" "$(PG 4 | sed -n 2p)")" 4
+# a second table under the Overview heading does not move the final phase (c17)
+row "second table: rows of a later table are not phases (pending on the real last phase is refused)" 1 "final phase (5)" "" -- \
+  "$(f="$(pl '' '- ui-surface: phase 5 · pending-owner · r/g.html · cells: a' "$(PG 5 | sed -n 1p)" "$(PG 5 | sed -n 2p)")"; addrow "$f" '\nNotes:\n\n| Item | Cost |\n|---|---|\n| 6 | extra |'; printf '%s' "$f")" 5
 # a last row whose first column is not a bare id (`**5**`, `Deploy`) is the real last phase: fail closed
 pbold() { local f; f="$(pl "$@")"; sed -i.bak 's/^| 5 | - | Close |$/| **5** | - | Close |/' "$f"; rm -f "$f.bak"; printf '%s' "$f"; }
 row "fail closed: a bold last row '**5**' is still final (skip with a page open fails)" 1 "r/g.html" "" -- \

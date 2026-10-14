@@ -291,7 +291,8 @@ const ctx = {
 
 const results = []
 const batchedAsks = []
-for (const p of cfg.phases || []) {
+if (!(cfg.phases || []).length) throw new Error('pipeline: args.phases is empty or missing')
+for (const p of cfg.phases) {
   phase('Execute')
   const phaseSpec = {
     id: p.id,
@@ -341,4 +342,6 @@ for (const p of cfg.phases || []) {
   }
 }
 
-return { planPath: cfg.planPath, results, batchedAsks }
+// Phases a halt skipped: absent from `results`, named here (the fan-out form's `blocked`).
+const blocked = cfg.phases.map((p) => p.id).filter((id) => !results.some((r) => r.phaseId === id))
+return { planPath: cfg.planPath, results, blocked, batchedAsks }

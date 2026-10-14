@@ -5,6 +5,8 @@
 #   plan-exec-c05  fan-out: phases no wave can ever run (typo'd or cyclic depends_on) are in `blocked`
 #   plan-exec-c19  fan-out: a phase whose runner crashed (parallel() gives null) has a result row, and
 #                  is not listed in `blocked` as if a dependency had skipped it
+#   plan-exec-c06  fan-out: depends_on matches ids by string (1 vs '1'), a scalar depends_on is a one-item list
+#   plan-exec-c10  pipeline: phases skipped by a halt are in `blocked`; no phases at all throws, never an empty success
 #   plan-exec-c16  fan-out and pipeline: an arbiter ASK after retry exhaustion reaches `batchedAsks`
 #   plan-exec-c09  review: a null verdict is escalated, not a TypeError; a `passed:true` verdict that
 #                  carries a blocking finding fails the gate
@@ -24,7 +26,7 @@ cat > "$TMP/probe.mjs" <<'PROBE'
 import fs from 'fs'
 const [file, scenario] = process.argv.slice(2)
 const src = fs.readFileSync(file, 'utf8').replace(/^export const meta/m, 'const meta')
-const gateFails = scenario === 'ask-after-exhaustion'
+const gateFails = scenario === 'ask-after-exhaustion' || scenario === 'halt'
 const agent = async (prompt, opts) => {
   const label = opts.label
   if (label.startsWith('verify:')) return { passed: !gateFails, exit_code: gateFails ? 1 : 0, evidence: 'e' }
@@ -44,6 +46,12 @@ const phases = {
   unrunnable: [{ id: 'p2', spec: 's', gateCmd: 'true' }, { id: 'p3', spec: 's', gateCmd: 'true', depends_on: ['p1'] }],
   crash: [{ id: 'x', spec: 's', gateCmd: 'true' }, { id: 'y', spec: 's', gateCmd: 'true', depends_on: ['x'] },
           { id: 'z', spec: 's', gateCmd: 'true' }],
+  idtypes: [{ id: 1, spec: 's', gateCmd: 'true' }, { id: 2, spec: 's', gateCmd: 'true', depends_on: ['1'] },
+            { id: 'c', spec: 's', gateCmd: 'true', depends_on: '2' },
+            { id: '4', spec: 's', gateCmd: 'true' }, { id: '5', spec: 's', gateCmd: 'true', depends_on: [4] },
+            { id: 'b', spec: 's', gateCmd: 'true', depends_on: '' }],
+  pass: [{ id: 'a', spec: 's', gateCmd: 'true' }],
+  halt: [{ id: 'a', spec: 's', gateCmd: 'false' }, { id: 'b', spec: 's', gateCmd: 'true' }],
   'ask-after-exhaustion': [{ id: 'a', spec: 's', gateCmd: 'false' }],
   'blocked-ask': [{ id: 'a', spec: 's', gateCmd: 'true' }],
   'arbiter-down': [{ id: 'a', spec: 's', gateCmd: 'true' }],
@@ -66,6 +74,14 @@ check() {
 FAN=fan-out-with-gate.workflow.js
 check "c05 a phase waiting on an unknown dependency is reported blocked" $FAN unrunnable \
   "o.blocked.includes('p3') && o.results.some(r => r.phaseId==='p2' && r.passed)"
+check "c06 numeric ids, string depends_on and a scalar depends_on all resolve" $FAN idtypes \
+  "!o.threw && o.blocked.length === 0 && o.results.length === 6 && o.results.every(r => r.passed)"
+check "c10 pipeline: a halt lists the phases it skipped as blocked" pipeline-with-gate.workflow.js halt \
+  "o.blocked && o.blocked.join() === 'b'"
+check "c10 pipeline: an empty phases list is refused, saying so" pipeline-with-gate.workflow.js none "/phases is empty/.test(o.threw)"
+check "c10 fan-out: an empty phases list is refused, saying so" $FAN none "/phases is empty/.test(o.threw)"
+check "c10 pipeline: a run that passes every phase has nothing blocked" pipeline-with-gate.workflow.js pass \
+  "o.blocked && o.blocked.length === 0 && o.results.length === 1"
 check "c19 a crashed phase has a result row naming it" $FAN crash \
   "o.results.some(r => r && r.phaseId==='x' && r.passed===false && r.error)"
 check "c19 a crashed phase is not listed as dependency-blocked, its descendant is" $FAN crash \

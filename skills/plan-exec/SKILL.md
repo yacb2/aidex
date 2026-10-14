@@ -184,13 +184,14 @@ For each phase in order:
    works (relevant test suite + type-check). **Iterate on the selection, not the
    whole suite:** `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/affected-tests.sh --command`
    prints one runnable command for the tests covering the phase's diff; exit 3 means
-   no selection is available, so run everything and say so. The between-phase
+   no selection is available: name the narrowest paths you can and say so (the full
+   suite is the boundary gate only). The between-phase
    checkpoint commits on the **selection**, stated rather than silent — say which
    subset ran and that the full suite has not. **The full suite gates the INTEGRATION
    boundary**: the merge, the push, or the end of the run
    (`decision/2026-08-24-full-suite-gate-moves-from-commit-to-integration`). An
-   `# INCOMPLETE` selection is the exception — unmapped scope forces the full suite
-   in-phase. It also names changed files that **measurably break** and have no E2E —
+   `# INCOMPLETE` selection does not cover everything that moved — unmapped scope
+   still requires the full suite before integration, not in-phase. It also names changed files that **measurably break** and have no E2E —
    write that spec in-phase.
 3. If verification fails: fix root cause. After 3 failed attempts on the same
    approach, stop and ask the user.

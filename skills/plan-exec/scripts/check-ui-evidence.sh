@@ -122,7 +122,12 @@ fi
 grep -q '[^[:space:]]' "$file" || refuse "'$file' is empty — nothing to check is not a pass"
 
 # Lines outside ``` fences, CR stripped.
-body="$(tr -d '\r' < "$file" | awk '/^[[:space:]]*```/{fence=!fence; next} !fence')"
+body="$(tr -d '\r' < "$file" | awk -v f="$file" '/^[[:space:]]*```/ { t = $0; sub(/^[[:space:]]*/, "", t); r = t; sub(/[^`].*$/, "", r)
+    if (!fence) { fence = length(r); at = NR; next }
+    if (length(r) >= fence && t ~ /^`+[[:space:]]*$/) { fence = 0; next } }
+  !fence
+  END { if (fence) { printf "check-ui-evidence: refused — %s ends inside an unclosed code fence opened on line %d\n", f, at > "/dev/stderr"; exit 3 } }')"
+[ $? -ne 3 ] || exit 2
 
 if [ "$visual" -eq 1 ]; then
   log="$body"; where="visual bugfix ($file)"; pfx=""
@@ -181,6 +186,8 @@ fi
 # phase_rows — `<id>\t<row>` per row of the plan's `## Phases Overview` table, in order.
 phase_rows() {
   awk '/^##[[:space:]]+Phases Overview/ { f = 1; next } f && /^##[[:space:]]/ { f = 0 }
+    f && t && !/^\|/ { f = 0 }
+    f && /^\|/ { t = 1 }
     f && /^\|/ { split($0, c, "|"); id = c[2]; sub(/^[ \t]+/, "", id); sub(/[ \t]+$/, "", id)
       if (id ~ /^[0-9A-Za-z._-]+$/ && id ~ /[0-9]/) print id "\t" $0 }' <<<"$body"
 }

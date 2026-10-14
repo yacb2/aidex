@@ -57,7 +57,7 @@ Steps 1-4 of the final phase stay in `SKILL.md`; these are steps 5-9.
 8. **Reconcile every deferral before the plan archives.** A deferral written as
    *prose* — "carry this to Phase 6-7", "Phase 8 should note it", "follow-up" — is not
    carried by anything, and it vanishes the moment the plan archives. The mechanism that
-   makes one outlive the run is `register-item.sh --origin plan` (final-phase step 3 /
+   makes one outlive the run is `register-item.sh --origin plan` (SKILL.md § Deferrals /
    `references/03-deferring-emergent-work.md`), whose `origin_ref: plan/<slug>` still
    resolves after the archive; this step is what connects the two.
 

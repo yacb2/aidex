@@ -48,7 +48,7 @@ PY
 cat > .context/plans/2026-09-10-slug-de-exportacion/00-index.md <<'MD'
 ---
 title: Slug de exportación
-status: in-progress
+status: doing
 created: 2026-09-10
 updated: 2026-09-10
 current-phase: 1
@@ -117,6 +117,10 @@ sirve para quitar acentos). Va junto a `truncate`, mismo estilo.
 MD
 
 cat > .context/plans/2026-09-10-slug-de-exportacion/02-wire-export.md <<'MD'
+---
+depends_on: [1]
+---
+
 [← Back to Index](00-index.md)
 
 # Phase 2: usar `slugify` en `export_rows`

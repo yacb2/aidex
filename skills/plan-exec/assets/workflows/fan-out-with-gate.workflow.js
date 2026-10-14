@@ -302,7 +302,10 @@ const ctx = {
   maxRetries: cfg.maxRetries ?? 2,
 }
 
-const phases = cfg.phases || []
+// Ids and depends_on entries are compared as strings (1 and '1' are one phase; a scalar
+// depends_on is a one-item list); no phases at all is a wrong launch, never an empty success.
+if (!(cfg.phases || []).length) throw new Error('fan-out: args.phases is empty or missing')
+const phases = cfg.phases.map((p) => ({ ...p, id: String(p.id), depends_on: [].concat(p.depends_on ?? []).map(String).filter((d) => d !== '') }))
 
 // Build the blind implementer for a phase (gateCmd is NOT in scope here — verifier-only).
 // WORK_SCHEMA (director pattern): the implementer reports blocked_reason instead of stopping
