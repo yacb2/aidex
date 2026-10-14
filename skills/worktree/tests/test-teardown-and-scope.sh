@@ -291,18 +291,9 @@ grep -qi 'WT_COPIES contains .env' <<<"$out" \
   || fail "copies-env: a .env in WT_COPIES must be refused before creation, got: $out"
 [[ ! -d "$TMP/pcopy-wt-x" ]] || fail "copies-env: the worktree was created before the refusal"
 
-# B. rollback must remove the same things `down` does.
-# Structural, and precise: the two call sites are compared to each other rather
-# than a shape being asserted twice. rollback passed no --copy arguments, so a
-# root-level WT_COPIES entry survived, $DEST stayed non-empty, and the removal
-# failed behind `>/dev/null 2>&1` -- invisible, and the retry that rollback's own
-# "creation is all-or-nothing" contract invites then died on "destination
-# already exists".
-awk '/rbargs=\(remove --slug/,/MULTI" "\$\{rbargs\[@\]\}"/' "$S/worktree.sh" \
-  | grep >/dev/null 'for c in $WT_COPIES; do rbargs+=(--copy "$c"); done' \
-  || fail "rollback: its remove call must carry the same --copy args as down's"
-
-# C. rollback removes what THIS run made, even when that reads as dirty.
+# B/C. rollback removes what THIS run made, even when that reads as dirty, and the
+# same --copy entries `down` does: a root-level copy (extra.txt) left behind kept $DEST
+# non-empty and the removal failed behind rollback's >/dev/null.
 # `new` refuses an existing $DEST, so everything in it is this run's. Without
 # --force, remove's up-front dirt check refused on this run's own untracked copy
 # inside a participant -- silently, behind rollback's >/dev/null -- and the retry
@@ -311,13 +302,14 @@ mkdir -p "$TMP/prb/.context/worktrees" "$TMP/prb/backend"
 cat > "$TMP/prb/.context/worktrees/config.env" <<'ENV'
 WT_PARTICIPANTS="backend"
 WT_LINKS=""
-WT_COPIES="backend/extra.txt"
+WT_COPIES="extra.txt backend/extra.txt"
 WT_PORT_VARS="DB_PORT=6400"
 ENV
 printf 'services:\n  backend:\n    image: nginx\n' > "$TMP/prb/docker-compose.yml"
 ( cd "$TMP/prb/backend" && /usr/bin/git init -q . && /usr/bin/git config user.email t@e.com \
   && /usr/bin/git config user.name t && echo x > f && /usr/bin/git add -A && /usr/bin/git commit -qm i ) >/dev/null 2>&1
 echo extra > "$TMP/prb/backend/extra.txt"   # untracked in backend, so the copy is too
+echo x > "$TMP/prb/extra.txt"                # a root-level copy: only a --copy arg removes it
 mk_docker '#!/bin/sh
 case " $* " in *" up "*) exit 1 ;; esac
 exit 0'

@@ -117,6 +117,32 @@ init_repo "$n/apps/backend"
 [[ "$(row_for "$n" nb | awk -F'\t' '{print $3}')" == "wt/nb" ]] \
   || fail "c10: the BRANCH of a nested participant must be wt/nb: $(row_for "$n" nb)"
 
+# --- the DIRTY column: a participant's work, and a root checkout's, both read YES -
+dirty_col() { row_for "$1" "$2" | awk -F'\t' '{print $5}'; }
+[[ "$(dirty_col "$n" nb)" == "no" ]] || fail "dirty: a clean nested participant must list no: $(row_for "$n" nb)"
+echo wip > "$TMP/nest-wt-nb/backend/wip.txt"
+[[ "$(dirty_col "$n" nb)" == "YES" ]] || fail "dirty: untracked work in a participant must list YES: $(row_for "$n" nb)"
+# A root-only worktree ("." participant) has its checkout as the participant itself.
+[[ "$(dirty_col "$r" lr)" == "no" ]] || fail "dirty: a clean root-only worktree must list no: $(row_for "$r" lr)"
+echo wip > "$TMP/root-wt-lr/wip.txt"
+[[ "$(dirty_col "$r" lr)" == "YES" ]] || fail "dirty: untracked work in a root-only worktree must list YES: $(row_for "$r" lr)"
+# BL-267 shape: $DEST is a checkout of the ROOT repo and the participants lack ".",
+# so only the root-checkout status line of DIRTY_LINES can see its work.
+rc="$TMP/rc"
+mkdir -p "$rc/.context/worktrees"
+printf 'WT_PARTICIPANTS="backend"\n' > "$rc/.context/worktrees/config.env"
+printf 'backend/\n.context/worktrees/\n.wt-branch\n.wt-slot\n' > "$rc/.gitignore"
+init_repo "$rc"; init_repo "$rc/backend"
+( cd "$rc" && PATH="$BIN:$PATH" bash "$WT" new rcw --branch wt/rcw --no-infra ) >/dev/null 2>&1 || fail "fixture: new rcw failed"
+mv "$TMP/rc-wt-rcw" "$TMP/rc-wt-rcw.stage"
+git_q -C "$rc" worktree add -q -b wt/root-rcw "$TMP/rc-wt-rcw"
+mv "$TMP/rc-wt-rcw.stage/backend" "$TMP/rc-wt-rcw/backend"
+mv "$TMP/rc-wt-rcw.stage/.wt-branch" "$TMP/rc-wt-rcw/.wt-branch" 2>/dev/null
+rm -rf "$TMP/rc-wt-rcw.stage"
+[[ "$(dirty_col "$rc" rcw)" == "no" ]] || fail "dirty: a clean root checkout must list no: $(row_for "$rc" rcw)"
+echo wip > "$TMP/rc-wt-rcw/root-wip.txt"
+[[ "$(dirty_col "$rc" rcw)" == "YES" ]] || fail "dirty: untracked work in a root checkout (participants without .) must list YES: $(row_for "$rc" rcw)"
+
 # --- c05 follow-up. a path with regex metacharacters is matched literally ------
 # `p[1]` as a grep pattern matches "p1", not "p[1]": the live worktree read as STRAY-DIR.
 m="$TMP/p[1]"

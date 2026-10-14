@@ -30,8 +30,8 @@
 # That single condition excludes all five test-e2e.sh files and none of the
 # dev.sh files. Verified against the field, 2026-08-21: 0 false positives.
 #
-# A finding is then a port literal the environment cannot override, in one of
-# two shapes:
+# A finding is a port value the environment cannot override, in one of three
+# shapes (scan_project below, shapes 1-3):
 #
 #   pinned-assignment   <VAR>=<literal> for a VAR named in WT_PORT_VARS, with no
 #                       ${VAR:-...} form anywhere in the file.
@@ -39,8 +39,11 @@
 #                       (`lsof -ti :3911`, `--port 3911`, `free_port 3424`).
 #                       This shape has NO variable at all, so it is strictly
 #                       worse: there is nothing for an environment to override.
+#   unsupplied-var      a swept port VARIABLE that is not in WT_PORT_VARS, so no
+#                       slot .env assigns it and its default is the main tree's
+#                       port (BL-192).
 #
-# The third of those patterns was added after the first two MISSED
+# The third inline-literal pattern was added after the first two MISSED
 # `free_port 3424` in a project's dev.sh — its own kill helper,
 # called with a literal. Matching only the shapes a specific script happens to
 # use is how a checker reports clean on a defect it was written to catch, so the
