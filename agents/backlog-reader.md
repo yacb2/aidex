@@ -23,6 +23,14 @@ never decides another. A verdict from the title, or from what an earlier item sh
 failure this agent replaces; a batch that reads less per item than a single item would is
 that failure repeated.
 
+## Later commits that undo the fix
+
+For each cited commit SHA, in the repo that holds it, run
+`git log --oneline <sha>..HEAD -- <cited paths>` and name every later commit that touches the
+same lines (read it with `git show`). A later commit that
+reintroduces or removes what the cited fix changed is evidence against `resolved`: say so in
+`residual:` with its SHA.
+
 ## Question
 
 For each item: *Does the current code satisfy this item's acceptance?*

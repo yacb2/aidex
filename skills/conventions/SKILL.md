@@ -127,7 +127,7 @@ Skill **descriptions** stay English-only regardless (D-11). The assistant contin
 
 | Type | Location | Naming |
 |------|----------|--------|
-| Global skills | `${CLAUDE_PLUGIN_ROOT}/skills/<name>/` | kebab-case |
+| Global skills (user-installed) | `~/.claude/skills/<name>/` | kebab-case |
 | Project skills | `.claude/skills/<name>/` | kebab-case |
 | Shared skills (aidex) | `${CLAUDE_PLUGIN_ROOT}/skills/<name>/` | kebab-case |
 | Plans | `.context/plans/` | `YYYY-MM-DD-<feature>.md` or `YYYY-MM-DD-<feature>/` |

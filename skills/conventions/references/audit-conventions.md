@@ -153,6 +153,10 @@ IDs are **scoped to a methodology** so that `BUG-01-3` in `ux/` and `BUG-01-3` i
 
 Two patterns, both valid. Pick one per methodology and stay consistent inside that methodology.
 
+### Qualified IDs
+
+Because the default `F-NNN` repeats across methodologies, a bare ID held by more than one methodology inventory is refused (`skills/audit/scripts/_lib.sh:101-104`, exit 2, each inventory listed). Qualify it as `<methodology>/<id>` (e.g. `ux/F-1`): the lookup then searches only `audits/<methodology>/00-inventory.md` (`_lib.sh:75-81`). The methodology part must be a single folder name; an empty part, `.`, `..` or a second `/` is refused (`_lib.sh:77-79`). `/aidex:audit escalate` passes the ID through this lookup (`skills/audit/scripts/escalate-finding.sh:121`).
+
 ### Structured IDs
 
 Format: `<CATEGORY>-<MODULE>-<N>`
