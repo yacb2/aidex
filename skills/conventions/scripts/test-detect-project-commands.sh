@@ -13,12 +13,15 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 DETECTOR="$SCRIPT_DIR/detect-project-commands.sh"
-FIXTURE="$SCRIPT_DIR/fixtures/detect-commands"
+# A private copy: the detector writes its cache into the project, and a shared in-repo
+# fixture made concurrent runs trample each other's cache (c42).
+TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+cp -R "$SCRIPT_DIR/fixtures/detect-commands" "$TMP/fixture"
+FIXTURE="$TMP/fixture"
 
 failures=0
 fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 
-# Clear any leftover cache from a prior run so this test is deterministic.
 rm -f "$FIXTURE/.claude/.aidex-detected-commands.json"
 
 out1="$(bash "$DETECTOR" --project "$FIXTURE" --json --refresh)"
@@ -41,8 +44,20 @@ out2="$(bash "$DETECTOR" --project "$FIXTURE" --json)"
 detected_at2="$(printf '%s' "$out2" | python3 -c 'import json,sys; print(json.load(sys.stdin)["detected_at"])')"
 [[ "$detected_at1" == "$detected_at2" ]] || fail "cache reuse: detected_at changed across a non-refresh run ($detected_at1 vs $detected_at2)"
 
-# Clean up the cache file this test wrote — it's not part of the fixture's committed content.
-rm -f "$FIXTURE/.claude/.aidex-detected-commands.json"
+# A nonexistent --project is refused; it used to leave ROOT empty and scan /.
+if bash "$DETECTOR" --project "$TMP/does-not-exist" --json >/dev/null 2>"$TMP/err"; then
+  fail "nonexistent --project exited 0"
+fi
+grep -q "project directory not found" "$TMP/err" || fail "nonexistent --project: the script gave no clear error (it kept going with an empty ROOT): $(cat "$TMP/err")"
+
+# The worktree fallback promises an EXECUTABLE worktree-up*.sh: a plain file is no command.
+P2="$TMP/noexec"; mkdir -p "$P2"
+printf '#!/bin/sh\n' > "$P2/worktree-up.sh"; printf '#!/bin/sh\n' > "$P2/worktree-down.sh"; chmod +x "$P2/worktree-down.sh"
+out3="$(bash "$DETECTOR" --project "$P2" --json --refresh)"
+up="$(printf '%s' "$out3" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("worktree_up_command"))')"
+down="$(printf '%s' "$out3" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("worktree_down_command"))')"
+[[ "$up" == "None" ]] || fail "non-executable worktree-up.sh was detected as a command: $up"
+[[ "$down" == "./worktree-down.sh" ]] || fail "executable worktree-down.sh not detected: $down"
 
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"

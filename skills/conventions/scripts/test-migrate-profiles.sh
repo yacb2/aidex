@@ -121,5 +121,24 @@ out="$(bash "$SCRIPT" "$R" --apply)"
 ( cd "$R" && git ls-files --error-unmatch .context/profiles/ui-contract.md >/dev/null 2>&1 ) && fail "script git-added an untracked file"
 [[ "$(bash "$SCRIPT" "$TMP/apply" --apply 2>&1)" != *UNTRACKED-MOVED* ]] || fail "a tracked move printed UNTRACKED-MOVED"
 
+# 7. a skipped move (target already exists) keeps the legacy file whitelisted (c22): rewriting
+# its line would ignore the file that stayed at the root. The new profile is untracked, so the
+# profiles whitelist must still be written or it stays ignored.
+R="$TMP/skipped"; mkdir -p "$R/.context/profiles"; ( cd "$R" && git init -q && echo old > .context/artifact-style.md
+  printf '.context/*\n!.context/artifact-style.md\n' > .gitignore
+  git add -f -A && git -c user.email=a@b -c user.name=n commit -qm init && echo new > .context/profiles/artifact.md )
+out="$(bash "$SCRIPT" "$R" --apply 2>&1)"
+[[ "$out" == *"skip: .context/artifact-style.md"* ]] || fail "skipped: not reported: $out"
+grep -q '^!\.context/artifact-style\.md$' "$R/.gitignore" || fail "skipped move: the kept legacy file's whitelist line was rewritten: $(cat "$R/.gitignore")"
+grep -qx '!\.context/profiles/' "$R/.gitignore" || fail "skipped move: profiles whitelist not written: $(cat "$R/.gitignore")"
+( cd "$R" && git check-ignore --no-index -q .context/profiles/artifact.md ) && fail "skipped move: the untracked profile is still ignored"
+
+# 7b. a move that fails is reported as failed, not as UNTRACKED-MOVED, and keeps its line
+R="$TMP/failmv"; mkdir -p "$R/.context"; ( cd "$R" && git init -q && echo u > .context/ui-contract.md && echo f > .context/profiles
+  printf '.context/*\n!.context/ui-contract.md\n' > .gitignore )
+out="$(bash "$SCRIPT" "$R" --apply 2>&1)"
+[[ "$out" != *UNTRACKED-MOVED* ]] || fail "failed mv reported as UNTRACKED-MOVED: $out"
+[[ -f "$R/.context/ui-contract.md" ]] && grep -q '^!\.context/ui-contract\.md$' "$R/.gitignore" || fail "failed mv: legacy file or its whitelist line lost: $(cat "$R/.gitignore")"
+
 if [[ $failures -gt 0 ]]; then printf '%d failure(s)\n' "$failures"; exit 1; fi
 echo "OK — migrate-profiles: dry-run inert, apply git-mv + one whitelist rewrite, dirty refused, deploy gated, BP block untouched"

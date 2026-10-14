@@ -12,7 +12,7 @@
 # applicability, not effect (memory: rule-ablation). Run both before citing the rule.
 #
 # Usage: eval-checkpoint-remedy.sh [--control] [--runs N] [--model M]
-# Exit: 0 every case met its expectation in every run · 1 otherwise · 3 usage
+# Exit: 0 every case met its expectation in every run · 1 otherwise · 3 usage or a claude -p failure
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 CANON="$HERE/../references/checkpoint-conventions.md"
@@ -54,7 +54,12 @@ MOVE: one lowercase word — fix (edit the code now), defer (register it, do not
 EDIT: one sentence naming the concrete code change you make (or 'none' when deferring or blocking)"
   for r in $(seq 1 "$RUNS"); do
     total=$((total+1))
-    out="$(printf '%s' "$prompt" | claude -p --strict-mcp-config --model "$MODEL" --output-format text 2>/dev/null)"
+    errf="$(mktemp "${TMPDIR:-/tmp}/aidex-remedy.XXXXXX")"
+    # a runner failure (auth, quota, network) is not the model answering wrong: stop and say why
+    if ! out="$(printf '%s' "$prompt" | claude -p --strict-mcp-config --model "$MODEL" --output-format text 2>"$errf")"; then
+      echo "claude -p failed on $name run $r (not scored): $(cat "$errf")" >&2; rm -f "$errf"; exit 3
+    fi
+    rm -f "$errf"
     move="$(printf '%s' "$out" | grep -i '^MOVE:' | sed -n 1p | sed 's/^[Mm][Oo][Vv][Ee]:[[:space:]]*//' | tr 'A-Z' 'a-z' | tr -d '[:space:]')"
     edit="$(printf '%s' "$out" | grep -i '^EDIT:' | sed -n 1p | sed 's/^[Ee][Dd][Ii][Tt]:[[:space:]]*//')"
     # expected is either a move word set (fix|block) or "remove": move=fix AND the

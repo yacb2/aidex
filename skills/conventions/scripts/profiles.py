@@ -25,6 +25,8 @@ def profile_write_path(context_dir, name):
 
 def resolve_profile(context_dir, name):
     """Path of the profile that exists (new path first, legacy root second), or None."""
+    if name not in LEGACY:  # unknown name: a refusal, like the bash twin
+        return None
     for path in (profile_write_path(context_dir, name),
                  os.path.join(context_dir, LEGACY[name])):
         if os.path.isfile(path):
@@ -33,6 +35,9 @@ def resolve_profile(context_dir, name):
 
 
 if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        print("usage: profiles.py <context-dir> <name>", file=sys.stderr)
+        sys.exit(2)
     found = resolve_profile(sys.argv[1], sys.argv[2])
     if found:
         print(found)
