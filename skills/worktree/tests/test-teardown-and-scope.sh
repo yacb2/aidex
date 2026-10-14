@@ -45,7 +45,7 @@ cat > "$TMP/p5/.context/worktrees/config.env" <<'ENV'
 WT_PARTICIPANTS="backend"
 WT_LINKS=""
 WT_PORT_VARS="DB_PORT=6400"
-WT_PRE_DOWN_CMD='echo PRE_DB=$DB_PORT'
+WT_PRE_DOWN_CMD='echo PRE_DB=$DB_PORT CP=$COMPOSE_PROJECT_NAME SUF=$WT_SUFFIX'
 ENV
 ( cd "$TMP/p5/backend" && /usr/bin/git init -q . && /usr/bin/git config user.email t@e.com \
   && /usr/bin/git config user.name t && echo x > f && /usr/bin/git add -A && /usr/bin/git commit -qm i ) >/dev/null 2>&1
@@ -56,6 +56,11 @@ exit 0'
 out="$( cd "$TMP/p5" && PATH="$BIN:$PATH" bash "$S/worktree.sh" down blank --force 2>&1 )"
 grep -q 'PRE_DB=6400' <<<"$out" \
   && fail "#5: a blank .wt-slot handed the MAIN tree's dev port 6400 to the teardown hook"
+# The teardown environment of a no-slot tree still names the project and suffix
+# (compose_env_lines), only the ports are left out; the hook sees the same array
+# as `compose down`.
+grep -q "CP=p5-wt-blank SUF=-blank" <<<"$out" \
+  || fail "#5: a no-slot teardown must still carry the project name and suffix, got: $out"
 grep -qi 'no slot' <<<"$out" \
   || fail "#5: a blank .wt-slot must be reported as no slot recorded, got: $out"
 # BL-796: a --no-infra tree holds no claim, so `down` has no slot dir to check and

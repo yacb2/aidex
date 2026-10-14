@@ -30,13 +30,14 @@ set -uo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 . "$(cd "$SELF_DIR/../../conventions/scripts" && pwd -P)/_lib.sh"
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/wt-config.sh"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/wt-common.sh"
 
 CENSUS=false
 TARGET=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --census) CENSUS=true; shift ;;
-    -h|--help) sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 2 ;;
+    -h|--help) wt_usage "${BASH_SOURCE[0]}"; exit 2 ;;
     *) TARGET="$1"; shift ;;
   esac
 done
