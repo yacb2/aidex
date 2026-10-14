@@ -101,6 +101,7 @@ set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 . "$(cd "$SELF_DIR/../../conventions/scripts" && pwd -P)/_lib.sh"
+. "$SELF_DIR/wt-common.sh"   # wt_usage (also in the check-*.sh scripts), wt_default_start (also in worktree-multi.sh)
 set +e   # this script reports and decides; it does not want inherited errexit
 
 SWEEP="$SELF_DIR/orphan-sweep.sh"
@@ -109,9 +110,9 @@ MULTI="$SELF_DIR/worktree-multi.sh"
 cmd="${1:-}"; shift 2>/dev/null
 # Before config loading: reading the usage must work in any directory.
 for _a in "$cmd" "$@"; do
-  case "$_a" in -h|--help) sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;; esac
+  case "$_a" in -h|--help) wt_usage "${BASH_SOURCE[0]}"; exit 0 ;; esac
 done
-case "$cmd" in new|up|down|list) ;; *) sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 2 ;; esac
+case "$cmd" in new|up|down|list) ;; *) wt_usage "${BASH_SOURCE[0]}"; exit 2 ;; esac
 
 ROOT="$(find_project_root)"
 PROJECT="$(basename "$ROOT")"
@@ -662,6 +663,36 @@ case " $WT_COPIES " in
               err "Remove it from WT_COPIES, or have the project read those values from a differently-named file. Config: $CONFIG"
               exit 2 ;;
 esac
+# Polls WT_READY_CMD in <dir> under the global `envs`, up to 60 tries one second
+# apart. Returns 0 as soon as it passes, 1 when it never does; what a failure
+# means is the caller's (`new` rolls back, `up` keeps the containers).
+wait_ready() {  # wait_ready <dir>
+  local i
+  for i in $(seq 1 60); do
+    ( cd "$1" && env "${envs[@]}" bash -c "$WT_READY_CMD" ) >/dev/null 2>&1 && { ok "ready after ${i}s"; return 0; }
+    sleep 1
+  done
+  return 1
+}
+
+# What Compose needs to resolve THIS slot, as VAR=VALUE lines: the project name,
+# the container-name suffix and the slot's ports. One source for the root `.env`
+# (write_wt_env), the `envs` array every command runs through (build_envs) and the
+# template variables (slot_env_pairs), which add WT_SLUG and WT_SLOT on top. With no
+# slot the ports are omitted, never computed: port_env "" would be slot 0, the main
+# tree's ports. Only `down` reaches that case with ports configured (a --no-infra
+# tree has an empty .wt-slot); `new` exits at its --no-infra split before
+# write_wt_env, and without WT_PORT_VARS there are no ports to omit.
+compose_env_lines() {  # compose_env_lines <slot|"">
+  printf 'COMPOSE_PROJECT_NAME=%s\n' "$CPROJ"
+  printf '%s=-%s\n' "$WT_SUFFIX_VAR" "$SLUG"
+  [[ -z "${1:-}" ]] || port_env "$1"
+}
+# Sets the global `envs` that `env "${envs[@]}"` and assert_services_running read.
+build_envs() {  # build_envs <slot|"">
+  local line; envs=()
+  while IFS= read -r line; do [[ -n "$line" ]] && envs+=("$line"); done < <(compose_env_lines "${1:-}")
+}
 write_wt_env() {
   local dest="$1" slot="$2" f="$1/.env"
   if [[ -e "$f" || -L "$f" ]] && ! head -1 "$f" 2>/dev/null | grep >/dev/null -F -- "$WT_ENV_MARKER"; then
@@ -670,11 +701,7 @@ write_wt_env() {
     err "error: $f exists and was not written by worktree.sh — refusing to overwrite it"
     return 1
   fi
-  { echo "$WT_ENV_MARKER"
-    echo "COMPOSE_PROJECT_NAME=$CPROJ"
-    echo "$WT_SUFFIX_VAR=-$SLUG"
-    port_env "$slot"
-  } > "$f"
+  { echo "$WT_ENV_MARKER"; compose_env_lines "$slot"; } > "$f"
 }
 
 # --- slot-dependent host env files: rendered, never linked or copied ----------
@@ -706,9 +733,7 @@ write_wt_env() {
 # silently picked up a variable from the invoking shell would render differently
 # for two people on the same slot, which is the class of bug this replaces.
 slot_env_pairs() {  # slot_env_pairs <slot> -> VAR=VALUE per line
-  port_env "$1"
-  printf 'COMPOSE_PROJECT_NAME=%s\n' "$CPROJ"
-  printf '%s=-%s\n' "$WT_SUFFIX_VAR" "$SLUG"
+  compose_env_lines "$1"
   printf 'WT_SLUG=%s\n' "$SLUG"
   printf 'WT_SLOT=%s\n' "$1"
 }
@@ -863,18 +888,12 @@ if [[ "$cmd" == "up" ]]; then
   write_wt_env "$DEST" "$SLOT" || { undo_claim; exit 2; }
   render_env_files "$DEST" "$SLOT" || { undo_claim; exit 2; }
 
-  envs=(COMPOSE_PROJECT_NAME="$CPROJ" "$WT_SUFFIX_VAR=-$SLUG")
-  while IFS= read -r line; do [[ -n "$line" ]] && envs+=("$line"); done < <(port_env "$SLOT")
+  build_envs "$SLOT"
   ( cd "$DEST" && env "${envs[@]}" docker compose up -d ${WT_SERVICES:-} ) || die "stack failed to start"
   if [[ -n "$WT_READY_CMD" ]]; then
-    ready=false
-    for i in $(seq 1 60); do
-      ( cd "$DEST" && env "${envs[@]}" bash -c "$WT_READY_CMD" ) >/dev/null 2>&1 && { ready=true; ok "ready after ${i}s"; break; }
-      sleep 1
-    done
     # Not a rollback, unlike `new`: `up` is the recovery verb, and the containers
     # it started are what the reader needs to inspect.
-    $ready || die "WT_READY_CMD never succeeded in 60s ($WT_READY_CMD) — the containers are up but not ready; read 'docker compose logs' in $DEST"
+    wait_ready "$DEST" || die "WT_READY_CMD never succeeded in 60s ($WT_READY_CMD) — the containers are up but not ready; read 'docker compose logs' in $DEST"
   fi
   assert_services_running "$DEST" || exit 2
   ok "stack up: $CPROJ (slot $SLOT)"
@@ -901,19 +920,9 @@ if [[ "$cmd" == "new" ]]; then
 
   # --- base branch, stated not inherited ---
   first="${REPOS[0]}"
-  # The same candidates, in the same order, as worktree-multi.sh's start point:
-  # this line only REPORTS the base, and a narrower list named the ambient branch
-  # while multi forked from origin/main (worktree-c22).
-  default_of() {  # default_of <repo>: origin/HEAD's name, main, master (local first), or fail
-    local _oh _c _cand
-    _oh="$(git -C "$ROOT/$1" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')"
-    for _c in $_oh main master; do
-      for _cand in "$_c" "origin/$_c"; do
-        git -C "$ROOT/$1" rev-parse --verify --quiet "$_cand^{commit}" >/dev/null && { printf '%s' "$_cand"; return 0; }
-      done
-    done
-    return 1
-  }
+  # The same function as worktree-multi.sh's start point (wt-common.sh): this line
+  # only REPORTS the base, and a narrower list named the ambient branch while multi
+  # forked from origin/main (worktree-c22).
   # A fork from the ambient checkout is refused, in EVERY participant, by
   # worktree-multi.sh's rule: a wrong base is expensive to undo (owner,
   # 2026-10-12). Here, before any slot or directory exists: checking only the
@@ -921,11 +930,11 @@ if [[ "$cmd" == "new" ]]; then
   # branch is used at its own tip and needs no base.
   if [[ -z "$BASE" ]]; then
     for _r in "${REPOS[@]}"; do
-      git -C "$ROOT/$_r" show-ref --verify --quiet "refs/heads/$BRANCH" || default_of "$_r" >/dev/null \
+      git -C "$ROOT/$_r" show-ref --verify --quiet "refs/heads/$BRANCH" || wt_default_start "$ROOT" "$_r" >/dev/null \
         || die "$_r: no default branch found (no origin/HEAD, main or master) to fork $BRANCH from — pass --base <commit-ish>, or create $BRANCH in $_r first (git -C $_r branch $BRANCH <commit>); nothing created"
     done
   fi
-  default_branch="$(default_of "$first")" _ambient=""
+  default_branch="$(wt_default_start "$ROOT" "$first")" _ambient=""
   if [[ -z "$default_branch" ]]; then
     default_branch="$(git -C "$ROOT/$first" branch --show-current 2>/dev/null)"
     _ambient=" (current checkout: no origin/HEAD, main or master)"
@@ -1080,8 +1089,7 @@ if [[ "$cmd" == "new" ]]; then
   render_env_files "$DEST" "$SLOT" || rollback "WT_ENV_RENDER failed"
 
   # --- the isolated stack ---
-  envs=(COMPOSE_PROJECT_NAME="$CPROJ" "$WT_SUFFIX_VAR=-$SLUG")
-  while IFS= read -r line; do [[ -n "$line" ]] && envs+=("$line"); done < <(port_env "$SLOT")
+  build_envs "$SLOT"
 
   # Authoritative parity check: this reads the BRANCH's compose file, which is
   # the one the `up` below actually uses. A branch that adds a profile-less
@@ -1094,12 +1102,7 @@ if [[ "$cmd" == "new" ]]; then
   ok "stack up: project $CPROJ"
 
   if [[ -n "$WT_READY_CMD" ]]; then
-    ready=false
-    for i in $(seq 1 60); do
-      ( cd "$DEST" && env "${envs[@]}" bash -c "$WT_READY_CMD" ) >/dev/null 2>&1 && { ready=true; ok "ready after ${i}s"; break; }
-      sleep 1
-    done
-    $ready || rollback "WT_READY_CMD never succeeded in 60s"
+    wait_ready "$DEST" || rollback "WT_READY_CMD never succeeded in 60s"
   fi
   if [[ -n "$WT_SEED_CMD" ]]; then
     ( cd "$DEST" && env "${envs[@]}" bash -c "$WT_SEED_CMD" ) || rollback "WT_SEED_CMD failed"
@@ -1207,10 +1210,8 @@ if [[ "$cmd" == "down" ]]; then
     CLAIM_SEEN="$(cat "$(SLOTDIR_FOR)/slot-$SLOT" 2>/dev/null)"
   fi
 
-  envs=(COMPOSE_PROJECT_NAME="$CPROJ" "$WT_SUFFIX_VAR=-$SLUG")
-  if [[ -n "$SLOT" ]]; then
-    while IFS= read -r line; do [[ -n "$line" ]] && envs+=("$line"); done < <(port_env "$SLOT")
-  else
+  build_envs "$SLOT"
+  if [[ -z "$SLOT" ]]; then
     # No ports rather than the wrong ports. A worktree with no slot recorded --
     # a --no-infra tree, or one whose claim is already gone -- has no ports of
     # its own, and guessing hands the teardown someone else's.

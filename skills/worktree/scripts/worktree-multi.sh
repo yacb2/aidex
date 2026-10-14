@@ -67,11 +67,10 @@ set -euo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../conventions/scripts" && pwd -P)/_lib.sh"
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/wt-env-marker.sh"
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/wt-frontmatter.sh"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/wt-common.sh"
 
 usage() {
-  # Print the whole leading comment block, whatever its length — a hardcoded
-  # line range silently truncates the moment the header grows.
-  sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  wt_usage "${BASH_SOURCE[0]}"
   exit 2
 }
 
@@ -119,20 +118,6 @@ is_valid_slug "$SLUG" || die "invalid slug: $SLUG (kebab-case, [a-z0-9-])"
 ROOT="$(pwd -P)"
 [[ -n "$DEST" ]] || DEST="$ROOT/../$(basename "$ROOT")-wt-$SLUG"
 
-# The repo's default branch as a start point: origin/HEAD's name, else main, else
-# master, LOCAL first (owner repos run ahead of origin, and an origin/* start point
-# would also set upstream tracking). Prints nothing and fails when none exists.
-default_start() {  # default_start <repo>
-  local _oh _c _cand
-  _oh="$(git -C "$ROOT/$1" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || true)"
-  for _c in $_oh main master; do
-    for _cand in "$_c" "origin/$_c"; do
-      git -C "$ROOT/$1" rev-parse --verify --quiet "$_cand^{commit}" >/dev/null && { printf '%s' "$_cand"; return 0; }
-    done
-  done
-  return 1
-}
-
 if [[ "$cmd" == "create" ]]; then
   [[ -n "$BRANCH" ]] || die "create requires --branch"
   [[ "${#REPOS[@]}" -gt 0 ]] || die "create requires at least one --repo"
@@ -150,7 +135,7 @@ if [[ "$cmd" == "create" ]]; then
       # Nothing names a default, and the ambient checkout is no base: forking from
       # it welds $BRANCH to whatever is checked out, and a wrong base is expensive
       # to undo (owner, 2026-10-12). Refused before anything is created.
-      default_start "$r" >/dev/null \
+      wt_default_start "$ROOT" "$r" >/dev/null \
         || die "$r: no default branch found (no origin/HEAD, main or master) to fork $BRANCH from — pass --base <commit-ish>, or create $BRANCH in $r first (git -C $r branch $BRANCH <commit>); nothing created"
     fi
   done
@@ -189,7 +174,7 @@ if [[ "$cmd" == "create" ]]; then
       # which welds the new branch to whatever feature branch happens to be checked out.
       # A missing default was refused above, so start is never empty here.
       start="$BASE"
-      [[ -n "$start" ]] || start="$(default_start "$r")"
+      [[ -n "$start" ]] || start="$(wt_default_start "$ROOT" "$r")"
       git -C "$ROOT/$r" worktree add --no-track -b "$BRANCH" "$DEST/$name" "$start" >/dev/null
     fi
     if [[ "$name" == "." ]]; then

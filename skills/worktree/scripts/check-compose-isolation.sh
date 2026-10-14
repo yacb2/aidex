@@ -28,6 +28,7 @@
 set -uo pipefail
 
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../conventions/scripts" && pwd -P)/_lib.sh"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/wt-common.sh"
 # _lib.sh turns errexit ON; this script reports its own failures (see the header)
 # and needs it off. Without this the failing `A="$(render ...)"` assignment killed
 # the script before its own `die "docker compose config failed"` could run --
@@ -39,7 +40,7 @@ SUFFIX_VAR="WT_SUFFIX"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --suffix-var) SUFFIX_VAR="${2-}"; shift 2 ;;
-    -h|--help) sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 2 ;;
+    -h|--help) wt_usage "${BASH_SOURCE[0]}"; exit 2 ;;
     *) FILE="$1"; shift ;;
   esac
 done
