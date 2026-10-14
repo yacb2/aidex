@@ -25,20 +25,12 @@ Usage:
   --when-skill          restrict the denominator to sessions where one of these
                         skills fired. Without it, the denominator is all sessions.
 """
-import argparse, collections, glob, json, os, sys
+import argparse, collections, glob, os, sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _reference_reads import bare_skill, pulls_into_context, tool_uses
 
 PROJECTS = os.path.expanduser("~/.claude/projects")
-
-
-def pulls_into_context(name, inp, needle):
-    """Tool calls that would put the file's CONTENT into the context window."""
-    if name in ("Read", "NotebookEdit"):
-        return needle in str(inp.get("file_path", ""))
-    if name == "Bash":
-        return needle in str(inp.get("command", ""))
-    if name == "Grep":
-        return needle in (str(inp.get("path", "")) + " " + str(inp.get("glob", "")))
-    return False
 
 
 def main():
@@ -46,7 +38,7 @@ def main():
     ap.add_argument("reference")
     ap.add_argument("--when-skill", default="")
     a = ap.parse_args()
-    gate = {s.strip() for s in a.when_skill.split(",") if s.strip()}
+    gate = {bare_skill(s.strip()) for s in a.when_skill.split(",") if s.strip()}
     needle = a.reference
 
     denom = 0
@@ -57,29 +49,18 @@ def main():
 
     for f in glob.glob(PROJECTS + "/*/*.jsonl"):
         try:
-            lines = open(f, errors="replace").read().splitlines()
+            calls = list(tool_uses(f))
         except OSError:
             continue
         fired, touched = set(), set()
-        for l in lines:
-            if not l.strip():
-                continue
-            try:
-                o = json.loads(l)
-            except Exception:
-                continue
-            if o.get("type") != "assistant":
-                continue
-            for b in o.get("message", {}).get("content", []) or []:
-                if not (isinstance(b, dict) and b.get("type") == "tool_use"):
-                    continue
-                name, inp = b.get("name") or "", b.get("input") or {}
-                if name == "Skill":
-                    sk = inp.get("skill") or ""
-                    if sk:
-                        fired.add(sk)
-                if pulls_into_context(name, inp, needle):
-                    touched.add(name)
+        for name, inp in calls:
+            if name == "Skill":
+                sk = inp.get("skill") or ""
+                if sk:
+                    fired.add(bare_skill(sk))
+            blob = pulls_into_context(name, inp)
+            if blob and needle in blob:
+                touched.add(name)
 
         in_scope = bool(fired & gate) if gate else True
         if not in_scope:

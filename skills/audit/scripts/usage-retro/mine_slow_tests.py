@@ -46,6 +46,7 @@ TX_ROOT = os.environ.get("CLAUDE_PROJECTS_ROOT") or os.path.expanduser("~/.claud
 # none of `npm run test`, `yarn test`, `tox`, `go test`, `cargo test`.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import mine_items as _MI  # noqa: E402
+from extract import parse_ts  # noqa: E402  (aware datetimes; one reader for the whole pipeline)
 TESTCMD = _MI.TESTCMD
 
 # A selector NARROWS the run. Flags that only change reporting are not selectors.
@@ -61,17 +62,7 @@ MAX_S = 3600.0
 
 def project_of(dirname):
     """~/.claude/projects/-Users-...-projects-<name> -> <name>."""
-    m = re.search(r'projects-([\w.-]+)$', dirname)
-    return m.group(1) if m else dirname
-
-
-def parse_ts(s):
-    if not s:
-        return None
-    try:
-        return datetime.datetime.fromisoformat(s.replace("Z", "+00:00"))
-    except ValueError:
-        return None
+    return _MI.short_project_dir(dirname)
 
 
 def bash_commands(obj):

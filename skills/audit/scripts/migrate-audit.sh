@@ -73,22 +73,26 @@ if [[ "$LAYOUT" -eq 1 ]]; then
   normalize_inventory() {
     local inv="$1" tmp
     tmp="$(mktemp "${TMPDIR:-/tmp}/aidex.XXXXXX")"
-    awk -F'|' '
+    # Each escaped \| is held as US while the row is split, so a cell that quotes a pipe
+    # stays one cell and Status stays cell 6 (same hiding as mark_row_escalated in _lib.sh).
+    awk "$AWK_UNESC"'
       {
-        if ($0 ~ /^\|/ && NF >= 11) {
-          s = $6; gsub(/^[[:space:]]+|[[:space:]]+$/, "", s)
+        row = $0; gsub(/\\[|]/, "\037", row)
+        n = split(row, cells, "|")
+        if ($0 ~ /^\|/ && n >= 11) {
+          s = cells[6]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", s)
           mapped = s
           if (s == "triaged") mapped = "open"
           else if (s == "escalated" || s == "closed") mapped = "done"
           else if (s == "in-progress") mapped = "doing"
-          if (mapped != s) $6 = " " mapped " "
-          out = $1
-          for (i = 2; i <= NF; i++) out = out "|" $i
-          print out
+          if (mapped != s) cells[6] = " " mapped " "
+          out = cells[1]
+          for (i = 2; i <= n; i++) out = out "|" cells[i]
+          print unesc(out)
         } else {
           print $0
         }
-      }' OFS='' "$inv" | iso_dates > "$tmp"
+      }' "$inv" | iso_dates > "$tmp"
     if ! cmp -s "$tmp" "$inv"; then
       if [[ "$APPLY" -eq 1 ]]; then mv "$tmp" "$inv"; ok "APPLIED: normalized statuses/dates in ${inv#"$ROOT"/}"
       else rm -f "$tmp"; log "WOULD: normalize legacy statuses/dates in ${inv#"$ROOT"/}"; fi

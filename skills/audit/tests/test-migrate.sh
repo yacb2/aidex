@@ -29,6 +29,7 @@ cat > "$A/00-inventory.md" <<'EOF'
 | B-2 | bug | ui | Legacy in-progress row | in-progress | P2 | 20260610 | plan/2026-06-12-ui-fixes | — |
 | B-3 | gap | nav | Legacy triaged row | triaged | P3 | 20260610 | — | needs owner |
 | B-4 | bug | api | Legacy closed row | closed | P1 | 20260610 | — | verified: abc123 |
+| B-5 | bug | api | greps "a\|b" in the router | triaged | P2 | 20260610 | — | — |
 EOF
 echo "# Methodology" > "$A/00-methodology.md"
 echo "# Changelog"   > "$A/00-changelog.md"
@@ -53,6 +54,11 @@ grep -q '| open |' "$INV" || fail "triaged row not mapped to open"
 if grep -qE 'escalated \||in-progress \||triaged \||closed \|' "$INV"; then
   fail "legacy status words survive in status cells: $(grep -E 'B-[0-9]' "$INV" | sed -n 1,2p)"
 fi
+# (audit-s34) a summary quoting a pipe (\|) is ONE cell; splitting on every | shifted the Status
+# cell by one and left this row's `triaged` unconverted. The escape itself must survive.
+B5="$(grep -E '^\| B-5 ' "$INV")"
+[[ "$B5" == *"| open |"* ]] || fail "escaped-pipe row: triaged not mapped to open: $B5"
+[[ "$B5" == *'greps "a\|b" in the router'* ]] || fail "escaped-pipe row: the \\| escape was not restored: $B5"
 grep -q '2026-06-10' "$INV" || fail "YYYYMMDD cell dates not converted to ISO"
 # (removed 2026-08-21) A `grep -qE '\| 2026061[0-9] \|'` sat here with NO FILE
 # ARGUMENT and an empty body (`then :; fi`), so it asserted nothing and read
