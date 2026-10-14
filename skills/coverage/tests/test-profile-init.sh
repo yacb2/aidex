@@ -27,6 +27,9 @@ services:
   backend:
     ports:
       - "${BACKEND_PORT:-8600}:8600"
+  db:
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-demo_db}
   backend-test:
     ports:
       - "${E2E_BACKEND_PORT:-8610}:8600"
@@ -58,6 +61,15 @@ python3 "$SCRIPT" --force "$TMP/p" >/dev/null || fail "--force must overwrite"
 # --print never writes.
 rm "$prof"; python3 "$SCRIPT" --print "$TMP/p" | grep >/dev/null "^project_slug: demo_app$" || fail "--print output"
 [[ -e "$prof" ]] && fail "--print must not write"
+# db_name is the dev database. Only compose's POSTGRES_DB names it (a `${VAR:-default}` reduces
+# to its default); DB_E2E and the template name are other databases, so without POSTGRES_DB
+# the key stays blank (coverage-c07).
+python3 "$SCRIPT" --print "$TMP/p" | grep -qx "db_name: demo_db" || fail "db_name must be demo_db (compose POSTGRES_DB)"
+mkdir -p "$TMP/t/backend"
+printf '[tool.pytest.ini_options]\n' > "$TMP/t/backend/pyproject.toml"
+printf 'DB_E2E=tpl_app_e2e\nDB_TEMPLATE=tpl_app_test_template\n' > "$TMP/t/test-e2e.sh"
+python3 "$SCRIPT" --print "$TMP/t" | grep -qx "db_name: *" \
+  || fail "db_name must be blank without POSTGRES_DB: $(python3 "$SCRIPT" --print "$TMP/t" | grep -E 'db_name|project_slug')"
 # A web project (no backend/, root package.json) resolves the web packs, never the app ones.
 mkdir -p "$TMP/w"
 printf '{"dependencies":{"payload":"^3","svelte":"^5"},"devDependencies":{"vitest":"^4","@playwright/test":"^1"}}\n' > "$TMP/w/package.json"

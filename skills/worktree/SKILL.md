@@ -83,7 +83,7 @@ Dispatch by first argument:
 | `/aidex:worktree new <slug> --branch <b> [--base <commit-ish>]` | Create a fully isolated worktree (`scripts/worktree.sh new`). The branch forks from `--base`, else the default branch's tip, never the ambient checkout; the report names it (`base feat/x (+1 over main)`). For per-repo SHAs, pre-create the branches (`git -C <repo> branch <b> <sha>`): an existing branch is used at its own tip, and `--base` with an existing branch is refused |
 | `/aidex:worktree down <slug>` | Tear it down completely and verify nothing remains. Add `--delete-branch` to also delete the branch `new` created (recorded in `.wt-branch`; a checkout that moved on is skipped, never deleted) in each participant repo — `git branch -d`, which refuses an unmerged branch, so it is its own gate. Off by default: the branch is the only trace a torn-down worktree leaves. It never merges anything. |
 | `/aidex:worktree list` | Every worktree of this project: slot, branch, stack state |
-| `bash scripts/test-db-preflight.sh --db <test-db> [--port P]` | **Read-only** check before starting a suite: is the test database `clear` (0), `BUSY` — another run holds it (1), `STALE` — an interrupted run left it behind (2), or `UNDETERMINED` (4). Never drops or terminates anything. Run it when a suite may already be in flight; the two failure states need opposite advice, and both otherwise surface as an opaque traceback |
+| `bash "${CLAUDE_SKILL_DIR}/scripts/test-db-preflight.sh" --db <test-db> [--port P]` | **Read-only** check before starting a suite: is the test database `clear` (0), `BUSY` — another run holds it (1), `STALE` — an interrupted run left it behind (2), or `UNDETERMINED` (4). Never drops or terminates anything. Run it when a suite may already be in flight; the two failure states need opposite advice, and both otherwise surface as an opaque traceback |
 
 **Tearing a worktree down is not integrating its branch.** `down` never merges, and
 that is deliberate — but the rule belongs where a session that is not running this
@@ -169,14 +169,17 @@ substitute an eyeball.
 
 ### No-args status check
 
-1. `test -f .context/worktrees/00-index.md`.
-2. If it exists: read the front-matter `updated` date and the **Topology** section's
+1. `test -f .context/worktrees/config.env` — the file `worktree.sh` actually reads, so
+   it alone decides "configured"; then `test -f .context/worktrees/00-index.md`.
+2. If `config.env` exists and `00-index.md` exists: read the front-matter `updated` date and the **Topology** section's
    human summary, and print a one-line status — e.g. "Worktree procedure recorded
    (updated 2026-06-30): split-git services (backend, frontend) glued by
    `dev.sh`." — then run the doc-shape check and **amend any gaps in-session** (see
-   "Doc-shape check" below), and point the user to `worktree.sh new`.
-3. If it does not exist: tell the user no worktree procedure is recorded yet, and offer
-   to run `/aidex:worktree bootstrap`.
+   "Doc-shape check" below), and point the user to `worktree.sh new`. If `config.env`
+   exists without `00-index.md`, say it is configured but the overview is missing and
+   offer `/aidex:worktree bootstrap` to write it.
+3. If `config.env` does not exist: tell the user no worktree procedure is recorded yet
+   (whatever `00-index.md` says), and offer to run `/aidex:worktree bootstrap`.
 4. **Orphan sweep.** Run
    [scripts/orphan-sweep.sh](scripts/orphan-sweep.sh):
    ```bash

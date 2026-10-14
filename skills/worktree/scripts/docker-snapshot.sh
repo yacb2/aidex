@@ -14,6 +14,7 @@
 #
 #   diff exits 1 when anything APPEARED since <before>. Disappearances are
 #   reported but never fail the check — a teardown is supposed to remove things.
+#   It exits 2 when either snapshot was taken with Docker unreachable: no verdict.
 #
 # Every appeared resource is annotated with the compose project that owns it,
 # or ORPHAN when nothing claims it. An ORPHAN line is the failure mode this
@@ -76,9 +77,20 @@ diff_snap() {
   fi
   [[ -f "$after" ]] || die "snapshot not found: $after"
 
+  # take() writes this marker when the daemon did not answer. Two markers (or one,
+  # against a real snapshot) compare as "nothing changed" or "everything appeared";
+  # neither is a verdict, so refuse to give one.
+  if grep -qx '# docker unavailable' "$before" "$after"; then
+    err "cannot compare: Docker was unreachable when a snapshot was taken — no verdict"
+    [[ -n "$tmp" ]] && rm -f "$tmp"
+    return 2
+  fi
+
+  # Compared by KIND and ID, not by whole line: the name column holds an image's
+  # first RepoTag, and a retag of the same ID must not read as a new image.
   local appeared gone
-  appeared="$(comm -13 "$before" "$after")"
-  gone="$(comm -23 "$before" "$after")"
+  appeared="$(awk -F'\t' 'FILENAME == ARGV[1] { k[$1 FS $2]; next } !(($1 FS $2) in k)' "$before" "$after")"
+  gone="$(awk -F'\t' 'FILENAME == ARGV[1] { k[$1 FS $2]; next } !(($1 FS $2) in k)' "$after" "$before")"
 
   local n_gone; n_gone="$(grep -c . <<<"$gone" || true)"
   if [[ "$n_gone" -gt 0 ]]; then
@@ -91,7 +103,7 @@ diff_snap() {
 
   local n_new; n_new="$(grep -c . <<<"$appeared" || true)"
   if [[ "$n_new" -eq 0 ]]; then
-    ok "ZERO RESIDUE — docker state is identical to the baseline"
+    ok "ZERO RESIDUE — nothing appeared since the baseline"
     [[ -n "$tmp" ]] && rm -f "$tmp"
     return 0
   fi

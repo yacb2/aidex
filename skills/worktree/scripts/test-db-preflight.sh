@@ -35,6 +35,9 @@ else C_Y='' C_R='' C_G='' C_0=''; fi
 
 DB="" HOST="${PGHOST:-127.0.0.1}" PORT="${PGPORT:-${DB_PORT:-}}" USER="${PGUSER:-${DB_USER:-}}"
 while [[ $# -gt 0 ]]; do
+  case "$1" in --db|--host|--port|--user)
+    [[ $# -ge 2 ]] || { printf '%sUNDETERMINED%s: %s needs a value. Nothing was checked.\n' "$C_Y" "$C_0" "$1" >&2; exit 4; } ;;
+  esac
   case "$1" in
     --db)   DB="$2"; shift 2 ;;
     --host) HOST="$2"; shift 2 ;;
@@ -85,8 +88,13 @@ if [[ -z "$EXISTS" ]]; then
   exit 0
 fi
 
+# count(*) always answers a number: an empty or non-numeric reply is a failed query,
+# and reading it as 0 sessions would call a possibly busy database STALE.
 N="$(q "SELECT count(*) FROM pg_stat_activity WHERE datname = '$DB'")"
-N="${N:-0}"
+if [[ ! "$N" =~ ^[0-9]+$ ]]; then
+  printf '%sUNDETERMINED%s: could not count the sessions on %s — nothing was decided.\n' "$C_Y" "$C_0" "$DB" >&2
+  exit 4
+fi
 
 if [[ "$N" -gt 0 ]]; then
   printf '%sBUSY%s: %s exists and %s session(s) are using it.\n' "$C_R" "$C_0" "$DB" "$N" >&2

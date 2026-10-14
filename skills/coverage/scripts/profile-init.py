@@ -229,8 +229,9 @@ def main():
         or first(r'\$\{BACKEND_PORT:-(\d+)\}:\d+', compose)
     v["e2e_backend_port"] = v["e2e_backend_port"] or first(r'\$\{E2E_BACKEND_PORT:-(\d+)\}:\d+', compose)
     v["dev_frontend_port"] = first(r'port:\s*(\d{4})', vite)
-    if v["db_name"] == "" and v["project_slug"]:
-        v["db_name"] = v["project_slug"]
+    # The dev database is named by compose's POSTGRES_DB (a `${VAR:-default}` reduces to its
+    # default); DB_E2E and the template name are other databases, so nothing else answers it.
+    v["db_name"] = first(r'POSTGRES_DB["\']?\s*[:=]\s*["\']?(?:\$\{\w+:-)?([A-Za-z0-9_]+)', compose)
     v["e2e_service"] = next((n for n in service_names(compose)
                              if re.fullmatch(r'[a-z0-9-]*backend[a-z0-9-]*test[a-z0-9-]*', n)), "")
     v["seed_bootstrap_cmd"] = "bootstrap_data" if "bootstrap_data" in e2e else ""

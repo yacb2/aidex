@@ -23,9 +23,30 @@ if [[ ! -d "$ROOT/.context" ]]; then
   echo
 fi
 
+# git_kind DIR — "repo", "worktree <main repo>", "submodule" or "none". A .git FILE is
+# followed to its gitdir: only one pointing into .git/worktrees/ or .git/modules/ is not
+# a repository of its own.
+git_kind() {
+  local g="$1/.git" gd
+  if [[ -d "$g" ]]; then echo repo
+  elif [[ -f "$g" ]]; then
+    gd="$(sed -n 's/^gitdir: *//p' "$g" | head -n 1)"
+    case "$gd" in
+      */.git/worktrees/*) echo "worktree ${gd%%/.git/worktrees/*}" ;;
+      */.git/modules/*) echo submodule ;;
+      *) echo repo ;;
+    esac
+  else echo none; fi
+}
+
 echo "-- Root git status --"
-if [[ -d "$ROOT/.git" ]]; then
+rk="$(git_kind "$ROOT")"
+if [[ "$rk" == repo ]]; then
   echo "root has its own .git"
+elif [[ "$rk" == worktree* ]]; then
+  echo "root is a linked worktree of ${rk#worktree }"
+elif [[ "$rk" == submodule ]]; then
+  echo "root is a submodule"
 else
   echo "root has NO .git"
 fi
@@ -36,10 +57,11 @@ found_subgit=0
 for d in "$ROOT"/*/; do
   [[ -d "$d" ]] || continue
   name="$(basename "$d")"
-  if [[ -d "$d/.git" ]]; then
-    echo "$name/ has its own .git"
-    found_subgit=1
-  fi
+  case "$(git_kind "$d")" in
+    repo) echo "$name/ has its own .git"; found_subgit=1 ;;
+    worktree*) echo "$name/ is a linked worktree of $(git_kind "$d" | sed 's/^worktree //')"; found_subgit=1 ;;
+    submodule) echo "$name/ is a submodule"; found_subgit=1 ;;
+  esac
 done
 [[ "$found_subgit" -eq 0 ]] && echo "(none found)"
 echo
@@ -47,7 +69,7 @@ echo
 echo "-- Orchestration / dev-workflow files (root or one level deep, by glob) --"
 found_orch=0
 patterns=(
-  "docker-compose*.yml" "docker-compose*.yaml"
+  "docker-compose*.yml" "docker-compose*.yaml" "compose.yml" "compose.yaml"
   "Dockerfile*"
   "Procfile"
   "dev.sh" "dev.ch" "start.sh"
@@ -76,7 +98,7 @@ for d in "$ROOT"/*/; do
   [[ -f "$d/pyproject.toml" ]] && signals+=("pyproject.toml")
   [[ -f "$d/requirements.txt" ]] && signals+=("requirements.txt")
   [[ -f "$d/go.mod" ]] && signals+=("go.mod")
-  [[ -d "$d/.git" ]] && signals+=("own .git")
+  [[ "$(git_kind "$d")" == repo ]] && signals+=("own .git")
   if [[ "${#signals[@]}" -gt 0 ]]; then
     joined="$(IFS=', '; echo "${signals[*]}")"
     echo "$name/ — signal(s): $joined"

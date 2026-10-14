@@ -84,5 +84,30 @@ grep -qi 'DROP DATABASE' "$LOG" \
 run --db test_example_2 ; rc=$?
 [[ $rc -eq 0 ]] || fail "(f) a valid database name must not be rejected (got $rc)"
 
+# (g) worktree-c24: the existence probe answers, then the session-count query FAILS.
+#     An empty answer is not "0 sessions": it must read UNDETERMINED (4), never STALE (2),
+#     because STALE tells the caller no run holds the database.
+cat > "$TMP/psql" <<'STUB'
+#!/usr/bin/env bash
+sql="${!#}"
+case "$sql" in
+  *pg_database*)       echo 1 ;;
+  *pg_stat_activity*)  exit 2 ;;
+  *)                   echo 1 ;;
+esac
+STUB
+chmod +x "$TMP/psql"
+run --db test_example ; rc=$?
+[[ $rc -eq 4 ]] || fail "(g) a failed session-count query must exit 4 UNDETERMINED, not STALE (got $rc)"
+grep -qi 'undetermined' "$TMP/err" || fail "(g) must say UNDETERMINED: $(cat "$TMP/err")"
+
+# (h) worktree-c25: a flag with no value is a usage error (4), not an unbound $2
+#     under set -u, whose exit 1 the contract defines as BUSY.
+for flag in --db --host --port --user; do
+  make_stub "1" "0"
+  run $flag ; rc=$?
+  [[ $rc -eq 4 ]] || fail "(h) '$flag' with no value must exit 4 (got $rc)"
+done
+
 if [[ $failures -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — test-db-preflight: undetermined/clear/busy/stale kept distinct, read-only"
