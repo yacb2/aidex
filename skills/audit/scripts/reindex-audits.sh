@@ -6,8 +6,8 @@
 #
 # Unlike the backlog/plans indexes (pure front-matter scans), run state is split:
 # each run's index.md carries type/status/dates, while the open/total finding
-# counts are derived from 00-inventory.md (the `Audit Runs` column, field 10, and
-# `Status`, field 6).
+# counts are derived from 00-inventory.md (the `Audit Runs` column, field 8 on a
+# 9-column board or field 10 on an 11-column one, and `Status`, field 6; see run_counts).
 #
 # Usage:
 #   reindex-audits.sh [--reindex]   # regenerate the index (default action)
@@ -23,12 +23,6 @@
 # its identity and status intact; only the closed-run count is understated.
 
 set -euo pipefail
-
-if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
-  C_GREEN=$'\033[32m' C_YELLOW=$'\033[33m' C_RESET=$'\033[0m'
-else C_GREEN='' C_YELLOW='' C_RESET=''; fi
-ok()   { printf '%s%s%s\n' "$C_GREEN" "$*" "$C_RESET" >&2; }
-warn() { printf '%s%s%s\n' "$C_YELLOW" "$*" "$C_RESET" >&2; }
 
 MODE=write
 case "${1:-}" in
@@ -50,7 +44,7 @@ AUDITS_DIR="$ROOT/.context/audits"
 [[ -d "$AUDITS_DIR" ]] || { warn "no audits directory at $AUDITS_DIR"; exit 0; }
 
 INDEX_FILE="$AUDITS_DIR/00-index.md"
-TODAY="$(date +%Y-%m-%d)"
+TODAY="$(today_iso)"
 
 INVENTORY=""
 [[ -f "$AUDITS_DIR/00-inventory.md" ]] && INVENTORY="$AUDITS_DIR/00-inventory.md"
@@ -63,9 +57,25 @@ INVENTORY=""
 for inv in "$AUDITS_DIR"/00-inventory.md "$AUDITS_DIR"/*/00-inventory.md; do
   [[ -f "$inv" ]] || continue
   dups="$(awk -F'|' '
-    { if (index($0,"<!--")>0) in_comment=1
-      if (in_comment) { if (index($0,"-->")>0) in_comment=0; next }
-      if ($0 !~ /^\|/) next
+    { line = $0
+      while (1) {
+        if (in_comment) {
+          end = index(line, "-->")
+          if (end == 0) { line = ""; break }
+          line = substr(line, end + 3)
+          in_comment = 0
+        } else {
+          start = index(line, "<!--")
+          if (start == 0) break
+          before = substr(line, 1, start - 1)
+          after = substr(line, start + 4)
+          end = index(after, "-->")
+          if (end == 0) { line = before; in_comment = 1; break }
+          line = before substr(after, end + 3)
+        }
+      }
+      if (line !~ /^\|/) next
+      $0 = line
       id=$2; gsub(/^[[:space:]]+|[[:space:]]+$/,"",id)
       if (id ~ /^[A-Z]+[-A-Z0-9]*-[0-9]+$/ && ++seen[id]==2) print id }' "$inv")"
   [[ -z "$dups" ]] || die "duplicate finding id(s) in $inv: $(printf '%s' "$dups" | tr '\n' ' ')— fix the inventory before reindexing (validate-audit.sh: audit-duplicate-id)"
@@ -117,9 +127,10 @@ has_md() {
 }
 
 # Count "<open>\t<total>" findings attributed to a run slug from a given inventory.
-# A finding belongs to the run when its `Audit Runs` cell (field 10) contains the
-# slug. "open" = status not in the resolved set (same set as close-audit.sh).
-# Skips HTML comment example rows. Prints "?\t?" if no inventory.
+# A finding belongs to the run when its `Audit Runs` cell (field 8, or 10 when
+# NF >= 13) lists the slug as a whole comma-separated token. "open" = status not in the resolved
+# set (same set as close-audit.sh). Skips HTML comment blocks but keeps a row's text
+# around an inline comment. Prints "?\t?" if no inventory.
 run_counts() {
   local slug="$1" inv="$2"
   [[ -n "$inv" ]] || { printf '?\t?'; return 0; }
@@ -138,9 +149,25 @@ run_counts() {
             resolved=" closed done escalated fixed dropped wontfix " }
     {
       line=$0
-      if (index(line,"<!--")>0) in_comment=1
-      if (in_comment) { if (index(line,"-->")>0) in_comment=0; next }
+      # Strip comments (single- and multi-line), keeping the rest of the row.
+      while (1) {
+        if (in_comment) {
+          end = index(line, "-->")
+          if (end == 0) { line = ""; break }
+          line = substr(line, end + 3)
+          in_comment = 0
+        } else {
+          start = index(line, "<!--")
+          if (start == 0) break
+          before = substr(line, 1, start - 1)
+          after = substr(line, start + 4)
+          end = index(after, "-->")
+          if (end == 0) { line = before; in_comment = 1; break }
+          line = before substr(after, end + 3)
+        }
+      }
       if (line !~ /^\|/) next
+      $0 = line
       # A cell quoting a pipe (\|) is one cell: hide the escape before the width test.
       gsub(/\\[|]/, "\037")
       # Audit Runs is column 7 of 9 (NF==11) since BL-057, column 9 of 11 (NF==13)

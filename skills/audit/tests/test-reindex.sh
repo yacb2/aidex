@@ -108,6 +108,47 @@ mkdir -p .context/audits/20260701-bar
 printf -- '---\ntitle: "Bar"\nstatus: doing\ncreated: 2026-07-01\nmethodology: ux-audit\n---\n' > .context/audits/20260701-bar/index.md
 check "--check fails when stale"  '! bash "$REINDEX" --check >/dev/null 2>&1'
 
+echo "== a row with an inline HTML comment is still counted (audit-s29) =="
+mkdir -p "$TMP/inline" && cd "$TMP/inline"
+mkdir -p .context/audits/20260801-inl
+printf -- '---\ntitle: "Inl"\nstatus: doing\ncreated: 2026-08-01\nmethodology: ux-audit\n---\n' > .context/audits/20260801-inl/index.md
+cat > .context/audits/00-inventory.md <<'EOF'
+| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |
+|---|---|---|---|---|---|---|---|---|
+| UX-09-1 | bug | auth | commented <!-- todo --> row | open | P1 | 20260801-inl | — | n |
+EOF
+bash "$REINDEX" >/dev/null 2>&1
+check "inline-comment row counted" 'grep -q "1 open / 1 findings" .context/audits/00-index.md'
+# audit-s29 (round 2): a multi-line comment block still hides its example row
+mkdir -p "$TMP/inline2" && cd "$TMP/inline2"
+mkdir -p .context/audits/20260801-inl
+printf -- '---\ntitle: "Inl"\nstatus: doing\ncreated: 2026-08-01\nmethodology: ux-audit\n---\n' > .context/audits/20260801-inl/index.md
+cat > .context/audits/00-inventory.md <<'EOF'
+| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |
+|---|---|---|---|---|---|---|---|---|
+<!--
+| UX-09-8 | bug | auth | example | open | P1 | 20260801-inl | — | n |
+-->
+| UX-09-1 | bug | auth | commented <!-- todo --> row | open | P1 | 20260801-inl | — | n |
+EOF
+bash "$REINDEX" >/dev/null 2>&1
+check "multi-line comment example row not counted" 'grep -q "1 open / 1 findings" .context/audits/00-index.md'
+# audit-s29 (round 2): the duplicate-id scan sees a row that carries an inline comment
+cat > .context/audits/00-inventory.md <<'EOF'
+| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |
+|---|---|---|---|---|---|---|---|---|
+| UX-09-1 | bug | auth | first | open | P1 | 20260801-inl | — | n |
+| UX-09-1 | bug | auth | second <!-- dup --> | open | P1 | 20260801-inl | — | n |
+EOF
+dup_out="$(bash "$REINDEX" 2>&1)"; dup_rc=$?
+check "dup scan refuses an inline-commented duplicate" '[[ $dup_rc -eq 2 && "$dup_out" == *"duplicate finding id"* ]]'
+cd "$TMP/inline"
+# audit-s42: close-audit still closes when the reindex fails, and says so
+printf '%s\n%s\n' '| UX-09-2 | bug | auth | dup | open | P1 | 20260801-inl | — | n |' '| UX-09-2 | bug | auth | dup | open | P1 | 20260801-inl | — | n |' >> .context/audits/00-inventory.md
+close42="$(bash "$CLOSE" 20260801-inl --force 2>&1)"; rc42=$?
+check "close-audit survives a failing reindex" '[[ $rc42 -eq 0 && -d .context/audits/_archive/20260801-inl ]]'
+check "close-audit reports the failing reindex" '[[ "$close42" == *"index not regenerated"*"duplicate finding id"* ]]'
+
 echo ""
 echo "reindex-audits: $pass passed, $fail failed"
 [[ $fail -eq 0 ]]

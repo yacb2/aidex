@@ -144,5 +144,25 @@ grep -q 'build 20991399' "$C30/.context/audits/ux/00-inventory.md" || fail "c30:
 grep -q '20260231x' "$C30/.context/audits/ux/00-inventory.md" || fail "c30: a word glued to digits (20260231x) was rewritten"
 grep -q '| 2026-06-10 |' "$C30/.context/audits/ux/00-inventory.md" || fail "c30: a real YYYYMMDD cell date was not converted"
 
+# --- audit-s16: the plans-scan advice names the migration guide at a path that exists ---
+S16="$TMP/s16"; mkdir -p "$S16/.context/plans/2026-01-01-x"
+out="$(bash "$SCRIPTS/migrate-audit.sh" "$S16" 2>&1)"
+guide="$(printf '%s\n' "$out" | sed -n 's/^ *See \(.*05-migration-guide\.md\) for full details\.$/\1/p')"
+[[ -n "$guide" && -f "$guide" ]] || fail "s16: advice does not name an existing migration guide: '$guide'"
+
+# --- audit-s42: --layout --apply reports a failing reindex (duplicate id) and still succeeds ---
+M42="$TMP/m42"; mkdir -p "$M42/.context/audits/ux"
+printf '%s| N-1 | bug | a | S | open | P1 | 20260610 | — | n |\n| N-1 | bug | a | S | open | P1 | 20260610 | — | n |\n' "$HEAD9" > "$M42/.context/audits/ux/00-inventory.md"
+out="$(cd "$M42" && bash "$SCRIPTS/migrate-audit.sh" --layout --apply "$M42" 2>&1)"; rc=$?
+[[ "$rc" -eq 0 ]] || fail "s42: a failed reindex must not fail the layout migration (rc=$rc): $out"
+[[ "$out" == *"index not regenerated"*"duplicate finding id"* ]] || fail "s42: layout --apply swallowed the reindex failure: $out"
+
+# --- round 3: the reindex follows the project argument, not the cwd ---
+PA="$TMP/projA"; PB="$TMP/projB"; mkdir -p "$PA/.context/audits/ux" "$PB/.context/audits"
+printf '%s| N-1 | bug | a | S | open | P1 | 20260610 | — | n |\n' "$HEAD9" > "$PA/.context/audits/ux/00-inventory.md"
+(cd "$PB" && bash "$SCRIPTS/migrate-audit.sh" --layout --apply "$PA" >/dev/null 2>&1) || fail "r3: migrate from another project exited non-zero"
+[[ -f "$PA/.context/audits/00-index.md" ]] || fail "r3: the migrated project's index was not regenerated"
+[[ ! -e "$PB/.context/audits/00-index.md" ]] || fail "r3: the cwd project's index was written instead"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — legacy layout/status/date migration, validator-clean result, idempotent; plans scan checkbox signal, - [x] not scored, no-signal folder"

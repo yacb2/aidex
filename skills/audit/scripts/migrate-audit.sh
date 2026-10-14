@@ -19,10 +19,6 @@
 set -euo pipefail
 . "$(dirname "$0")/_lib.sh"
 
-# This skill's own root, resolved from this script's location: the advice printed
-# below must name a path the reader can actually open.
-SKILL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-
 if [[ "${1:-}" == "migrate" ]]; then shift; fi
 
 LAYOUT=0 APPLY=0 METH=""
@@ -160,15 +156,15 @@ if [[ "$LAYOUT" -eq 1 ]]; then
     log ""
     log "$changes change(s) planned. Re-run with --apply to execute."
   else
-    REINDEX="$(dirname "${BASH_SOURCE[0]}")/reindex-audits.sh"
-    [[ -x "$REINDEX" ]] && bash "$REINDEX" >/dev/null 2>&1 || true
+    # reindex-audits.sh resolves the project from the cwd: run it inside ROOT.
+    REINDEX="$SKILL_DIR/scripts/reindex-audits.sh"
+    if ! reindex_err="$(cd "$ROOT" && bash "$REINDEX" 2>&1 >/dev/null)"; then warn "index not regenerated: $reindex_err"; fi
     ok "layout migration applied ($changes change(s)). Run /aidex:audit validate."
   fi
   exit 0
 fi
 
 PLANS_DIR="$ROOT/.context/plans"
-AUDITS_DIR="$ROOT/.context/audits"
 
 if [[ ! -d "$PLANS_DIR" ]]; then
   warn "No .context/plans/ found at $PLANS_DIR — nothing to migrate"
@@ -315,5 +311,5 @@ cat <<EOF
        from the working directory, not from this script's argument)
   8. Run /aidex:audit validate to check coherence.
 
-  See $SKILL_ROOT/references/05-migration-guide.md for full details.
+  See $SKILL_DIR/references/05-migration-guide.md for full details.
 EOF

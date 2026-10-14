@@ -137,7 +137,7 @@ def main():
             else: signals.append("improve?")
         # Both sides are lexicon keys, never invocation names (see lexicon_keys).
         window = recent[r["session"]]
-        running = lexicon_keys(prior_sk).union(*window) if window else lexicon_keys(prior_sk)
+        running = lexicon_keys(prior_sk).union(*window)
         delegated = delegate_keys(r.get("agents_fired") or [])
         running |= delegated
         recent[r["session"]].append(lexicon_keys(r["skills_fired"] or []) | delegated)
@@ -167,7 +167,6 @@ def main():
         if signals:
             r2 = dict(r); r2["signals"] = signals
             r2["prompt"] = head_tail(p, ANALYST_HEAD, ANALYST_TAIL)
-            r2.pop("prior_assistant", None)
             r2["prior_assistant"] = (r.get("prior_assistant") or "")[-500:]
             cands.append(r2)
     cands.sort(key=lambda r: (r["bucket"], r["ts"]))

@@ -108,8 +108,8 @@ if [[ "$AUDIT_METH" != "audits" ]]; then
 fi
 
 # Regenerate the audits run-level roll-up so the closed run moves to Archived runs.
-# Best-effort: a missing reindexer never blocks the close.
+# Best-effort: a failing reindexer never blocks the close, but it is reported.
 REINDEX="$SCRIPT_DIR/reindex-audits.sh"
-[[ -x "$REINDEX" ]] && bash "$REINDEX" >/dev/null 2>&1 || true
+if ! reindex_err="$(bash "$REINDEX" 2>&1 >/dev/null)"; then warn "index not regenerated: $reindex_err"; fi
 
 printf '%s\n' "$DEST"

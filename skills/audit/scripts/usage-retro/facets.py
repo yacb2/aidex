@@ -38,9 +38,8 @@ def facets_dir():
     return os.path.abspath(os.environ.get("AIDEX_FACETS_DIR") or DEFAULT_DIR)
 
 
-def facet_files(root=None):
-    root = root or facets_dir()
-    return sorted(p for p in glob.glob(os.path.join(root, "*.md"))
+def facet_files():
+    return sorted(p for p in glob.glob(os.path.join(facets_dir(), "*.md"))
                   if not os.path.basename(p).startswith("00-"))
 
 
@@ -152,17 +151,17 @@ def load_path(path):
 NAME = re.compile(r"[a-z][a-z0-9-]*")
 
 
-def load(name, root=None):
+def load(name):
     if not NAME.fullmatch(name or ""):
         raise FacetError(f"ERROR: facet name {name!r} is not an identifier ({NAME.pattern})")
-    path = os.path.join(root or facets_dir(), f"{name}.md")
+    path = os.path.join(facets_dir(), f"{name}.md")
     if not os.path.isfile(path):
-        raise FacetError(f"ERROR: no facet named {name!r} under {root or facets_dir()}")
+        raise FacetError(f"ERROR: no facet named {name!r} under {facets_dir()}")
     return load_path(path)
 
 
-def load_all(root=None):
-    specs = [load_path(p) for p in facet_files(root)]
+def load_all():
+    specs = [load_path(p) for p in facet_files()]
     seen = {}
     for s in specs:
         for label in s["lexicon"]:
@@ -173,31 +172,31 @@ def load_all(root=None):
     return specs
 
 
-def lexicon(root=None):
+def lexicon():
     """label -> regex string, merged across every facet (mine_repetition's shape)."""
     out = {}
-    for s in load_all(root):
+    for s in load_all():
         out.update(s["lexicon"])
     return out
 
 
-def skill_lexicon(root=None):
+def skill_lexicon():
     """skill -> [regex, ...] for every skill a facet declares (prefilter's shape).
 
     A facet's skills share the facet's regexes: a prompt that matches the facet
     with none of its skills fired is a `miss?:` for each of them.
     """
     out = {}
-    for s in load_all(root):
+    for s in load_all():
         for sk in s["skills"]:
             out.setdefault(sk, []).extend(s["lexicon"].values())
     return out
 
 
-def compiled(root=None):
+def compiled():
     """[(name, lexicon_re, skills_set, slash_set)] ready for the admission gate."""
     out = []
-    for s in load_all(root):
+    for s in load_all():
         rx = re.compile("|".join(f"(?:{v})" for v in s["lexicon"].values()), re.I)
         out.append((s["name"], rx, set(s["skills"]), set(s["slash"])))
     return out
