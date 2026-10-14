@@ -284,9 +284,9 @@ cd "$D" || exit 1
 bash "$SCRIPTS/reindex-audits.sh" >/dev/null 2>&1
 IDX="$D/.context/audits/00-index.md"
 check "reindex: a run whose slug is a prefix of another counts only its own findings (0 open / 1)" \
-      'grep "\[run-foo\]" "$IDX" | grep -q "0 open / 1 findings"'
+      'grep "\[run-foo\]" "$IDX" | grep >/dev/null "0 open / 1 findings"'
 check "reindex: the longer run counts its own finding (1 open / 1)" \
-      'grep "\[run-foo-bar\]" "$IDX" | grep -q "1 open / 1 findings"'
+      'grep "\[run-foo-bar\]" "$IDX" | grep >/dev/null "1 open / 1 findings"'
 CLOSE_OUT="$(bash "$SCRIPTS/close-audit.sh" 2026-10-14-foo 2>&1)"; CLOSE_RC=$?
 check "close: another run's open findings (slug-prefix, same day) do not block the close" \
       '[[ $CLOSE_RC -eq 0 && -d "$D/.context/audits/ux/_archive/2026-10-14-foo" ]]'
@@ -305,7 +305,7 @@ check "close: a fixed row with two escaped pipes is resolved, not listed as unre
       '[[ "$CLOSE_OUT" != *"UX-01-4"* ]]'
 bash "$SCRIPTS/reindex-audits.sh" >/dev/null 2>&1
 check "reindex: escaped-pipe rows are counted for their run (1 open / 2)" \
-      'grep "\[run-foo\]" "$D/.context/audits/00-index.md" | grep -q "1 open / 2 findings"'
+      'grep "\[run-foo\]" "$D/.context/audits/00-index.md" | grep >/dev/null "1 open / 2 findings"'
 cd "$TMP" || exit 1
 
 # A bare-date token (legacy rows, escalation) still claims every run of that date.

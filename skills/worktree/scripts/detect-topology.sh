@@ -30,7 +30,7 @@ git_kind() {
   local g="$1/.git" gd
   if [[ -d "$g" ]]; then echo repo
   elif [[ -f "$g" ]]; then
-    gd="$(sed -n 's/^gitdir: *//p' "$g" | head -n 1)"
+    gd="$(sed -n 's/^gitdir: *//p' "$g" | sed -n 1p)"
     case "$gd" in
       */.git/worktrees/*) echo "worktree ${gd%%/.git/worktrees/*}" ;;
       */.git/modules/*) echo submodule ;;

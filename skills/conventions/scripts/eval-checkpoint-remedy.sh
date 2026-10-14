@@ -54,7 +54,7 @@ MOVE: one lowercase word — fix (edit the code now), defer (register it, do not
 EDIT: one sentence naming the concrete code change you make (or 'none' when deferring or blocking)"
   for r in $(seq 1 "$RUNS"); do
     total=$((total+1))
-    errf="$(mktemp "${TMPDIR:-/tmp}/aidex-remedy.XXXXXX")"
+    errf="$(mktemp "${TMPDIR:-/tmp}/aidex.XXXXXX")"
     # a runner failure (auth, quota, network) is not the model answering wrong: stop and say why
     if ! out="$(printf '%s' "$prompt" | claude -p --strict-mcp-config --model "$MODEL" --output-format text 2>"$errf")"; then
       echo "claude -p failed on $name run $r (not scored): $(cat "$errf")" >&2; rm -f "$errf"; exit 3

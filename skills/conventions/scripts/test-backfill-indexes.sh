@@ -54,10 +54,10 @@ chmod +x "$STUB"/plan/scripts/*.sh "$STUB"/audit/scripts/*.sh
 FR="$TMP/failroot"; mkdir -p "$FR/a/.context/plans" "$FR/b/.context/audits"
 out="$(NO_COLOR=1 bash "$STUB/conventions/scripts/backfill-indexes.sh" --all "$FR" 2>&1)"; rc=$?
 check "failing reindexer: exit 0 as the header promises" '[[ $rc -eq 0 ]]'
-check "failing reindexer: the failure is named" 'printf "%s" "$out" | grep -q "reindexer failed"'
+check "failing reindexer: the failure is named" 'printf "%s" "$out" | grep >/dev/null "reindexer failed"'
 check "failing reindexer: later project still processed" '[[ -f "$FR/b/.context/audits/00-index.md" ]]'
-check "failing reindexer: summary still prints" 'printf "%s" "$out" | grep -q "hand-made skipped"'
-check "failing reindexer: summary counts it" 'printf "%s" "$out" | grep -q "1 failed"'
+check "failing reindexer: summary still prints" 'printf "%s" "$out" | grep >/dev/null "hand-made skipped"'
+check "failing reindexer: summary counts it" 'printf "%s" "$out" | grep >/dev/null "1 failed"'
 
 echo ""
 echo "backfill-indexes: $pass passed, $fail failed"
