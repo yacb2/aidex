@@ -311,11 +311,34 @@ grep -q "| items closed | 1 |" <<<"$RM" \
 mkdir -p "$TMP/bare" && ( cd "$TMP/bare" && python3 "$SCRIPTS/sweep-report.py" "$P" "$WLM" --out bare-report.md >/dev/null 2>"$TMP/bare.err" ); BARE_RC=$?
 [[ $BARE_RC -eq 0 && -f "$TMP/bare/bare-report.md" ]] \
   && ok "c29: --out <bare filename> writes the report in the current directory" || bad "bare --out: rc=$BARE_RC $(tail -1 "$TMP/bare.err")"
-# backlog-s21: a work-list without a top-level publish key anchors as 'see worklist'
+# backlog-s21: a work-list with no gate-policy: block at all anchors as 'see worklist'
 printf -- '---\ntitle: "no publish key"\nstatus: active\ncreated: %s\nmode: sweep\n---\n\n## Queue (in execution order)\n\n## Deferred / emergent\n' "$(day 0)" > .context/worklists/s21-nopublish.md
 RB="$(bash "$SCRIPTS/sweep-report.sh" .context/worklists/s21-nopublish.md --print 2>/dev/null)"
 grep -q 'gate policy publish `see worklist`' <<<"$RB" \
-  && ok "s21: a work-list without publish: anchors as 'see worklist'" || bad "anchor no publish: $(grep 'gate policy' <<<"$RB")"
+  && ok "s21: a work-list with no gate-policy: block anchors as 'see worklist'" || bad "anchor no gate-policy block: $(grep 'gate policy' <<<"$RB")"
 rm -f .context/worklists/s21-nopublish.md
+# BL-815 round 2: the gate-policy block as validate-worklist.py reads it. Each fixture is
+# a work-list whose front matter carries the given gate-policy lines; the anchor must read
+# what the validator reads there.
+gpwl() { printf -- '---\ntitle: "%s"\nstatus: doing\ncreated: %s\nupdated: %s\nmode: sweep\n%b---\n\n## Queue (in execution order)\n\n## Deferred / emergent\n' "$1" "$(day 0)" "$(day 0)" "$2" > ".context/worklists/$1.md"
+  bash "$SCRIPTS/sweep-report.sh" ".context/worklists/$1.md" --print 2>/dev/null | grep 'gate policy'; rm -f ".context/worklists/$1.md"; }
+G="$(gpwl gp-quoted "gate-policy:\n  publish: 'never'\n  destructive: deny\n")"
+grep -q 'gate policy publish `never`' <<<"$G" \
+  && ok "BL-815: a single-quoted publish value anchors unquoted (never)" || bad "single-quoted publish: $G"
+G="$(gpwl gp-comment "gate-policy:\n# policy\n\n  publish: never\n  destructive: deny\n")"
+grep -q 'gate policy publish `never`' <<<"$G" \
+  && ok "BL-815: a comment and a blank line inside gate-policy: do not end the block" || bad "comment inside block: $G"
+G="$(gpwl gp-deeper "gate-policy:\n  overrides:\n    publish: preauthorized\n  publish: never\n  destructive: deny\n")"
+grep -q 'gate policy publish `never`' <<<"$G" \
+  && ok "BL-815: a deeper-nested publish: under gate-policy does not win over the direct child" || bad "deeper publish: $G"
+G="$(gpwl gp-nokey "gate-policy:\n  destructive: deny\n")"
+grep -q 'gate policy publish `see worklist`' <<<"$G" \
+  && ok "BL-815: a gate-policy: block without publish: anchors as 'see worklist'" || bad "block without publish: $G"
+# BL-815: worklist-new.sh writes publish NESTED under gate-policy:; the report reads it there
+WLP="$(bash "$CONV/worklist-new.sh" --title "Publish never run" --mode sweep --publish never --ref "inline:x")"
+RPB="$(bash "$SCRIPTS/sweep-report.sh" "$WLP" --print 2>/dev/null)"
+grep -q 'gate policy publish `never`' <<<"$RPB" \
+  && ok "BL-815: a work-list made with --publish never anchors as publish never" || bad "anchor publish never: $(grep 'gate policy' <<<"$RPB")"
+rm -f "$WLP"
 
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — sweep report: $PASS cells"; exit 0; }; echo "$FAIL failure(s)"; exit 1
