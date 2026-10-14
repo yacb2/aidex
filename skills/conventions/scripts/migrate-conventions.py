@@ -113,30 +113,9 @@ def legal_statuses(type_name: str) -> set[str]:
 
 # ---------- Front-matter parser/writer (no pyyaml) ----------
 
-def parse_frontmatter(text: str) -> tuple[dict | None, int, int]:
-    """Return (fields, body_start_line, fm_end_line). If no FM, returns (None, 0, 0)."""
-    lines = text.splitlines()
-    if not lines or not FM_DELIM.match(lines[0]):
-        return None, 0, 0
-    end = None
-    for i in range(1, len(lines)):
-        if FM_DELIM.match(lines[i]):
-            end = i
-            break
-    if end is None:
-        return None, 0, 0
-    fields: dict[str, str] = {}
-    for raw in lines[1:end]:
-        if not raw.strip() or raw.lstrip().startswith("#"):
-            continue
-        m = re.match(r"^([A-Za-z_][\w-]*)\s*:\s*(.*)$", raw)
-        if not m:
-            continue
-        key, val = m.group(1), m.group(2).strip()
-        if (val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'")):
-            val = val[1:-1]
-        fields[key] = val
-    return fields, end + 1, end
+# The validator's parser, not a copy: a private one drifted (no inline-comment stripping), so the
+# migrator could not repair what the validator flags. Returns the fields dict or None.
+parse_frontmatter = _validate.parse_frontmatter
 
 
 def rewrite_frontmatter_block(text: str, mutations: dict[str, str]) -> str:
@@ -353,7 +332,7 @@ def plan_renames(context_dir: Path, declined: list[str] | None = None) -> dict[P
             else:
                 # (c) No date prefix — derive one and prepend.
                 text = p.read_text(encoding="utf-8", errors="replace")
-                fm, _, _ = parse_frontmatter(text)
+                fm = parse_frontmatter(text)
                 iso_date = None
                 if fm:
                     iso_date = iso_from_field(fm.get("created", "")) or \
@@ -410,7 +389,7 @@ def plan_frontmatter_repairs(
                 continue
 
         text = p.read_text(encoding="utf-8", errors="replace")
-        fm, _, _ = parse_frontmatter(text)
+        fm = parse_frontmatter(text)
 
         target_name = renames.get(p, p).name
         iso_from_name = iso_from_legacy_name(p.name) or (

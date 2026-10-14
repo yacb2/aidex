@@ -74,17 +74,17 @@ fi
 if [[ -f .gitignore ]]; then
   alts=""; for pair in $PAIRS; do n="${pair%%:*}"; alts="$alts|${n//./\\.}"; done
   OLD_RE="^!\\.context/(${alts#|})$"
-  bpend=0; grep -q '^# BP-ROOT-WHITELIST:END' .gitignore && bpend=1
+  lastend=0; grep -q '^# BP-ROOT-WHITELIST:END' .gitignore && lastend="$(grep -n '^# BP-ROOT-WHITELIST:END' .gitignore | tail -1 | cut -d: -f1)"
   have=0; grep -qx '!\.context/profiles/' .gitignore && have=1   # never add the whitelist twice
   tmp="$(mktemp "${TMPDIR:-/tmp}/aidex.XXXXXX")"
-  awk -v re="$OLD_RE" -v done_init="$have" -v bpend="$bpend" '
+  awk -v re="$OLD_RE" -v done_init="$have" -v lastend="$lastend" '
     BEGIN { done = done_init }
     /^# BP-ROOT-WHITELIST:START/ { bp = 1 }
     {
       if ($0 ~ re) {
         if (!done) {
           done = 1
-          if (bpend) pending = 1
+          if (NR < lastend) pending = 1   # END still ahead: place right after it
           else { print "!.context/profiles/"; print "!.context/profiles/**" }
         }
         if (bp) { print "report: " $0 " (inside BP-ROOT-WHITELIST, left for the boilerplate)" > "/dev/stderr"; print }
@@ -95,7 +95,7 @@ if [[ -f .gitignore ]]; then
     }
     /^# BP-ROOT-WHITELIST:END/ {
       bp = 0
-      if (pending) {
+      if (pending && NR == lastend) {
         print "!.context/profiles/"; print "!.context/profiles/**"; pending = 0
         print "placed: !.context/profiles/ + ** right after BP-ROOT-WHITELIST:END (fork-owned area, last match wins)" > "/dev/stderr"
       }

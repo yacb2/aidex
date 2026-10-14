@@ -17,6 +17,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
@@ -1534,20 +1535,44 @@ def check_plan_scoped_shape(path: Path, text: str, fm: dict | None) -> list[Find
 
 # ---------- Driver ----------
 
+def _main_worktree_root(start: Path) -> Path | None:
+    """Root of the main worktree when `start` is inside a LINKED worktree, else None
+    (_lib.sh find_project_root's hop: a linked worktree is a sibling of its project)."""
+    def git(*args: str) -> str | None:
+        try:
+            r = subprocess.run(["git", "-C", str(start), "rev-parse", *args],
+                               capture_output=True, text=True, timeout=10)
+        except (OSError, subprocess.SubprocessError):
+            return None
+        return r.stdout.strip() if r.returncode == 0 and r.stdout.strip() else None
+    common = git("--path-format=absolute", "--git-common-dir")
+    gitdir = git("--absolute-git-dir")
+    if common and gitdir and Path(common).resolve() != Path(gitdir).resolve():
+        return Path(common).resolve().parent
+    return None
+
+
 def find_context_dir(start: Path) -> Path | None:
     """Nearest `.context/` upward from `start`. The walk stops at $HOME, exclusive, like
-    _lib.sh find_project_root: a stray ~/.context must not capture a project with none."""
-    cur = start.resolve()
+    _lib.sh find_project_root: a stray ~/.context must not capture a project with none.
+    From a linked git worktree with no `.context/` on the walk, the main worktree's
+    `.context/` answers, as in _lib.sh."""
+    start = start.resolve()
+    cur = start
     home = os.environ.get("HOME")
     stop = Path(home).resolve() if home and Path(home).is_dir() else None
     while True:
         if stop is not None and cur == stop:
-            return None
+            break
         if (cur / ".context").is_dir():
             return cur / ".context"
         if cur.parent == cur:
-            return None
+            break
         cur = cur.parent
+    main = _main_worktree_root(start)
+    if main is not None and main != stop and (main / ".context").is_dir():
+        return main / ".context"
+    return None
 
 def validate(context_dir: Path, type_filter: str | None,
              only: Path | None = None) -> tuple[list[Finding], dict]:
