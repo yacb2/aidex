@@ -118,11 +118,7 @@ This skill writes into two places in a project, and each has one shape
   appended.** The tripwire asks "is there a second workflow in here?"; the answer for a
   cross-dependency map that gains execution groups is yes, so the groups get their own
   `NN-execution-groups.md` and the index a new row.
-- **`cross_deps_ref` may name a folder or several modules**, not one file — a single
-  named file is where every later workflow gets appended until it is a monolith.
-- `python3 ${CLAUDE_PLUGIN_ROOT}/skills/coverage/scripts/profile-init.py --check <project>` is the tripwire in script form: it
-  warns on a prose section in the profile and on any `references/testing/*.md` over
-  2,500 words. Run it at the close of any phase that touched either.
+- `cross_deps_ref` shape and the `profile-init.py --check` tripwire: [references/14-testing-profile.md](references/14-testing-profile.md).
 
 ## How to use the layer model
 

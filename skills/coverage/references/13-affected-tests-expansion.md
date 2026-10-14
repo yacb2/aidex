@@ -65,7 +65,7 @@ lowers confidence one step.
 | Changed | Widen to |
 |---|---|
 | A signal | every model the receiver writes to, and their layer-2 tests |
-| A mixin / base class | every subclass's module |
+| A mixin / base class (`apps/core/*`) | every subclass's module |
 | A shared component (`lib/components/*`) | every page that imports it |
 | A model | models holding an FK / M2M to it; serializers that nest it |
 | A serializer | the views that use it; the E2E spec of the page they back |
@@ -92,11 +92,11 @@ and always list changed files with no mapped test — silence there is the failu
 
 ## Escalation catalog (widen to the named set)
 
+The API client (`lib/api/client.ts`) and base mixins widen by the heuristics table above.
+
 | Trigger | Widen the selection to |
 |---|---|
-| `apps/core/*`, base mixins | every backend module inheriting from the touched class |
 | `config/settings/*`, root `urls.py` | every backend module whose tests exercise settings-dependent behaviour (auth, storage, email); in practice the backend set |
-| API client (`lib/api/client.ts`) | every layer-5 suite and the E2E module set of every fetching page |
 | Auth / workspace stores, router guards | every E2E module that logs in — the authenticated set, named from `cross_deps_ref` |
 | App shell / layout components | every page's component tests; E2E smoke per top-level page |
 | `helpers/*.ts`, `playwright.e2e.config.ts`, seed generators | the E2E module set importing the helper; a generator change also means `--setup-template` first |

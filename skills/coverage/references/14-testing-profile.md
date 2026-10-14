@@ -41,7 +41,7 @@ lives here in `references/`; if it is true only of this project, it is a fact an
 lives in the profile. The profile has **no `## ` sections**: the template's note is the
 whole body, and a profile that grows past it is facts and explanation mixed in the one
 file scripts read — `profile-init.py --check` reports it, together with any `references/testing/*.md` over
-the ~2,500-word tripwire. A project that wants to **deviate** from a rule does not edit the
+the ~2,500-word tripwire. Run it at the close of any phase that touched either. A project that wants to **deviate** from a rule does not edit the
 profile — it records the deviation as a decision in its own `.context/decisions/` and
 the profile stays a list of values.
 
