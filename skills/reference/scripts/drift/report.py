@@ -55,8 +55,8 @@ def cost(tdir):
                 d = json.loads(line)
             except ValueError:
                 continue  # a run still writing leaves a truncated last line
-            if d.get("type") == "started":
-                labels[d["agentId"]] = d["label"]
+            if d.get("type") == "started" and "agentId" in d:
+                labels[d["agentId"]] = d.get("label", d["agentId"])
     stage = collections.defaultdict(lambda: dict(usd=0.0, maxprompt=0, unpriced=0))
     for p in sorted(glob.glob(os.path.join(tdir, "agent-*.jsonl"))):
         aid = os.path.basename(p)[len("agent-"):-len(".jsonl")]
@@ -91,7 +91,7 @@ def cell(s):
     return str(s).replace("|", "\\|").replace("\n", " ")
 
 
-REF_RE = re.compile(r"\.context/references/\S+?\.md")
+REF_RE = re.compile(r"\.context/references/\S+?\.md(?![\w/-]|\.\w)")
 # One token of the evidence: a code path with an extension, then :N, :N-M or :LN. Tokens are cut on whitespace and
 # brackets, so "12:30 meeting" (no extension) and "see .context/references/a.md:3" (a reference path) do not pass.
 EVIDENCE_TOKEN_RE = re.compile(r"\.{0,2}/?[\w./-]+\.\w+:L?\d+(-L?\d+)?")
@@ -101,7 +101,7 @@ SEARCH_RE = re.compile(r"\b(glob|grep)\b", re.I)
 
 
 def has_code_evidence(ev):
-    toks = [t.rstrip(".:") for t in re.split(r"[\s,;()\[\]]+", ev)]
+    toks = [t.rstrip(".:") for t in re.split(r"[\s,;()\[\]`'\"]+", ev)]
     code = [t for t in toks if ".context/" not in t]
     return (any(EVIDENCE_TOKEN_RE.fullmatch(t) for t in code)
             or (SEARCH_RE.search(ev) is not None and any("/" in t for t in code)))
@@ -156,6 +156,13 @@ def render(result, manifest, cst=None):
     if not result["run"].get("verify"):
         L += [f"Inferred facts dropped: {sum(u.get('facts_dropped_inferred') or 0 for u in units)}. "
               f"Facts given to compare: {sum(u.get('facts_to_compare') or 0 for u in units)}.", ""]
+    missing = [u["slug"] for u in manifest.get("units", []) if u["slug"] not in {r["slug"] for r in units}]
+    if missing:
+        L += [f"Units in the manifest with no result ({len(missing)}): {', '.join(missing)}.", ""]
+    unchecked = [u for u in units if u.get("facts_unverified")]
+    if unchecked:
+        L += [f"Facts past the verify cap and never checked: {sum(u['facts_unverified'] for u in unchecked)} "
+              f"in {len(unchecked)} unit(s): {', '.join(u['slug'] for u in unchecked)}.", ""]
     unread = [u for u in units if u.get("not_covered")]
     if unread:
         L += [f"Files the extractor did not read: {sum(u['not_covered'] for u in unread)} "
@@ -208,7 +215,8 @@ def flat(s):
 def registered_titles(root):
     """Titles already in <root>/.context/backlog/*.md (read only), unescaped from the YAML double-quoted scalar."""
     titles = set()
-    for p in glob.glob(os.path.join(root, ".context", "backlog", "*.md")):
+    for p in (q for sub in ("", "_deferred", "_archive")
+              for q in glob.glob(os.path.join(root, ".context", "backlog", sub, "*.md"))):
         with open(p) as fh:
             for line in fh:
                 if line.startswith("title:"):
@@ -231,10 +239,16 @@ def register(findings, root, script=REGISTER):
             already += 1
             continue
         n += 1
+        have.add(flat(title))
         context = (f"Found by /aidex:reference drift in unit {f['unit']}. {f['detail']} "
                    f"Reference: {f['reference']}:{f['reference_line']}. Code evidence: {f['evidence']}.")
-        subprocess.run(["bash", script, "--origin", "manual", "--title", title, "--type", "task",
-                        "--context", context], cwd=root, check=True)
+        try:
+            subprocess.run(["bash", script, "--origin", "manual", "--title", title, "--type", "task",
+                            "--context", context], cwd=root, check=True)
+        except subprocess.CalledProcessError:
+            print(f"registered {n - 1} before this call failed; re-run --file to continue "
+                  f"(titles already registered, open, deferred or archived, are skipped)", file=sys.stderr)
+            raise
     return n, already
 
 
@@ -249,10 +263,16 @@ def main(argv=None):
         result = json.load(fh)
     with open(os.path.join(a.work, "manifest.json")) as fh:
         manifest = json.load(fh)
-    sys.stdout.write(render(result, manifest, cost(a.transcripts) if a.transcripts else None))
+    cst = None
+    if a.transcripts:
+        try:
+            cst = cost(a.transcripts)
+        except OSError as e:
+            print(f"cost unavailable: {e}", file=sys.stderr)
+    sys.stdout.write(render(result, manifest, cst))
     if a.file:
         n, already = register(split_findings(result["findings"], manifest, result["run"]["root"])[0], result["run"]["root"])
-        print(f"registered {n}, already in the backlog {already}", file=sys.stderr)
+        print(f"registered {n}, already registered (open, deferred or archived) {already}", file=sys.stderr)
 
 
 if __name__ == "__main__":

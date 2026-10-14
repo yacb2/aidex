@@ -348,7 +348,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/reference/tests/test-docs-census.sh | tail -1
 ```
 
 **Real output, 2026-07-29:** the dry run prints each axis command without executing it; the test
-suite reports **`0 failed`**. **A dry run that prints nothing means the project has no
+suite reports **`0 failed`**. **A dry run that prints an `ERROR: no profile at …` line and exits 2 instead of the axis commands means the project has no
 `00-profile.md`, so Rule 3′ has no entry-point list and reverts to a per-claim search** — which
 is the state in which it does not get followed.
 

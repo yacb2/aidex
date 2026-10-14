@@ -42,6 +42,7 @@ shared `validate.py` parser reads the same fields without nested-YAML support.
 from __future__ import annotations
 
 import argparse
+import datetime
 import hashlib
 import json
 import os
@@ -192,6 +193,10 @@ class Axis:
         except OSError as exc:  # pragma: no cover - environment failure
             return set(), str(exc)
         items = {ln.strip() for ln in proc.stdout.splitlines() if ln.strip()}
+        if proc.returncode != 0:
+            # Partial output from a failing command is a partial census, not a healthy one.
+            detail = proc.stderr.strip().splitlines()
+            return set(), f"exited {proc.returncode} ({detail[0] if detail else 'no stderr'})"
         if not items:
             detail = proc.stderr.strip().splitlines()
             hint = detail[0] if detail else "no output"
@@ -351,6 +356,10 @@ def load_ownership(refs: Path) -> tuple[dict[str, dict[str, list[str]]], int, in
     for md in sorted(refs.rglob("*.md")):
         fm = parse_frontmatter(md.read_text(encoding="utf-8", errors="replace"))
         raw = fm.get("covers", "").strip()
+        if "covers" in fm and not raw and re.search(
+                r"^covers:[ \t]*\n[ \t]+\S", md.read_text(encoding="utf-8", errors="replace"), re.M):
+            problems.append(f"{md.relative_to(refs.parent.parent)}: covers: is a multi-line YAML value (list or mapping), "
+                            f"which is not read — write one comma-separated line `axis: item, axis: item`")
         # The profile and indexes are not modules, so they do not move the N/M
         # adoption figure -- but if one DOES declare covers:, that ownership is
         # still real. Skipping them before parsing deleted contested and phantom
@@ -381,14 +390,20 @@ def load_ownership(refs: Path) -> tuple[dict[str, dict[str, list[str]]], int, in
 
 # ---------- staleness ----------
 
+def nearest_dir(root: Path, target: str) -> Path:
+    path = root / target
+    cwd = path if path.is_dir() else path.parent
+    while not cwd.is_dir() and cwd != root:
+        cwd = cwd.parent
+    return cwd
+
+
 def git_last_commit(root: Path, target: str) -> str | None:
     # Run from the target's nearest existing directory, so git discovers the repo
     # that owns it: in a workspace whose code lives in independent repos under the
     # root, a `git log` run from the root never sees their commits (BL-737).
     path = root / target
-    cwd = path if path.is_dir() else path.parent
-    while not cwd.is_dir() and cwd != root:
-        cwd = cwd.parent
+    cwd = nearest_dir(root, target)
     try:
         r = subprocess.run(["git", "log", "-1", "--format=%cI", "--", str(path)],
                            cwd=cwd, capture_output=True, text=True, timeout=30)
@@ -417,6 +432,11 @@ def git_available(root: Path) -> bool:
     return r.returncode == 0 and r.stdout.strip() == "true"
 
 
+def parse_iso(stamp: str):
+    """`git %cI` keeps the committer's UTC offset; compare instants, not strings."""
+    return datetime.datetime.fromisoformat(stamp)
+
+
 def stale_report(axes: list[Axis], owners, root: Path, refs: Path) -> list[str]:
     """Flag items whose SOURCE moved after their owning document last changed.
 
@@ -429,12 +449,6 @@ def stale_report(axes: list[Axis], owners, root: Path, refs: Path) -> list[str]:
     gitignored in some projects and an untracked doc has no commit date at all.
     """
     lines: list[str] = []
-    if not git_available(root):
-        return [f"staleness cannot be computed: {root} is not inside a git work tree, "
-                f"and every date this pass compares comes from `git log`. In a multi-repo "
-                f"workspace (`.context/` at the root, independent repos underneath) run "
-                f"--stale from a repo, or drop `paths:` so the axis says it is unmeasured "
-                f"instead of being misreported as a bad template."]
     for ax in axes:
         if not ax.paths:
             lines.append(f"{ax.name}: no `paths:` in the profile — staleness "
@@ -448,6 +462,13 @@ def stale_report(axes: list[Axis], owners, root: Path, refs: Path) -> list[str]:
             src = ax.paths.replace("{item}", item)
             src_date = git_last_commit(root, src)
             if not src_date:
+                if not git_available(nearest_dir(root, src)):
+                    lines.append(f"{ax.name}/{item}: staleness cannot be computed: {src!r} is not "
+                                 f"inside a git work tree, and every date this pass compares comes "
+                                 f"from `git log`. Run --stale where the code is a repo, or drop "
+                                 f"`paths:` so the axis says it is unmeasured instead of being "
+                                 f"misreported as a bad template.")
+                    continue
                 lines.append(f"{ax.name}/{item}: no commits under {src!r} "
                              f"(wrong `paths:` template, or the item was removed)")
                 continue
@@ -456,16 +477,15 @@ def stale_report(axes: list[Axis], owners, root: Path, refs: Path) -> list[str]:
                 doc_date = git_last_commit(root, f)
                 origin = "commit"
                 if not doc_date and doc.is_file():
-                    import datetime
                     doc_date = datetime.datetime.fromtimestamp(
                         doc.stat().st_mtime, datetime.timezone.utc).isoformat()
                     origin = "mtime (untracked)"
                 if not doc_date:
                     lines.append(f"{ax.name}/{item}: cannot date {f}")
                     continue
-                if src_date > doc_date:
-                    lines.append(f"STALE  {ax.name}/{item}: source moved {src_date[:10]}, "
-                                 f"{f} last touched {doc_date[:10]} ({origin})")
+                if parse_iso(src_date) > parse_iso(doc_date):
+                    lines.append(f"STALE  {ax.name}/{item}: source moved {parse_iso(src_date).astimezone(datetime.timezone.utc).date()}, "
+                                 f"{f} last touched {parse_iso(doc_date).astimezone(datetime.timezone.utc).date()} ({origin})")
     return lines
 
 

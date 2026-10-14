@@ -294,6 +294,39 @@ approve "$PG3"
 outg3="$(python3 "$CENSUS" --root "$PG3" --advisory 2>&1)"
 check "orphan covers axis is reported, not ignored" "$outg3" "matches no census axis"
 
+# covers: written as a YAML block list reads as empty in the flat parser -- say so
+# instead of letting the module count as not declaring ownership (reference-c09)
+PG4="$TMP/grammar4"
+mkproject "$PG4" 'axis: things
+label: things
+command: printf "alpha\n"'
+mkdir -p "$PG4/.context/references/topic"
+printf -- '---\ntitle: "m"\ncreated: 2026-07-29\nupdated: 2026-07-29\ncovers:\n  - things: alpha\n---\n\n# m\n' \
+  > "$PG4/.context/references/topic/01-a.md"
+approve "$PG4"
+outg4="$(python3 "$CENSUS" --root "$PG4" --advisory 2>&1)"
+check "a covers: block list is reported, not read as empty" "$outg4" "multi-line YAML value"
+
+# an axis command that prints items but exits non-zero is a broken axis (reference-c14)
+PG5="$TMP/grammar5"
+mkproject "$PG5" 'axis: things
+label: things
+command: printf "alpha\n"; exit 3'
+approve "$PG5"
+outg5="$(python3 "$CENSUS" --root "$PG5" --advisory 2>&1)"
+PG6="$TMP/grammar6"
+mkproject "$PG6" 'axis: things
+label: things
+command: printf "alpha\n"'
+mkdir -p "$PG6/.context/references/topic"
+printf -- '---\ntitle: "m"\ncreated: 2026-07-29\nupdated: 2026-07-29\ncovers:\n  things: alpha\n---\n\n# m\n' \
+  > "$PG6/.context/references/topic/01-a.md"
+approve "$PG6"
+outg6="$(python3 "$CENSUS" --root "$PG6" --advisory 2>&1)"
+check "a covers: nested mapping is reported too" "$outg6" "multi-line YAML value"
+
+check "a failing axis command is reported as BROKEN" "$outg5" "BROKEN"
+
 # ---------------------------------------------------------------- 14. --write path binding
 # Regression: --write resolved against cwd while the root is found by walking UP,
 # so the audit playbook's relative path fabricated <subdir>/.context/ which then
@@ -602,6 +635,65 @@ paths: backend/{item}'
   outs4="$(python3 "$CENSUS" --root "$PS4" --advisory --stale 2>&1)"
   check   "--stale reads commits from the nested repo that owns the path" "$outs4" "STALE  mods/alpha"
   nocheck "and does not report the nested path as commit-less"           "$outs4" "no commits under"
+
+  # A multi-repo workspace: .context/ at a root that is NOT a repo, code in an
+  # independent repo underneath (reference-c13). The old up-front root check made
+  # --stale refuse here, so the BL-737 per-target-repo lookup never ran.
+  PS5="$TMP/stale-norootgit"
+  mkproject "$PS5" 'axis: mods
+label: m
+command: printf "alpha\n"
+paths: backend/{item}'
+  mkmodule "$PS5/.context/references/topic/01-a.md" "mods:alpha"
+  touch -t 202607010000 "$PS5/.context/references/topic/01-a.md"
+  mkdir -p "$PS5/backend/alpha"; echo x > "$PS5/backend/alpha/f.py"
+  ( cd "$PS5/backend" && git init -q . && git add -A >/dev/null 2>&1 &&
+    GIT_AUTHOR_DATE="2026-07-29T00:00:00" GIT_COMMITTER_DATE="2026-07-29T00:00:00" \
+      git -c user.email=t@t -c user.name=t commit -qm src >/dev/null 2>&1 )
+  approve "$PS5"
+  outs5="$(python3 "$CENSUS" --root "$PS5" --advisory --stale 2>&1)"
+  check   "--stale runs in a workspace root that is not a repo" "$outs5" "STALE  mods/alpha"
+
+  # Commit times keep their own UTC offset. 00:30+02:00 on the 2nd is 22:30Z on
+  # the 1st, EARLIER than the doc's 23:30Z, but sorts later as a string (reference-c07).
+  PS6="$TMP/stale-tz"
+  mkproject "$PS6" 'axis: mods
+label: m
+command: printf "alpha\n"
+paths: backend/{item}'
+  mkmodule "$PS6/.context/references/topic/01-a.md" "mods:alpha"
+  mkdir -p "$PS6/backend/alpha"; echo x > "$PS6/backend/alpha/f.py"
+  ( cd "$PS6" && printf 'backend/\n' > .gitignore && git init -q . && git add -A >/dev/null 2>&1 &&
+    GIT_AUTHOR_DATE="2026-07-01T23:30:00+0000" GIT_COMMITTER_DATE="2026-07-01T23:30:00+0000" \
+      git -c user.email=t@t -c user.name=t commit -qm docs >/dev/null 2>&1 &&
+    cd backend && git init -q . && git add -A >/dev/null 2>&1 &&
+    GIT_AUTHOR_DATE="2026-07-02T00:30:00+0200" GIT_COMMITTER_DATE="2026-07-02T00:30:00+0200" \
+      git -c user.email=t@t -c user.name=t commit -qm src >/dev/null 2>&1 )
+  approve "$PS6"
+  outs6="$(python3 "$CENSUS" --root "$PS6" --advisory --stale 2>&1)"
+  nocheck "an earlier instant with a later local date is not STALE" "$outs6" "STALE  mods/alpha"
+  nocheck "and the pair was dated"                                  "$outs6" "no commits under"
+  nocheck "and both documents were dated"                           "$outs6" "cannot date"
+
+  # The paired case: 23:30-05:00 on the 1st is 04:30Z on the 2nd, LATER than the
+  # doc's 01:00Z, yet it sorts earlier as a string. It MUST be reported.
+  PS7="$TMP/stale-tz2"
+  mkproject "$PS7" 'axis: mods
+label: m
+command: printf "alpha\n"
+paths: backend/{item}'
+  mkmodule "$PS7/.context/references/topic/01-a.md" "mods:alpha"
+  mkdir -p "$PS7/backend/alpha"; echo x > "$PS7/backend/alpha/f.py"
+  ( cd "$PS7" && printf 'backend/\n' > .gitignore && git init -q . && git add -A >/dev/null 2>&1 &&
+    GIT_AUTHOR_DATE="2026-07-02T01:00:00+0000" GIT_COMMITTER_DATE="2026-07-02T01:00:00+0000" \
+      git -c user.email=t@t -c user.name=t commit -qm docs >/dev/null 2>&1 &&
+    cd backend && git init -q . && git add -A >/dev/null 2>&1 &&
+    GIT_AUTHOR_DATE="2026-07-01T23:30:00-0500" GIT_COMMITTER_DATE="2026-07-01T23:30:00-0500" \
+      git -c user.email=t@t -c user.name=t commit -qm src >/dev/null 2>&1 )
+  approve "$PS7"
+  outs7="$(python3 "$CENSUS" --root "$PS7" --advisory --stale 2>&1)"
+  check "a later instant with an earlier local date is STALE"    "$outs7" "STALE  mods/alpha"
+  check "and the dates shown are UTC, so the order reads right"  "$outs7" "source moved 2026-07-02, "
 else
   ok "--stale tests skipped (no git)"
 fi

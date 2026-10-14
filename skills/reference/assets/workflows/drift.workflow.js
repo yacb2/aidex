@@ -22,7 +22,7 @@
 //   { run: {root, work, date, verify},
 //     units: [{ slug, status: "ok"|"failed", failed_stage: null|"extract"|"verify"|"compare"|"unknown",
 //               facts_extracted, facts_confirmed (null when verify is off), facts_dropped_inferred (verify off),
-//               facts_to_compare (what compare was given), not_covered (count), findings }],
+//               facts_to_compare (what compare was given), facts_unverified (past the 50-fact verify cap), not_covered (count), findings }],
 //     findings: [{ type: "stale"|"wrong"|"missing", reference, reference_line, detail,
 //                  evidence: "file:line", unit: slug }] }
 // A unit with zero facts (and no uncovered files) or zero confirmed facts is "ok" with findings 0 (compare is skipped).
@@ -337,7 +337,7 @@ Report, with the reference path and line: "stale" = the reference says something
 ${facts.map(factLine).join('\n')}`
 
 const done = (slug, status, failed_stage, extra) => ({ slug, status, failed_stage, facts_extracted: 0,
-  facts_confirmed: useVerify ? 0 : null, facts_dropped_inferred: 0, facts_to_compare: 0, not_covered: 0, findings: [], ...extra })
+  facts_confirmed: useVerify ? 0 : null, facts_dropped_inferred: 0, facts_to_compare: 0, facts_unverified: 0, not_covered: 0, findings: [], ...extra })
 
 phase('Units')
 if (!Array.isArray(A.units) || !A.units.length) throw new Error('args.units must be a non-empty list of unit slugs from manifest.json')
@@ -384,12 +384,13 @@ const results = await pipeline(slugs,
       const byI = new Map(v.verdicts.map(x => [x.i, x.verdict]))
       confirmed.push(...batch.filter((f, i) => byI.get(i) === 'confirmed'))
     }
-    return { ...st, confirmed }
+    return { ...st, confirmed, unverified: st.facts.length - facts.length }
   },
   async (st, slug) => {
     if (st.status === 'failed') return st
     const base = { facts_extracted: st.facts_extracted, not_covered: st.not_covered,
       facts_dropped_inferred: st.facts_dropped_inferred, facts_to_compare: st.confirmed.length,
+      facts_unverified: st.unverified || 0,
       facts_confirmed: useVerify ? st.confirmed.length : null }
     if (!st.confirmed.length) return done(slug, 'ok', null, base)
     const c = await safe(comparePrompt(slug, st.confirmed), { label: `compare:${slug}`, phase: 'Units',
@@ -409,7 +410,7 @@ return {
   run: { root: A.root, work: A.work, date: A.date, verify: useVerify },
   units: [...rows, ...lost].map(r => ({ slug: r.slug, status: r.status, failed_stage: r.failed_stage,
     facts_extracted: r.facts_extracted, facts_confirmed: r.facts_confirmed, facts_dropped_inferred: r.facts_dropped_inferred,
-    facts_to_compare: r.facts_to_compare, not_covered: r.not_covered,
+    facts_to_compare: r.facts_to_compare, facts_unverified: r.facts_unverified, not_covered: r.not_covered,
     findings: r.findings.length })),
   findings: [...rows, ...lost].flatMap(r => r.findings),
 }
