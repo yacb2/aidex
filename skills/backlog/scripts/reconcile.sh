@@ -19,10 +19,6 @@
 
 set -euo pipefail
 
-if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
-  C_YELLOW=$'\033[33m' C_DIM=$'\033[2m' C_BOLD=$'\033[1m' C_GREEN=$'\033[32m' C_RESET=$'\033[0m'
-else C_YELLOW='' C_DIM='' C_BOLD='' C_GREEN='' C_RESET=''; fi
-
 # Shared resolver. This file used to carry its own copy, three fixes behind:
 # no $HOME boundary, no project-marker fallback, and no linked-worktree hop --
 # so from inside a worktree it wrote into a directory that vanishes on teardown

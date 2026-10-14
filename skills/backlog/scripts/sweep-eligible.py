@@ -26,35 +26,6 @@ define_check = importlib.import_module('define-check')
 ROOT = None
 
 
-def find_root(start=None):
-    d = os.path.abspath(start or os.getcwd())
-    while d != os.path.dirname(d):
-        if os.path.isdir(os.path.join(d, '.context', 'backlog')):
-            return d
-        d = os.path.dirname(d)
-    sys.exit('no .context/backlog found above cwd')
-
-
-def section(text, name):
-    m = re.search(r'^##\s+' + name + r'\s*$(.*?)(^##\s|\Z)', text, re.S | re.M)
-    if not m:
-        return ''
-    return re.sub(r'<!--.*?-->', '', m.group(1), flags=re.S).strip()
-
-
-# The register-item template writes a skeleton: a "Done means:" lead-in and an
-# empty bullet holding a comment. Stripping comments alone leaves "Done means:\n-",
-# which is long enough to read as filled — BL-521 entered a sweep that way. Strip
-# the scaffolding too, so what remains is only what a human wrote.
-_SCAFFOLD = re.compile(r'^\s*(done means:?|-|\*|\d+\.)\s*$', re.I)
-
-
-def acceptance_body(text):
-    lines = [ln for ln in section(text, 'Acceptance').splitlines()
-             if ln.strip() and not _SCAFFOLD.match(ln)]
-    return '\n'.join(lines).strip()
-
-
 # §1b of the sweep policy, mechanized. Every one of these was learned from an item
 # that passed the Acceptance gate and had to be pulled after a full body read:
 # an owner call on a name already delivered, a backfill against a production
@@ -151,9 +122,7 @@ def parse(path):
         'priority': fm.get('priority', '-'),
         'estimate': fm.get('estimate', '-'),
         'blocked_by': fm.get('blocked_by', ''),
-        'acceptance': acceptance_body(t),
         'signals': body_signals(t),
-        'context': section(t, 'Context'),
     }
 
 
@@ -166,7 +135,7 @@ def main():
     sizes = [s.strip().upper() for s in a.size.split(',') if s.strip()]
 
     global ROOT
-    ROOT = find_root()
+    ROOT = define_check.find_root()
     d = os.path.join(ROOT, '.context', 'backlog')
     items = []
     for f in sorted(os.listdir(d)):

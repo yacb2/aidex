@@ -123,7 +123,6 @@ fi
 printf '%s' "$PART" | python3 "$SCRIPT_DIR/sweep-order.py" "$ROOT/.context/backlog" --include "$INC" --exclude "$EXC" --format summary
 
 [[ $DRY -eq 1 ]] && { echo; echo "dry-run: no work-list written"; exit 0; }
-[[ -n "$TITLE" ]] || die "--title required to write the work-list"
 
 # --- the work-list: mode sweep, publish never, destructive deny; merge per Q5 -------
 REFS=()

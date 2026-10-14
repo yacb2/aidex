@@ -129,8 +129,12 @@ for the entry front-matter. `title`, `status`, `created`, `updated` are the requ
 global fields from [`00-global.md` §7](../../conventions/references/00-global.md#7-front-matter-minimum-d-07);
 the rest are backlog-specific. When hand-authoring an entry, write all 15 — `id` and
 `commits` are **machine-required** (the lifecycle breaks without them), `surface` is
-what `close-item.sh --sweep` switches its proof minimum on, while `origin_ref`,
-`estimate` and `verify` are human-optional (no script branches on them).
+what `close-item.sh --sweep` switches its proof minimum on. `origin_ref` is
+human-optional (no lifecycle script branches on it; `validate.py` checks it as a
+cross-ref). An item with an empty `estimate` or `verify` is not sweep-eligible
+(`define-check.py` lists both in `MIN_FIELDS`): without `--size`, `sweep-eligible.py`
+routes it to NEEDS-DECISION; under `--size` (the kickoff default) an empty `estimate`
+drops it before the partition, so it shows in no list.
 
 | Field | Values / format | Notes |
 |---|---|---|
@@ -140,14 +144,14 @@ what `close-item.sh --sweep` switches its proof minimum on, while `origin_ref`,
 | `status` | `open` · `doing` · `done` · `dropped` | Base lifecycle from [`00-global.md` §6](../../conventions/references/00-global.md#6-status-vocabulary). |
 | `created` · `updated` | ISO `YYYY-MM-DD` | Global (§7). |
 | `origin` | `manual` · `audit` · `issue` · `request` · `communication` · `plan` · `sweep` | Where it came from. `plan` is the mid-run deferral: `plan-exec` found work a phase did not own and registered it instead of stopping. `sweep` is the same motion inside a backlog sweep: judged against the kickoff criteria already fixed and appended to the work-list as autonomy class (b) — continued, never asked; growth past 25 % of the original queue is **reported** by `sweep-report.sh`, not surfaced as a question. (A cross-repo counterpart from `--escalate-to` carries `origin: <source-repo>/<id>` — see [Cross-project routing](#cross-project-routing).) |
-| `origin_ref` | `<type>/<filename>` (D-03) or empty | *Human-optional:* provenance archaeology — no script reads it. Format depends on origin — see below. |
+| `origin_ref` | `<type>/<filename>` (D-03) or empty | *Human-optional:* provenance archaeology — no lifecycle script branches on it; `validate.py` checks it as a cross-ref. Format depends on origin — see below. |
 | `priority` | `P0` · `P1` · `P2` · `P3` | Code, never free text. See [Priority taxonomy](#priority-taxonomy). |
 | `type` | `bug` · `improvement` · `task` · `idea` | **Work-kind facet, one queue** (ADR 2026-07-23). Closed and small by design; the index groups by priority, not type — type renders as a chip. Default `task`. Absent is a warn-then-ratchet nudge (existing items are not retro-fixed); a value outside the enum is a violation. `_deferred` is a **state**, not a type. |
-| `estimate` | `XS` · `S` · `M` · `L` · `XL` | *Human-optional:* T-shirt sizing, display-only (index one-liner + dash cell); no logic branches on it. Independent of priority. **Confirmed or corrected at sweep triage** — an XS that is not XS distorts every downstream decision, so a corrected item is re-laned then, not carried at its filed size. |
+| `estimate` | `XS` · `S` · `M` · `L` · `XL` | T-shirt sizing shown in the index one-liner and dash cell; also the sweep size filter (`sweep-eligible.py --size`) and a `define-check.py` required field, so an empty one blocks sweep eligibility. Independent of priority. **Confirmed or corrected at sweep triage** — an XS that is not XS distorts every downstream decision, so a corrected item is re-laned then, not carried at its filed size. |
 | `surface` | `internal` · `behaviour` · `ui` · `ops` | What the change is visible as. Default `internal`; `ops` = no test surface — config, infrastructure, canon prose, another repo's state — where a test would be a lie. Sets the **minimum proof** `close-item.sh --sweep` requires (see [Verification](#verification)): `internal` → a targeted test; `behaviour` → a test **and** an E2E spec or seeded smoke; `ui` → a browser smoke with a screenshot. Written at registration as a hypothesis, confirmed at triage. |
 | `touches` | comma-separated paths or modules, or absent | What the item will change. Written at registration when the registrar has the paths in hand (`register-item.sh --touches`, which delegates to `define-item.sh`'s validation), otherwise as a *sweep triage verdict* (`define-item.sh`). Items sharing a token are **clustered** adjacently in the queue — one review per cluster, one context build per file. |
 | `depends` | `BL-NNN[, …]`, `merge:BL-NNN`, or absent | Ids that must close before this one (`A→B` written on B), written at registration (`--depends`) or as a *sweep triage verdict*. `merge:BL-NNN` marks the same change seen twice — a **MERGE** pair that closes in one commit carrying both `Backlog:` trailers. |
-| `verify` | one free line | *Human-optional:* the **hypothesis** of how this will be proven, by whoever registers it — corrected at triage, made concrete as rows in `## Verification` before close. An item nobody could say how to prove is an item nobody can close in a sweep. |
+| `verify` | one free line | The **hypothesis** of how this will be proven, by whoever registers it — corrected at triage, made concrete as rows in `## Verification` before close. An item nobody could say how to prove is an item nobody can close in a sweep. |
 | `blocked_by` | Free text or `<type>/<filename>` | Non-empty means parked waiting on third party; priority stays. |
 | `awaiting` | `owner` or absent | **Written by `close-item.sh --sweep`, never by hand.** Every mechanical row is proven and an `owner` row still has an empty proof: the item is parked — not `done`, not archived, listed under `## Awaiting owner` in the index, out of every queue — until the owner fills the cell and it is closed again. Exists because a closed-looking item gets archived by mistake. |
 | `escalated_to` | `<type>/<filename>` (D-03) or empty | Set when work moves to a plan (typically combined with `status: doing`). A cross-repo escalation carries `<target-repo>/<id>` — see [Cross-project routing](#cross-project-routing). |
@@ -435,14 +439,6 @@ bash scripts/register-item.sh --escalate-to /path/to/template-repo \
 bash scripts/register-item.sh --escalate-to /path/to/aidex \
   --source-id BL-172 --title "…"
 ```
-
-> **Known gap (owned by the cross-ref-schema package, echo BL-206).** A cross-repo
-> `escalated_to: <target-repo>/BL-NNN` uses a repo prefix, not an artifact-type prefix,
-> so `validate.py`'s `<type>/<filename>` cross-ref check flags it as
-> `cross-ref-format-invalid` if you run the validator in the source repo. The counterpart's
-> `origin` is validate-clean (`origin` is not a cross-ref field). Widening the cross-ref
-> grammar to accept repo-qualified refs is deferred to that package — do not special-case
-> it here.
 
 ---
 
