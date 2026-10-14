@@ -43,12 +43,25 @@ INV=""
 [[ -z "$INV" && -f "$AUDITS_DIR/00-inventory.md" ]] && INV="$AUDITS_DIR/00-inventory.md"
 
 # --- check in-scope findings for this run ---
-# Canon Audit Runs cell holds comma-separated DATES (audit-conventions.md); legacy
-# boards recorded run SLUGS. Match either: the run folder's date prefix or its slug.
+# Canon Audit Runs cell holds comma-separated run-folder SLUGS (audit-conventions.md);
+# legacy rows and escalation write bare DATES. Match either whole token: the slug or the
+# run folder's date prefix.
 RUN_DATE="${RUN_SLUG:0:10}"
 if [[ -n "$INV" ]]; then
   UNRESOLVED="$(awk -F'|' -v run="$RUN_SLUG" -v rundate="$RUN_DATE" '
+    # Whole comma-separated tokens, never a substring: `2026-10-14-foo` must not claim
+    # `2026-10-14-foo-bar`, nor a same-day run (only a bare date token names the date).
+    function has_run(cell, want,   parts, k, n, t) {
+      n = split(cell, parts, ",")
+      for (k = 1; k <= n; k++) {
+        t = parts[k]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", t)
+        if (t == want) return 1
+      }
+      return 0
+    }
     /^\|/ {
+      # A cell quoting a pipe (\|) is one cell: hide the escape before the width test.
+      gsub(/\\[|]/, "\037")
       # Audit Runs is column 7 of 9 (NF==11 with the empty edges) since BL-057, and
       # column 9 of 11 on pre-2026-08-06 boards (NF==13). Pick by width rather than
       # assuming: reading $10 on a 9-column board silently reads Escalated To, and
@@ -57,7 +70,7 @@ if [[ -n "$INV" ]]; then
       gsub(/^[[:space:]]+|[[:space:]]+$/,"",id)
       gsub(/^[[:space:]]+|[[:space:]]+$/,"",status)
       if (id=="" || id=="ID") next
-      if (index(runs, run)==0 && index(runs, rundate)==0) next
+      if (!has_run(runs, run) && !has_run(runs, rundate)) next
       resolved=" closed done escalated fixed dropped wontfix "
       if (index(resolved, " " status " ")==0) print "    - " id " (" status ")"
     }' "$INV")"

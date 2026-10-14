@@ -216,6 +216,14 @@ v_p="$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['own-checker']
 [[ "$v_p" == "compliant" ]] || fail "(p) the checker's own tests/ must be skipped, got: $v_p"
 
 # ---------------------------------------------------------------------------
+# (q) a bare --root is a usage error, not an unbound-variable crash (audit-c38)
+# ---------------------------------------------------------------------------
+out_q="$(bash "$SCRIPTS_DIR/coverage-config-check.sh" --root 2>&1)"; rc_q=$?
+[[ $rc_q -eq 2 ]] || fail "(q) bare --root should exit 2, got $rc_q: $out_q"
+[[ "$out_q" == *"--root"* && "$out_q" != *"unbound variable"* ]] \
+  || fail "(q) bare --root should name the missing value, not crash: $out_q"
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 if [[ $failures -eq 0 ]]; then

@@ -252,6 +252,70 @@ for ag in "${SEEDERS[@]}"; do
   [[ -n "$WRITES" ]] && printf '    %s\n' "$WRITES"
 done
 
+# ---------------------------------------------------------------------------
+# Which findings belong to the run being closed or counted (audit-c24, c25, c32).
+# close-audit.sh and reindex-audits.sh matched the Audit Runs cell by substring, so a run
+# `2026-10-14-foo` also claimed findings of `2026-10-14-foo-bar` and of any same-day run,
+# and a row whose Summary carries two escaped pipes (13 raw fields) was read as an
+# 11-column row, taking Escalated To for Audit Runs and dropping out of scope.
+# ---------------------------------------------------------------------------
+echo "== run scope: whole slugs, escaped pipes =="
+scopeboard() {  # scopeboard <dir> — two sibling runs, three open rows
+  local d="$1"
+  mkdir -p "$d/.context/audits/ux/2026-10-14-foo" "$d/.context/audits/ux/2026-10-14-foo-bar"
+  { printf '# UX Audit Inventory\n\n'
+    printf '| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |\n'
+    printf '|---|---|---|---|---|---|---|---|---|\n'
+    printf '| UX-01-1 | bug | a | other run, slug extends ours | open | P2 | 2026-10-14-foo-bar | — | — |\n'
+    printf '| UX-01-2 | bug | a | other run, same day | open | P2 | 2026-10-14-baz | — | — |\n'
+    printf '%s\n' "$2"
+  } > "$d/.context/audits/ux/00-inventory.md"
+  local r
+  for r in foo foo-bar; do
+    printf -- '---\ntitle: "run-%s"\nstatus: done\ncreated: 2026-10-14\nupdated: 2026-10-14\n---\n\n# Run\n' "$r" \
+      > "$d/.context/audits/ux/2026-10-14-$r/index.md"
+    printf -- '---\ntitle: "findings"\nstatus: done\ncreated: 2026-10-14\nupdated: 2026-10-14\n---\n\n# Findings\n\nUX-01-1 UX-01-2 UX-01-3 UX-01-4\n' \
+      > "$d/.context/audits/ux/2026-10-14-$r/findings.md"
+  done
+}
+
+D="$TMP/scope-other"; scopeboard "$D" '| UX-01-3 | bug | a | ours, already fixed | fixed | P2 | 2026-10-14-foo | — | — |'
+cd "$D" || exit 1
+bash "$SCRIPTS/reindex-audits.sh" >/dev/null 2>&1
+IDX="$D/.context/audits/00-index.md"
+check "reindex: a run whose slug is a prefix of another counts only its own findings (0 open / 1)" \
+      'grep "\[run-foo\]" "$IDX" | grep -q "0 open / 1 findings"'
+check "reindex: the longer run counts its own finding (1 open / 1)" \
+      'grep "\[run-foo-bar\]" "$IDX" | grep -q "1 open / 1 findings"'
+CLOSE_OUT="$(bash "$SCRIPTS/close-audit.sh" 2026-10-14-foo 2>&1)"; CLOSE_RC=$?
+check "close: another run's open findings (slug-prefix, same day) do not block the close" \
+      '[[ $CLOSE_RC -eq 0 && -d "$D/.context/audits/ux/_archive/2026-10-14-foo" ]]'
+[[ $CLOSE_RC -ne 0 ]] && printf '    %s\n' "$CLOSE_OUT"
+cd "$TMP" || exit 1
+
+# 9 columns, escaped pipes in Summary: one escape makes 12 raw fields (read as the narrow
+# board), two make 13 (read as the wide one); both are 9-column rows.
+D="$TMP/scope-pipes"; scopeboard "$D" '| UX-01-3 | bug | a | greps "a\|b" | open | P2 | 2026-10-14-foo | — | — |
+| UX-01-4 | bug | a | greps "a\|b" and "c\|d" | fixed | P2 | 2026-10-14-foo | — | — |'
+cd "$D" || exit 1
+CLOSE_OUT="$(bash "$SCRIPTS/close-audit.sh" 2026-10-14-foo 2>&1)"; CLOSE_RC=$?
+check "close: an open row with one escaped pipe is in scope and blocks" \
+      '[[ $CLOSE_RC -ne 0 && "$CLOSE_OUT" == *"UX-01-3"* ]]'
+check "close: a fixed row with two escaped pipes is resolved, not listed as unresolved" \
+      '[[ "$CLOSE_OUT" != *"UX-01-4"* ]]'
+bash "$SCRIPTS/reindex-audits.sh" >/dev/null 2>&1
+check "reindex: escaped-pipe rows are counted for their run (1 open / 2)" \
+      'grep "\[run-foo\]" "$D/.context/audits/00-index.md" | grep -q "1 open / 2 findings"'
+cd "$TMP" || exit 1
+
+# A bare-date token (legacy rows, escalation) still claims every run of that date.
+D="$TMP/scope-bare-date"; scopeboard "$D" '| UX-01-5 | bug | a | bare date | open | P2 | 2026-10-14 | — | — |'
+cd "$D" || exit 1
+CLOSE_OUT="$(bash "$SCRIPTS/close-audit.sh" 2026-10-14-foo 2>&1)"; CLOSE_RC=$?
+check "close: an open row whose Audit Runs is the bare run date blocks and is listed" \
+      '[[ $CLOSE_RC -ne 0 && "$CLOSE_OUT" == *"UX-01-5"* ]]'
+cd "$TMP" || exit 1
+
 echo
 echo "inventory width: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]
