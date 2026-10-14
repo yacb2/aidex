@@ -17,6 +17,9 @@ Usage:  mine_errors.py [--since ISO] [--days N] [--top N]
 import json, os, glob, re, argparse, datetime, sys
 from collections import Counter, defaultdict
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from extract import parse_ts, short_project  # noqa: E402
+
 TX_ROOT = os.environ.get("CLAUDE_PROJECTS_ROOT") or os.path.expanduser("~/.claude/projects")
 
 # scrub volatile bits so the same failure collapses to one signature
@@ -36,28 +39,6 @@ AIDEX_HINT = re.compile(
     r"\.aidex-waivers|durability|MEMORY\.md",
     re.I,
 )
-
-
-def parse_ts(s):
-    """An AWARE datetime, or None. A naive input is read as UTC.
-
-    Taken verbatim from extract.py, which fixed this first. `fromisoformat`
-    returns an aware value only when the string carries a Z or an explicit
-    offset, so the DOCUMENTED plain form (`--since 2026-08-19`) produced a naive
-    cutoff that raised TypeError on the first file mtime comparison. `--days`
-    happened to work, so the crash lived only in the invocation the reference
-    prints. This copy diverged because the file sat outside the tracked tree with
-    no test to run against it -- the same cost BL-165 named for extract.py."""
-    try:
-        t = datetime.datetime.fromisoformat(s.replace("Z", "+00:00"))
-    except Exception:
-        return None
-    return t if t.tzinfo else t.replace(tzinfo=datetime.timezone.utc)
-
-
-def short_project(name):
-    # Generic, not the author's home: any `-<home>-projects-` prefix is stripped.
-    return re.sub(r"^-.*-projects-", "", name) or name
 
 
 def normalize(txt):
