@@ -70,8 +70,8 @@ def read(path):
         return ""
 
 
-def first(pattern, text, flags=re.M):
-    m = re.search(pattern, text, flags)
+def first(pattern, text):
+    m = re.search(pattern, text, re.M)
     return m.group(1) if m else ""
 
 
@@ -189,13 +189,13 @@ def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     force, show = "--force" in sys.argv, "--print" in sys.argv
     root = os.path.abspath(args[0] if args else ".")
-    out = profiles.profile_write_path(os.path.join(root, ".context"), "testing")
     if "--check" in sys.argv:
         findings = check(root)
         for f in findings:
             print(f"WARN {f}")
         print("profile check: " + (f"{len(findings)} finding(s)" if findings else "ok — facts only, every testing module under the tripwire"))
         sys.exit(1 if findings else 0)
+    out = profiles.profile_write_path(os.path.join(root, ".context"), "testing")
     existing = resolve_profile(root)[0]  # the repo-root fallback counts too (BL-289)
     if existing and not force and not show:
         if existing == out:

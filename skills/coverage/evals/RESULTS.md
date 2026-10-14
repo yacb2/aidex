@@ -1,9 +1,12 @@
 # Trigger-eval results — coverage
 
 > **How to read every figure in this file.** A trigger-eval result here is **directional
-> only** — it may never carry a p-value or a "proved better/worse". The set has 9 positive
-> queries and resolving the differences it is quoted for needs ~27; more runs do not help,
-> because the limit is the query axis. And these runs execute with cwd = the aidex repo,
+> only** — it may never carry a p-value or a "proved better/worse". The dated runs below
+> used a set of 9 positive queries (15 in all); `trigger_eval.json` now holds 5 positive and
+> 10 negative queries, so every denominator and figure below is from its dated run against
+> the description of that date, not a measure of the current set or description. Resolving
+> the differences quoted needed ~27 positives; more runs do not help, because the limit is
+> the query axis. And these runs execute with cwd = the aidex repo,
 > whose `CLAUDE.md` contradicts the queries, so every absolute recall number is a **floor**
 > rather than what a user in a matching project would see. The bias applies equally across
 > runs, so comparisons stand. Canon:

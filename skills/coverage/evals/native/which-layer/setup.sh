@@ -13,7 +13,6 @@ def quote_total(subtotal, plan):
     """Total for a quote. Annual plans subtract a flat discount BEFORE tax."""
     if plan == "annual":
         subtotal = subtotal - ANNUAL_DISCOUNT
-        return round(subtotal * (1 + TAX_RATE), 2)
     return round(subtotal * (1 + TAX_RATE), 2)
 PY
 
