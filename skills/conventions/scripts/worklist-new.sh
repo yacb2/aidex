@@ -24,12 +24,7 @@
 # Prints the created file path to stdout. See references/worklist-conventions.md.
 set -euo pipefail
 
-# Shared resolver — never `git rev-parse --show-toplevel`. That answered the wrong root
-# twice over: inside a linked worktree it is the worktree (which vanishes on teardown),
-# and in a multi-repo workspace it is the sub-repo, not the workspace `.context/`. Every
-# backlog script the sweep chains this with resolves through _lib.sh, so a private
-# resolver here would update the queue in one tree while the item closes in another.
-# Pinned by test-find-project-root.sh (no private copies).
+# Shared resolver (find_project_root in _lib.sh) — never a private one or git rev-parse; see its header.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/_lib.sh"
 ROOT="$(find_project_root)"
 WL_DIR="$ROOT/.context/worklists"
@@ -64,11 +59,10 @@ for r in "${refs[@]}"; do
 done
 
 if [[ -z "$slug" ]]; then
-  slug="$(printf '%s' "$title" | tr '[:upper:]' '[:lower:]' \
-          | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' | cut -c1-40 | sed -E 's/-+$//')"
+  slug="$(slugify "$title" | cut -c1-40 | sed -E 's/-+$//')"
   [[ -n "$slug" ]] || { echo "--title has no ASCII letters or digits to derive a slug from; pass --slug" >&2; exit 2; }
 fi
-today="$(date +%F)"
+today="$(today_iso)"
 mkdir -p "$WL_DIR"
 # BL-370: a slug shaped like every other .context/ filename already carries its date.
 if [[ "$slug" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}- ]]; then

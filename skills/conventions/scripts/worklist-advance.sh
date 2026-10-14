@@ -23,12 +23,7 @@
 # stays purely additive in both modes.
 set -euo pipefail
 
-# Shared resolver — never `git rev-parse --show-toplevel`. That answered the wrong root
-# twice over: inside a linked worktree it is the worktree (which vanishes on teardown),
-# and in a multi-repo workspace it is the sub-repo, not the workspace `.context/`. Every
-# backlog script the sweep chains this with resolves through _lib.sh, so a private
-# resolver here would update the queue in one tree while the item closes in another.
-# Pinned by test-find-project-root.sh (no private copies).
+# Shared resolver (find_project_root in _lib.sh) — never a private one or git rev-parse; see its header.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/_lib.sh"
 ROOT="$(find_project_root)"
 WL_DIR="$ROOT/.context/worklists"
@@ -66,30 +61,20 @@ if [[ -n "$append" || "$peek" -eq 0 ]]; then
   [[ -f "$file" ]] || { echo "worklist was closed/archived while waiting: $file; nothing written" >&2; exit 2; }
 fi
 
-# archived-ness from the RESOLVED directory, never the spelling: `cd _archive && ./x.md`
-# or a symlinked dir reaches an archived list with no literal `_archive/` in it (BL-591)
-[[ "$(CDPATH= cd -P "$(dirname "$file")" >/dev/null 2>&1 && pwd -P)" == "$(CDPATH= cd -P "$WL_DIR/_archive" >/dev/null 2>&1 && pwd -P)" ]] \
-  && { echo "worklist already archived: $file" >&2; exit 2; }
+# archived-ness from the resolved directory (wl_is_archived, _lib.sh)
+wl_is_archived "$file" "$WL_DIR" && { echo "worklist already archived: $file" >&2; exit 2; }
 # no front matter: refused here, before the append, the tick or the stamp below writes anything
 has_front_matter "$file" || { echo "no front matter in $file" >&2; exit 2; }
 today="$(date +%F)"
-# quotes allowed: validate-worklist.py strips them, so `mode: "sweep"` validates and
-# must mean sweep here too, or the queue silently advances past unproven work
-grep -qE '^mode:[[:space:]]*["'"'"']?sweep["'"'"']?[[:space:]]*$' "$file" && sweep=1
+wl_is_sweep "$file" && sweep=1
 
 BACKLOG_SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../backlog/scripts" && pwd -P)"
 ref_kind() { sed -nE 's/.*<!-- ref: ([a-z]+) -->.*/\1/p' <<<"$1"; }
 bl_id()    { grep -oE '\bBL-[0-9]+\b' <<<"$1" | sed -n 1p || true; }
 item_where() {  # item_where <BL-id> -> active | archived | deferred | (empty)
-  local d f
-  for d in "" "_archive/" "_deferred/"; do
-    for f in "$ROOT/.context/backlog/$d"*.md; do
-      [[ -f "$f" ]] || continue
-      [[ "$(awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2; exit}' "$f")" == "$1" ]] || continue
-      case "$d" in "") echo active;; _archive/) echo archived;; _deferred/) echo deferred;; esac; return 0
-    done
-  done
-  return 0   # no match is an answer (empty), never a failed assignment under set -e
+  local f; f="$(bl_item_file "$ROOT/.context/backlog" "$1")"
+  [[ -n "$f" ]] || return 0   # no match is an answer (empty), never a failed assignment under set -e
+  case "$(basename "$(dirname "$f")")" in _archive) echo archived;; _deferred) echo deferred;; *) echo active;; esac
 }
 
 # An emergent that is ALREADY deferred is appended already-deferred (BL-263). It is

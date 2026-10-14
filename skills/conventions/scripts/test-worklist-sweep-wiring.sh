@@ -139,6 +139,18 @@ bash "$BL/defer-item.sh" defer "$GID" --reason "vendor" >/dev/null 2>&1
 NEXT="$(bash "$DIR/worklist-advance.sh" "$WL" 2>"$TMP/err")"; RC=$?
 [[ $RC -eq 0 && "$NEXT" == "DONE" ]] && grep -q "deferred" "$TMP/err" && ok "a deferred head is ticked past with a warning" || bad "deferred head: rc=$RC next=$NEXT $(cat "$TMP/err")"
 
+# 6b' · an id in BOTH _deferred/ (live) and _archive/ (closed copy) is deferred, not "already
+# closed": the lookup order is active, _deferred, _archive (worklist-close.sh, register-item.sh).
+# Archive-first ticked a live blocked item past as closed.
+DUP="$(reg --title "dup deferred and archived")"; DUPID="$(idof "$DUP")"
+mkdir -p "$P/.context/backlog/_deferred" "$P/.context/backlog/_archive"
+cp "$DUP" "$P/.context/backlog/_archive/$(basename "$DUP")"
+mv "$DUP" "$P/.context/backlog/_deferred/$(basename "$DUP")"
+WLD="$(bash "$DIR/worklist-new.sh" --title "Dup id head" --mode sweep --publish never --ref "backlog:$DUPID — dup head" 2>/dev/null | tail -1)"
+bash "$DIR/worklist-advance.sh" "$WLD" >/dev/null 2>"$TMP/err"; RC=$?
+[[ $RC -eq 0 ]] && grep -q "not closed; ticking past" "$TMP/err" && ! grep -q "already closed" "$TMP/err" \
+  && ok "an id in _deferred and _archive is read as deferred, not already closed" || bad "dup id head: rc=$RC $(cat "$TMP/err")"
+
 # 6d · BL-263: an emergent whose item is already in _deferred/ must never be STARTED.
 # The append does not look at the item, and the start-next block at the end of an
 # advance did not either — so a deferred emergent was flipped to `doing`, and only the

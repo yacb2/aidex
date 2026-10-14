@@ -409,8 +409,9 @@ def _iter_md_by_type(context_dir: Path, type_name: str) -> Iterable[Path]:
     base = context_dir / type_name
     if not base.is_dir():
         return
-    if type_name == "audits":
-        # Per-run index.md and per-methodology canonical files
+    if type_name in ("audits", "communications"):
+        # audits: per-run index.md and per-methodology canonical files;
+        # communications: {received,sent}/<YYYY-MM-DD>-<slug>/body.md
         for path in base.rglob("*.md"):
             if "/_archive/" in str(path):
                 continue
@@ -418,13 +419,6 @@ def _iter_md_by_type(context_dir: Path, type_name: str) -> Iterable[Path]:
         return
     if type_name in ("references", "research"):
         for path in base.rglob("*.md"):
-            yield path
-        return
-    if type_name == "communications":
-        # communications/{received,sent}/<YYYY-MM-DD>-<slug>/body.md
-        for path in base.rglob("*.md"):
-            if "/_archive/" in str(path):
-                continue
             yield path
         return
     if type_name == "worktrees":

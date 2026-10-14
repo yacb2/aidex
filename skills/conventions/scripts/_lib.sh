@@ -41,6 +41,12 @@ die()   { err "error: $*"; exit 2; }
 # directory's contents, and would have written a project's worktree overview to
 # `~/.context/worktrees/00-index.md`. 33 scripts across every skill call this.
 #
+# Never `git rev-parse --show-toplevel` instead. That answers the wrong root twice over:
+# inside a linked worktree it is the worktree (which vanishes on teardown), and in a
+# multi-repo workspace it is the sub-repo, not the workspace `.context/`. A private
+# resolver in a script that chains with others would update the queue in one tree while
+# the item closes in another. Pinned by test-find-project-root.sh (no private copies).
+#
 # Two passes, both innermost-first: an existing `.context/` always wins, and
 # only when there is none does a project marker (`.git`, `CLAUDE.md`) stand in —
 # so an initialised project's resolution is exactly what it always was.
@@ -456,6 +462,33 @@ resolve_worklist() {
     exit 2
   fi
   printf '%s\n' "$m"
+}
+
+# wl_is_archived <file> <wl-dir> — 0 when <file> sits in <wl-dir>/_archive. Archived-ness from
+# the RESOLVED directory, never the spelling: `cd _archive && ./x.md` or a symlinked dir
+# reaches an archived list with no literal `_archive/` in it (BL-591).
+wl_is_archived() {
+  [[ "$(CDPATH= cd -P "$(dirname "$1")" >/dev/null 2>&1 && pwd -P)" == "$(CDPATH= cd -P "$2/_archive" >/dev/null 2>&1 && pwd -P)" ]]
+}
+
+# wl_is_sweep <file> — 0 when the work-list front matter says `mode: sweep`. Quotes allowed:
+# validate-worklist.py strips them, so `mode: "sweep"` validates and must mean sweep here
+# too, or the queue silently advances past unproven work.
+wl_is_sweep() { grep -qE '^mode:[[:space:]]*["'"'"']?sweep["'"'"']?[[:space:]]*$' "$1"; }
+
+# bl_item_file <backlog-dir> <BL-id> — path of the item carrying that id, or empty (rc 0).
+# Order: active, _deferred, _archive — the order of backlog/scripts/register-item.sh
+# backlog_files: a deferred item is live where an archived copy is closed, so a duplicated id
+# must resolve to the live one.
+bl_item_file() {
+  local f
+  for f in "$1"/*.md "$1"/_deferred/*.md "$1"/_archive/*.md; do
+    [[ -f "$f" ]] || continue
+    [[ "$(awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2; exit}' "$f")" == "$2" ]] && { printf '%s' "$f"; return 0; }
+  done
+  # explicit: a no-match ends on a false `[[ ]] &&`, and under `set -e` a caller's
+  # `f="$(bl_item_file …)"` would die on the first id it cannot find
+  return 0
 }
 
 # proof_is_placeholder <cell> — 0 when a `## Verification` proof cell says no proof exists
