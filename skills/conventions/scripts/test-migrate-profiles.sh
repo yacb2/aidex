@@ -72,6 +72,33 @@ bash "$SCRIPT" "$R" --apply >/dev/null
 cmp -s "$R/.gitignore" "$TMP/fork.before" || fail "second --apply changed .gitignore"
 [[ "$(grep -c '^!\.context/profiles/$' "$R/.gitignore")" == 1 ]] || fail "second --apply duplicated the whitelist"
 
+# 4b2. old line AFTER an existing BP block (s01): the old line is replaced and the new
+# lines are written right after END; before the fix they were dropped (deleted, never written).
+R="$TMP/afterend"; mkdir -p "$R/.context"; ( cd "$R" && git init -q && echo a > .context/artifact-style.md
+  printf '.context/*\n# BP-ROOT-WHITELIST:START\n!.context/\n# BP-ROOT-WHITELIST:END\n!.context/artifact-style.md\n' > .gitignore
+  git add -f -A && git -c user.email=a@b -c user.name=n commit -qm init )
+bash "$SCRIPT" "$R" --apply >/dev/null 2>&1
+grep -q '^!\.context/artifact-style\.md$' "$R/.gitignore" && fail "afterend: old line survived"
+[[ "$(grep -c '^!\.context/profiles/$' "$R/.gitignore")" == 1 && "$(grep -c '^!\.context/profiles/\*\*$' "$R/.gitignore")" == 1 ]] || fail "afterend: profiles whitelist not written once: $(cat "$R/.gitignore")"
+( cd "$R" && git check-ignore --no-index -q .context/profiles/artifact.md ) && fail "afterend: moved file still ignored"
+
+# 4b3. two BP blocks, old line inside block 2: the new lines go after the LAST END, never inside a block
+R="$TMP/twoblocks"; mkdir -p "$R/.context"; ( cd "$R" && git init -q && echo a > .context/artifact-style.md
+  printf '.context/*\n# BP-ROOT-WHITELIST:START\n!.context/\n# BP-ROOT-WHITELIST:END\n# BP-ROOT-WHITELIST:START\n!.context/artifact-style.md\n# BP-ROOT-WHITELIST:END\n' > .gitignore
+  git add -f -A && git -c user.email=a@b -c user.name=n commit -qm init )
+bash "$SCRIPT" "$R" --apply >/dev/null 2>&1
+[[ "$(grep -c '^!\.context/profiles/$' "$R/.gitignore")" == 1 ]] || fail "twoblocks: profiles line not written exactly once: $(cat "$R/.gitignore")"
+pl="$(grep -n '^!\.context/profiles/$' "$R/.gitignore" | cut -d: -f1)"; le="$(grep -n 'BP-ROOT-WHITELIST:END' "$R/.gitignore" | tail -1 | cut -d: -f1)"
+[[ -n "$pl" && -n "$le" && "$pl" -gt "$le" ]] || fail "twoblocks: profiles line ($pl) not after the last END ($le): $(cat "$R/.gitignore")"
+
+# 4b4. two BP blocks, old line BEFORE block 1: the new lines still go after the LAST END
+R="$TMP/twoblocksbefore"; mkdir -p "$R/.context"; ( cd "$R" && git init -q && echo a > .context/artifact-style.md
+  printf '.context/*\n!.context/artifact-style.md\n# BP-ROOT-WHITELIST:START\n!.context/\n# BP-ROOT-WHITELIST:END\n# BP-ROOT-WHITELIST:START\n.context/*\n# BP-ROOT-WHITELIST:END\n' > .gitignore
+  git add -f -A && git -c user.email=a@b -c user.name=n commit -qm init )
+bash "$SCRIPT" "$R" --apply >/dev/null 2>&1
+pl="$(grep -n '^!\.context/profiles/$' "$R/.gitignore" | cut -d: -f1)"; le="$(grep -n 'BP-ROOT-WHITELIST:END' "$R/.gitignore" | tail -1 | cut -d: -f1)"
+[[ -n "$pl" && -n "$le" && "$pl" -gt "$le" ]] || fail "twoblocksbefore: profiles line ($pl) not after the last END ($le): $(cat "$R/.gitignore")"
+
 # 4c. --help prints the usage and exits 0
 out="$(bash "$SCRIPT" --help)"; rc=$?
 [[ $rc -eq 0 && "$out" == *"--include-deploy"* ]] || fail "--help: rc=$rc out=$out"

@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -511,6 +512,52 @@ def test_context_root_stops_at_home() -> None:
                 os.environ["HOME"] = old
 
 
+def test_inline_comment_in_frontmatter_status() -> None:
+    """s11: the migrator parses front-matter with validate.py's parser, so an unquoted
+    `status: completed  # old` is read as `completed` and mapped to `done`."""
+    print("\ntest: an inline comment on a legacy status does not hide it")
+    with tempfile.TemporaryDirectory() as td:
+        ctx = Path(td) / ".context"
+        (ctx / "backlog").mkdir(parents=True)
+        f = ctx / "backlog" / "2026-01-05-notes.md"
+        f.write_text("---\ntitle: Notes\nstatus: completed  # old vocab\ncreated: 2026-01-05\n"
+                     "updated: 2026-01-05\n---\n\n# Notes\n", encoding="utf-8")
+        _migrate(ctx, "--apply")
+        got = (validate_mod.parse_frontmatter(f.read_text(encoding="utf-8")) or {}).get("status")
+        # The comment describes the replaced value, so dropping it with the rewrite is intended.
+        if got == "done" and "# old vocab" not in f.read_text(encoding="utf-8"):
+            ok("commented legacy status migrated to done, stale comment dropped")
+        else:
+            fail(f"commented legacy status not migrated: {got!r}")
+
+
+def test_context_dir_from_linked_worktree() -> None:
+    """s13: _lib.sh find_project_root hops from a linked worktree (a sibling of its project)
+    to the main worktree's .context; find_context_dir used to return None there."""
+    print("\ntest: find_context_dir hops from a linked worktree to the main worktree")
+    with tempfile.TemporaryDirectory() as td:
+        base = Path(td).resolve()
+        main, wt = base / "main", base / "wt"
+        (main / ".context").mkdir(parents=True)
+        env = {**os.environ, "GIT_AUTHOR_NAME": "n", "GIT_AUTHOR_EMAIL": "a@b",
+               "GIT_COMMITTER_NAME": "n", "GIT_COMMITTER_EMAIL": "a@b"}
+        for cmd in (["git", "init", "-q"], ["git", "-c", "commit.gpgsign=false", "commit", "-q", "--allow-empty", "-m", "i"],
+                    ["git", "worktree", "add", "-q", str(wt)]):
+            subprocess.run(cmd, cwd=main, check=True, env=env, capture_output=True)
+        got = validate_mod.find_context_dir(wt)
+        if got == main / ".context":
+            ok("a linked worktree resolves to the main worktree's .context")
+        else:
+            fail(f"linked worktree resolved {got}, expected {main / '.context'}")
+        # negative cell: main worktree without .context/ -> None
+        (main / ".context").rmdir()
+        got = validate_mod.find_context_dir(wt)
+        if got is None:
+            ok("a linked worktree whose main worktree has no .context resolves to None")
+        else:
+            fail(f"expected None without a main .context, got {got}")
+
+
 if __name__ == "__main__":
     if not MIGRATE_PY.is_file():
         sys.exit(f"FAIL: {MIGRATE_PY} not found")
@@ -522,6 +569,8 @@ if __name__ == "__main__":
     test_bare_ref_prefers_own_folder()
     test_case_only_rename()
     test_context_root_stops_at_home()
+    test_inline_comment_in_frontmatter_status()
+    test_context_dir_from_linked_worktree()
     print()
     if failures:
         print(f"FAILED — {len(failures)} assertion(s)")

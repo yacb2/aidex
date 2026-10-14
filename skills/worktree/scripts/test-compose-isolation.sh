@@ -19,6 +19,17 @@ SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/check-compose-isolation
 failures=0
 fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 
+# A wedged daemon (accepts the call, never answers) must read as unavailable within
+# AIDEX_DOCKER_TIMEOUT, not hang the check. Needs no real Docker: a stub on PATH.
+WEDGE="$(mktemp -d)"
+printf '#!/bin/sh\nsleep 30\n' > "$WEDGE/docker"; chmod +x "$WEDGE/docker"
+printf 'services: {}\n' > "$WEDGE/docker-compose.yml"
+t0=$SECONDS
+wout="$(PATH="$WEDGE:$PATH" AIDEX_DOCKER_TIMEOUT=2 bash "$SCRIPT" "$WEDGE/docker-compose.yml" 2>&1)"; wrc=$?
+[[ "$wrc" -eq 0 && "$wout" == *degraded* && $((SECONDS - t0)) -lt 15 ]] \
+  || fail "wedged docker info must degrade within the timeout (rc=$wrc, $((SECONDS - t0))s): $wout"
+rm -rf "$WEDGE"
+
 if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
   echo "SKIP — docker unavailable; check-compose-isolation needs it to render compose files"
   # Exit 2, not 0: run-all.sh counts a SKIP only when the message AND the code
