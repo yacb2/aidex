@@ -274,4 +274,42 @@ grep -q "| wall time (first → last resolving commit) | ? (fewer than two dated
 grep -q "| commits (from \`commits:\`) | 1 |" <<<"$R7" \
   && ok "one sha cited by two items counts as one commit" || bad "dup-sha commit count: $(grep 'commits (from' <<<"$R7")"
 
+# w11 review rows. backlog-c35: a work-list with no `created:` must not exclude every
+# unstamped gate run (its window opens at the beginning of time, not at 'T00:00:00').
+printf '[{"leg":"nocreated","exit":"0","count":"3","secs":"4"},{"verdict":"PASS","legs":1,"failed":0,"pending":0,"at":"%s"}]\n' "$(date +%Y-%m-%dT%H:%M:%S)" > $GH
+printf -- '---\ntitle: "no created"\nstatus: doing\nupdated: %s\nmode: sweep\n---\n\n## Queue (in execution order)\n\n## Deferred / emergent\n' "$(day 0)" > .context/worklists/w11-nocreated.md
+RN="$(bash "$SCRIPTS/sweep-report.sh" .context/worklists/w11-nocreated.md --print 2>/dev/null)"
+grep -q "leg=nocreated exit=0" <<<"$RN" \
+  && ok "c35: a work-list without created: still counts an unstamped gate run up to now" || bad "no created: $(grep 'gate runs' <<<"$RN")"
+# backlog-c18: a detached e2e writes a pending row and later a scored one: one leg, not a re-run
+printf '[{"leg":"e2e","exit":"pending","count":"-","secs":"-"},{"verdict":"PENDING","legs":1,"failed":0,"pending":1,"at":"%s"}]\n' "$(date +%Y-%m-%dT%H:%M:%S)" > $GH
+printf '[{"leg":"e2e","exit":"0","count":"5","secs":"-"},{"verdict":"PASS","legs":1,"failed":0,"pending":0,"at":"%s"}]\n' "$(date +%Y-%m-%dT%H:%M:%S)" >> $GH
+PENDWL="$(winwl w11-pending doing "$(day 0)" "$(day 0)")"
+RP="$(bash "$SCRIPTS/sweep-report.sh" "$PENDWL" --print 2>/dev/null)"
+grep -q "| gate runs / legs re-run | 2 / 0 |" <<<"$RP" \
+  && ok "c18: a pending detached e2e row followed by its scored row is not a re-run" || bad "pending rerun: $(grep 'gate runs' <<<"$RP")"
+# a CLOSED work-list with no updated: has no end date to run to: it stops at now, not at the end of time
+printf '[{"leg":"future","exit":"0","count":"50","secs":"555"},{"verdict":"PASS","legs":1,"failed":0,"pending":0,"at":"2099-01-01T10:00:00"}]\n' > $GH
+printf -- '---\ntitle: "closed no updated"\nstatus: done\ncreated: %s\nmode: sweep\n---\n\n## Queue (in execution order)\n\n## Deferred / emergent\n' "$(day 2)" > .context/worklists/w11-noupd.md
+RU="$(bash "$SCRIPTS/sweep-report.sh" .context/worklists/w11-noupd.md --print 2>/dev/null)"
+! grep -q "leg=future" <<<"$RU" \
+  && ok "c35: a closed work-list without updated: does not claim a gate run from the future" || bad "closed, no updated: $(grep 'gate runs' <<<"$RU")"
+rm -f .context/worklists/w11-noupd.md
+rm -f .context/worklists/w11-nocreated.md "$PENDWL"; cp "$TMP/gh.keep" $GH
+# backlog-c08: an EMPTY front-matter key must not swallow the next line's key
+M1="$(reg --title "empty key" --estimate XS)"; M1ID="$(idof "$M1")"; accept "$M1"; row "$M1" test "tests/m1.py" "1 passed"
+WLM="$(bash "$CONV/worklist-new.sh" --title "Empty key run" --mode sweep --ref "backlog:$M1ID — m1")"
+bash "$SCRIPTS/close-item.sh" "$M1ID" --sweep --commit "$SHA1" --no-index >/dev/null 2>&1
+M1A=".context/backlog/_archive/$(basename "$M1")"
+python3 - "$M1A" <<'PY'
+import sys; p=sys.argv[1]; t=open(p).read(); open(p,'w').write(t.replace('\nstatus: done\n','\nblocked_by:\nstatus: done\n',1))
+PY
+RM="$(bash "$SCRIPTS/sweep-report.sh" "$WLM" --print 2>/dev/null)"
+grep -q "| items closed | 1 |" <<<"$RM" \
+  && ok "c08: an empty key before status: leaves status readable (item counted closed)" || bad "empty key: $(grep 'items closed' <<<"$RM")"
+# backlog-c29: --out with a bare filename writes into the current directory
+mkdir -p "$TMP/bare" && ( cd "$TMP/bare" && python3 "$SCRIPTS/sweep-report.py" "$P" "$WLM" --out bare-report.md >/dev/null 2>"$TMP/bare.err" ); BARE_RC=$?
+[[ $BARE_RC -eq 0 && -f "$TMP/bare/bare-report.md" ]] \
+  && ok "c29: --out <bare filename> writes the report in the current directory" || bad "bare --out: rc=$BARE_RC $(tail -1 "$TMP/bare.err")"
+
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — sweep report: $PASS cells"; exit 0; }; echo "$FAIL failure(s)"; exit 1
