@@ -188,8 +188,8 @@ substitute an eyeball.
    and surface its report as-is — any `<project>-wt-*` compose project, volume, tagged
    image, **untagged build layer, or network** with no matching worktree directory on
    disk, plus the exact reclaim command for each. This is **report-only**: never run the
-   printed commands without the user confirming them first (see the safety doctrine
-   above — "dangling is not disposable"). Degrades silently to a one-line note when
+   printed commands without the user confirming them first (see the Docker safety doctrine in
+   `conventions/references/worktree-conventions.md` — "dangling is not disposable"). Degrades silently to a one-line note when
    Docker isn't installed/running.
 
    An untagged layer under a **live** worktree's project is not this skill's to fix:

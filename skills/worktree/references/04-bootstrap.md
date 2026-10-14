@@ -1,8 +1,8 @@
 # `bootstrap` — investigate, verify, write `config.env`
 
 The full bootstrap procedure. It lives here rather than in `SKILL.md` because it is
-**conditional content**: a project is bootstrapped once, and every later `create` / `run`
-/ `remove` reads `config.env` instead of this. `SKILL.md` cites it as a step at the
+**conditional content**: a project is bootstrapped once, and every later `new` / `up`
+/ `down` reads `config.env` instead of this. `SKILL.md` cites it as a step at the
 dispatch point.
 
 ## Contents
@@ -18,11 +18,11 @@ recipe. Prose is what let 15 projects each implement isolation differently.
    overwrite it — show it and stop. Amend it in place if something is wrong.
 
 2. **Investigate topology.** Run
-   [scripts/detect-topology.sh](scripts/detect-topology.sh) and describe what it
+   [scripts/detect-topology.sh](../scripts/detect-topology.sh) and describe what it
    actually found in plain language. Never assume monorepo or any prior default.
 
 3. **Verify the stack can be isolated AT ALL.** Run
-   [scripts/check-compose-isolation.sh](scripts/check-compose-isolation.sh) from the
+   [scripts/check-compose-isolation.sh](../scripts/check-compose-isolation.sh) from the
    project root. It is the only surface that can be checked before a config exists:
    the umbrella's host-port and test-runner checks read `config.env`, and without
    one they refuse with "nothing was checked" (exit 2), so the umbrella run at this
@@ -59,7 +59,7 @@ recipe. Prose is what let 15 projects each implement isolation differently.
    | `<family>.defaults.env` | **loaded, never copied** — `worktree.sh` sources it first when `config.env` declares `WT_PROFILE="<family>"` |
 
    For the Django + Vue + Compose family, copy
-   [assets/profiles/django-vue-compose.project.env](assets/profiles/django-vue-compose.project.env)
+   [assets/profiles/django-vue-compose.project.env](../assets/profiles/django-vue-compose.project.env)
    and fill its `PROJECT` lines. Leave the `WT_PROFILE` line intact and do **not**
    inline the defaults: a project that copies them stops receiving improvements
    to them, which is the same drift the shipped mechanism exists to end, one
@@ -111,7 +111,7 @@ recipe. Prose is what let 15 projects each implement isolation differently.
      whatever dev happens to hold.
 
 6. **Prove it before recording it.** Run
-   [scripts/check-worktree-isolation.sh](scripts/check-worktree-isolation.sh) — the
+   [scripts/check-worktree-isolation.sh](../scripts/check-worktree-isolation.sh) — the
    umbrella: the compose check plus the host-port and test-runner checks, now that
    `config.env` exists. Fix its findings (each is a blocker) before going on. Then
    create a throwaway worktree, confirm the

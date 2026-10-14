@@ -104,7 +104,6 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 set +e   # this script reports and decides; it does not want inherited errexit
 
 SWEEP="$SELF_DIR/orphan-sweep.sh"
-SNAP="$SELF_DIR/docker-snapshot.sh"
 MULTI="$SELF_DIR/worktree-multi.sh"
 
 cmd="${1:-}"; shift 2>/dev/null
