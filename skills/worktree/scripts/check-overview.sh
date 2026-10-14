@@ -30,11 +30,13 @@
 #
 #   doc-path default: <project-root>/.context/worktrees/00-index.md
 #
-# Self-contained beyond _lib.sh (find_project_root / logging helpers).
+# Depends on _lib.sh (find_project_root / logging helpers) and wt-frontmatter.sh
+# (the front-matter reader shared with worktree-multi.sh).
 
 set -euo pipefail
 
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../conventions/scripts" && pwd -P)/_lib.sh"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/wt-frontmatter.sh"
 
 DOC="${1:-$(find_project_root)/.context/worktrees/00-index.md}"
 [[ -f "$DOC" ]] || die "worktree overview not found: $DOC"
@@ -46,10 +48,10 @@ BACKLOG_DIR="$(dirname "$DOC_DIR")/backlog"
 gaps=()
 
 # --- front-matter fields (the LEADING --- ... --- block only) ---
-# The same reader worktree-multi.sh uses: a `/^---$/,/^---$/` sed range reopens on
-# every later pair of rules, so a field living in a body block passed here and
-# the teardown then refused the doc.
-fm="$(awk 'NR==1{if($0!="---")exit;next} $0=="---"{exit} {print}' "$DOC")"
+# The same reader worktree-multi.sh uses (wt-frontmatter.sh): a `/^---$/,/^---$/` sed
+# range reopens on every later pair of rules, so a field living in a body block
+# passed here and the teardown then refused the doc.
+fm="$(wt_fm_block "$DOC")"
 # A field is only useful if it carries a command. `worktree_up: ""` is the shape
 # a doc takes when its mechanism was retired and nobody updated the front-matter.
 for field in worktree_up worktree_down; do
@@ -57,11 +59,30 @@ for field in worktree_up worktree_down; do
   if [[ -z "$line" ]]; then
     gaps+=("front-matter: missing '$field' field")
   else
-    val="${line#*:}"; val="${val#"${val%%[![:space:]]*}"}"      # strip leading space
-    val="${val%\"}"; val="${val#\"}"; val="${val%\'}"; val="${val#\'}"
+    raw="${line#*:}"; raw="${raw#"${raw%%[![:space:]]*}"}"
+    val="$(wt_fm_unquote "$raw")"
+    # A lone quote carries no command at all. Any other value the consumer's eval
+    # cannot parse (an unclosed quote) would die at teardown: ask bash, which is
+    # the parser the eval uses (with <slug>/<branch> placeholders filled, as the
+    # callers do), rather than guessing from the first and last char.
+    if [[ "$raw" =~ ^[\"\'] && ${#raw} -eq 1 ]]; then val=""
+    elif ! bash -n <<<"$(sed -E 's/<[A-Za-z_-]+>/x/g' <<<"$val")" 2>/dev/null; then
+      gaps+=("front-matter: '$field' has an unbalanced quote — the teardown eval would fail"); continue
+    fi
     [[ -n "$val" ]] || gaps+=("front-matter: '$field' is empty — nothing to run")
   fi
 done
+
+# A script name resolves when it exists as written (after ~), or — if relative —
+# under the project, or — for a bare basename written in prose, which is how the
+# shipped scripts are normally referred to — under this skill. Reads PROJECT_DIR and
+# SKILL_SCRIPTS, set below before either caller runs.
+script_resolves() {
+  local cand="${1/#\~/$HOME}"
+  [[ -e "$cand" ]] && return 0
+  [[ "$cand" != /* ]] && { [[ -e "$PROJECT_DIR/$cand" || -e "$SKILL_SCRIPTS/$(basename "$cand")" ]] && return 0; }
+  return 1
+}
 
 # A front-matter command naming a script that does not resolve is a dead command
 # (BL-627: the retired aidex-worktree skill path survives in owner docs).
@@ -82,11 +103,7 @@ fm_scripts_check() {
     while IFS= read -r s; do
       [[ -z "$s" ]] && continue
       [[ "$s" == *skills/aidex-worktree/* ]] && continue
-      cand="${s/#\~/$HOME}"
-      [[ -e "$cand" ]] && continue
-      if [[ "$cand" != /* ]]; then
-        [[ -e "$PROJECT_DIR/$cand" || -e "$SKILL_SCRIPTS/$(basename "$cand")" ]] && continue
-      fi
+      script_resolves "$s" && continue
       gaps+=("front-matter: '$field' names a script that does not exist: $s")
     done < <(grep -E "^${field}:" <<<"$fm" | sed -n 1p | grep -oE '(~|[A-Za-z0-9_.$-])[A-Za-z0-9_./$-]*\.sh' | grep -v '\$' | sort -u || true)
   done
@@ -122,14 +139,7 @@ fm_scripts_check
 proc="$(awk '/^## +Procedure *$/{p=1;next} /^## /{p=0} p' "$DOC")"
 while IFS= read -r s; do
   [[ -z "$s" ]] && continue
-  cand="${s/#\~/$HOME}"
-  [[ -e "$cand" ]] && continue
-  if [[ "$cand" != /* ]]; then
-    # Relative to the project, or — for a bare basename written in prose, which
-    # is how the shipped scripts are normally referred to — to this skill.
-    [[ -e "$PROJECT_DIR/$cand" ]] && continue
-    [[ -e "$SKILL_SCRIPTS/$(basename "$cand")" ]] && continue
-  fi
+  script_resolves "$s" && continue
   gaps+=("## Procedure names a script that does not exist: $s")
 done < <(grep -oE '(~|[A-Za-z0-9_.$-])[A-Za-z0-9_./$-]*\.sh' <<<"$proc" \
          | grep -v '\$' | sort -u)

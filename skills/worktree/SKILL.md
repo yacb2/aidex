@@ -235,12 +235,6 @@ compose-can-run-twice verification that must pass before anything is written, wh
 into `config.env`, and the failure modes that make a bootstrapped project look correct
 while its second worktree collides with the first.
 
-## `suggest` (retired)
-
-There is no tier to suggest: answer with `worktree.sh new <slug> --branch <branch>`,
-resolving the base branch first (branch-base rule above). A project whose `config.env`
-does not exist yet needs `bootstrap`, not a guess.
-
 ## Runner limits
 
 `worktree.sh down` bounds its Docker calls: `AIDEX_DOWN_TIMEOUT` (default 300 s) for

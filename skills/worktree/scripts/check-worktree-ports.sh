@@ -65,6 +65,7 @@
 set -uo pipefail
 
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../conventions/scripts" && pwd -P)/_lib.sh"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/wt-config.sh"
 
 CENSUS=false
 TARGET=""
@@ -136,8 +137,8 @@ scan_project() {
   local port_vars="" links="" pair var f rel line lit
 
   [[ -f "$cfg" ]] || return 0
-  port_vars="$(sed -n 's/^[[:space:]]*WT_PORT_VARS=["'"'"']\{0,1\}\([^"'"'"']*\).*/\1/p' "$cfg" | sed -n 1p)"
-  links="$(sed -n 's/^[[:space:]]*WT_LINKS=["'"'"']\{0,1\}\([^"'"'"']*\).*/\1/p' "$cfg" | sed -n 1p)"
+  port_vars="$(wt_cfg_field "$cfg" WT_PORT_VARS)"
+  links="$(wt_cfg_field "$cfg" WT_LINKS)"
   [[ -n "$links" ]] || return 0
 
   local names=""
@@ -242,7 +243,7 @@ if $CENSUS; then
     root="${cfg%/.context/worktrees/config.env}"
     out="$(scan_project "$root")"
     name="$(basename "$root")"
-    if [[ -z "$(sed -n 's/^[[:space:]]*WT_LINKS=["'"'"']\{0,1\}\([^"'"'"']*\).*/\1/p' "$cfg" | sed -n 1p)" ]]; then
+    if [[ -z "$(wt_cfg_field "$cfg" WT_LINKS)" ]]; then
       # Single-project mode refuses this config (exit 2); counting it clean here
       # would turn "nothing was checked" into a green census line.
       printf '  %-20s WT_LINKS is empty -- nothing was checked\n' "$name"
@@ -281,7 +282,7 @@ if [[ ! -f "$PORTS_CFG" ]]; then
   err "no worktree config at $PORTS_CFG — nothing was checked."
   exit 2
 fi
-if [[ -z "$(sed -n 's/^[[:space:]]*WT_LINKS=["'"'"']\{0,1\}\([^"'"'"']*\).*/\1/p' "$PORTS_CFG" | sed -n 1p)" ]]; then
+if [[ -z "$(wt_cfg_field "$PORTS_CFG" WT_LINKS)" ]]; then
   err "WT_LINKS is empty in $PORTS_CFG — nothing was checked."
   exit 2
 fi

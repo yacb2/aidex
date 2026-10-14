@@ -257,8 +257,8 @@ MD
 got="$( sed -n '/^---$/,/^---$/p' "$TMP/p19/.context/worktrees/00-index.md" \
         | sed -n 's/^worktree_down: *//p' | sed -n 1p )"
 [[ -n "$got" ]] || fail "#19: the fixture no longer reproduces the unbounded range"
-grep -q "awk 'NR==1" "$S/worktree-multi.sh" \
-  || fail "#19: worktree-multi.sh must bound the front matter to the leading block"
+grep -q "awk 'NR==1" "$S/wt-frontmatter.sh" && grep -q 'wt_fm_block "\$DOC"' "$S/worktree-multi.sh" \
+  || fail "#19: worktree-multi.sh must bound the front matter to the leading block (wt_fm_block)"
 
 # --- #15. the attributable count must not carry a dead fallback ------------
 # `grep -c` prints 0 on empty input already, so `|| echo 0` can only ever append
