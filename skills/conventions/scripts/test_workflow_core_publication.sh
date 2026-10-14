@@ -69,6 +69,10 @@ globalThis.agent = async (prompt, opts) => {
   if (scenario === 'flaky') { // first arbiter call fails transiently (null), later ones rule STOP
     return arbiterPrompts.length === 1 ? null : { verdict: 'STOP', reason: 'deny-class' }
   }
+  if (scenario === 'null-then-ask') { // first arbiter call fails (null), later ones rule ASK
+    return arbiterPrompts.length === 1 ? null : { verdict: 'ASK', reason: 'tier 3', batched_question: 'Owner decides?' }
+  }
+  if (scenario === 'blocked-stop') return { verdict: 'STOP', reason: 'no' }
   if (scenario === 'null-arbiter') return null // the arbiter is down for every call
   if (scenario === 'counter') {
     return { verdict: 'ASK', reason: 'tier 3', batched_question: `Push now? (ask #${arbiterPrompts.length})` }
@@ -224,6 +228,80 @@ async function main() {
   out.nullDeny2 = { passed: rNull2.passed, verdict: rNull2.escalated && rNull2.escalated.verdict,
     reachedGate: calls.some((c) => c.startsWith('verify:')), attempts: rNull2.attempts }
 
+  // --- plan-exec Q49: an action sent back as unvetted and then dropped must be in asks ---
+  const dropAct = 'drop the users table'
+  // Attempt 1 reports the deny action; later attempts drop it. `asksFrom` is the attempt
+  // that starts carrying the ask line (0 = never).
+  const fbs = {}
+  const dropRun = async (id, asksFrom, extra) => {
+    calls = []
+    const r = await runPhase({ id, gateCmd: 'true',
+      implement: async (fb, attempt) => {
+        fbs[attempt] = fb
+        const w = { done: true, summary: 'ok', proof: 'x.txt' }
+        if (attempt === 1) w.pending_actions = [dropAct]
+        if (asksFrom && attempt >= asksFrom) w.asks = [`Needs owner: ${dropAct}`]
+        return w
+      } }, { ...ctx, maxRetries: 2, ...extra })
+    return { passed: r.passed, verdict: r.escalated && r.escalated.verdict, attempts: r.attempts,
+      asks: r.asks.length, reachedGate: calls.some((c) => c.startsWith('verify:')) }
+  }
+  scenario = 'null-arbiter'
+  out.dropNoAsk = await dropRun('p-drop', 0)
+  out.fbQuotes = String(fbs[2]).includes(dropAct) && String(fbs[2]).includes('exactly this text')
+  out.dropAsk = await dropRun('p-drop-ask', 2)
+  // An ask line about some OTHER action does not cover the dropped one.
+  out.dropOtherAsk = await (async () => {
+    calls = []
+    const r = await runPhase({ id: 'p-drop-other', gateCmd: 'true',
+      implement: async (fb, attempt) => ({ done: true, summary: 'ok', proof: 'x.txt',
+        ...(attempt === 1 ? { pending_actions: [dropAct] } : { asks: ['Needs owner: git push'] }) }) },
+      { ...ctx, maxRetries: 2 })
+    return { passed: r.passed, attempts: r.attempts }
+  })()
+  // No deny action ever reported: nothing changes.
+  out.noDeny = await (async () => {
+    const r = await runPhase({ id: 'p-clean', gateCmd: 'true',
+      implement: async () => ({ done: true, summary: 'ok', proof: 'x.txt' }) }, { ...ctx, maxRetries: 2 })
+    return { passed: r.passed, attempts: r.attempts, asks: r.asks.length }
+  })()
+  // A null verdict on a publication-only action is not a deny action: it is not owed.
+  out.nullPub = await (async () => {
+    const r = await runPhase({ id: 'p-nullpub', gateCmd: 'true',
+      implement: async (fb, attempt) => attempt === 1
+        ? { done: false, summary: 'ok', pending_actions: ['git push origin main'] }
+        : { done: true, summary: 'ok', proof: 'x.txt' } }, { ...ctx, maxRetries: 2 })
+    return { passed: r.passed, attempts: r.attempts }
+  })()
+  // Deny action null on attempt 1, re-reported identically on attempt 2, arbiter now rules ASK:
+  // it is vetted, no longer owed.
+  scenario = 'null-then-ask'
+  arbiterPrompts = []
+  out.nullThenAsk = await (async () => {
+    const r = await runPhase({ id: 'p-nta', gateCmd: 'true',
+      implement: async () => ({ done: true, summary: 'ok', proof: 'x.txt', pending_actions: [dropAct] }) },
+      { ...ctx, maxRetries: 2 })
+    return { passed: r.passed, attempts: r.attempts }
+  })()
+  // Vetted deny action (ASK) dropped on a later attempt: no extra demand.
+  scenario = 'counter'
+  out.dropVetted = await (async () => {
+    const r = await runPhase({ id: 'p-vetted', gateCmd: 'true',
+      implement: async (fb, attempt) => attempt === 1
+        ? { done: false, summary: 'ok', pending_actions: [dropAct] }
+        : { done: true, summary: 'ok', proof: 'x.txt' } },
+      { ...ctx, maxRetries: 2 })
+    return { passed: r.passed, attempts: r.attempts }
+  })()
+  // asks lines survive the blocked-implementer director path.
+  scenario = 'blocked-stop'
+  out.blockedAsks = await (async () => {
+    const r = await runPhase({ id: 'p-blk', gateCmd: 'true',
+      implement: async () => ({ done: false, summary: 'x', blocked_reason: 'stuck', asks: ['Need the owner'] }) },
+      { ...ctx, maxRetries: 2 })
+    return { passed: r.passed, verdict: r.escalated && r.escalated.verdict, asks: r.asks.length }
+  })()
+
   console.log(JSON.stringify(out))
 }
 main().catch((e) => { console.error(String(e)); process.exit(2) })
@@ -293,6 +371,22 @@ check "the phase does not pass" "$(jqf nullDeny2.passed)" "false"
 check "it halts with STOP" "$(jqf nullDeny2.verdict)" "STOP"
 check "it never reaches the gate" "$(jqf nullDeny2.reachedGate)" "false"
 check "it used all three attempts" "$(jqf nullDeny2.attempts)" "3"
+
+echo "dropped deny action must be recorded in asks (plan-exec Q49):"
+check "dropped without an ask: the phase does not pass" "$(jqf dropNoAsk.passed)" "false"
+check "dropped without an ask: STOP" "$(jqf dropNoAsk.verdict)" "STOP"
+check "dropped without an ask: all three attempts used" "$(jqf dropNoAsk.attempts)" "3"
+check "dropped without an ask: never reaches the gate" "$(jqf dropNoAsk.reachedGate)" "false"
+check "dropped with an ask: the phase passes on attempt 2" "$(jqf dropAsk.passed)/$(jqf dropAsk.attempts)" "true/2"
+check "dropped with an ask: the line reaches asks" "$(jqf dropAsk.asks)" "1"
+check "an ask about another action does not cover it" "$(jqf dropOtherAsk.passed)/$(jqf dropOtherAsk.attempts)" "false/3"
+check "no deny action: unchanged" "$(jqf noDeny.passed)/$(jqf noDeny.attempts)/$(jqf noDeny.asks)" "true/1/0"
+check "vetted deny action dropped later: unchanged" "$(jqf dropVetted.passed)/$(jqf dropVetted.attempts)" "true/2"
+check "null then vetted ASK on the same deny action passes" "$(jqf nullThenAsk.passed)/$(jqf nullThenAsk.attempts)" "true/2"
+check "the send-back feedback quotes the owed action verbatim" "$(jqf fbQuotes)" "true"
+check "asks survive the blocked-implementer STOP" "$(jqf blockedAsks.verdict)/$(jqf blockedAsks.asks)" "STOP/1"
+
+check "null verdict on a publication-only action is not owed" "$(jqf nullPub.passed)/$(jqf nullPub.attempts)" "true/2"
 
 echo ""
 echo "workflow-core publication: $PASS passed, $FAIL failed"
