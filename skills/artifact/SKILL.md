@@ -163,24 +163,28 @@ on the HTML route) has passed `check-artifact`:
    every defect it prints and rebuild. Exit 3 means Playwright is missing: stop, print the
    install command it gave, and hand nothing over as checked. Never skip the probe.
    Requires `node` and Playwright with Chromium: `npm i -g playwright && npx playwright install chromium` (or point `AIDEX_PLAYWRIGHT_DIR` at an existing install).
-2. Launch the `artifact-grader` agent (`subagent_type: aidex:artifact-grader`) with the request, the absolute path of the manifest
-   (`<name>-shots.json`, which lists the viewport-height tiles and the item ids each
-   holds) instead of the two full-page shots, the list of files the probe printed as
-   written this run (`SHOT <path>` lines, one run stamp), the path of
-   `references/05-visual-review.md`, the profile's `viewports: desktop` line when `.context/profiles/artifact.md` declares it, and — for a consultation round built over a reply —
-   the DUTIES list `save-reply.sh` printed (it includes gallery rows with a non-approved verdict and region-mark rows): the grader maps each duty to its item by id and
-   scores it met/not-met alongside the rubric. A delegate builds, probes and returns the
-   shot paths and the manifest; the main session launches the grader (a subagent cannot
-   launch agents). `INVALID: <kind> <file>` (unreadable, missing, stale) is no score: fix the
-   cause (re-run the probe, pass the right regenerated-files list) and re-launch; it counts
-   as a round. If the third round is INVALID, hand over saying no valid grade was obtained,
-   and why.
-3. Score 9 or more: hand over. Under 9: fix the defects its FIXES list names, then run
-   the loop again — **at most 3 rounds**. Still under 9 after the third: hand over with
-   the grader's remaining deductions stated in the reply, never silently.
+2. Launch the `artifact-text-grader` agent and the visual grader in ONE message. (a) `aidex:artifact-text-grader` always: the request, the
+   absolute path of the `.spec.md`, the path of `references/05-visual-review.md`, and the
+   DUTIES list `save-reply.sh` printed for a consultation round built over a reply. (b)
+   `aidex:artifact-grader` with the handoff line `lines: 2-5` ONLY when the page has a figure,
+   chart, diagram, mockup or gallery rows: the request, the absolute path of the manifest
+   (`<name>-shots.json`), the files the probe printed as written this run (`SHOT <path>`
+   lines, one run stamp), the rubric path, the profile's `viewports: desktop` line when
+   `.context/profiles/artifact.md` declares it, and the DUTIES list. (c) During the trial,
+   also a full-rubric `aidex:artifact-grader` (no `lines:` line) as a shadow: never waited
+   on, never applied; an owner rule outside the repo logs it. The page score is the sum of
+   both graders' lines (rubric 05). A delegate builds, probes and returns the paths; the
+   main session launches the graders (a subagent cannot launch agents). `INVALID: <kind> <file>`
+   is no score: fix the cause and re-launch; it counts as a round. If the third round is
+   INVALID, hand over saying no valid grade was obtained, and why.
+3. Score 9 or more: hand over. Under 9: fix the defects the FIXES lists name, then run the
+   loop again, **at most 3 rounds**. After round 1, if line 7 is met, open the page for the
+   owner and say in one line that fixes continue and they should reload; the remaining
+   rounds run after the open. If line 7 is not met, fix first. Still under 9 after the
+   third: say the remaining deductions in the reply, never silently.
 
-`model-policy: per-stage`: the grader pins its own model (`agents/artifact-grader.md`,
-opus); nothing is passed on the call.
+`model-policy: per-stage`: the graders pin their own models (`agents/artifact-grader.md` opus,
+`agents/artifact-text-grader.md` sonnet); nothing is passed on the call.
 
 Exit codes, where the shots go and what a subagent that cannot launch the grader does:
 `references/02-local-first-artifacts.md` § The quality loop.

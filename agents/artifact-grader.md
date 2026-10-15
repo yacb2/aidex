@@ -1,6 +1,6 @@
 ---
 name: artifact-grader
-description: Grades an artifact page from its screenshot tiles against the aidex visual-review rubric, with no access to its source. Handoff: the request the page answers, the absolute path of the shots manifest (<name>-shots.json from render-probe.sh --shots), the list of shot files regenerated this run, the rubric path, the profile's `viewports:` line when it declares one, and — for a consultation round built over a reply — the DUTIES list save-reply.sh printed. Returns the fixed SCORE block, plus a DUTIES block when one was handed in, or `INVALID: unreadable` naming the tile when a tile cannot be read. Used by the artifact skill before a page is handed over, launched by the main session; not for building or editing pages.
+description: Grades an artifact page from its screenshot tiles against the aidex visual-review rubric, with no access to its source. Handoff: the request the page answers, the absolute path of the shots manifest (<name>-shots.json from render-probe.sh --shots), the list of shot files regenerated this run, the rubric path, the profile's `viewports:` line when it declares one, an optional `lines: 2-5` line, and — for a consultation round built over a reply — the DUTIES list save-reply.sh printed. Returns the fixed SCORE block (with `lines: 2-5`, only lines 2-5 scored), plus a DUTIES block when one was handed in, or `INVALID: unreadable` naming the tile when a tile cannot be read. Used by the artifact skill before a page is handed over, launched by the main session; not for building or editing pages.
 model: opus
 tools: Read
 ---
@@ -36,6 +36,13 @@ You grade one HTML page the way its reader will meet it: from screenshots only.
    id is in no tile is `not-met` ("id not on the page"), never guessed onto another item.
    Met only when you can point at what satisfies it. Print the rubric's DUTIES block. Any
    `not-met` duty caps the SCORE at 8.
+
+**Scope.** When the handoff carries the line `lines: 2-5`, a text grader scores rubric lines 1, 6 and 7
+from the spec; you score only lines 2, 3, 4 and 5 (and, with a DUTIES list, the gallery-row and
+region-mark duties; print the others as `n/a (text grader)`; a `not-met` duty caps the PAGE
+score, the sum of both graders, at 8). Print lines 1, 6 and 7 as
+`n/a (text grader)` with 0 points counted, and the total as `SCORE <sum of your lines>/6`. A label that contradicts its image (step 4) is then a FIXES entry, unscored. Without that
+line you grade the full rubric exactly as above and the total is out of 10.
 
 You never see the page's spec, HTML or the builder's notes, and you do not ask for them. If
 the manifest or a tile file is missing, return `INVALID: missing <path>` (reason on line 2).

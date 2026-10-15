@@ -5,7 +5,7 @@ contract check reads source and the render probe measures geometry; neither can 
 whose ticks read 272.87 / 118.32 / -36.23, or a diagram drawn at twice body size. This
 rubric grades what the reader sees, from screenshots, on a 10-point scale.
 
-The grader is the `artifact-grader` agent. It sees the request and the viewport-height tiles of the 1280 px and 390 px
+The visual grader is the `artifact-grader` agent (the text lines go to `artifact-text-grader`, below). It sees the request and the viewport-height tiles of the 1280 px and 390 px
 renders (listed by the `<name>-shots.json` manifest from `render-probe.sh --shots`), and nothing else: not the spec, not
 the HTML, not the builder's reasoning. A builder who grades its own page approves it.
 
@@ -52,6 +52,14 @@ line 3 below is where a figure in a foreign font loses its point.
 | 6 | Hierarchy and density | 1 | Walls of prose where a table or list would read faster; more than three facts of one shape in a paragraph; headings that do not say what the section found; decorative elements with no meaning |
 | 7 | Numbers are consistent | 1 | A figure, a table and the prose disagree on a value; a number without its unit or sample size where the request depends on it |
 
+**Two graders, one score.** Lines 1, 6 and 7 are *text lines*: the `artifact-text-grader`
+(sonnet) reads them from the `.spec.md`. Lines 2-5 are *visual lines*: the `artifact-grader`
+reads them from the tiles, launched with `lines: 2-5`. The page score is the sum of both
+graders' lines, with the same 9/10 threshold; a `not-met` duty in either grader caps that sum at 8. Without a `lines:` handoff the `artifact-grader`
+scores all seven lines (full mode, used as the trial's shadow). When the visual grader is not
+launched (the page has no figure, chart, diagram, mockup or gallery rows), lines 2-5 count as
+met only if `render-probe.sh` printed no defect.
+
 Score 10 only when no line loses anything. Half points are not used: a line either holds or
 names its defect.
 
@@ -68,7 +76,9 @@ remaining deductions stated in the hand-over message**, never silently.
 
 ## Output format
 
-The grader returns exactly this block, so a script can read it:
+The full-mode grader returns exactly this block, so a script can read it. With `lines: 2-5` it
+prints lines 1, 6 and 7 as `n/a (text grader)` and a total out of 6; the text grader prints
+only lines 1, 6, 7 and FIXES, total out of 4:
 
 ```
 SCORE <total>/10
