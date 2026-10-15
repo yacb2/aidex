@@ -330,6 +330,69 @@ done
 : > "$TMP/vis-empty.md"
 row "visual: refused on an empty proof file" 2 "refused" "" -- --visual "$TMP/vis-empty.md"
 
+# ---- one grammar for the pending-owner line and the owner verdict ----
+# Part 1 (is this line a valid record?) and the open-page search (is this page still open?) read the
+# same two line shapes. They were two implementations, and a path part 1 rejects was still listed as open.
+# Every marker shape is pinned on BOTH sides: part 1 accepts it (exit 0) or refuses it (exit 1), and the
+# --pending listing shows the page or not. The search shares part 1's regexes, so a page is listed exactly
+# when part 1 would accept its line (exit 0): the rows ending 1/n are the paths the old awk copy listed
+# as open (`·`, a backslash, a tab, a vertical tab, any byte 0xC2/0xB7 such as `°`) though part 1 refuses them. A row is (path, cells,
+# part-1-exit, listed).
+okc() { [ "$1" = "$2" ] || { printf 'FAIL: %s — expected %s, got %s\n' "$3" "$2" "$1"; fail=1; return 1; }; }
+pin_pending() {  # <path> <cells> <part-1 exit> <listed y|n>
+  local f got1 listed=n
+  f="$(pl '' "- ui-surface: phase 3 · pending-owner · $1 · cells: $2" "$(PG 3 | sed -n 1p)" "$(PG 3 | sed -n 2p)")"
+  bash "$CHECK" "$f" 3 >/dev/null 2>&1; got1=$?
+  bash "$CHECK" --pending "$f" 2>&1 | grep >/dev/null '^pending-owner: phase 3' && listed=y
+  okc "$got1" "$3" "pending shape $(printf '%q' "$1") / $2: part 1 exit" \
+    && okc "$listed" "$4" "pending shape $(printf '%q' "$1") / $2: listed as open" \
+    && printf 'ok: pending shape %q cells %s -> part1=%s listed=%s\n' "$1" "$2" "$3" "$4"
+}
+pin_verdict() {  # <verdict> <part-1 exit> <page open|closed> [path, default r/g.html]
+  local f got1 state=open vp="${4:-r/g.html}"
+  # slot() runs in a subshell and always returns the same name: use each plan before building the next
+  f="$(pl '' "- ui-surface: phase 3 · $vp · owner: $1" "$(PG 3 | sed -n 1p)" "$(PG 3 | sed -n 2p)")"
+  bash "$CHECK" "$f" 3 >/dev/null 2>&1; got1=$?
+  f="$(pl '' "$PEND" "- ui-surface: phase 3 · $vp · owner: $1")"
+  bash "$CHECK" --pending "$f" 2>&1 | grep >/dev/null '^pending-owner: phase 3' || state=closed
+  okc "$got1" "$2" "verdict $(printf '%q' "$1") path $vp: part 1 exit" \
+    && okc "$state" "$3" "verdict $(printf '%q' "$1") path $vp: page" \
+    && printf 'ok: verdict %q path %q -> part1=%s page=%s\n' "$1" "$vp" "$2" "$3"
+}
+for r in 'r/g.html@row-2@0@y' 'C:/x/g.html@row-2@0@y' 'é.html@row-2@0@y' 'r/g.html.html@row-2@0@y' 'a"b.html@row-2@0@y' \
+         "a'b.html@row-2@0@y" 'a$b.html@row-2@0@y' 'a|b.html@row-2@0@y' \
+         'a<b.html@row-2@1@n' 'a>b.html@row-2@1@n' 'a b.html@row-2@1@n' '.html@row-2@1@n' 'r/g.HTML@row-2@1@n' 'r/g.htm@row-2@1@n' \
+         'r/g.html@row-2,row-5@0@y' 'r/g.html@a@0@y' 'r/g.html@a.b@0@y' 'r/g.html@a-@0@y' 'r/g.html@a_@0@y' 'r/g.html@A1@0@y' \
+         'r/g.html@a.@1@n' 'r/g.html@_a@1@n' 'r/g.html@a b@1@n' 'r/g.html@a,@1@n' 'r/g.html@,a@1@n' 'r/g.html@a,,b@1@n' 'r/g.html@-a@1@n' \
+         'a·b.html@row-2@1@n' '·a.html@row-2@1@n' 'a\b.html@row-2@1@n'; do
+  IFS='@' read -r pa pc p1 pl_ <<<"$r"; pin_pending "$pa" "$pc" "$p1" "$pl_"
+done
+pin_pending $'a\tb.html' row-2 1 n
+pin_pending $'a\vb.html' row-2 1 n
+# a byte 0xC2 or 0xB7 anywhere in the path (the two bytes of `·` are excluded one by one under LC_ALL=C)
+pin_pending 'r/a°.html' row-2 1 n
+pin_pending 'r/a¹.html' row-2 1 n
+for r in 'approved@0@closed' 'approved 3/3@0@closed' 'approved 1/1@0@closed' 'approved 10/10@0@closed' 'approved 100/100@0@closed' \
+         '9/10@0@closed' '10/10@0@closed' 'approved 3/4@1@open' 'approved 03/03@1@open' 'approved 0/0@1@open' '8/10@1@open' '09/10@1@open' \
+         '11/10@1@open' 'approved @1@open' ' approved@1@open' 'Approved@1@open' 'approved 3 /3@1@open' 'approved 3/3x@1@open' 'rejected@1@open'; do
+  IFS='@' read -r vv v1 vs <<<"$r"; pin_verdict "$vv" "$v1" "$vs"
+done
+
+# the verdict path class has no backslash exclusion (HEAD's inline regex), the pending one does.
+# Only the part-1 exit is pinned here: the queued page is always r/g.html, so its page column stays open.
+pin_verdict approved 0 open 'r\g.html'
+pin_verdict 9/10 0 open 'a\b.html'
+pin_verdict approved 1 open 'r/a°.html'
+pin_verdict approved 1 open 'a·b.html'
+# order and reopening in the listing: a re-queued phase keeps its first position, a reopened page too
+pend_list() { bash "$CHECK" --pending "$1" 2>&1 | grep '^pending-owner:' | sed 's/ · cells.*//' | tr '\n' ';'; }
+okc "$(pend_list "$(pl '' '- ui-surface: phase 1 · pending-owner · r/a.html · cells: x' '- ui-surface: phase 2 · pending-owner · r/b.html · cells: x' '- ui-surface: phase 1 · pending-owner · r/c.html · cells: y')")" \
+  'pending-owner: phase 1 · r/c.html;pending-owner: phase 2 · r/b.html;' "listing order: a re-queued phase keeps its first position" \
+  && echo "ok: listing order: a re-queued phase keeps its first position"
+okc "$(pend_list "$(pl '' '- ui-surface: phase 1 · pending-owner · r/a.html · cells: x' '- ui-surface: phase 2 · pending-owner · r/b.html · cells: x' '- ui-surface: phase 1 · r/a.html · owner: approved' '- ui-surface: phase 1 · pending-owner · r/a.html · cells: x')")" \
+  'pending-owner: phase 1 · r/a.html;pending-owner: phase 2 · r/b.html;' "listing order: a page reopened by a new pending line returns to its phase's first position" \
+  && echo "ok: listing order: a reopened page returns to its first position"
+
 # ================= the real plans: exactly the UI ones are UI =================
 # Every real plan is run. The UI set is written here by hand, from reading each plan's
 # headings and bold lead-ins — not from the script — and every other plan must exit 0

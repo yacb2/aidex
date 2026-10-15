@@ -28,8 +28,6 @@ another executable consumer of the registry, guard it there or here, but do not 
 this test's "in sync" as covering it.
 
 SCOPE — every skills/* walk below goes through _owned_skills(), never the raw root.
-Installed, that root also holds the user's own skills, which this repo does not ship
-and has no standing to judge (BL-115).
   7. every agents/*.md declares model and a valid effort, haiku included; an absent effort
      silently inherits the spawning session's (haiku: the model's default) — see the check
      for the probe. Named exemptions: EFFORT_EXEMPT. Until 2026-10-08 haiku had to declare
@@ -194,35 +192,8 @@ def _effort_failures(name: str, model: str, effort: str) -> list[str]:
 
 
 def _owned_skills() -> list[Path]:
-    """Skill directories aidex ships — never the user's own.
-
-    Installed, SKILLS_DIR is ~/.claude/skills, which also holds whatever skills
-    the user put there; ~/.claude/aidex/manifest is install.sh's record of which ones
-    are ours. Without this filter the guard judged foreign skills and FAILed on
-    a clean tree for every installed user, while the repo copy — where the root
-    is aidex-only by construction — printed OK (BL-115).
-    """
-    # install.sh writes STATE_DIR/manifest, i.e. <root>/aidex/manifest. Reading
-    # only <root>/.manifest meant the filter never engaged on a real install and
-    # the fallback below judged the user's own skills — BL-115 all over again,
-    # invisible because the test wrote the manifest where the code looked.
-    candidates = [
-        SKILLS_DIR.parent / "aidex" / "manifest",   # what install.sh writes
-        SKILLS_DIR.parent / ".manifest",            # legacy layout
-    ]
-    # A PRESENT manifest is authoritative even when it yields nothing. Falling
-    # back to "scan everything" on an empty or corrupt one is BL-115 reopened by
-    # a broken install, silently — main() FAILs loudly on an empty set instead,
-    # which is the right verdict there. Same rule as the bash resolver in
-    # scripts/_owned-skills.sh; two languages, one behaviour.
-    manifest = next((m for m in candidates if m.is_file()), None)
-    if manifest is not None:
-        owned = [
-            SKILLS_DIR / line.split("/", 1)[1]
-            for line in manifest.read_text(encoding="utf-8").split()
-            if line.startswith("skills/") and line.count("/") == 1
-        ]
-        return sorted(p for p in owned if (p / "SKILL.md").is_file())
+    """Skill directories aidex ships. SKILLS_DIR is the plugin checkout's skills/,
+    aidex-only by construction; same rule as scripts/_owned-skills.sh."""
     return sorted(p for p in SKILLS_DIR.iterdir()
                   if p.is_dir() and (p / "SKILL.md").is_file())
 
@@ -247,7 +218,7 @@ def main() -> int:
     failures: list[str] = []
     owned = _owned_skills()
     if not owned:
-        print(f"FAIL: no aidex-owned skills under {SKILLS_DIR} — broken manifest or install")
+        print(f"FAIL: no aidex-owned skills under {SKILLS_DIR} — broken checkout")
         return 1
     owned_skill_mds = [d / "SKILL.md" for d in owned]
     v = _load_validator()

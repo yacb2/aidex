@@ -17,8 +17,8 @@ Read conventions: `${CLAUDE_PLUGIN_ROOT}/skills/conventions/references/skill-con
 ## Scopes to Scan
 
 1. `.claude/skills/` — local project skills (real files only, skip symlinks)
-2. `${CLAUDE_PLUGIN_ROOT}/skills/` — global skills. Both the user's own and the aidex-installed ones
-   live here; `~/.claude/aidex/manifest` says which are aidex's.
+2. `${CLAUDE_PLUGIN_ROOT}/skills/` — global skills: the plugin's own, all aidex's (the install
+   manifest is retired).
 
 ## Checks
 

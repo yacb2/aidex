@@ -18,10 +18,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd -P)"
 CANON="$REPO_ROOT/skills/conventions/references/workflow-core.md"
 
-# Only aidex's own assets. Installed, REPO_ROOT is ~/.claude and the find below
-# would judge a user skill's workflow asset against aidex's canonical blocks
-# (BL-115). No installed skill ships one today, which is the only reason this
-# guard was not already red for every user.
+# The assets checked are those of the skills _owned-skills.sh lists: every
+# <root>/skills/*/ that holds a SKILL.md in the plugin checkout.
 . "$SCRIPT_DIR/_owned-skills.sh"
 
 # Extract the lines strictly between `// === <NAME>:START ===` and `// === <NAME>:END ===`
@@ -41,7 +39,7 @@ OWNED=()
 while IFS= read -r d; do
   OWNED+=("$d")
 done < <(aidex_owned_skill_dirs "$REPO_ROOT")
-[ "${#OWNED[@]}" -gt 0 ] || { echo "FAIL: no aidex-owned skills found under $REPO_ROOT/skills — broken manifest or install" >&2; exit 1; }
+[ "${#OWNED[@]}" -gt 0 ] || { echo "FAIL: no aidex-owned skills found under $REPO_ROOT/skills — broken checkout" >&2; exit 1; }
 
 ASSETS=()
 while IFS= read -r f; do

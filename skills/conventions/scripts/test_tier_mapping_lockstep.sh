@@ -35,10 +35,8 @@ WORKFLOWS="$REPO/skills/plan-exec/assets/workflows"
 fail=0
 err() { echo "FAIL: $*" >&2; fail=1; }
 
-# Installed, $REPO is ~/.claude, whose skills/ also holds the user's own skills.
-# Judging those is BL-115: a FAIL on a clean tree for something this repo does
-# not ship. Ownership comes from _owned-skills.sh, shared with the other guards
-# that walk this root.
+# The skills walked come from _owned-skills.sh (every skills/*/ with a SKILL.md in the
+# checkout), shared with the other guards that walk this root.
 aidex_owned_md() {
   local d
   while IFS= read -r d; do

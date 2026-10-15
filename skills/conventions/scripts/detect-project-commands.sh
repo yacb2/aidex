@@ -2,7 +2,7 @@
 # detect-project-commands.sh — facts-only detector for a project's review/commit/
 # release/test/worktree command signals, cached at .claude/.aidex-detected-commands.json.
 #
-# Usage: detect-project-commands.sh [--project <path>] [--json] [--refresh]
+# Usage: detect-project-commands.sh [--project <path>]
 #
 # Detects, never invents:
 #   - .claude/commands/*.md filenames matching *review*/*commit*/*release*/
@@ -13,27 +13,20 @@
 #     fields (primary, written by worktree bootstrap), falling back to an
 #     executable worktree-up*.sh / worktree-down*.sh at the root or in scripts/.
 #
-# Without --refresh, an existing cache file is read as-is (no re-scan).
-# With --refresh, always re-scans and overwrites the cache.
+# An existing cache file is read as-is (no re-scan); delete it to re-scan.
 
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # _lib.sh sets -euo pipefail for this script (_lib.sh:10).
 . "$SCRIPTS_DIR/_lib.sh"
 
 PROJECT=""
-JSON=0
-REFRESH=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --project)
       PROJECT="$2"; shift 2 ;;
-    --json)
-      JSON=1; shift ;;
-    --refresh)
-      REFRESH=1; shift ;;
     -h|--help)
-      printf 'Usage: %s [--project <path>] [--json] [--refresh]\n' "$(basename "$0")"
+      printf 'Usage: %s [--project <path>]\n' "$(basename "$0")"
       exit 0 ;;
     *)
       die "unknown argument: $1" ;;
@@ -53,10 +46,7 @@ CACHE_RELPATH=".claude/.aidex-detected-commands.json"
 emit() {
   # $1 = path to a JSON file containing detected_at/review_command/etc.
   local f="$1"
-  if [[ "$JSON" -eq 1 ]]; then
-    cat "$f"
-  else
-    python3 - "$f" <<'PYEOF'
+  python3 - "$f" <<'PYEOF'
 import json, sys
 d = json.load(open(sys.argv[1]))
 print(f"detected_at: {d.get('detected_at')}")
@@ -69,10 +59,9 @@ for field in ("review_command", "commit_command", "release_command", "test_comma
     else:
         print(f"{field}: (not detected)")
 PYEOF
-  fi
 }
 
-if [[ "$REFRESH" -ne 1 && -f "$CACHE_FILE" ]]; then
+if [[ -f "$CACHE_FILE" ]]; then
   emit "$CACHE_FILE"
   exit 0
 fi

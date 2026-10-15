@@ -46,7 +46,8 @@
 #   ui-evidence: phase <N> · skipped — <reason>
 #
 #   <N> is the phase id ([0-9A-Za-z._-]+); `phase 3` never matches `phase 3.1` or `3b`.
-#   <path> has no spaces and no < >. `meta=` is the harness meta-suite count (every
+#   <path> has no spaces, no < >, no `·` and no byte 0xC2 or 0xB7 (so `°` is out too), on both
+#   line shapes; a pending <path> also has no backslash. `meta=` is the harness meta-suite count (every
 #   predicate red on its seeded defect): optional, and when present it must be k/k.
 #   verify-ui prints the ui-gate line ready-made. Any snapshot-update token on a gate line
 #   fails it by grammar; the message names it.
@@ -162,22 +163,43 @@ else
   where="phase $phase"; pfx="phase $phase · "
 fi
 
+# The two line shapes of part 1, as ERE: ONE grammar, read by part 1 below and by open_pending.
+# Groups: pend_re 1 = path, 2 = cells; verdict_re 1 = path, 2 = verdict, 3/4 = k/k of `approved k/k`.
+# Two path classes, kept as they were before the grammar was shared (part 1 must not change):
+#   path_re (pending line): the bracket holds a literal backslash, so a path with `\` is refused.
+#   vpath_re (verdict line): no backslash exclusion, so `r\g.html` is accepted.
+# Both exclude whitespace, `<`, `>` and, under LC_ALL=C, the two BYTES of `·` (0xC2 and 0xB7) separately:
+# any path holding a byte 0xC2 or 0xB7 (`°`, `·`, U+0080..U+00BF, ...) fails the check, not only `·`.
+path_re='[^[:space:]\<\>·]+\.html'
+vpath_re='[^[:space:]<>·]+\.html'
+id_re='[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9_-])?'
+pend_re="^pending-owner · ($path_re) · cells: ($id_re(,$id_re)*)\$"
+verdict_re="^($vpath_re) · owner: (approved|approved ([1-9][0-9]*)/([1-9][0-9]*)|(9|10)/10)\$"
+# verdict_ok — 0 when the last verdict_re match is a valid owner verdict (`approved k/k` needs equal k).
+verdict_ok() { [ -z "${BASH_REMATCH[3]}" ] || [ "${BASH_REMATCH[3]}" = "${BASH_REMATCH[4]}" ]; }
+
 # open_pending — one `<phase>\t<path>\t<cells>` per page still open (header: PENDING-OWNER).
+# Indexed arrays, not associative ones: macOS ships bash 3.2. op_ph[i]/op_val[i] is a pending line
+# (value `<path>\t<cells>`); a later pending line for the same phase rewrites its slot, a verdict blanks it.
 open_pending() {
-  awk 'BEGIN { id = "[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9_-])?" }
-    { l = $0; sub(/^- /, "", l)
-      if (l !~ /^ui-surface: phase [0-9A-Za-z._-]+ · /) next
-      sub(/^ui-surface: phase /, "", l); ph = l; sub(/ · .*/, "", ph); sub(/^[^ ]+ · /, "", l)
-      n = split(l, f, " · ")
-      if (n == 3 && f[1] == "pending-owner" && f[2] ~ /^[^ <>]+\.html$/ && f[3] ~ ("^cells: " id "(," id ")*$")) {
-        open_[ph] = f[2] "\t" substr(f[3], 8); order[++k] = ph; next }
-      if (n == 2 && f[2] ~ /^owner: /) {
-        v = substr(f[2], 8); ok = 0
-        if (v == "approved" || v ~ /^(9|10)\/10$/) ok = 1
-        else if (v ~ /^approved [1-9][0-9]*\/[1-9][0-9]*$/) { split(substr(v, 10), q, "/"); ok = (q[1] == q[2]) }
-        if (ok) for (x in open_) { split(open_[x], y, "\t"); if (y[1] == f[1]) delete open_[x] }
-      } }
-    END { for (i = 1; i <= k; i++) { x = order[i]; if ((x in open_) && !(x in seen)) { seen[x] = 1; print x "\t" open_[x] } } }' <<<"$log"
+  local l ph rest i j
+  local -a op_ph=() op_val=()
+  while IFS= read -r l; do
+    l="${l#- }"
+    [[ "$l" =~ ^ui-surface:\ phase\ ([0-9A-Za-z._-]+)\ ·\ (.*)$ ]] || continue
+    ph="${BASH_REMATCH[1]}"; rest="${BASH_REMATCH[2]}"
+    if [[ "$rest" =~ $pend_re ]]; then
+      j=-1; for i in "${!op_ph[@]}"; do [ "${op_ph[$i]}" = "$ph" ] && { j=$i; break; }; done
+      [ "$j" -ge 0 ] || { j=${#op_ph[@]}; op_ph[$j]="$ph"; }
+      op_val[$j]="${BASH_REMATCH[1]}"$'\t'"${BASH_REMATCH[2]}"
+    elif [[ "$rest" =~ $verdict_re ]] && verdict_ok; then
+      for i in "${!op_ph[@]}"; do [ "${op_val[$i]%%$'\t'*}" = "${BASH_REMATCH[1]}" ] && op_val[$i]=""; done
+    fi
+  done <<<"$log"
+  for i in "${!op_ph[@]}"; do
+    [ -n "${op_val[$i]}" ] || continue
+    printf '%s\t%s\n' "${op_ph[$i]}" "${op_val[$i]}"
+  done
 }
 if [ "$listing" -eq 1 ]; then
   list="$(open_pending)"
@@ -248,10 +270,8 @@ fi
 
 # ---- part 1: the review page and the owner's approval (or its queued state) ----
 ok=0
-pend_re='^pending-owner\ ·\ ([^[:space:]\<\>·]+\.html)\ ·\ cells:\ ([A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9_-])?(,[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9_-])?)*)$'
-if [[ "$s" =~ ^[^[:space:]\<\>·]+\.html\ ·\ owner:\ (approved|approved\ ([1-9][0-9]*)/([1-9][0-9]*)|(9|10)/10)$ ]]; then
+if [[ "$s" =~ $verdict_re ]] && verdict_ok; then
   ok=1
-  [ -n "${BASH_REMATCH[2]}" ] && [ "${BASH_REMATCH[2]}" != "${BASH_REMATCH[3]}" ] && ok=0
 elif [ "$visual" -eq 0 ] && [[ "$s" =~ $pend_re ]]; then
   ok=1
   # Refused on the final phase; not provable as non-final is refused too (header: PENDING-OWNER).
