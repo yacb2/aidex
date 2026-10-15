@@ -156,11 +156,6 @@ TS
 out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
 [[ "$rc" -eq 0 ]] || fail "sibling: a load in a sibling module must exempt the directory, got: $out"
 
-# --- 7. a census that examined NOTHING is not a pass ------------------------
-out="$(AIDEX_PROJECTS_DIR=/tmp/aidex-no-such-dir bash "$CHECK" --census 2>&1)"; rc=$?
-[[ "$rc" -ne 0 ]] || fail "census: examining 0 projects must NOT report clean, got: $out"
-grep -qi '0 projects' <<<"$out" || fail "census: must say it examined nothing, got: $out"
-
 # --- 8. a vendored dotenv must NOT exempt the directory -> still a FINDING ---
 # The exemption grep is recursive. Every real frontend has `dotenv` somewhere
 # under node_modules (the package itself, and dozens of dependents that mention
@@ -227,15 +222,6 @@ printf "import dotenv from 'dotenv'\ndotenv.config()\n" > "$p/frontend/src/serve
 out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
 [[ "$rc" -ne 0 ]] || fail "elsewhere: a dotenv import in src/ must NOT exempt the root config, got: $out"
 grep -q '8710' <<<"$out" || fail "elsewhere: must name the port, got: $out"
-
-# --- 11. a census must not count an empty WT_PARTICIPANTS as clean -----------
-# Single-project mode refuses the same config with exit 2.
-CROOT="$TMP/census-noparts"; mkdir -p "$CROOT/p1/.context/worktrees"
-printf 'WT_PARTICIPANTS=""\nWT_LINKS="dev.sh"\n' > "$CROOT/p1/.context/worktrees/config.env"
-out="$(AIDEX_PROJECTS_DIR="$CROOT" bash "$CHECK" --census 2>&1)"; rc=$?
-[[ "$rc" -ne 0 ]] || fail "census-noparts: an unparsed config must not pass the census, got: $out"
-grep -qE 'p1 +clean' <<<"$out" && fail "census-noparts: must not print the project as clean, got: $out"
-grep -qi 'nothing was checked' <<<"$out" || fail "census-noparts: must say it examined nothing, got: $out"
 
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"

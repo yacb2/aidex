@@ -37,6 +37,9 @@ set -euo pipefail
 
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../conventions/scripts" && pwd -P)/_lib.sh"
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/wt-frontmatter.sh"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/wt-common.sh"
+
+case "${1:-}" in -h|--help) wt_usage "${BASH_SOURCE[0]}"; exit 0 ;; esac
 
 DOC="${1:-$(find_project_root)/.context/worktrees/00-index.md}"
 [[ -f "$DOC" ]] || die "worktree overview not found: $DOC"

@@ -40,7 +40,7 @@ SUFFIX_VAR="WT_SUFFIX"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --suffix-var) SUFFIX_VAR="${2-}"; shift 2 ;;
-    -h|--help) wt_usage "${BASH_SOURCE[0]}"; exit 2 ;;
+    -h|--help) wt_usage "${BASH_SOURCE[0]}"; exit 0 ;;
     *) FILE="$1"; shift ;;
   esac
 done

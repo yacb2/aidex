@@ -1011,7 +1011,9 @@ if [[ "$cmd" == "new" ]]; then
         busy=0
         while IFS= read -r line; do
           p="${line##*=}"
-          lsof -nP -ti :"$p" >/dev/null 2>&1 9>&- && { busy=1; break; }
+          # LISTEN only, like the PORT-HELD row in `list`: a client socket whose local port happens to be
+          # the slot's does not hold it. A UDP-only holder is therefore free (owner Q9).
+          lsof -nP -ti :"$p" -sTCP:LISTEN >/dev/null 2>&1 9>&- && { busy=1; break; }
         done < <(port_env "$cand")
         [[ "$busy" -eq 0 ]] && { SLOT="$cand"; break; }
       done
@@ -1030,6 +1032,43 @@ if [[ "$cmd" == "new" ]]; then
   # containers behind. They were attributable, so a later sweep could find them,
   # but "recoverable mess" is not the same as "no mess": the next run inherits a
   # half-built stack and the failure compounds.
+  # WHY THIS TEARDOWN IS NOT `down`'s (worktree-s39, owner decision Q10, 2026-10-15:
+  # keep both paths). The compose-down + dangling-image sequence below and the one in
+  # `down` (the "tearing down $CPROJ" section) differ on seven points. Reasons come from
+  # code comments and `git log -S`; where none is recorded it says so, and a reason is
+  # never guessed.
+  #   1. compose down timeout: rollback has none; `down` bounds it by AIDEX_DOWN_TIMEOUT
+  #      (default 300 s). Reason for `down`: a wedged daemon hung it for good
+  #      (60f767cf, worktree-c05). Rollback: no recorded reason; that commit left it unbounded.
+  #   2. slot ports in the environment: rollback passes only COMPOSE_PROJECT_NAME and the
+  #      suffix variable; `down` runs through "${envs[@]}" from build_envs (slot ports
+  #      included). Reason: no recorded reason. Code observation only: the first three
+  #      rollback calls below fire before build_envs runs, so `envs` is not built yet there.
+  #   3. compose-down failure handling: rollback discards it (>/dev/null 2>&1) and carries
+  #      on; when a claim is held (claim_held), `down` records "compose down failed" in
+  #      `unreclaimed` and withholds the slot claim and the exit 0 (a tree with no claim
+  #      has nothing to withhold: `claim_held || unreclaimed=""`). Reason for `down`: a claim released over unreclaimed
+  #      resources left resources no claim tracks (19306bd0 worktree-c02, 60f767cf).
+  #      Rollback: no recorded reason.
+  #   4. images info line: `down` prints "reclaiming untagged layers built by ..."; rollback
+  #      is silent. No recorded reason (git log -S finds only the 76706d93 folder rename).
+  #   5. when it runs: rollback runs inside `new`, before the worktree is handed over, and
+  #      only if $DEST exists or this run created it (it falls back to cd "$ROOT");
+  #      `down` runs later on request, even against an already-removed $DEST (the
+  #      failed-teardown recovery path), falling back to COMPOSE_DIR=$ROOT; the "Guarded on
+  #      the directory" comment in `down` records that reason for `down`'s side. Rollback's
+  #      side: no recorded reason. Observation (inference, not recorded): a failed `new`
+  #      may not have created anything to tear down.
+  #   6. unclaimed resources: `down` asks orphan-sweep.sh whether any resource remains and
+  #      releases the claim only if the claim is unchanged and nothing is unreclaimed;
+  #      rollback releases its own claim unconditionally (rm -f "$CLAIM") after
+  #      compose down, without asking, and even when compose down never ran ($DEST absent
+  #      and CREATED_DIR=false, so the `if` above is skipped). Reason for `down`: 19306bd0 (worktree-c02, c38).
+  #      Rollback: no recorded reason.
+  #   7. image-removal timeout: `down` bounds the dangling-image listing (docker images) by
+  #      AIDEX_DOCKER_TIMEOUT (60f767cf, worktree-c05) but not the docker rmi; rollback
+  #      bounds neither. Reason for `down`: same wedged-daemon case as point 1. Rollback: no
+  #      recorded reason.
   CREATED_DIR=false
   rollback() {
     warn "rolling back $CPROJ"

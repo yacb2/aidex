@@ -150,7 +150,7 @@ fi
 echo "== a normalised compose project name (worktree-c06) =="
 # A workspace directory `My.App` gets compose projects `myapp-wt-<slug>`; the sweep
 # used to look for `My.App-wt-` and saw nothing, so a live stack read as absent.
-NROOT="$TMP/My.App"; mkdir -p "$NROOT/.context" "$TMP/My.App-wt-cn" "$NROOT/_worktrees/My.App-wt-cx"
+NROOT="$TMP/My.App"; mkdir -p "$NROOT/.context" "$TMP/My.App-wt-cn"
 git init -q "$NROOT"
 git -C "$NROOT" -c user.email=t@t.t -c user.name=t commit -q --allow-empty -m init
 mkdir -p "$TMP/nbin"
@@ -158,7 +158,7 @@ cat > "$TMP/nbin/docker" <<'SHIM'
 #!/usr/bin/env bash
 case "$1" in
   info) exit 0 ;;
-  ps) printf '%s\n' "myapp-wt-cn" "myapp-wt-dead" "myapp-wt-cx" ;;
+  ps) printf '%s\n' "myapp-wt-cn" "myapp-wt-dead" ;;
   *) exit 0 ;;
 esac
 SHIM
@@ -170,10 +170,6 @@ printf '%s' "$out" | grep >/dev/null 'ORPHAN compose project: myapp-wt-dead' \
 printf '%s' "$out" | grep >/dev/null 'ORPHAN compose project: myapp-wt-cn' \
   && fail "a live My.App-wt-cn worktree made its own myapp-wt-cn stack look orphaned: $out" \
   || pass "the live worktree's stack is not an orphan"
-# A live `_worktrees/My.App-wt-cx` is the same stack under the normalised name.
-printf '%s' "$out" | grep >/dev/null 'ORPHAN compose project: myapp-wt-cx' \
-  && fail "a live _worktrees/My.App-wt-cx made its own myapp-wt-cx stack look orphaned: $out" \
-  || pass "a live _worktrees/<ws>-wt-<slug> stack is not an orphan"
 # A glob character in the workspace name is literal, not a pattern (p[1] vs p1).
 GROOT="$TMP/p[1]"; mkdir -p "$GROOT/.context" "$TMP/p[1]-wt-cn"
 git init -q "$GROOT"

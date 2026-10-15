@@ -3,7 +3,7 @@
 # (compose projects, volumes, images, dangling build layers, networks) left
 # behind by a skipped worktree teardown. Cross-checks discovered Docker
 # resources against the worktree directories that are actually still on disk
-# (siblings named `<project>-wt-<slug>` and `_worktrees/<slug-or-project>`),
+# (siblings named `<project>-wt-<slug>`),
 # and prints the exact reclaim command for each orphan. Never deletes anything
 # itself — see the safety doctrine in
 # conventions/references/worktree-conventions.md ("dangling is not
@@ -34,12 +34,15 @@ set -uo pipefail
 
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../conventions/scripts" && pwd -P)/_lib.sh"
 
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/wt-common.sh"
+
 CHECK=false
 SLUG=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --check) CHECK=true; shift ;;
     --slug)  SLUG="${2:?--slug needs a value}"; shift 2 ;;
+    -h|--help) wt_usage "${BASH_SOURCE[0]}"; exit 0 ;;
     *) die "unknown argument: $1" ;;
   esac
 done
@@ -111,20 +114,6 @@ for d in "$WS_PARENT/$WS_NAME"-wt-*; do
   d="$(basename "$d")"
   known_projects+=("${PREFIX}${d#"${WS_NAME}-wt-"}")
 done
-
-if [[ -d "$WS_ROOT/_worktrees" ]]; then
-  while IFS= read -r d; do
-    [[ -z "$d" ]] && continue
-    name="$(basename "$d")"
-    if [[ "$name" == "${WS_NAME}-wt-"* ]]; then
-      known_projects+=("${PREFIX}${name#"${WS_NAME}-wt-"}")
-    elif [[ "$name" == *-wt-* ]]; then
-      known_projects+=("$name")
-    else
-      known_projects+=("${PREFIX}${name}")
-    fi
-  done < <(find "$WS_ROOT/_worktrees" -mindepth 1 -maxdepth 1 -type d 2>/dev/null)
-fi
 
 # is_known IDENT — true if IDENT belongs to a known live worktree. Under --slug
 # the question is not liveness but attribution, so nothing counts as known: the

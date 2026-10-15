@@ -75,6 +75,7 @@ usage() {
 }
 
 cmd="${1:-}"; shift || true
+case "$cmd" in -h|--help) wt_usage "${BASH_SOURCE[0]}"; exit 0 ;; esac
 [[ "$cmd" == "create" || "$cmd" == "remove" ]] || usage
 
 # Warn, don't refuse: worktree.sh sets AIDEX_WT_INTERNAL, and a hard failure
@@ -107,7 +108,7 @@ while [[ $# -gt 0 ]]; do
     --dest)   DEST="$2"; shift 2 ;;
     --skip-teardown) SKIP_TEARDOWN=true; shift ;;
     --force) FORCE_RM=true; shift ;;
-    -h|--help) usage ;;
+    -h|--help) wt_usage "${BASH_SOURCE[0]}"; exit 0 ;;
     *) die "unknown argument: $1" ;;
   esac
 done

@@ -2,8 +2,9 @@
 # wt-common.sh — sourced, never run. Two helpers shared across the scripts here.
 # Callers keep their own `exit`.
 
-# wt_usage <script> — used by worktree.sh, worktree-multi.sh and the four check-*.sh
-# scripts. Print <script>'s leading comment block (its usage), whatever
+# wt_usage <script> — used by worktree.sh, worktree-multi.sh, docker-snapshot.sh,
+# orphan-sweep.sh, check-overview.sh and the four check-*.sh scripts (check-compose-isolation,
+# check-worktree-isolation, check-worktree-ports, check-worktree-runner). Print <script>'s leading comment block (its usage), whatever
 # its length: a hardcoded line range truncates the moment the header grows. The
 # caller passes its own "${BASH_SOURCE[0]}": inside this file that name is ours.
 wt_usage() { sed -n '2,${/^#/!q;p;}' "$1" | sed 's/^# \{0,1\}//'; }

@@ -117,10 +117,26 @@ check_usage() {  # check_usage <name> <expected rc> <args...>
 check_usage worktree.sh 0 --help
 check_usage worktree.sh 2 bogus
 check_usage worktree-multi.sh 2
-check_usage check-compose-isolation.sh 2 --help
-check_usage check-worktree-ports.sh 2 --help
-check_usage check-worktree-isolation.sh 2 --help
-check_usage check-worktree-runner.sh 2 --help
+check_usage check-compose-isolation.sh 0 --help
+check_usage check-worktree-ports.sh 0 --help
+check_usage check-worktree-isolation.sh 0 --help
+check_usage check-worktree-runner.sh 0 --help
+# -h exits 0 as well (owner Q11: asking for help is not an error), in all eight scripts that print usage.
+for s in check-compose-isolation check-worktree-isolation check-worktree-ports check-worktree-runner \
+         docker-snapshot orphan-sweep worktree-multi check-overview; do
+  check_usage "$s.sh" 0 -h
+done
+check_usage docker-snapshot.sh 0 --help
+check_usage orphan-sweep.sh 0 --help
+check_usage worktree-multi.sh 0 --help
+check_usage worktree-multi.sh 0 create --help
+check_usage check-overview.sh 0 --help
+# An unknown option keeps exiting 2, asserted only where an option is really parsed:
+# orphan-sweep.sh (argument loop) and worktree-multi.sh (argument loop after create).
+( cd "$TMP/p" && bash "$SCRIPTS/orphan-sweep.sh" --no-such-option >/dev/null 2>&1 ); [[ $? -eq 2 ]] \
+  || fail "orphan-sweep.sh --no-such-option: must keep exiting 2"
+( cd "$TMP/p" && bash "$SCRIPTS/worktree-multi.sh" create --no-such-option >/dev/null 2>&1 ); [[ $? -eq 2 ]] \
+  || fail "worktree-multi.sh create --no-such-option: must keep exiting 2"
 
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"

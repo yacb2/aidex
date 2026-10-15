@@ -102,6 +102,25 @@ grep -q 'compose was not checked' <<<"$out" || fail "census-nodaemon: must say c
 out="$(PATH="$TMP/bin:$PATH" FAKE_INFO_RC=0 AIDEX_PROJECTS_DIR="$CROOT" bash "$CHECK" --census 2>&1)"; rc=$?
 grep -q 'every surface holds' <<<"$out" || fail "census-daemon-up: must say every surface holds, got: $out"
 
+# 3a'''. The umbrella census must not count an empty WT_LINKS or WT_PARTICIPANTS as clean
+# (the per-script --census modes that used to pin this are gone; the umbrella owns it).
+for empty in 'WT_PARTICIPANTS="backend"\nWT_LINKS=""' 'WT_PARTICIPANTS=""\nWT_LINKS="dev.sh"'; do
+  CROOT="$TMP/census-empty"; rm -rf "$CROOT"; mkdir -p "$CROOT/p1/.context/worktrees"
+  printf "$empty\n" > "$CROOT/p1/.context/worktrees/config.env"
+  printf '#!/usr/bin/env bash\nBACKEND_PORT=${BACKEND_PORT:-8400}\n' > "$CROOT/p1/dev.sh"
+  out="$(AIDEX_PROJECTS_DIR="$CROOT" bash "$CHECK" --census 2>&1)"; rc=$?
+  [[ "$rc" -ne 0 ]] || fail "census-empty ($empty): an unparsed config must not pass the umbrella census, got: $out"
+  grep -q 'every surface holds' <<<"$out" && fail "census-empty ($empty): must not claim every surface holds, got: $out"
+  grep -qi 'nothing was checked' <<<"$out" || fail "census-empty ($empty): must say it examined nothing, got: $out"
+done
+
+# 3a'''. A census that examined NOTHING is not a pass (the `seen -eq 0` guard; the per-script
+# census modes that used to pin it are gone).
+out="$(AIDEX_PROJECTS_DIR="$TMP/no-projects" bash "$CHECK" --census 2>&1)"; rc=$?
+[[ "$rc" -eq 2 ]] || fail "census-zero: examining 0 projects must exit 2, got $rc: $out"
+grep -qi '0 projects' <<<"$out" || fail "census-zero: must say it examined 0 projects, got: $out"
+grep -q 'every surface holds' <<<"$out" && fail "census-zero: must not claim every surface holds, got: $out"
+
 # 3a''. A wedged daemon (info hangs) is bounded and reads as unavailable.
 mkdir -p "$TMP/slowbin"
 printf '#!/usr/bin/env bash\n[[ "$1" == info ]] && sleep 5\nexit 0\n' > "$TMP/slowbin/docker"

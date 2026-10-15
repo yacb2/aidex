@@ -31,7 +31,9 @@ set -uo pipefail
 
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../conventions/scripts" && pwd -P)/_lib.sh"
 
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/wt-common.sh"
 cmd="${1:-}"; shift || true
+case "$cmd" in -h|--help) wt_usage "${BASH_SOURCE[0]}"; exit 0 ;; esac
 case "$cmd" in take|diff) ;; *) die "usage: docker-snapshot.sh {take <file>|diff <before> [after]}" ;; esac
 
 # A wedged daemon accepts the socket and never answers: bounded like the sibling probes.

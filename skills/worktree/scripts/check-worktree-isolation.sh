@@ -37,7 +37,7 @@ TARGET=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --census) CENSUS=true; shift ;;
-    -h|--help) wt_usage "${BASH_SOURCE[0]}"; exit 2 ;;
+    -h|--help) wt_usage "${BASH_SOURCE[0]}"; exit 0 ;;
     *) TARGET="$1"; shift ;;
   esac
 done
