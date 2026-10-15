@@ -207,15 +207,8 @@ SH
 out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
 [[ "$rc" -eq 0 ]] || fail "othervar: sourcing via \$(dirname \$0) must exempt, got: $out"
 
-# --- 10. a census that examined NOTHING is not a pass -----------------------
-# The glob was hardcoded to ~/Documents/projects, so on any other layout the loop
-# body never ran, rc stayed 0, and the gate printed green having checked nothing.
-out="$(AIDEX_PROJECTS_DIR=/tmp/aidex-no-such-dir bash "$CHECK" --census 2>&1)"; rc=$?
-[[ "$rc" -ne 0 ]] || fail "census: examining 0 projects must NOT report clean, got: $out"
-grep -qi '0 projects' <<<"$out" || fail "census: must say it examined nothing, got: $out"
-
 # --- 11. a SINGLE project with nothing to examine is not a pass -------------
-# The census learned this (case 10) and the single-project path did not:
+# The umbrella census refuses an unexamined project and the single-project path did not:
 # `scan_project` returns 0 both when every linked script is clean and when there
 # was no config.env, or no WT_LINKS, to look at. The caller printed the same
 # "host ports OK" either way, which is a positive isolation guarantee derived
@@ -384,15 +377,6 @@ printf 'notes\n' > "$p/scripts/my notes.md"
 out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
 [[ "$rc" -ne 0 ]] || fail "linkodd: quotes/spaces in other file names must not hide dev.sh, got: $out"
 grep -q 'scripts/dev.sh' <<<"$out" || fail "linkodd: must name dev.sh, got: $out"
-
-# --- 13. a census must not count an empty WT_LINKS as clean -------------------
-# Single-project mode refuses it with exit 2; the census printed `clean`.
-CROOT="$TMP/census-nolinks"; mkdir -p "$CROOT/p1/.context/worktrees"
-printf 'WT_PARTICIPANTS="backend"\nWT_LINKS=""\n' > "$CROOT/p1/.context/worktrees/config.env"
-out="$(AIDEX_PROJECTS_DIR="$CROOT" bash "$CHECK" --census 2>&1)"; rc=$?
-[[ "$rc" -ne 0 ]] || fail "census-nolinks: an unparsed config must not pass the census, got: $out"
-grep -qE 'p1 +clean' <<<"$out" && fail "census-nolinks: must not print the project as clean, got: $out"
-grep -qi 'nothing was checked' <<<"$out" || fail "census-nolinks: must say it examined nothing, got: $out"
 
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"

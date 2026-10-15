@@ -40,7 +40,6 @@
 #
 # Usage:
 #   check-worktree-runner.sh [project-root]    # exit 1 on findings
-#   check-worktree-runner.sh --census          # one line per project
 #
 # Exit 0 = no directly-invokable harness can reach the main tree's stack.
 
@@ -50,12 +49,10 @@ set -uo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/wt-config.sh"
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/wt-common.sh"
 
-CENSUS=false
 TARGET=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --census) CENSUS=true; shift ;;
-    -h|--help) wt_usage "${BASH_SOURCE[0]}"; exit 2 ;;
+    -h|--help) wt_usage "${BASH_SOURCE[0]}"; exit 0 ;;
     *) TARGET="$1"; shift ;;
   esac
 done
@@ -161,46 +158,9 @@ scan_project() {  # -> <file>:<line>\t<kind>\t<what>\t<why> per finding
   return 0
 }
 
-if $CENSUS; then
-  rc=0; seen=0
-  CENSUS_ROOT="${AIDEX_PROJECTS_DIR:-$HOME/Documents/projects}"
-  for cfg in "$CENSUS_ROOT"/*/.context/worktrees/config.env; do
-    [[ -f "$cfg" ]] || continue
-    seen=$((seen + 1))
-    root="${cfg%/.context/worktrees/config.env}"
-    out="$(scan_project "$root")"
-    name="$(basename "$root")"
-    if [[ -z "$(wt_cfg_field "$cfg" WT_PARTICIPANTS)" ]]; then
-      # Single-project mode refuses this config (exit 2); counting it clean here
-      # would turn "nothing was checked" into a green census line.
-      printf '  %-20s WT_PARTICIPANTS is empty -- nothing was checked\n' "$name"
-      rc=1
-    elif [[ -z "$out" ]]; then
-      printf '  %-20s clean\n' "$name"
-    else
-      printf '  %-20s %s finding(s)\n' "$name" "$(grep -c . <<<"$out")"
-      while IFS=$'\t' read -r where kind what why; do
-        [[ -z "$where" ]] && continue
-        printf '      [%s] %s: %s\n' "$kind" "$where" "$what"
-      done <<<"$out"
-      rc=1
-    fi
-  done
-  # Enumerating zero projects is not a pass — this command is wired as a phase
-  # gate, and a hardcoded path that matches nothing would print green forever.
-  if [[ $seen -eq 0 ]]; then
-    err "census examined 0 projects under $CENSUS_ROOT — nothing was checked."
-    err "Set AIDEX_PROJECTS_DIR to the directory holding the projects."
-    exit 2
-  fi
-  [[ $rc -eq 0 ]] && ok "test runners: all $seen project(s) resolve their own slot — none can reach the main tree's stack"
-  exit $rc
-fi
-
 ROOT="${TARGET:-$(find_project_root)}"
 
-# Examining nothing is not a pass -- the same rule the census above already
-# applies. `scan_project` returns 0 when there is no config.env and when
+# Examining nothing is not a pass. `scan_project` returns 0 when there is no config.env and when
 # WT_PARTICIPANTS is empty, and the verdict below cannot tell either from a
 # project whose harnesses are genuinely clean.
 RUNNER_CFG="$ROOT/.context/worktrees/config.env"

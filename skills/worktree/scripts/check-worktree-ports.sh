@@ -57,8 +57,6 @@
 #
 # Usage:
 #   check-worktree-ports.sh [project-root]    # one project; exit 1 on findings
-#   check-worktree-ports.sh --census          # every project with a worktree
-#                                             # config; prints one line each
 #
 # Exit 0 = no command in a worktree can reach the main tree's host ports.
 
@@ -68,12 +66,10 @@ set -uo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/wt-config.sh"
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/wt-common.sh"
 
-CENSUS=false
 TARGET=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --census) CENSUS=true; shift ;;
-    -h|--help) wt_usage "${BASH_SOURCE[0]}"; exit 2 ;;
+    -h|--help) wt_usage "${BASH_SOURCE[0]}"; exit 0 ;;
     *) TARGET="$1"; shift ;;
   esac
 done
@@ -231,53 +227,14 @@ scan_project() {
   return 0
 }
 
-# ---------------------------------------------------------------- census
-if $CENSUS; then
-  rc=0; seen=0
-  # Overridable, because a hardcoded path makes the census silently examine
-  # NOTHING on any other machine or layout — and this command is wired as a
-  # phase gate, so "0 projects" printed as green is a gate that passes vacuously.
-  CENSUS_ROOT="${AIDEX_PROJECTS_DIR:-$HOME/Documents/projects}"
-  for cfg in "$CENSUS_ROOT"/*/.context/worktrees/config.env; do
-    [[ -f "$cfg" ]] || continue
-    seen=$((seen + 1))
-    root="${cfg%/.context/worktrees/config.env}"
-    out="$(scan_project "$root")"
-    name="$(basename "$root")"
-    if [[ -z "$(wt_cfg_field "$cfg" WT_LINKS)" ]]; then
-      # Single-project mode refuses this config (exit 2); counting it clean here
-      # would turn "nothing was checked" into a green census line.
-      printf '  %-20s WT_LINKS is empty -- nothing was checked\n' "$name"
-      rc=1
-    elif [[ -z "$out" ]]; then
-      printf '  %-20s clean\n' "$name"
-    else
-      n="$(grep -c . <<<"$out")"
-      printf '  %-20s %s finding(s)\n' "$name" "$n"
-      while IFS=$'\t' read -r where kind what why; do
-        [[ -z "$where" ]] && continue
-        printf '      [%s] %s: %s\n' "$kind" "$where" "$what"
-      done <<<"$out"
-      rc=1
-    fi
-  done
-  if [[ $seen -eq 0 ]]; then
-    err "census examined 0 projects under $CENSUS_ROOT — nothing was checked."
-    err "Set AIDEX_PROJECTS_DIR to the directory holding the projects."
-    exit 2
-  fi
-  [[ $rc -eq 0 ]] && ok "host ports: all $seen project(s) parameterize them — a worktree cannot reach the main tree's"
-  exit $rc
-fi
-
 # ---------------------------------------------------------------- one project
 ROOT="${TARGET:-$(find_project_root)}"
 
 # Examining nothing is not a pass. `scan_project` returns 0 both when every
 # linked script is clean and when there was no config.env, or no WT_LINKS, to
-# look at -- and the verdict below cannot tell the two apart. The census path
-# has refused this since it was written; this path did not, and a project with
-# no worktree setup was handed a positive isolation guarantee.
+# look at -- and the verdict below cannot tell the two apart. Without this
+# guard a project with no worktree setup was handed a positive isolation
+# guarantee.
 PORTS_CFG="$ROOT/.context/worktrees/config.env"
 if [[ ! -f "$PORTS_CFG" ]]; then
   err "no worktree config at $PORTS_CFG — nothing was checked."

@@ -42,9 +42,6 @@ check_file "$REPO_ROOT/skills/conventions/references/worktree-conventions.md" \
 check_file "$REPO_ROOT/skills/worktree/references/03-case-taxonomy.md" \
   "03-case-taxonomy.md"
 
-check_file "$REPO_ROOT/skills/worktree/assets/templates/worktree-overview.md.template" \
-  "worktree-overview.md.template"
-
 # (deleted 2026-09-12) the fourth surface was $HOME/.claude/rules/e2e-testing.md. A plugin
 # ships no rules/ folder, and the check read the user's machine rather than the product.
 
