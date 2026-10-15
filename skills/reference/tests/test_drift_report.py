@@ -113,7 +113,12 @@ class Render(unittest.TestCase):
                        ("grep of .context/references/a.md found nothing", False),
                        # reference-c04: evidence wrapped in backticks or quotes
                        ("`src/a/x.ts:12`", True), ("'x.py:12-20'", True), ('"x.py:L12"', True),
-                       ("see `src/a/x.ts:12`, then `y.py:3`", True)]:
+                       ("see `src/a/x.ts:12`, then `y.py:3`", True),
+                       # reference-c04 (Q17): a short list of extensionless names, exact, also under a path
+                       ("Makefile:12", True), ("`Dockerfile:3`", True), ("docker/Dockerfile:3", True),
+                       ("./Justfile:3-5", True), ("build/ci/Makefile:L7", True),
+                       ("Rakefile:3", False), ("MyDockerfile:3", False),
+                       ("README:3", False), ("Makefile", False)]:
             with self.subTest(ev):
                 acc, _ = report.split_findings([finding(ev=ev)], MANIFEST, "/p")
                 self.assertEqual(len(acc), 1 if ok else 0)
@@ -163,6 +168,52 @@ class Cost(unittest.TestCase):
         self.assertEqual(c["stages"]["extract"]["maxprompt"], 200_000)
         self.assertEqual(c["stages"]["verify"]["unpriced"], 1)
         self.assertIn("| total | 0.10 |", report.render(result(), MANIFEST, c))
+
+
+class CostMatchesUsageRetro(unittest.TestCase):
+    """reference-s11/s12 (Q16): report.cost prices with usage-retro's own helpers, not a drifted copy.
+    Layer: unit; the contract is that the same transcript costs the same in both tools."""
+    USAGE = dict(
+        input_tokens=10, output_tokens=100, cache_read_input_tokens=1_000,
+        cache_creation=dict(ephemeral_5m_input_tokens=6976), cache_creation_input_tokens=8480,  # flat total beats stale dict
+        iterations=[dict(type="message", input_tokens=10, output_tokens=100),
+                    dict(type="advisor_message", model="claude-opus-5-5", input_tokens=50_000, output_tokens=2_000)])
+
+    def write(self, d, model):
+        pathlib.Path(d, "journal.jsonl").write_text(json.dumps({"type": "started", "agentId": "a1", "label": "compare:u"}) + "\n")
+        pathlib.Path(d, "agent-a1.jsonl").write_text(
+            line("m1", model, self.USAGE) + "\n" + line("m2", "<synthetic>", dict(input_tokens=1_000_000)) + "\n")
+
+    def expected(self, d, model):
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "audit", "scripts", "usage-retro"))
+        import pricing
+        import subagent_spend
+        total = 0.0
+        for m, tk, _ in subagent_spend.turns(os.path.join(d, "agent-a1.jsonl"), set()):
+            total += pricing.usd_request(m, tk) or 0
+        return total
+
+    def test_total_equals_usage_retro_for_flat_cache_creation_advisor_iteration_and_a_model_the_copy_lacked(self):
+        # Literal totals (hand-checked): sonnet-5-5 0.02232 top-level + 0.24 opus advisor; fable-5-1 0.35135.
+        for model, literal in (("claude-sonnet-5-5", 0.26232), ("claude-fable-5-1", 0.35135)):
+            with self.subTest(model), tempfile.TemporaryDirectory() as d:
+                self.write(d, model)
+                want = self.expected(d, model)
+                self.assertAlmostEqual(want, literal)
+                c = report.cost(d)
+                self.assertAlmostEqual(c["total"], literal)
+                self.assertEqual(c["stages"]["compare"]["unpriced"], 0)  # synthetic placeholder skipped, fable priced
+
+    def test_report_py_runs_from_any_cwd(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.write(d, "claude-sonnet-5-5")
+            pathlib.Path(d, "manifest.json").write_text(json.dumps(MANIFEST))
+            pathlib.Path(d, "result.json").write_text(json.dumps(result([finding()])))
+            script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts", "drift", "report.py")
+            r = subprocess.run([sys.executable, script, os.path.join(d, "result.json"), d, "--transcripts", d],
+                               cwd=d, capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn("| total |", r.stdout)
 
 
 class CostEdges(unittest.TestCase):

@@ -19,10 +19,8 @@ def profile_module_map(root):
     profile-init.py --check resolve it: .context/ first, the repo root as the tracked
     fallback (BL-289).
     """
-    for prof in (profiles.resolve_profile(os.path.join(root, ".context"), "testing"),
-                 os.path.join(root, "testing-profile.md")):
-        if not prof or not os.path.isfile(prof):
-            continue
+    prof = profiles.resolve_profile_or_root(root, "testing")
+    if prof:
         with open(prof) as f:
             in_fm, delims = False, 0
             for line in f:
@@ -36,7 +34,6 @@ def profile_module_map(root):
                     val = line.split(":", 1)[1].strip().strip('"\'')
                     if val:
                         return os.path.join(root, val)
-        return None
     return None
 
 

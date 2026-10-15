@@ -34,6 +34,17 @@ def resolve_profile(context_dir, name):
     return None
 
 
+def resolve_profile_or_root(root, name):
+    """Like resolve_profile, then the tracked repo-root file <root>/<legacy name> as the fallback (BL-289):
+    a project that gitignores .context/ cannot ship its profile there. .context/ still wins. None when neither.
+    backlog/scripts/sweep-gate.sh (PROFILE_ALT) keeps its own shell copy of this fallback."""
+    found = resolve_profile(os.path.join(root, ".context"), name)
+    if found:
+        return found
+    alt = os.path.join(root, LEGACY[name]) if name in LEGACY else None
+    return alt if alt and os.path.isfile(alt) else None
+
+
 if __name__ == "__main__":
     if len(sys.argv) != 3:
         print("usage: profiles.py <context-dir> <name>", file=sys.stderr)

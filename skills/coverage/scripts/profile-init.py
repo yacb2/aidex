@@ -141,12 +141,10 @@ def resolve_profile(root):
     checkout, so a tracked repo-root testing-profile.md is the fallback (BL-289). .context/ still wins when both exist. This reader and the gate
     share one contract; they disagreed about where the file lives until BL-365.
     """
-    prof = profiles.resolve_profile(os.path.join(root, ".context"), "testing")
+    prof = profiles.resolve_profile_or_root(root, "testing")
     if prof:
         return prof, None
     alt = os.path.join(root, "testing-profile.md")
-    if os.path.isfile(alt):
-        return alt, None
     return None, f"no profile at {profiles.profile_write_path(os.path.join(root, '.context'), 'testing')} nor {alt}"
 
 

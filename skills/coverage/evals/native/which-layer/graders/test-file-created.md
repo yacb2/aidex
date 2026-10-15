@@ -1,4 +1,4 @@
 ---
 type: file_exists
-path: "billing/tests/test_*.py"
+path: billing/tests/test_quote_total.py
 ---

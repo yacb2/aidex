@@ -21,33 +21,15 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 REGISTER = os.path.join(HERE, "..", "..", "..", "backlog", "scripts", "register-item.sh")
 
-# USD per million tokens: (input, cache_create_5m, cache_create_1h, cache_read, output). Keys are model-id
-# prefixes, longest match wins. Mirrors skills/audit/scripts/usage-retro/pricing.py and must be kept in step
-# with it (an import instead of a copy is undecided).
-PRICES = {
-    "claude-opus-5-5": (4, 5, 8, 0.20, 20),
-    "claude-opus-5": (5, 6.25, 10, 0.50, 25),
-    "claude-sonnet-5-5": (2, 2.50, 4, 0.10, 10),
-    "claude-sonnet-5": (2, 2.50, 4, 0.20, 10),
-    "claude-sonnet-4-5": (3, 3.75, 6, 0.30, 15),
-    "claude-haiku-4-5": (1, 1.25, 2, 0.10, 5),
-    "claude-haiku-5-5": (0.10, 0.125, 0.20, 0.01, 0.50),
-}
-HAIKU_5_5_HIGH = (0.50, 0.625, 1, 0.05, 2.50)  # one request with prompt > 100k tokens
-
-
-def usd_request(model, tok):
-    """tok = (input, create_5m, create_1h, cache_read, output) of ONE request; None for an unpriced model."""
-    best = max((k for k in PRICES if (model or "").startswith(k)), key=len, default=None)
-    if best is None:
-        return None
-    p = HAIKU_5_5_HIGH if best == "claude-haiku-5-5" and sum(tok[:4]) > 100_000 else PRICES[best]
-    return sum(t * r for t, r in zip(tok, p)) / 1e6
+# Price table and token counting live in audit's usage-retro and are imported, never copied (reference-s11/s12).
+sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "audit", "scripts", "usage-retro"))
+import pricing  # noqa: E402
+import subagent_spend  # noqa: E402
 
 
 def cost(tdir):
-    """USD and max prompt per stage (label prefix before ':'). `usage` repeats on every content-block line of
-    one message, so it is counted once per message id (the last line wins)."""
+    """USD and max prompt per stage (label prefix before ':'), priced by usage-retro: one turn per message id
+    (the last line wins) plus the advisor/fallback iterations."""
     labels = {}
     with open(os.path.join(tdir, "journal.jsonl")) as fh:
         for line in fh:
@@ -60,26 +42,10 @@ def cost(tdir):
     stage = collections.defaultdict(lambda: dict(usd=0.0, maxprompt=0, unpriced=0))
     for p in sorted(glob.glob(os.path.join(tdir, "agent-*.jsonl"))):
         aid = os.path.basename(p)[len("agent-"):-len(".jsonl")]
-        seen = {}
-        with open(p) as fh:
-            for line in fh:
-                try:
-                    d = json.loads(line)
-                except ValueError:
-                    continue
-                m = d.get("message")
-                if isinstance(m, dict) and m.get("role") == "assistant" and m.get("usage"):
-                    # No id: nothing to dedupe on, so each line counts (a shared None key would collapse them).
-                    seen[m.get("id") or f"line{len(seen)}"] = m
         s = stage[labels.get(aid, aid).split(":")[0]]
-        for m in seen.values():
-            u = m["usage"]
-            cc = u.get("cache_creation") or {}
-            tok = (u.get("input_tokens", 0),
-                   cc.get("ephemeral_5m_input_tokens", 0) if cc else u.get("cache_creation_input_tokens", 0),
-                   cc.get("ephemeral_1h_input_tokens", 0), u.get("cache_read_input_tokens", 0),
-                   u.get("output_tokens", 0))
-            c = usd_request(m.get("model"), tok)
+        # A fresh `claimed` per file: each workflow agent transcript is its own scope.
+        for model, tok, _ in subagent_spend.turns(p, set()):
+            c = pricing.usd_request(model, tok)
             if c is None:
                 s["unpriced"] += 1
             s["usd"] += c or 0
@@ -92,9 +58,10 @@ def cell(s):
 
 
 REF_RE = re.compile(r"\.context/references/\S+?\.md(?![\w/-]|\.\w)")
-# One token of the evidence: a code path with an extension, then :N, :N-M or :LN. Tokens are cut on whitespace and
+# One token of the evidence: a code path with an extension (or an exact extensionless name below), then :N, :N-M or :LN. Tokens are cut on whitespace and
 # brackets, so "12:30 meeting" (no extension) and "see .context/references/a.md:3" (a reference path) do not pass.
-EVIDENCE_TOKEN_RE = re.compile(r"\.{0,2}/?[\w./-]+\.\w+:L?\d+(-L?\d+)?")
+# The one extensionless exception is a short list of exact file names (Q17), alone or at the end of a path.
+EVIDENCE_TOKEN_RE = re.compile(r"(\.{0,2}/?[\w./-]+\.\w+|(\.{0,2}/?[\w./-]*/)?(Makefile|Dockerfile|Justfile)):L?\d+(-L?\d+)?")
 # An absence claim cannot cite a line; its evidence is the search that came back empty: the word Glob or grep
 # plus the code path searched (BL-743). "Glob returned no files" names no path, so it still fails.
 SEARCH_RE = re.compile(r"\b(glob|grep)\b", re.I)
