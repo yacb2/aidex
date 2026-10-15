@@ -31,9 +31,8 @@ SKILLS_DIR="$SCRIPT_DIR/../.."
 ROOT="$(cd "$SKILLS_DIR/.." && pwd -P)"
 CANON="$SCRIPT_DIR/../references/skill-conventions.md"
 
-# Judge only what aidex ships. Installed, SKILLS_DIR is ~/.claude/skills and this
-# loop FAILed on `session-handoff` — a user skill at ~6.4k tokens that this repo
-# has no standing to budget (BL-115).
+# The skill list comes from _owned-skills.sh: every <root>/skills/*/ that holds a SKILL.md
+# (the plugin checkout is aidex-only, so nothing is filtered).
 . "$SCRIPT_DIR/_owned-skills.sh"
 
 failures=0
@@ -91,7 +90,7 @@ while IFS= read -r skill_dir; do
   [[ "$status" == "ok" ]] || printf '  %-22s %4s lines  ~%5s tokens  [%s]\n' "$name" "$lines" "$tokens" "$status"
 done < <(aidex_owned_skill_dirs "$ROOT")
 
-(( checked > 0 )) || { echo "FAIL: no aidex-owned SKILL.md found under $SKILLS_DIR — broken manifest or install"; exit 1; }
+(( checked > 0 )) || { echo "FAIL: no aidex-owned SKILL.md found under $SKILLS_DIR — broken checkout"; exit 1; }
 
 echo
 if [[ "$failures" -eq 0 ]]; then

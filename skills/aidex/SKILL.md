@@ -136,7 +136,6 @@ Check for:
 - .claude/ (skills/, CLAUDE.md)
 - ~/.claude/projects/<slug>/memory/ (memory files + MEMORY.md; slug = the project path
   with `/` and `_` turned into `-`)
-- ~/.claude/aidex/manifest (what the suite installed; anything else in ~/.claude/skills is the user's)
 - ${CLAUDE_PLUGIN_ROOT}/skills/ (global skills)
 ```
 

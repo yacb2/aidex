@@ -5,7 +5,7 @@
 #   - flat .claude/commands/*.md detection (review, commit)
 #   - NAMESPACED .claude/commands/<subdir>/<name>.md detection (release), which
 #     a maxdepth-1 search misses entirely — this is the regression this test locks in
-#   - cache reuse across two runs without --refresh
+#   - cache reuse across two runs
 #
 # Run with: bash skills/conventions/scripts/test-detect-project-commands.sh
 
@@ -24,7 +24,8 @@ fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 
 rm -f "$FIXTURE/.claude/.aidex-detected-commands.json"
 
-out1="$(bash "$DETECTOR" --project "$FIXTURE" --json --refresh)"
+bash "$DETECTOR" --project "$FIXTURE" >/dev/null
+out1="$(cat "$FIXTURE/.claude/.aidex-detected-commands.json")"
 
 review="$(printf '%s' "$out1" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("review_command"))')"
 commit="$(printf '%s' "$out1" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("commit_command"))')"
@@ -39,13 +40,20 @@ wt_down="$(printf '%s' "$out1" | python3 -c 'import json,sys; print(json.load(sy
 [[ "$wt_up" == "./worktree-up.sh <slug>" ]] || fail "worktree_up_command: expected ./worktree-up.sh <slug> (from .context/worktrees front-matter), got $wt_up"
 [[ "$wt_down" == "./worktree-down.sh <slug>" ]] || fail "worktree_down_command: expected ./worktree-down.sh <slug>, got $wt_down"
 
-detected_at1="$(printf '%s' "$out1" | python3 -c 'import json,sys; print(json.load(sys.stdin)["detected_at"])')"
-out2="$(bash "$DETECTOR" --project "$FIXTURE" --json)"
-detected_at2="$(printf '%s' "$out2" | python3 -c 'import json,sys; print(json.load(sys.stdin)["detected_at"])')"
-[[ "$detected_at1" == "$detected_at2" ]] || fail "cache reuse: detected_at changed across a non-refresh run ($detected_at1 vs $detected_at2)"
+# Deterministic: edit a field in the cache; a second run must print the edited value (read from the
+# cache, not re-scanned) and leave the file as edited.
+CACHE="$FIXTURE/.claude/.aidex-detected-commands.json"
+python3 - "$CACHE" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1])); d["review_command"] = "/cache-marker"
+json.dump(d, open(sys.argv[1], "w"))
+PY
+out2="$(bash "$DETECTOR" --project "$FIXTURE")"
+grep -qF 'review_command: /cache-marker' <<<"$out2" || fail "cache reuse: a second run did not print the cached value: $out2"
+grep -qF '/cache-marker' "$CACHE" || fail "cache reuse: the second run rewrote the cache"
 
 # A nonexistent --project is refused; it used to leave ROOT empty and scan /.
-if bash "$DETECTOR" --project "$TMP/does-not-exist" --json >/dev/null 2>"$TMP/err"; then
+if bash "$DETECTOR" --project "$TMP/does-not-exist" >/dev/null 2>"$TMP/err"; then
   fail "nonexistent --project exited 0"
 fi
 grep -q "project directory not found" "$TMP/err" || fail "nonexistent --project: the script gave no clear error (it kept going with an empty ROOT): $(cat "$TMP/err")"
@@ -53,7 +61,8 @@ grep -q "project directory not found" "$TMP/err" || fail "nonexistent --project:
 # The worktree fallback promises an EXECUTABLE worktree-up*.sh: a plain file is no command.
 P2="$TMP/noexec"; mkdir -p "$P2"
 printf '#!/bin/sh\n' > "$P2/worktree-up.sh"; printf '#!/bin/sh\n' > "$P2/worktree-down.sh"; chmod +x "$P2/worktree-down.sh"
-out3="$(bash "$DETECTOR" --project "$P2" --json --refresh)"
+bash "$DETECTOR" --project "$P2" >/dev/null
+out3="$(cat "$P2/.claude/.aidex-detected-commands.json")"
 up="$(printf '%s' "$out3" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("worktree_up_command"))')"
 down="$(printf '%s' "$out3" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("worktree_down_command"))')"
 [[ "$up" == "None" ]] || fail "non-executable worktree-up.sh was detected as a command: $up"
