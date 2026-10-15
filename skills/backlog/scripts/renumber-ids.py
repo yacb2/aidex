@@ -33,20 +33,10 @@ import tarfile
 import time
 from pathlib import Path
 
-CONFORMING = re.compile(r"^BL-\d{3,5}$")  # register-item.sh mints 3-5 digits
+from _ids import CONFORMING, find_root, scan_targets
+
 ID_FIELD = re.compile(r'^(\s*id:\s*)"?([^"\s]+)"?\s*$', re.M)
 TITLE_LINE = re.compile(r"^title:.*$", re.M)
-SCAN_SUFFIXES = {".md", ".html", ".json", ".txt", ".yml", ".yaml"}
-SCAN_NAMES = {".aidex-waivers"}
-
-
-def find_root(start: Path) -> Path:
-    d = start.resolve()
-    while d != d.parent:
-        if (d / ".context").is_dir():
-            return d
-        d = d.parent
-    return start.resolve()
 
 
 def front_matter_id(text: str):
@@ -54,27 +44,6 @@ def front_matter_id(text: str):
     head = text[: end if end > 0 else 4000]
     m = ID_FIELD.search(head)
     return m.group(2) if m else None
-
-
-def memory_dir(root: Path):
-    base = "-" + str(root).lstrip("/").replace("/", "-")
-    for slug in (base, base.replace("_", "-")):
-        d = Path.home() / ".claude" / "projects" / slug / "memory"
-        if d.is_dir():
-            return d
-    return None
-
-
-def scan_targets(root: Path, ctx: Path):
-    files = [p for p in ctx.rglob("*")
-             if p.is_file() and "/_tmp/" not in str(p)
-             and (p.suffix in SCAN_SUFFIXES or p.name in SCAN_NAMES)]
-    if (root / "CLAUDE.md").is_file():
-        files.append(root / "CLAUDE.md")
-    md = memory_dir(root)
-    if md:
-        files.extend(md.rglob("*.md"))
-    return files
 
 
 def main():

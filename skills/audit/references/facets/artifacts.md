@@ -5,8 +5,6 @@ lexicon:
   artifact:page: "\\bartifacts?\\b|\\bartefactos?\\b|\\bp[aá]gina de consulta\\b|\\bconsultation\\b|\\bwrap(-report)?\\b|check-artifact"
 skills: [artifact-design, artifact-diagramming, artifact]
 slash: ["/aidex:artifact"]
-scripts: [wrap-report.sh, check-artifact.sh, render.sh]
-paths: ["\\.context/reports/", "\\.html$"]
 primary_source: pages
 reader: read_artifacts.py
 sub_objectives: [wrap, consult, re-judge]

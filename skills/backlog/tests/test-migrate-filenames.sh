@@ -148,6 +148,37 @@ item . 2026-06-01-big.md BL-1000 "Big"
 python3 "$MIG" --root "$TMP/c03" --apply > "$TMP/c03.txt" 2>&1 || true
 check "BL-1000 item renamed" '[[ -f .context/backlog/2026-06-01-bl-1000-big.md ]]'
 
+echo "== scan targets: CLAUDE.md and the memory dir are rewritten, .context/_tmp and other suffixes are as before =="
+S="$TMP/c05"; rm -rf "$S"; mkdir -p "$S/.context/backlog" "$S/.context/_tmp" "$S/home"; cd "$S"
+item . 2026-06-01-grid.md BL-001 "Grid"
+SLUG="-$(cd "$S" && pwd -P | sed 's#^/##; s#/#-#g')"
+mkdir -p "$S/home/.claude/projects/$SLUG/memory"
+printf 'see backlog/2026-06-01-grid.md\n' > CLAUDE.md
+printf 'mem backlog/2026-06-01-grid.md\n' > "$S/home/.claude/projects/$SLUG/memory/m.md"
+printf 'tmp backlog/2026-06-01-grid.md\n' > .context/_tmp/skipped.md
+printf '{"ref": "backlog/2026-06-01-grid.md"}\n' > .context/refs.json
+printf 'bin backlog/2026-06-01-grid.md\n' > .context/refs.bin
+HOME="$S/home" python3 "$MIG" --root "$S" --apply > "$TMP/c05.txt" 2>&1 || true
+check "CLAUDE.md citation rewritten"       'grep -q "2026-06-01-bl-001-grid" CLAUDE.md'
+check "memory-dir citation rewritten"      'grep -q "2026-06-01-bl-001-grid" "$S/home/.claude/projects/$SLUG/memory/m.md"'
+check ".json citation rewritten"           'grep -q "2026-06-01-bl-001-grid" .context/refs.json'
+check ".context/_tmp file left alone"      '! grep -q "bl-001" .context/_tmp/skipped.md'
+check "unlisted suffix left alone"         '! grep -q "bl-001" .context/refs.bin'
+
+echo "== linked worktree: the project is the main worktree, not the worktree (find_project_root's hop) =="
+# outside $TMP: this test keeps a .context/ at $TMP, which the upward walk would find first
+WTBASE="$(mktemp -d "${TMPDIR:-/tmp}/w19.XXXXXX")"; WTMAIN="$WTBASE/main"; WTLINK="$WTBASE/linked"
+mkdir -p "$WTBASE/.context"   # a stray .context/ (no backlog/) above the worktree, like ~/.context: HOME is the stop
+mkdir -p "$WTMAIN/.context/backlog"
+printf -- '---\ntitle: "T"\nid: %s\nstatus: open\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n' BL-001 > "$WTMAIN/.context/backlog/2026-06-01-wt.md"
+git -C "$WTMAIN" init -q && git -C "$WTMAIN" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
+git -C "$WTMAIN" worktree add -q "$WTLINK" -b wtbranch
+# .context/ is untracked, so the linked worktree has none: the walk up from it finds nothing
+rc=0; out="$(cd "$WTLINK" && HOME="$WTBASE" python3 "$MIG" 2>&1)" || rc=$?
+check "worktree run resolves the main worktree as the project" \
+  '[[ "$out" == *"project: $(cd "$WTMAIN" && pwd -P)"* ]]'
+rm -rf "$WTBASE"
+
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [[ $FAIL -eq 0 ]]

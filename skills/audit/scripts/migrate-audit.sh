@@ -7,8 +7,8 @@
 #
 #   --layout   convert a LEGACY audits tree to the canon model (rebuild
 #              2026-07-02): YYYYMMDD run folders -> YYYY-MM-DD, legacy status
-#              values -> base vocabulary (triaged->open, escalated/closed->done,
-#              in-progress->doing), YYYYMMDD dates in inventory cells -> ISO,
+#              values -> base vocabulary (triaged->open, escalated/closed/fixed->done,
+#              in-progress->doing, wontfix->dropped), YYYYMMDD dates in inventory cells -> ISO,
 #              and — with --methodology <name> — root boards + root runs moved
 #              under audits/<name>/. Dry-run by default; --apply executes;
 #              idempotent (a second --apply is a no-op).
@@ -83,7 +83,8 @@ if [[ "$LAYOUT" -eq 1 ]]; then
           s = cells[6]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", s)
           mapped = s
           if (s == "triaged") mapped = "open"
-          else if (s == "escalated" || s == "closed") mapped = "done"
+          else if (s == "escalated" || s == "closed" || s == "fixed") mapped = "done"
+          else if (s == "wontfix") mapped = "dropped"
           else if (s == "in-progress") mapped = "doing"
           if (mapped != s) cells[6] = " " mapped " "
           out = cells[1]

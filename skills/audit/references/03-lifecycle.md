@@ -33,6 +33,9 @@ The migration map (canon `audit-conventions.md` §Status map) is authoritative:
 doing` · `closed → done`. Tooling **reads** legacy values (with a warning) but
 only ever **writes** base vocabulary; `/aidex:audit migrate` converts boards.
 
+`fixed` and `wontfix` are aliases, read as `done` and `dropped` with no warning
+(`validate-audit.sh` `base_status`); `migrate` rewrites them to the base words.
+
 ---
 
 ## Transitions
@@ -105,6 +108,36 @@ Inventory row format (dates ISO per D-01, `Audit Runs` = comma-separated run-fol
 ```
 
 The `Status` column determines state. Every row has exactly one, lowercase.
+
+### Two conventions the tooling shares (decided to stay as they are, Q23)
+
+**(a) A literal backslash before an escaped pipe.** A cell that quotes a pipe writes it as
+`\|`; a cell holding a backslash and then an escaped pipe is `\\|`. Every reader hides each
+`\|` as the byte `\037` before it counts or splits columns (the leftmost `\|` match, so the
+first backslash of `\\|` stays a literal character), and the writers restore it as `\|` per
+cell. Nine sites do this the same way (a tenth reads it differently, below): eight awk `gsub(/\\[|]/, "\037", ...)` calls at
+`scripts/_lib.sh:206`, `scripts/_lib.sh:317`, `scripts/migrate-audit.sh:80`,
+`scripts/reindex-audits.sh:164`, `scripts/remediation-loop-spec.sh:104`,
+`scripts/remediation-loop-spec.sh:143`, `scripts/remediation-loop-spec.sh:371` and
+`scripts/close-audit.sh:55`, and the bash substitution at `scripts/validate-audit.sh:181`
+(restored per cell by `unescape_pipes`, `scripts/validate-audit.sh:71`). The row-rewriting
+sites restore through `AWK_UNESC` (`scripts/_lib.sh:154`). Changing how this backslash is
+read is one decision for every one of these sites, not a per-script edit.
+The tenth reader is the dashboard parser, `skills/artifact/scripts/dash/_parse.py:74`: it splits
+on `(?<!\\)\|` (so the `\|` of `\\|` also does not split) and then replaces every `\|` with `|`
+for display. The nine sites above keep the escape, so a cell holding `a\\|b` stays `a\\|b`
+there and reads `a\|b` in the dashboard.
+
+**(b) How a finding is attributed to a run.** `scripts/reindex-audits.sh:173` matches the
+`Audit Runs` cell on the run slug only (`has_run(runs, run)`). `scripts/close-audit.sh:64` and
+`scripts/remediation-loop-spec.sh:119`, `:149` and `:382` match the slug or the bare date
+that prefixes it (`RUN_DATE`, `scripts/close-audit.sh:49` and `scripts/remediation-loop-spec.sh:62`).
+`has_run` (`scripts/_lib.sh:165`) compares whole comma-separated tokens in all of them.
+Escalation appends today's bare date to the `Audit Runs` cell and keeps the slugs already
+there (`scripts/_lib.sh:344-347`, see the comment at `scripts/close-audit.sh:46-48`), so a row
+with a slug stays counted by reindex. Only a row whose cell holds bare dates and no slug
+(legacy rows, or an escalation into an empty cell) is missed by reindex, while close and
+remediation attribute it to every run of that date.
 
 ---
 

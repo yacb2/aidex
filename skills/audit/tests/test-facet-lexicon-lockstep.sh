@@ -89,8 +89,6 @@ lexicon:
   alpha:wrap: "\\bwrap-zorbal\\b"
 skills: [zorbal-design, zorbal-dash]
 slash: ["/zorbal-dash"]
-scripts: [wrap-zorbal.sh]
-paths: ["\\.context/zorbal/"]
 primary_source: pages
 reader: read_zorbal.py
 sub_objectives: [wrap, consult]
@@ -105,8 +103,6 @@ lexicon:
   beta:queue: "\\bquxlist\\b"
 skills: [quxlist-skill]
 slash: []
-scripts: []
-paths: []
 primary_source: transcript
 ---
 Lens for beta.
@@ -134,7 +130,7 @@ out="$(indexed "$FD")"; echo "$out" | grep >/dev/null -x gamma && fail "(temp) i
 rm "$FD/gamma.md"
 
 # 5. refusal on a missing required key — one temp copy per key, loader must exit non-zero
-for key in title label lexicon skills slash scripts paths primary_source; do
+for key in title label lexicon skills slash primary_source; do
   R="$TMP/refuse-$key"; mkdir -p "$R"; cp "$FD/00-index.md" "$R/"
   if [ "$key" = lexicon ]; then
     awk '/^lexicon:/{skip=1; next} skip && /^  /{next} {skip=0; print}' "$FD/alpha.md" > "$R/alpha.md"

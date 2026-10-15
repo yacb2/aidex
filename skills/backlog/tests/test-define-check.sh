@@ -168,4 +168,14 @@ bash "$SCRIPTS/define-item.sh" "$Q" --estimate XXL --no-index >/dev/null 2>&1; R
 reg --title "scale XXL" --estimate XXL >/dev/null; RCR=$?
 [[ $RCD -eq 2 && $RCR -eq 2 ]] && ok "estimate XXL is refused with rc 2 by define-item.sh and register-item.sh" || bad "estimate XXL: define-item rc=$RCD register-item rc=$RCR (want 2 and 2)"
 
+# a linked git worktree is a sibling of its project: the main worktree's queue is the one checked
+WTBASE="$(mktemp -d "${TMPDIR:-/tmp}/w19.XXXXXX")"; mkdir -p "$WTBASE/main/.context/backlog"
+mkdir -p "$WTBASE/.context"   # a stray .context/ (no backlog/) above the worktree, like ~/.context: HOME is the stop
+cp "$A" "$WTBASE/main/.context/backlog/"
+git -C "$WTBASE/main" init -q && git -C "$WTBASE/main" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
+git -C "$WTBASE/main" worktree add -q "$WTBASE/linked" -b wtbranch
+OUTW="$(cd "$WTBASE/linked" && HOME="$WTBASE" python3 "$SCRIPTS/define-check.py" 2>&1)"
+grep -q "0/1 defined" <<<"$OUTW" && ok "run from a linked worktree it checks the main worktree's queue" || bad "worktree: $OUTW"
+rm -rf "$WTBASE"
+
 echo; [[ $FAIL -eq 0 ]] && echo "OK — define-check: $PASS cells" || { echo "$FAIL failure(s)"; exit 1; }

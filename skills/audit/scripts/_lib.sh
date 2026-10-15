@@ -214,7 +214,7 @@ extract_finding_row() {
         gsub(/^[[:space:]]+|[[:space:]]+$/, "", cells[7])
         # Must also have a real-looking status to avoid matching reference tables
         # (base vocab open/doing/done/dropped + legacy words, read-tolerated)
-        if (cells[6] ~ /open|doing|done|dropped|triaged|escalated|in-progress|closed/) {
+        if (cells[6] ~ /open|doing|done|dropped|triaged|escalated|in-progress|closed|fixed|wontfix/) {
           print cells[5] "\t" cells[7]
           exit
         }
@@ -327,11 +327,11 @@ AWK_MARK="$AWK_UNESC$AWK_HAS_RUN"'
       # Verify this is a real finding row (status column has a known marker,
       # base vocab or legacy read-tolerated)
       s = cells[6]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", s)
-      if (s !~ /^(open|doing|done|dropped|triaged|escalated|in-progress|closed)$/) {
+      if (s !~ /^(open|doing|done|dropped|triaged|escalated|in-progress|closed|fixed|wontfix)$/) {
         print $0; next
       }
-      if (s ~ /^(done|escalated|closed)$/) { closed = 1; print $0; next }
-      if (s == "dropped") { dropped = 1; print $0; next }
+      if (s ~ /^(done|escalated|closed|fixed)$/) { closed = 1; print $0; next }
+      if (s == "dropped" || s == "wontfix") { dropped = 1; print $0; next }
 
       # Update fields (canon: done + escalated_to modifier, never a status word)
       c_runs = wide ? 10 : 8

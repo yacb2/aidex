@@ -101,7 +101,7 @@ def render(root, methodology):
             S.pill(sev or "—", SEV_TONE.get(sev, "")),
             S.pill(cell(r, i_status) or "—",
                    "" if status in OPEN_STATUSES
-                   else "plain" if status in ("dropped", "cancelled") else "ok"),
+                   else "plain" if status in ("dropped", "wontfix", "cancelled") else "ok"),
             f'<span title="{S.esc(summ)}">{S.esc(_trunc(summ))}</span>',
         ])
 

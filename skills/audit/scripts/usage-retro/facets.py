@@ -3,7 +3,7 @@
 facets.py — the facet spec loader: one file per facet of the aidex suite.
 
 A facet is `references/facets/<name>.md`: front-matter declaring what the facet
-covers (lexicon regexes, skills, slash commands, script names, paths, primary
+covers (lexicon regexes, skills, slash commands, primary
 source, optional residue reader, sub-objectives) plus a lens body the shard
 analyst receives verbatim.
 
@@ -25,7 +25,7 @@ from mine_items import parse_fm, FM   # noqa: E402  (one front-matter reader, no
 
 DEFAULT_DIR = os.path.normpath(os.path.join(HERE, "..", "..", "references", "facets"))
 
-REQUIRED = ("title", "label", "lexicon", "skills", "slash", "scripts", "paths",
+REQUIRED = ("title", "label", "lexicon", "skills", "slash",
             "primary_source")
 PRIMARY_SOURCES = ("pages", "transcript", "items", "events")
 
@@ -129,8 +129,6 @@ def load_path(path):
             "lexicon": _block_map(raw, path, "lexicon"),
             "skills": _flow_list(fm["skills"], path, "skills"),
             "slash": _flow_list(fm["slash"], path, "slash"),
-            "scripts": _flow_list(fm["scripts"], path, "scripts"),
-            "paths": _flow_list(fm["paths"], path, "paths"),
             "primary_source": fm["primary_source"],
             "reader": fm.get("reader") or None,
             "sub_objectives": _flow_list(fm["sub_objectives"], path, "sub_objectives")

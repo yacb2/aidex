@@ -17,8 +17,6 @@ lexicon:                     # label -> regex, re.I; the ONLY owner of these ent
   artifact:page: "\\bartifact\\b|\\bartefacto\\b|\\bp[aá]gina de consulta\\b"
 skills: [artifact-design, artifact-diagramming, artifact]  # the first two are Claude Code built-ins
 slash: ["/aidex:artifact"]
-scripts: [wrap-report.sh, check-artifact.sh, render.sh]
-paths: ["\\.context/reports/", "\\.html$"]
 primary_source: pages        # pages | transcript | items | events
 reader: read_artifacts.py    # optional; lives in scripts/usage-retro/facets/
 sub_objectives: [wrap, consult, re-judge]
@@ -33,8 +31,6 @@ sub_objectives: [wrap, consult, re-judge]
 | `lexicon` | yes | block map `label: "regex"` | prompt-side membership; double-quote and escape backslashes |
 | `skills` | yes | flow list | skills whose firing (or prior firing) admits a row; each also gets `miss?:<skill>` from the facet regexes |
 | `slash` | yes | flow list | slash commands that admit a row on their own |
-| `scripts` | yes | flow list | script basenames counted as this facet's tool events |
-| `paths` | yes | flow list of regexes | paths that mark a tool event as this facet's |
 | `primary_source` | yes | `pages` / `transcript` / `items` / `events` | what the coverage gap is measured against; only disk residue (`pages`, `items`) gets a gap cell |
 | `reader` | no | script name under `scripts/usage-retro/facets/` | residue reader; must print how many objects it processed |
 | `sub_objectives` | no | flow list | the lifecycle stages or sub-goals the synthesis groups by |

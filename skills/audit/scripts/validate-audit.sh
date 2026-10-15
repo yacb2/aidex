@@ -138,8 +138,8 @@ base_status() {
   case "$1" in
     open) printf 'open' ;;
     doing) printf 'doing' ;;
-    done) printf 'done' ;;
-    dropped) printf 'dropped' ;;
+    done|fixed) printf 'done' ;;      # fixed: alias of done
+    dropped|wontfix) printf 'dropped' ;;  # wontfix: alias of dropped
     triaged) printf 'open' ;;        # legacy
     escalated|closed) printf 'done' ;;  # legacy
     in-progress) printf 'doing' ;;   # legacy

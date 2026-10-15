@@ -607,11 +607,15 @@ cat > "$L/.context/audits/m/00-inventory.md" <<'EOF'
 | F-2 | bug | x | s | dropped | P2 |
 | F-3 | bug | x | s | cancelled | P2 |
 | F-4 | bug | x | s | open | P2 |
+| F-5 | bug | x | s | fixed | P2 |
+| F-6 | bug | x | s | wontfix | P2 |
 EOF
 run "$L" audit m >/dev/null 2>&1 || fail "audit: status-pill render exited non-zero"
 LA="$L/.context/audits/m/00-inventory.html"
 grep -q '<span class="pill ok">done</span>' "$LA" || fail "audit: done pill should stay ok"
 grep -q '<span class="pill plain">dropped</span>' "$LA" || fail "audit: dropped pill should be plain, not green"
+grep -q '<span class="pill ok">fixed</span>' "$LA" || fail "audit: fixed is an alias of done: green pill"
+grep -q '<span class="pill plain">wontfix</span>' "$LA" || fail "audit: wontfix is an alias of dropped: plain pill, not green"
 grep -q '<span class="pill plain">cancelled</span>' "$LA" || fail "audit: cancelled pill should be plain, not green"
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
