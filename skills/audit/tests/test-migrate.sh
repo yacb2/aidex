@@ -30,6 +30,8 @@ cat > "$A/00-inventory.md" <<'EOF'
 | B-3 | gap | nav | Legacy triaged row | triaged | P3 | 20260610 | — | needs owner |
 | B-4 | bug | api | Legacy closed row | closed | P1 | 20260610 | — | verified: abc123 |
 | B-5 | bug | api | greps "a\|b" in the router | triaged | P2 | 20260610 | — | — |
+| B-6 | bug | api | Alias fixed row | fixed | P2 | 20260610 | — | verified: abc123 |
+| B-7 | idea | api | Alias wontfix row | wontfix | P3 | 20260610 | — | out of scope |
 EOF
 echo "# Methodology" > "$A/00-methodology.md"
 echo "# Changelog"   > "$A/00-changelog.md"
@@ -59,6 +61,9 @@ fi
 B5="$(grep -E '^\| B-5 ' "$INV")"
 [[ "$B5" == *"| open |"* ]] || fail "escaped-pipe row: triaged not mapped to open: $B5"
 [[ "$B5" == *'greps "a\|b" in the router'* ]] || fail "escaped-pipe row: the \\| escape was not restored: $B5"
+# (Q6) the fixed / wontfix aliases are normalized to the base words like the legacy ones
+[[ "$(grep -E '^\| B-6 ' "$INV")" == *"| done |"* ]] || fail "fixed row not mapped to done: $(grep -E '^\| B-6 ' "$INV")"
+[[ "$(grep -E '^\| B-7 ' "$INV")" == *"| dropped |"* ]] || fail "wontfix row not mapped to dropped: $(grep -E '^\| B-7 ' "$INV")"
 grep -q '2026-06-10' "$INV" || fail "YYYYMMDD cell dates not converted to ISO"
 # (removed 2026-08-21) A `grep -qE '\| 2026061[0-9] \|'` sat here with NO FILE
 # ARGUMENT and an empty body (`then :; fi`), so it asserted nothing and read

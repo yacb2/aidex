@@ -6,8 +6,6 @@ lexicon:
   plan:ask: "\\bplan(ea|ifica)?\\b|\\bvamos a planear\\b|\\bmulti-?fase\\b|\\bplan-exec\\b"
 skills: [plan, plan-exec]
 slash: ["/aidex:plan", "/aidex:plan-exec"]
-scripts: [worklist-advance.sh, close-plan.sh, reindex-plans.sh]
-paths: ["\\.context/plans/", "\\.context/worklists/"]
 primary_source: transcript
 sub_objectives: [plan, execute, close]
 ---

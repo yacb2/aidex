@@ -191,6 +191,10 @@ Audit findings use the base lifecycle (`open` · `doing` · `done` · `dropped`)
 | `in-progress` | `status: doing` | — |
 | `closed` | `status: done` | Link the verifying commit or re-test run in `Notes`. |
 | `dropped` | `status: dropped` | Reason in `Notes`. |
+| `fixed` | `status: done` | Alias, read as `done`: link the verifying commit or re-test run in `Notes`. |
+| `wontfix` | `status: dropped` | Alias, read as `dropped`: reason in `Notes`. |
+
+`fixed` and `wontfix` are accepted as the finding statuses `done` and `dropped` everywhere in the audit tooling (validate, close, reindex, escalation, remediation, migrate); `/aidex:audit migrate` rewrites them to the base words. They are not legacy values and raise no warning.
 
 ---
 

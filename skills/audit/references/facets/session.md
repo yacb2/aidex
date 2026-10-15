@@ -5,8 +5,6 @@ lexicon:
   context:handoff: "handoff|nueva sesi[óo]n|sesi[óo]n limpia|compact"
 skills: [session-handoff, handoff]
 slash: ["/handoff", "/session-handoff"]
-scripts: []
-paths: ["\\.claude/handoff-chains/"]
 primary_source: transcript
 sub_objectives: [kickoff, re-dictation, continuation]
 ---

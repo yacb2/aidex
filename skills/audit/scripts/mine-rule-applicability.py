@@ -28,7 +28,7 @@ Adding a rule: append to SIGNATURES. Each signature must be decidable from tool
 calls alone — no LLM judge — or Stage A stops being cheap and starts being
 arguable.
 """
-import argparse, collections, datetime, glob, json, os, re, sys
+import argparse, collections, datetime, glob, json, os, sys
 
 PROJECTS = os.path.expanduser("~/.claude/projects")
 RULES_DIR = os.path.expanduser("~/.claude/rules")
@@ -36,24 +36,8 @@ RULES_DIR = os.path.expanduser("~/.claude/rules")
 # --- signatures ------------------------------------------------------------
 # Each entry: rule-name -> dict(kind=..., ...). `prohibition` marks rules whose
 # successful operation is invisible (see module docstring).
-DB_RX = re.compile(r"\b(dropdb|drop\s+database|truncate\b|reset_db|createdb|"
-                   r"pg_restore|manage\.py\s+flush|migrate\s+\w+\s+zero|"
-                   r"docker\s+volume\s+rm)", re.I)
-E2E_RX = re.compile(r"(playwright|test:e2e|test-e2e\.sh|pnpm\s+e2e|npx\s+pw\b)", re.I)
-VER_RX = re.compile(r"\b(pytest|vitest|jest|npm\s+(run\s+)?test|pnpm\s+test|"
-                    r"npm\s+run\s+build|tsc\b|ruff|mypy|eslint)", re.I)
-RUN_SKILLS = {"plan-exec", "audit", "loop"}
-
 SIGNATURES = {
-    "conventions":     dict(prohibition=False, note="writes under .context/"),
     "artifacts-local-first": dict(prohibition=False, note="Artifact tool or .html write"),
-    "autonomy":              dict(prohibition=False, note="unattended-run skill invoked",
-                                  undercount="runs also begin without a Skill call"),
-    "database-protection":   dict(prohibition=True,  note="DB lifecycle command appears"),
-    "e2e-testing":           dict(prohibition=True,  note="E2E runner invoked"),
-    "verification-before-claims": dict(prohibition=True, note="test/build/lint command run"),
-    "root-cause-first":      dict(prohibition=False, note=None,
-                                  undercount="no tool-call signature exists"),
 }
 
 
@@ -119,28 +103,10 @@ def scan(since=None):
                     hits.add(rule); events[rule] += 1
                 if name in ("Write", "Edit", "NotebookEdit"):
                     fp = str(inp.get("file_path", ""))
-                    if "/.context/" in fp:
-                        mark("conventions")
                     if fp.endswith(".html"):
                         mark("artifacts-local-first")
                 elif name == "Artifact":
                     mark("artifacts-local-first")
-                elif name == "Skill":
-                    # aidex fires as `aidex:<name>`; another plugin's `x:<name>` is a
-                    # different skill.
-                    sk = inp.get("skill") or ""
-                    if sk.startswith("aidex:"):
-                        sk = sk[len("aidex:"):]
-                    if sk in RUN_SKILLS:
-                        mark("autonomy")
-                elif name == "Bash":
-                    cmd = str(inp.get("command", ""))
-                    if DB_RX.search(cmd):
-                        mark("database-protection")
-                    if E2E_RX.search(cmd):
-                        mark("e2e-testing")
-                    if VER_RX.search(cmd):
-                        mark("verification-before-claims")
 
         if not saw_user:
             continue

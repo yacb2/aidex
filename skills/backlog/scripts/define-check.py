@@ -26,6 +26,9 @@ Usage:
 Exit 1 when any checked item is underdefined (so triage.sh can gate on it).
 """
 import argparse, json, os, re, sys
+from pathlib import Path
+
+import _ids
 
 MIN_FIELDS = ('type', 'priority', 'estimate', 'surface', 'verify', 'touches')
 SURFACES = ('internal', 'behaviour', 'ui', 'ops')
@@ -35,12 +38,10 @@ ESTIMATE_RANK = {'XS': 0, 'S': 1, 'M': 2, 'L': 3, 'XL': 4}
 
 
 def find_root(start=None):
-    d = os.path.abspath(start or os.getcwd())
-    while d != os.path.dirname(d):
-        if os.path.isdir(os.path.join(d, '.context', 'backlog')):
-            return d
-        d = os.path.dirname(d)
-    sys.exit('no .context/backlog found above cwd')
+    root = _ids.find_root(Path(start or os.getcwd()))
+    if not (root / '.context' / 'backlog').is_dir():
+        sys.exit('no .context/backlog found above cwd')
+    return str(root)
 
 
 def section(text, name):

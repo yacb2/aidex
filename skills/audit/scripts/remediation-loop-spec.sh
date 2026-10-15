@@ -114,7 +114,7 @@ collect_rows() {
       gsub(/^[[:space:]]+|[[:space:]]+$/, "", module)
       gsub(/^[[:space:]]+|[[:space:]]+$/, "", runs)
       if (id == "" || id == "ID" || id == "—") next
-      if (status !~ /^(open|doing|done|dropped|triaged|in-progress|closed|escalated)$/) next
+      if (status !~ /^(open|doing|done|dropped|triaged|in-progress|closed|escalated|fixed|wontfix)$/) next
       if (status !~ /^(open|doing|triaged|in-progress)$/) next
       if (!has_run(runs, run) && !has_run(runs, rundate)) next
       if (sev == "" || sev == "—") sev = "P?"

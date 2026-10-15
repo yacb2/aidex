@@ -30,34 +30,15 @@ import tarfile
 import time
 from pathlib import Path
 
-CONFORMING = re.compile(r"^BL-\d{3,5}$")  # register-item.sh mints 3-5 digits
+from _ids import CONFORMING, find_root, scan_targets
+
 DATE_PREFIX = re.compile(r"^\d{4}-\d{2}-\d{2}-")
 ID_FIELD = re.compile(r'^\s*id:\s*"?([^"\s]+)"?\s*$', re.M)
-SCAN_SUFFIXES = {".md", ".html", ".json", ".txt", ".yml", ".yaml"}
-SCAN_NAMES = {".aidex-waivers"}
-
-
-def find_root(start: Path) -> Path:
-    d = start.resolve()
-    while d != d.parent:
-        if (d / ".context").is_dir():
-            return d
-        d = d.parent
-    return start.resolve()
 
 
 def read_id(path: Path):
     m = ID_FIELD.search(path.read_text(errors="replace")[:4000])
     return m.group(1) if m else None
-
-
-def memory_dir(root: Path):
-    base = "-" + str(root).lstrip("/").replace("/", "-")
-    for slug in (base, base.replace("_", "-")):
-        d = Path.home() / ".claude" / "projects" / slug / "memory"
-        if d.is_dir():
-            return d
-    return None
 
 
 def commit_message_corpus(root: Path) -> str:
@@ -102,22 +83,6 @@ def non_backlog_names(ctx: Path) -> set:
         elif p.suffix == ".md":
             names.add(p.stem)
     return names
-
-
-def scan_targets(root: Path, ctx: Path):
-    files = []
-    for p in ctx.rglob("*"):
-        if not p.is_file() or "/_tmp/" in str(p):
-            continue
-        if p.suffix in SCAN_SUFFIXES or p.name in SCAN_NAMES:
-            files.append(p)
-    claude_md = root / "CLAUDE.md"
-    if claude_md.is_file():
-        files.append(claude_md)
-    md = memory_dir(root)
-    if md:
-        files.extend(p for p in md.rglob("*.md"))
-    return files
 
 
 def dangling_refs(ctx: Path) -> int:
