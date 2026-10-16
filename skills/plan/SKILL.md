@@ -140,7 +140,10 @@ promotion threshold excludes from batch execution (a `hitl-align` phase, see bel
      decision, each naming its unblocker as `research`, `prototype` or
      `owner conversation`. Omit it when the design is settled; never for a scoped plan.
    - **Per phase: Goal + Acceptance** (2–4 observable behaviors, ≥1
-     machine-checkable) **+ a machine gate**. Per task: Files + Spec (intent,
+     machine-checkable) **+ a machine gate**. When the work has a measurable
+     outcome, the Goal states it as a reachable number (page load 5 s to 200 ms):
+     the target the acceptance tests check, not an extra verification step.
+     Per task: Files + Spec (intent,
      pattern anchor, discovered constraints). **Do not pre-write implementation
      code** — literal code only in a **Contract** block where the exact text IS
      the spec (signatures, schemas, DDL, invariants). Anchor with symbol names,

@@ -34,6 +34,8 @@ the `conventions` canon, but research's own body shape is defined here.
    - **Question / Scope** — what you set out to answer and its bounds.
    - **Findings** — free-form; number them, subsection them, whatever the
      investigation needs. No fixed Overview/Prerequisites/Verification skeleton.
+     Mark each finding `measured`, `vendor` or `anecdotal`, and cite the rawest
+     source available (dataset, primary post, code, transcript), not a summary of it.
    - **Answer / Recommendation** — mandatory closing section that states what the
      spike concluded and what it recommends doing next. A spike is not done until
      this section answers the question.
