@@ -52,7 +52,8 @@ sys.path.insert(0, SCRIPTS)
 sys.path.insert(0, os.path.join(SCRIPTS, "dash"))
 
 import check_artifact                                        # noqa: E402
-import spec_verbs                                            # noqa: E402
+import save_reply                                            # noqa: E402
+import spec_verbs                                           # noqa: E402
 from spec_verbs import VerbError, add_item, decide, new_round  # noqa: E402
 
 VERBS = os.path.join(SCRIPTS, "spec_verbs.py")
@@ -433,6 +434,32 @@ REVERT = ("## G1 \u00b7 Formato del spec\n\n" + H2 + "- No, un atributo nuevo\n"
 check("a same-round full paste without the proposal supersedes the earlier pick: no guard, and it expires",
       spec_verbs._bare_picks(two, REVERT, {"Q2"}) == []
       and new_round(two, answered_html=SNAP, reply=REVERT).count("proposal=yes") == 1)
+# The composer lists every proposal the reader left untouched in ONE trailing section, after the general
+# notes, one `- id · title: option` line each and never a `### id ·` block. Its heading carries no ` ·`,
+# and it must still end the block above it: read into the last item's block, its lines turn a bare pick
+# into a pick plus a note (the 225f968e guard misses it) and text after a gallery row's marks into a
+# refused paste. A section-only paste is a full composer paste.
+ONEPROP = PAGE.replace(" decided=yes", " decided=yes proposal=yes")
+for head in ("## Decidido sin corrección", "## Accepted without correction"):
+    ACC = "\n" + head + "\n\n- Q2 · Marcador de columna: Sí, `---:` es markdown estándar\n"
+    BARE = G1 + "### Q1 · Fences o YAML\n\n- Fences de Pandoc\n" + ACC
+    check("%s: an open item's bare pick right above the section is still a bare pick" % head,
+          spec_verbs._bare_picks(ONEPROP, BARE) == [("Q1", "Fences de Pandoc")],
+          repr(spec_verbs._bare_picks(ONEPROP, BARE)))
+    check("%s: ...and the listed proposal expires into the ledger" % head,
+          "- Q2 — Marcador de columna" in new_round(ONEPROP, answered_html=SNAP, reply=BARE)
+          and "proposal=yes" not in new_round(ONEPROP, answered_html=SNAP, reply=BARE))
+    ROW = ("## E · La matriz\n\n### x-empty-light-desktop · x · empty · light-desktop\n\n"
+           "- Aprobada\n\n[mark after 1.7,0.2 33.0x5.6] nota\n" + ACC)
+    check("%s: a gallery row's marks right above the section still read (no unreadable duty)" % head,
+          [t for _, t, _ in save_reply.gallery_duties_for(ROW)] == ["region-marks"],
+          repr(save_reply.gallery_duties_for(ROW)))
+    ASKED = (G1 + H2 + "- [show-me]\n\n<!-- reply saved 2026-10-07 page:abc same-round -->\n\n"
+             + head + "\n\n- Q2 · Marcador de columna: Sí\n")
+    check("%s: a later same-round paste of only the section withdraws the earlier ask and the proposal expires" % head,
+          not check_artifact.marker_duties_of(ASKED)
+          and new_round(two, answered_html=SNAP, reply=ASKED).count("proposal=yes") == 1,
+          repr(check_artifact.marker_duties_of(ASKED)))
 # B-s22: a bare `- [word]` line is an ask only when the word is a KNOWN marker, as check_artifact reads it
 # (`[debug]` is content, not an ask); _reply_answer used to count any lowercase word.
 for word, want in (("debug", False), ("question", True), ("provisional", True), ("page-defect", False)):
