@@ -80,7 +80,7 @@ import re
 import sys
 
 from _usage import read_stdin
-from reply_defect import blank_defects, is_block_head
+from reply_defect import ACCEPTED_HEAD, blank_defects, is_block_head
 from gallery_items import (KINDS, alternatives_states, MARKER_LABEL, NONE_OF_THEM, OTHER, VERDICTS,
                            na_row_id, row_id)
 
@@ -309,7 +309,9 @@ def parse(text, tiles=None, labels=None, lenient=False, states=None,
     items, groups, cur = [], [], None
     text = blank_defects(text)       # the composer's page-defect sub-block is no row text
     for n, line in enumerate(text.splitlines(), 1):
-        if is_block_head(line) and line.startswith("### "):
+        if ACCEPTED_HEAD.match(line):
+            cur = None               # accepted proposals: no row, no group, no note
+        elif is_block_head(line) and line.startswith("### "):
             ident, _, title = line[4:].partition(" ·")
             cur = {"id": ident.strip(), "title": title.strip(), "body": [],
                    "line": n}

@@ -4419,8 +4419,8 @@ tp="$(grep -oE '<title>[^<]*</title>' "$PRP/dom.html" | sed -n 1p)"
   || fail "BL-692: the correction typed on the proposal did not land in the copied reply: $tp"
 [[ "$tp" == *"|DONE0=0|DONE1=1|"* ]] \
   || fail "BL-692: a proposal with no correction must not read as answered (has-answer), and must once something is typed: $tp"
-[[ "$tp" == *"|RAILP0=railitem sub|RAILP=railitem sub done,railitem sub done|"* ]] \
-  || fail "BL-768: a proposal inside a block must be listed in the rail under it, pending until a correction is typed (want RAILP0=railitem sub, then both done): $tp"
+[[ "$tp" == *"|RAILP0=railitem sub done|RAILP=railitem sub done,railitem sub done|"* ]] \
+  || fail "BL-768: a proposal inside a block must be listed in the rail under it, done whether accepted untouched or corrected (want RAILP0=railitem sub done, then both done): $tp"
 [[ "$tp" == *"|STATTYPED=1 de 1 respondidas · 2 correcciones listas para copiar|"* ]] \
   || fail "BL-692/BL-792: the status must count the typed corrections beside the questions, and a row marked data-asks-nothing (A1) must not count nor be reported missing (want '1 de 1 respondidas · 2 correcciones listas para copiar'): $tp"
 [[ "$tp" == *"|EMPTYVIS=1|RADIOOFF=0|"* ]] \
@@ -4481,10 +4481,10 @@ tr792="$(title629 "$TMP/reports/rail792.html")"
 <script>window.addEventListener("load", function () {
   var st = document.getElementById("consult-status"), rail = document.querySelector(".rail");
   var s0 = st.textContent, set0 = rail.classList.contains("settled") ? 1 : 0;
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: function () { return { then: function (f) { f(); return { catch: function () {} }; } }; } } });
   document.getElementById("consult-copy").click();
   var s1 = st.textContent;
   var ta = document.querySelector('[data-id="P1"] textarea');
-  Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: function () { return { then: function (f) { f(); return { catch: function () {} }; } }; } } });
   ta.value = "zzzfix"; ta.dispatchEvent(new Event("input", { bubbles: true }));
   var sPart = st.textContent;
   var tb = document.querySelector('[data-id="P2"] textarea');
@@ -4499,12 +4499,12 @@ bash "$WRAP" --title "prp2" --lang es --out "$TMP/reports/prp2.html" < "$PRP/bod
   || fail "BL-692: the proposals-only probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$PRP/wrap2.log" | sed -n 1,4p)"
 CHROME_WINDOW=1280,900 chrome_dump "$PRP/dom3.html" "file://$TMP/reports/prp2.html" 45 || true
 tp3="$(grep -oE '<title>[^<]*</title>' "$PRP/dom3.html" | sed -n 1p)"
-[[ "$tp3" == *"|S0=Quedan puntos decididos por confirmar o corregir|SETTLED0=0|S1=Nada que copiar: si estás de acuerdo con todo, escríbelo en la nota general|"* ]] \
-  || fail "BL-692: a page whose only items are proposals must say points are left to confirm (not 'Todas las preguntas están decididas'), keep the bar pinned (SETTLED0=0), and tell a copy with nothing typed to use the general note: $tp3"
-[[ "$tp3" == *"|SPART=Quedan puntos decididos por confirmar o corregir · 1 corrección lista para copiar|"* ]] \
-  || fail "BL-692: with some proposals corrected and others not, the status must show both the points left and the corrections count: $tp3"
+[[ "$tp3" == *"|S0=2 puntos decididos aceptados tal cual|SETTLED0=0|S1=2 copiada(s)"* ]] \
+  || fail "BL-692: a page whose only items are proposals must count them accepted (not 'Todas las preguntas están decididas' nor points left to confirm), keep the bar pinned (SETTLED0=0), and copy them with nothing typed: $tp3"
+[[ "$tp3" == *"|SPART=1 punto decidido aceptado tal cual · 1 corrección lista para copiar|"* ]] \
+  || fail "BL-692: with some proposals corrected and others not, the status must show both the accepted points and the corrections count: $tp3"
 [[ "$tp3" == *"|STYPED=2 correcciones listas para copiar|"* ]] \
-  || fail "BL-692: once every proposal has a correction the status must not keep saying points are left (want '2 correcciones listas para copiar'): $tp3"
+  || fail "BL-692: once every proposal has a correction the status must not count any as accepted (want '2 correcciones listas para copiar'): $tp3"
 [[ "$tp3" == *"|S2=2 copiada(s)"* ]] \
   || fail "BL-692: after copying a correction the status must count it (2 copiada(s), not 0): $tp3"
 # Reload on the same profile (same path, so the same store): the typed corrections must come back.
@@ -4580,8 +4580,8 @@ tr2c="$(grep -oE '<title>[^<]*</title>' "$R2/dom4.html" | sed -n 1p)"
 # ---- BL-700: a proposal keeps its radios LIVE, the proposed option pre-selected ----
 # Owner read the sealed radios as broken (twice). Layer: browser, because whether an input is
 # enabled and what the copied reply carries are the composer's calls. A changed selection is a
-# correction that reaches the reply (same shape as an answered item); an unchanged one sends nothing
-# and stays pending; changing back is the unchanged case again; a reload keeps the change only.
+# correction that reaches the reply (same shape as an answered item); an unchanged one is accepted
+# (one line in the trailing section); changing back is the unchanged case again; a reload keeps the change only.
 L700="$TMP/l700"; mkdir -p "$L700"
 {
   printf '%s\n' '<meta name="consult-visual" content="none: a layout probe, nothing to draw">' \
@@ -4664,14 +4664,14 @@ CHROME_WINDOW=1280,900 chrome_dump "$L700/dom.html" "file://$TMP/reports/l700.ht
 tl="$(grep -oE '<title>[^<]*</title>' "$L700/dom.html" | sed -n 1p)"
 [[ "$tl" == *"|LIVE=1|PRE=Si|"* ]] \
   || fail "BL-700: a proposal's radios must be live with the proposed option pre-selected (want LIVE=1|PRE=Si): $tl"
-[[ "$tl" == *"|R0=NONE|"* && "$tl" == *"|STAT0=Quedan puntos decididos por confirmar o corregir|"* ]] \
-  || fail "BL-700: an untouched proposal must send nothing and stay pending (want R0=NONE and 'Quedan puntos...'): $tl"
+[[ "$tl" == *"|R0=## Decidido sin corrección  - P1 · Primera propuesta: Si - P2 · Segunda propuesta: Si|"* && "$tl" == *"|STAT0=2 puntos decididos aceptados tal cual|"* ]] \
+  || fail "BL-700: an untouched proposal must be sent as accepted, one line in the trailing section and no block (want R0=## Decidido sin corrección ... and '2 puntos decididos aceptados tal cual'): $tl"
 [[ "$tl" == *"|H1=1|"* && "$tl" == *"|R1="*"### P1"*"- No"* && "$tl" != *"|R1="*"### P2"* ]] \
   || fail "BL-700: a changed selection on a proposal must reach the reply as '### P1' with '- No' (and not P2), and read as answered: $tl"
 [[ "$tl" == *"|STATCH="*"1 corrección lista para copiar|"* ]] \
   || fail "BL-700: a changed selection must count as a correction in the status line: $tl"
-[[ "$tl" == *"|H2=0|"* && "$tl" == *"|R2=NONE|"* && "$tl" == *"|STATBACK=Quedan puntos decididos por confirmar o corregir|"* ]] \
-  || fail "BL-700: changing back to the proposed option must return the item to the unchanged case (nothing sent, pending): $tl"
+[[ "$tl" == *"|H2=0|"* && "$tl" == *"|R2=## Decidido sin corrección  - P1 · Primera propuesta: Si - P2 · Segunda propuesta: Si|"* && "$tl" == *"|STATBACK=2 puntos decididos aceptados tal cual|"* ]] \
+  || fail "BL-700: changing back to the proposed option must return the item to the unchanged case (accepted, no block of its own): $tl"
 # Reload on the same profile: the changed selection comes back as a change; the baseline is not an answer.
 CHROME_WINDOW=1280,900 chrome_dump "$L700/dom2.html" "file://$TMP/reports/l700.html?phase=reload" 45 || true
 tl2="$(grep -oE '<title>[^<]*</title>' "$L700/dom2.html" | sed -n 1p)"
@@ -4708,12 +4708,63 @@ CHROME_WINDOW=1280,900 chrome_dump "$L700/dom7.html" "file://$TMP/reports/l700.h
 tl7="$(grep -oE '<title>[^<]*</title>' "$L700/dom7.html" | sed -n 1p)"
 [[ "$tl7" == *"|RPROV="*"- No [provisional]"*"|PROVLINE=1|"* ]] \
   || fail "BL-711: a proposal with a changed pick plus an ask must paste '- No [provisional]' and show the provisional line like an open item: $tl7"
-[[ "$tl7" == *"|CLR=Si//0/NONE|"* ]] \
-  || fail "BL-711: Clear on a changed proposal must return it to the proposed Si with an empty note, unanswered, sending nothing (want CLR=Si//0/NONE): $tl7"
+[[ "$tl7" == *"|CLR=Si//0/## Decidido sin corrección  - P1 · Primera propuesta: Si - P2 · Segunda propuesta: Si|"* ]] \
+  || fail "BL-711: Clear on a changed proposal must return it to the proposed Si with an empty note, unanswered, accepted again (want CLR=Si//0/ and both in the trailing section): $tl7"
 [[ "$tl7" == *"|DEF=0/"*"#### "*"se ve mal"* ]] \
   || fail "BL-711: a defect report alone on a proposal must travel in the reply but not make the item answered (want DEF=0/ with the #### block): $tl7"
-[[ "$tl7" == *"|STDEF=Quedan puntos decididos por confirmar o corregir|"* ]] \
-  || fail "BL-711: a defect report alone on a proposal must not count as a correction: $tl7"
+[[ "$tl7" == *"|STDEF=1 punto decidido aceptado tal cual|"* && "$tl7" == *"|DEF=0/"*"se ve mal  ## Decidido sin corrección  - P1 · Primera propuesta: Si|"* ]] \
+  || fail "BL-711: a defect report alone on a proposal must count neither as a correction nor as accepted (want STDEF=1 punto decidido aceptado tal cual, only P1 in the section): $tl7"
+
+# ---- An untouched proposal is ACCEPTED: Copy lists it in one trailing section ----
+# Owner 2026-10-17: "los items que ya vienen decididos por ti no se estan copiando en la respuesta". An
+# untouched proposal sent nothing, so the session reading the paste held it pending while new-round
+# settled it. Layer: browser, because what Copy produces is the composer's call; the paste then goes
+# through save-reply and new-round, the route a real reply takes. Built from the documented fixture.
+ACC="$TMP/acc"; mkdir -p "$ACC/reports"
+sed 's/^::: masthead {title="Decidido, corrígeme si no"}/::: masthead {title="Decidido, corrígeme si no" visual="none: a reply probe, nothing to draw"}/' \
+  "$SKILL/tests/fixtures/decided-items.spec.md" > "$ACC/reports/acc.spec.md"
+python3 "$SKILL/scripts/spec_build.py" "$ACC/reports/acc.spec.md" > "$ACC/body.html" 2> "$ACC/build.log" \
+  || fail "accepted proposals: the decided-items fixture did not build: $(head -3 "$ACC/build.log")"
+cat >> "$ACC/body.html" <<'HTML'
+<script>window.addEventListener("load", function () {
+  var cap = null, st = document.getElementById("consult-status");
+  Object.defineProperty(navigator, "clipboard", { configurable: true,   /* a sync then: the copied status is read right after */
+    value: { writeText: function (s) { cap = s; return { then: function (f) { f(); return { catch: function () {} }; } }; } } });
+  var copy = function () { cap = null; document.getElementById("consult-copy").click(); return cap === null ? "NONE" : cap; };
+  var type = function (sel, v) { var t = document.querySelector(sel); t.value = v; t.dispatchEvent(new Event("input", { bubbles: true })); };
+  var s0 = st.textContent, r0 = copy(), s0c = st.textContent;
+  type('[data-id="Q2"] textarea:not(.kit-defect-text)', "mejor en el spec");
+  type('[data-id="notes"] textarea', "nota general");
+  var s1 = st.textContent, r1 = copy();
+  document.title = "ACC|S0=" + s0 + "|S0C=" + s0c + "|S1=" + s1 + "|R0=" + encodeURIComponent(r0) + "|R1=" + encodeURIComponent(r1) + "|";
+});</script>
+HTML
+bash "$WRAP" --title "acc" --lang es --out "$ACC/reports/acc.html" < "$ACC/body.html" > "$ACC/wrap.log" 2>&1 \
+  || fail "accepted proposals: the probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$ACC/wrap.log" | sed -n 1,4p)"
+rm -rf "$TMP/profile"
+CHROME_WINDOW=1280,900 chrome_dump "$ACC/dom.html" "file://$ACC/reports/acc.html" 45 || true
+ta="$(grep -oE '<title>[^<]*</title>' "$ACC/dom.html" | sed -n 1p)"
+unq() { python3 -c 'import sys, urllib.parse; sys.stdout.write(urllib.parse.unquote(sys.argv[1]))' "$1"; }
+[[ "$ta" =~ \|R0=([^|]*)\|R1=([^|]*)\| ]] && acc_r0="$(unq "${BASH_REMATCH[1]}")" && acc_r1="$(unq "${BASH_REMATCH[2]}")" \
+  || { acc_r0=""; acc_r1=""; }
+want_r0=$'## Decidido sin corrección\n\n- Q1 · Formato de la salida: Tabla\n- Q2 · Dónde vive el ledger: En un archivo aparte'
+[[ "$acc_r0" == "$want_r0" ]] \
+  || fail "accepted proposals: with every proposal untouched, Copy must paste one trailing section naming each id and its proposed option (want '$want_r0'): got '$acc_r0' ($ta)"
+want_r1=$'## G1 · Ya decidido en esta ronda\n\n### Q2 · Dónde vive el ledger\n\nmejor en el spec\n\n### notes · Notas generales\n\nnota general\n\n## Decidido sin corrección\n\n- Q1 · Formato de la salida: Tabla'
+[[ "$acc_r1" == "$want_r1" ]] \
+  || fail "accepted proposals: a touched proposal keeps its own block and leaves the section, which comes last, after the general notes (want '$want_r1'): got '$acc_r1'"
+[[ "$ta" == *"|S0=2 puntos decididos aceptados tal cual|S0C=2 copiada(s)"* && "$ta" == *"|S1=1 punto decidido aceptado tal cual · 1 corrección lista para copiar|"* ]] \
+  || fail "accepted proposals: the status must count untouched proposals as accepted, never as points left to confirm, and Copy must count them as sent: $ta"
+# The round trip: save the paste, run new-round. The listed Q1 expires into the ledger; the touched Q2 stays open.
+printf '%s\n' "$acc_r1" | bash "$SKILL/scripts/save-reply.sh" "$ACC/reports/acc.html" - > "$ACC/save.log" 2>&1 \
+  || fail "accepted proposals: save-reply refused the paste: $(head -3 "$ACC/save.log")"
+grep -q "unreadable" "$ACC/save.log" && fail "accepted proposals: save-reply could not read the paste: $(cat "$ACC/save.log")"
+python3 "$SKILL/scripts/spec_verbs.py" new-round "$ACC/reports/acc.spec.md" > "$ACC/nr.log" 2>&1 \
+  || fail "accepted proposals: new-round refused the saved paste: $(head -3 "$ACC/nr.log")"
+grep -qE '^::: item \{#Q1 [^}]*proposal=yes' "$ACC/reports/acc.spec.md" \
+  && fail "accepted proposals: new-round kept the listed, untouched Q1 a proposal: $(grep -n '#Q1' "$ACC/reports/acc.spec.md")"
+grep -qE '^::: item \{#Q2 [^}]*proposal=yes' "$ACC/reports/acc.spec.md" \
+  || fail "accepted proposals: new-round settled Q2, which the reader touched with a note: $(grep -n '#Q2' "$ACC/reports/acc.spec.md")"
 
 # ---- BL-701: each block's own notes box reaches the reply under the block's `## ` heading ----
 # Free text exists at three levels (page, block, item); the block level had no box. Layer: browser,

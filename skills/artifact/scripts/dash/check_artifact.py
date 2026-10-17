@@ -3743,12 +3743,13 @@ def check_consultation(path, text, flat):
 # a reply is saved, EVERY later wrap of the page is judged against that same
 # answered snapshot, until a newer reply replaces it.
 # `### id · title`, or `### id ·` for an empty title (the composer trims the space)
-from reply_defect import ITEM_HEAD as REPLY_ITEM   # noqa: E402
-# A `## ` line ends an item's block only with the composer's ` ·` separator
-# (reply_defect.is_block_head's rule); a plain `## note` is the reader's text.
+from reply_defect import ITEM_HEAD as REPLY_ITEM, ACCEPTED   # noqa: E402
+# A `## ` line ends an item's block only with the composer's ` ·` separator, or as
+# the accepted-proposals heading (reply_defect.is_block_head's rule); a plain
+# `## note` is the reader's text.
 # `### ` heads are REPLY_ITEM's job: a reader's own `### two words · x` line
 # ends nothing, so a mark under it stays the enclosing item's.
-REPLY_BLOCK = re.compile(r"^(?=## )(?=[^\n]* \u00b7)", re.M)
+REPLY_BLOCK = re.compile(r"^(?:(?=## )(?=[^\n]* \u00b7)|" + ACCEPTED + ")", re.M)
 # BL-569: a reply pasted in chat format (`Q1: ...`, `### Q1 · ...`) is a reply
 # too (SKILL.md: chat replies are saved the same way as composer replies).
 _MARK_TOKEN = re.compile(r"\[([a-z][a-z-]*)\]")
@@ -3794,7 +3795,7 @@ _ASK_MARKERS = frozenset()
 # the heading rule of REPLY_BLOCK + REPLY_ITEM (` ·` separator; `### ` needs a
 # one-word id), leading blanks tolerated: a plain `## note` line or a reader's own
 # `### two words · x` is the reader's text, not a heading
-_HEADING = re.compile(r"^[ \t]*(?:##[ \t](?=[^\n]* \u00b7)|###[ \t]\S+ \u00b7(?:[ \t]|$))")
+_HEADING = re.compile(r"^[ \t]*(?:##[ \t](?=[^\n]* \u00b7)|###[ \t]\S+ \u00b7(?:[ \t]|$)|" + ACCEPTED + ")")
 _ITEM_BOX = re.compile(r"^[ \t]*###[ \t](?![ \t]*notes[ \t]*·)")
 
 
@@ -4243,9 +4244,10 @@ def proposal_ids(text):
 
 
 _SAVE_SEP = re.compile(r"^<!-- reply saved .*-->[ \t]*$", re.M)
-# A composer paste: a group heading, or the general-notes block (it sits
-# outside every group, so a notes-only paste carries no `##` line).
-_GROUP_HEAD = re.compile(r"^[ \t]*(?:##[ \t]+[^#\n].*·|###[ \t]+notes[ \t]*·)", re.M)
+# A composer paste: a group heading, the general-notes block (it sits
+# outside every group, so a notes-only paste carries no `##` line), or the
+# accepted-proposals section (a paste can hold nothing else).
+_GROUP_HEAD = re.compile(r"^[ \t]*(?:##[ \t]+[^#\n].*·|###[ \t]+notes[ \t]*·|" + ACCEPTED + ")", re.M)
 
 
 def _live_reply(reply_text):

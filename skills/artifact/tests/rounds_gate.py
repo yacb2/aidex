@@ -10,7 +10,8 @@ step, a fixed seed that replays a failure (`--seed <failing seed> --count 1 --ve
 
 One sequence = what an agent following SKILL.md does with a consultation:
   build -> [ the reader answers a random subset (reply in the exact shape composer.js copies:
-  `## G1 · title`, `### Q1 · title`, `- option`, notes, Other, [not-now], blanks omitted) ->
+  `## G1 · title`, `### Q1 · title`, `- option`, notes, Other, [not-now], blanks omitted, the
+  untouched proposals last under `## Decidido sin corrección`) ->
   save-reply.sh -> either the VERBS (decide, add-item, new-round: they rebuild) or a hand edit of
   the spec plus ONE `spec_build.py --new-round` ] x 2..4 rounds.
 It PASSES when every step succeeds (a refused step also must write nothing), the model agrees with the page after each step (ids, order, decided set and verdicts,
@@ -56,13 +57,13 @@ TEXT = {
            "opts": ["Add it", "Skip it", "Defer it", "Rework it"],
            "lead": "Ana opens %s and sees no %s button.", "ask": "Should we add %s?",
            "notes": "Anything else", "group": "Block", "rec": " (recommended)",
-           "other": "Other — see my notes"},
+           "other": "Other — see my notes", "accepted": "Accepted without correction"},
     "es": {"nouns": ["el proyecto", "la lista", "el informe", "los ajustes", "la bandeja"],
            "feats": ["Borrar", "Renombrar", "Filtrar", "Exportar", "Archivar", "Compartir", "Deshacer", "Fijar"],
            "opts": ["Añadirlo", "Omitirlo", "Aplazarlo", "Rehacerlo"],
            "lead": "Ana abre %s y no ve el botón %s.", "ask": "¿Añadimos %s?",
            "notes": "Algo más", "group": "Bloque", "rec": " (recomendada)",
-           "other": "Otra — lo explico en las notas"},
+           "other": "Otra — lo explico en las notas", "accepted": "Decidido sin corrección"},
 }
 NOTES = ["Needs more thought", "Only for admins", "two lines\nof note", "ñandú café — ok",
          "has `code` and **bold**", "Pick *with* care"]
@@ -452,6 +453,11 @@ class Sequence:
                 parts += mine
         if self.round_general:
             parts.append("### notes \u00b7 %s\n\n%s" % (t["notes"], self.round_general))
+        # last, every proposal the reader left untouched, one line each (composer.js acceptedLine)
+        accepted = [i for i in props if i.id not in self.round_chunks]
+        if accepted:
+            parts.append("## %s\n\n" % t["accepted"] + "\n".join(
+                "- %s \u00b7 %s: %s" % (i.id, i.title, i.decided) for i in accepted))
         if not parts:
             return None, []
         return "\n\n".join(parts) + "\n", cands

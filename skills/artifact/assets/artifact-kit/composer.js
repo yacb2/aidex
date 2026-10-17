@@ -91,8 +91,8 @@
       decided: 'Decided',
       proposal: 'Decided, correct me if not',
       proposalNone: 'Nothing ticked is no correction: to say none of these, write it in the notes',
-      proposalsLeft: 'Decided points left to confirm or correct',
-      proposalsNothingToCopy: 'Nothing to copy: if you agree with everything, say so in the general note',
+      accepted: function (n) { return n + (n === 1 ? ' decided point accepted as written' : ' decided points accepted as written'); },
+      acceptedHead: 'Accepted without correction',
       fixes: function (n) { return n + (n === 1 ? ' correction ready to copy' : ' corrections ready to copy'); },
       decidedCount: function (n, w) {
         var word = w === 'row' ? 'row' : w === 'item' ? 'item' : 'question';
@@ -221,8 +221,8 @@
       decided: 'Decidido',
       proposal: 'Decidido, corr\u00edgeme si no',
       proposalNone: 'Sin nada marcado no hay correcci\u00f3n: para decir que no va ninguna, escr\u00edbelo en las notas',
-      proposalsLeft: 'Quedan puntos decididos por confirmar o corregir',
-      proposalsNothingToCopy: 'Nada que copiar: si est\u00e1s de acuerdo con todo, escr\u00edbelo en la nota general',
+      accepted: function (n) { return n + (n === 1 ? ' punto decidido aceptado tal cual' : ' puntos decididos aceptados tal cual'); },
+      acceptedHead: 'Decidido sin correcci\u00f3n',
       fixes: function (n) { return n + (n === 1 ? ' correcci\u00f3n lista para copiar' : ' correcciones listas para copiar'); },
       decidedCount: function (n, w) {
         var word = w === 'row' ? 'fila' : w === 'item' ? 'elemento' : 'pregunta';
@@ -829,10 +829,11 @@
    * the counts (no question, no blank), but it stays drawn in place with a label,
    * its options LIVE with the proposed one pre-selected (BL-700: sealed radios
    * read as broken), and it carries the same controls as an open item (ask chips,
-   * clear, other, not-now, page-defect: BL-711). Its pre-selected option is the
-   * writer's and never travels on its own: what it adds to the reply is what the
-   * reader did (a selection changed away from the proposed one, a typed note, a
-   * ticked ask or a defect report; see collect() and replyBody()). */
+   * clear, other, not-now, page-defect: BL-711). A touched one (a selection changed
+   * away from the proposed one, a typed note, a ticked ask or a defect report) adds
+   * its own `### id` block, as an open item does; an untouched one is ACCEPTED and
+   * goes on one line of the trailing L.acceptedHead section, never in a `### id`
+   * block, which save-reply and new-round read as touched (see collect()). */
   function isProposal(el) { return isDecided(el) && el.hasAttribute('data-proposal'); }
   /* The proposed selection as the page shipped it, captured before restore()
    * touches anything, read from the `checked` ATTRIBUTE (defaultChecked): a
@@ -846,10 +847,11 @@
       .map(function (i) { return markOf(i); }).sort().join('\u0001');
   }
   function selChanged(el) { return isProposal(el) && selSig(el) !== propBase[el.dataset.id]; }
-  /* What an item adds to the reply, defect report apart. A proposal with its
-   * proposed option still selected adds only its ticked asks and typed note
-   * (BL-711); once the selection differs it adds what an answered item does (the
-   * option plus the asks and the note). */
+  /* What an item adds to its own reply block, defect report apart. A proposal with
+   * its proposed option still selected adds only its ticked asks and typed note
+   * (BL-711), and with none of them nothing: collect() lists it as accepted; once
+   * the selection differs it adds what an answered item does (the option plus the
+   * asks and the note). */
   function proposalBody(el) {
     if (selChanged(el)) return readItem(el);
     var asks = askMarks(el).map(function (i) { return '- ' + markLabel(i, false); }).join('\n');
@@ -858,6 +860,12 @@
   }
   function replyBody(el) {
     return withDefect(el, isProposal(el) ? proposalBody(el) : readItem(el));
+  }
+  /* The accepted line of an untouched proposal: the option(s) the page shipped selected. */
+  function acceptedLine(el) {
+    var picked = [].filter.call(el.querySelectorAll('input[type="radio"], input[type="checkbox"]'),
+      function (i) { return !i.closest('.kit-ask') && i.defaultChecked; }).map(markOf).join(', ');
+    return '- ' + el.dataset.id + ' \u00b7 ' + (el.dataset.title || '') + (picked ? ': ' + picked : '');
   }
   /* The pasted/stored key of a checked option: its data-label, else its value. */
   function markOf(i) { return i.dataset.label || i.value || ''; }
@@ -1018,7 +1026,7 @@
   }
 
   function collect() {
-    var answered = [], blank = [], lastGroup = null, n = 0, total = 0, proposals = 0, fixed = 0;
+    var answered = [], blank = [], lastGroup = null, n = 0, total = 0, proposals = 0, fixed = 0, accepted = [];
     /* `nodes` runs beside `answered`: the page node each chunk came from, so a
      * block whose only filled box is its own notes can be slotted in at the
      * block's place in the page rather than at the end. */
@@ -1039,11 +1047,11 @@
        * its text still travels in the paste when it is filled. */
       if (isDecided(el)) {
         /* Shown as settled in the rail, counted nowhere, pasted never. A
-         * proposal pastes only what the reader typed to correct it, and is
-         * still counted nowhere (BL-692). */
-        /* A proposal with no correction typed is pending the reader's
-         * confirmation: it is not marked answered until something is typed
-         * (BL-692). Its rail link (BL-768) moves with the item's has-answer class. */
+         * proposal is counted apart from the questions (BL-692) and is done in
+         * the rail either way (BL-768): touched, it pastes its own block with what
+         * the reader did; untouched, it is accepted and listed in the trailing
+         * section below. Only a touched one is marked answered (has-answer, which
+         * shows Clear). */
         /* Like an open item, a defect report alone is no answer and no correction (it still
          * travels, and Clear reaches it): BL-711. */
         var fix = '', corr = '';
@@ -1053,13 +1061,14 @@
           fix = withDefect(el, corr);
           proposals++;
           if (corr) fixed++;
+          /* BL-732: a selection emptied with nothing typed is no correction either: accepted as shipped. */
+          if (!fix) accepted.push(acceptedLine(el));
           var none = el.querySelector('.consult-proposal-none');
           if (none) none.hidden = selSig(el) !== '';
           el.classList.toggle('has-defect', !!defectText(el));
         }
-        var shown = isProposal(el) ? !!corr : true;
-        el.classList.toggle('has-answer', shown);
-        if (links[i]) links[i].classList.toggle('done', shown);
+        el.classList.toggle('has-answer', isProposal(el) ? !!corr : true);
+        if (links[i]) links[i].classList.toggle('done', true);
         if (fix) {
           putItem(el, fix);
         }
@@ -1102,8 +1111,11 @@
       answered.splice(at, 0, groupHead(g));
       nodes.splice(at, 0, g);
     });
+    /* Last, after the general notes: one line per accepted proposal, under a heading
+     * the reply readers end a block at (reply_defect.ACCEPTED_HEAD). */
+    if (accepted.length) answered.push('## ' + L.acceptedHead + '\n\n' + accepted.join('\n'));
     return { markdown: answered.join('\n\n'), answered: n, blank: blank,
-             total: total, proposals: proposals, fixed: fixed };
+             total: total, proposals: proposals, fixed: fixed, accepted: accepted.length };
   }
 
   function say(text) { status.forEach(function (s) { s.textContent = text; }); }
@@ -1995,14 +2007,14 @@
      * viewport (`.rail.settled`, components.css, BL-575). The bar stays in the page,
      * after the content, because the notes box is still sendable. */
     var railEl = document.querySelector('.rail');
-    /* Proposals still to confirm or correct are work left: the page is not
+    /* Proposals are sent by Copy, accepted or corrected: the page is not
      * "all decided" and the bar stays pinned (BL-692). */
     if (railEl) railEl.classList.toggle('settled', !r.total && !r.proposals);
     /* Corrections typed on proposals count like answers (copy() counts them), but
      * apart from the questions: they are not part of the denominator. */
     var fx = r.fixed ? L.fixes(r.fixed) : '';
     if (!r.total) {
-      say(r.proposals > r.fixed ? L.proposalsLeft + (fx ? ' \u00b7 ' + fx : '') : r.proposals ? fx : L.allDecided);
+      say([r.accepted ? L.accepted(r.accepted) : '', fx].filter(Boolean).join(' \u00b7 ') || L.allDecided);
       return;
     }
     say(r.answered
@@ -2017,7 +2029,7 @@
      * that box. Refusing on the counter would make the notes unsendable. */
     if (!r.markdown) {
       /* BL-587: on an all-decided page the status line says nothing is left to answer. */
-      say(r.total ? L.nothingToCopy : r.proposals ? L.proposalsNothingToCopy : L.allDecidedNothingToCopy);
+      say(r.total ? L.nothingToCopy : L.allDecidedNothingToCopy);
       return;
     }
     /* Pressing the button IS sending: from here the session has the answers,
@@ -2032,7 +2044,8 @@
       if (groupNoteText(g)) copied[groupKey(g)] = fnv(groupNoteText(g));
     });
     save();
-    var msg = (r.answered + r.fixed ? L.copied(r.answered + r.fixed) : L.copiedNotes) + (r.blank.length ? L.blankList(r.blank) : L.noneBlank);
+    var sent = r.answered + r.fixed + r.accepted;   /* a defect report alone is no answer (BL-711) */
+    var msg = (sent ? L.copied(sent) : L.copiedNotes) + (r.blank.length ? L.blankList(r.blank) : L.noneBlank);
 
     function fallback() {
       var old = document.querySelector('textarea.kit-copy-fallback');

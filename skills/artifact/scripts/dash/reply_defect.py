@@ -14,14 +14,22 @@ DEFECT_HEAD = re.compile(r"^#### (?:Fallo de la p\u00e1gina|Page problem)[ \t]*$
 # `### id · title`, or `### id ·` for an empty title (the composer trims the space)
 ITEM_HEAD = re.compile(r"^### (\S+) \u00b7(?:[ \t]|$)", re.M)
 
+# The composer's LAST section: one `- id · title: option` line per proposal the reader
+# left untouched (composer.js L.acceptedHead, es and en). A block head with no ` ·`:
+# it ends the block above it, and its lines are no `### id` block of their own.
+ACCEPTED = r"## (?:Decidido sin correcci\u00f3n|Accepted without correction)[ \t]*$"
+ACCEPTED_HEAD = re.compile("^" + ACCEPTED, re.M)
+
 
 def is_block_head(line):
     """The ONE block-head rule every reply reader shares (check_artifact's
     REPLY_ITEM / REPLY_BLOCK / _HEADING and the gallery readers): `## G1 · title`
     (any `## ` line carrying the composer's ` ·` separator) or `### <id> · title`
     with a single-token id. Any other `## ` / `### ` line, a reader's own
-    `### two words · x` included, is a note."""
-    return bool(ITEM_HEAD.match(line)) or (line.startswith("## ") and " \u00b7" in line)
+    `### two words · x` included, is a note. The accepted-proposals heading
+    (ACCEPTED_HEAD) is one too."""
+    return (bool(ITEM_HEAD.match(line)) or (line.startswith("## ") and " \u00b7" in line)
+            or bool(ACCEPTED_HEAD.match(line)))
 
 
 def split_defect(block):

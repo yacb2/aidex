@@ -705,10 +705,11 @@ def _expire_proposals(text, answered_html, reply=None):
     exception is the chat form (`Q2:` with no `### ` head): marker_duties_of reads
     no mark there, so no duty is owed and a defect-only chat block still expires,
     as both readers agree. So do a real pick, the Other
-    choice or a note: the composer sends nothing for an untouched proposal, so
-    ANY content in its block (a chat-form line, a reworded option) is the reader
-    answering it, and it takes the open-item path (`_bare_picks`, then
-    `decide`). "Marked" is read
+    choice or a note: the composer sends no block for an untouched proposal (it
+    lists it on a line of the trailing `## Decidido sin corrección` section,
+    which is no block), so ANY content in its block (a chat-form line, a reworded
+    option) is the reader answering it, and it takes the open-item path
+    (`_bare_picks`, then `decide`). "Marked" is read
     with check_artifact.marker_duties_of, the reader of the duty check, so both
     sides agree across several saved pastes."""
     if not answered_html:
