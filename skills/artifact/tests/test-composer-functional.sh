@@ -4668,6 +4668,9 @@ tl="$(grep -oE '<title>[^<]*</title>' "$L700/dom.html" | sed -n 1p)"
   || fail "BL-700: an untouched proposal must be sent as accepted, one line in the trailing section and no block (want R0=## Decidido sin corrección ... and '2 puntos decididos aceptados tal cual'): $tl"
 [[ "$tl" == *"|H1=1|"* && "$tl" == *"|R1="*"### P1"*"- No"* && "$tl" != *"|R1="*"### P2"* ]] \
   || fail "BL-700: a changed selection on a proposal must reach the reply as '### P1' with '- No' (and not P2), and read as answered: $tl"
+r1f="$(sed -nE 's/.*\|R1=(.*)\|H2=.*/\1/p' <<<"$tl")"
+[[ -n "$r1f" && "$r1f" != *"- P1 · "* && "$r1f" == *"- P2 · "* ]] \
+  || fail "BL-700: a touched proposal must not ALSO be listed in the accepted section (want no '- P1 · ' line in R1, only '- P2 · '): $r1f"
 [[ "$tl" == *"|STATCH="*"1 corrección lista para copiar|"* ]] \
   || fail "BL-700: a changed selection must count as a correction in the status line: $tl"
 [[ "$tl" == *"|H2=0|"* && "$tl" == *"|R2=## Decidido sin corrección  - P1 · Primera propuesta: Si - P2 · Segunda propuesta: Si|"* && "$tl" == *"|STATBACK=2 puntos decididos aceptados tal cual|"* ]] \
@@ -4703,6 +4706,9 @@ CHROME_WINDOW=1280,900 chrome_dump "$L700/dom6.html" "file://$TMP/reports/l700.h
 tl6="$(grep -oE '<title>[^<]*</title>' "$L700/dom6.html" | sed -n 1p)"
 [[ "$tl6" == *"|P1=Si|P2=Si|HAS1=1|"* && "$tl6" == *"|ASK1=1|"* && "$tl6" == *"|REPLY="*"### P1"*"- [explain-state]"* && "$tl6" != *"- Si"* ]] \
   || fail "BL-711: a stored ask on an untouched proposal must restore ticked, keep the proposed Si checked and reach the reply without '- Si': $tl6"
+tl6f="$(sed -nE 's/.*\|REPLY=(.*)\|<\/title>$/\1/p' <<<"$tl6")"
+[[ -n "$tl6f" && "$tl6f" != *"- P1 · "* && "$tl6f" == *"- P2 · "* ]] \
+  || fail "BL-711: a proposal touched by a stored ask must not ALSO be listed in the accepted section (want no '- P1 · ' line, only '- P2 · '): $tl6f"
 rm -rf "$TMP/profile"
 CHROME_WINDOW=1280,900 chrome_dump "$L700/dom7.html" "file://$TMP/reports/l700.html?phase=extra" 45 || true
 tl7="$(grep -oE '<title>[^<]*</title>' "$L700/dom7.html" | sed -n 1p)"
@@ -4712,8 +4718,8 @@ tl7="$(grep -oE '<title>[^<]*</title>' "$L700/dom7.html" | sed -n 1p)"
   || fail "BL-711: Clear on a changed proposal must return it to the proposed Si with an empty note, unanswered, accepted again (want CLR=Si//0/ and both in the trailing section): $tl7"
 [[ "$tl7" == *"|DEF=0/"*"#### "*"se ve mal"* ]] \
   || fail "BL-711: a defect report alone on a proposal must travel in the reply but not make the item answered (want DEF=0/ with the #### block): $tl7"
-[[ "$tl7" == *"|STDEF=1 punto decidido aceptado tal cual|"* && "$tl7" == *"|DEF=0/"*"se ve mal  ## Decidido sin corrección  - P1 · Primera propuesta: Si|"* ]] \
-  || fail "BL-711: a defect report alone on a proposal must count neither as a correction nor as accepted (want STDEF=1 punto decidido aceptado tal cual, only P1 in the section): $tl7"
+[[ "$tl7" == *"|STDEF=1 punto decidido aceptado tal cual · 1 fallo de la página sin corrección listo para copiar|"* && "$tl7" == *"|DEF=0/"*"se ve mal  ## Decidido sin corrección  - P1 · Primera propuesta: Si|"* ]] \
+  || fail "BL-711: a defect report alone on a proposal must count neither as a correction nor as accepted (want STDEF=1 punto decidido aceptado tal cual · 1 fallo de la página sin corrección listo para copiar: not a correction, not accepted, but named because Copy sends it; only P1 in the section): $tl7"
 
 # ---- An untouched proposal is ACCEPTED: Copy lists it in one trailing section ----
 # Owner 2026-10-17: "los items que ya vienen decididos por ti no se estan copiando en la respuesta". An
@@ -4765,6 +4771,96 @@ grep -qE '^::: item \{#Q1 [^}]*proposal=yes' "$ACC/reports/acc.spec.md" \
   && fail "accepted proposals: new-round kept the listed, untouched Q1 a proposal: $(grep -n '#Q1' "$ACC/reports/acc.spec.md")"
 grep -qE '^::: item \{#Q2 [^}]*proposal=yes' "$ACC/reports/acc.spec.md" \
   || fail "accepted proposals: new-round settled Q2, which the reader touched with a note: $(grep -n '#Q2' "$ACC/reports/acc.spec.md")"
+
+# ---- Status honesty (review of the accepted section): what the status names is what Copy sends ----
+# Layer: browser, because the status text and the Copy payload are both the composer's call.
+# (a) every proposal carries only a page-defect report: Copy sends the reports, so the status must
+# not say all decided. (b) open questions beside proposals: the status names the accepted count so
+# it reconciles with Copy's count.
+ST="$TMP/st"; mkdir -p "$ST/reports"
+sed 's/^::: masthead {title="Decidido, corrígeme si no"}/::: masthead {title="Decidido, corrígeme si no" visual="none: a reply probe, nothing to draw"}/' \
+  "$SKILL/tests/fixtures/decided-items.spec.md" > "$ST/reports/st.spec.md"
+python3 "$SKILL/scripts/spec_build.py" "$ST/reports/st.spec.md" > "$ST/body-a.html" 2> "$ST/build.log" \
+  || fail "status honesty: the decided-items fixture did not build: $(head -3 "$ST/build.log")"
+cat >> "$ST/body-a.html" <<'HTML'
+<script>window.addEventListener("load", function () {
+  var st = document.getElementById("consult-status"), cap = null;
+  Object.defineProperty(navigator, "clipboard", { configurable: true,
+    value: { writeText: function (s) { cap = s; return { then: function (f) { f(); return { catch: function () {} }; } }; } } });
+  var report = function (id, v) {
+    document.querySelector('[data-id="' + id + '"] .kit-defect-btn').click();
+    var t = document.querySelector('[data-id="' + id + '"] textarea.kit-defect-text');
+    t.value = v; t.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+  if (location.search.indexOf("phase=mix") > -1) {
+    /* Q1: a changed pick plus a report (the report rides inside the correction); Q2: a report alone. */
+    var lista = document.querySelector('[data-id="Q1"] input[data-label="Lista"]');
+    lista.checked = true; lista.dispatchEvent(new Event("change", { bubbles: true }));
+    report("Q1", "se ve mal uno"); report("Q2", "se ve mal dos");
+    document.title = "STC|S=" + st.textContent + "|";
+    return;
+  }
+  report("Q1", "se ve mal uno"); report("Q2", "se ve mal dos");
+  var s1 = st.textContent;
+  document.getElementById("consult-copy").click();
+  document.title = "STA|S=" + s1 + "|COPIED=" + (cap === null ? "NONE" : st.textContent) + "|";
+});</script>
+HTML
+bash "$WRAP" --title "st-a" --lang es --out "$ST/reports/st-a.html" < "$ST/body-a.html" > "$ST/wrap-a.log" 2>&1 \
+  || fail "status honesty: probe (a) failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$ST/wrap-a.log" | sed -n 1,4p)"
+rm -rf "$TMP/profile"
+CHROME_WINDOW=1280,900 chrome_dump "$ST/dom-a.html" "file://$ST/reports/st-a.html" 45 || true
+sta="$(grep -oE '<title>[^<]*</title>' "$ST/dom-a.html" | sed -n 1p)"
+[[ "$sta" == *"|S=2 fallos de la página sin corrección listos para copiar|COPIED=2 copiada(s) · ninguna en blanco — pégalas en el chat.|"* ]] \
+  || fail "status honesty: with only page-defect reports left the status must name them, never 'Todas las preguntas están decididas' (want '2 fallos de la página sin corrección listos para copiar' and Copy counting them: '2 copiada(s)', never 'notas copiadas'): $sta"
+rm -rf "$TMP/profile"
+CHROME_WINDOW=1280,900 chrome_dump "$ST/dom-c.html" "file://$ST/reports/st-a.html?phase=mix" 45 || true
+stc="$(grep -oE '<title>[^<]*</title>' "$ST/dom-c.html" | sed -n 1p)"
+[[ "$stc" == *"|S=1 corrección lista para copiar · 1 fallo de la página sin corrección listo para copiar|"* ]] \
+  || fail "status honesty: a defect on a proposal that also has a correction rides inside the correction and is not counted again; a defect alone is named apart (want '1 corrección lista para copiar · 1 fallo de la página sin corrección listo para copiar'): $stc"
+{
+  printf '%s\n' '<meta name="consult-visual" content="none: a layout probe, nothing to draw">' \
+    '<div class="page"><main class="main"><header><p class="eyebrow">PROBE</p><h1>Mixed</h1></header>' \
+    '<section id="sec-ask"><div class="sec-head"><h2>Questions</h2></div>'
+  printf '<section class="consult-group" data-id="G1" data-title="Mezcla"><p>Contexto</p>\n'
+  item692 Q1 "Primera pregunta" ''
+  item692 Q2 "Segunda pregunta" ''
+  item692 P1 "Primera propuesta" 'data-decided="Si" data-proposal'
+  item692 P2 "Segunda propuesta" 'data-decided="Si" data-proposal'
+  printf '</section>\n'
+  printf '%s\n' '<div class="endbar"><button type="button" id="consult-copy-end">Copy</button><span class="consult-status" id="consult-status-end"></span></div>' \
+    '<section class="consult-item consult-notes" data-id="notes" data-title="Notas generales"><h3>Notas generales</h3><textarea></textarea></section>' \
+    '</section></main><aside class="rail"><p class="railhead">Contenido</p><nav class="raillist" id="raillist"></nav>' \
+    '<div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div></aside></div>'
+  cat <<'PROBE'
+<script>window.addEventListener("load", function () {
+  var st = document.getElementById("consult-status"), cap = null;
+  Object.defineProperty(navigator, "clipboard", { configurable: true,
+    value: { writeText: function (s) { cap = s; return { then: function (f) { f(); return { catch: function () {} }; } }; } } });
+  var fire = function (el) { el.dispatchEvent(new Event("change", { bubbles: true })); };
+  ["Q1", "Q2"].forEach(function (id) {
+    [].forEach.call(document.querySelectorAll('[data-id="' + id + '"] input[type=radio]'), function (r) { r.checked = false; });
+  });
+  fire(document.querySelector('[data-id="Q2"] input[type=radio]'));   /* a change event refreshes the status */
+  var s0 = st.textContent;
+  var q1 = document.querySelector('[data-id="Q1"] input[data-label="No"]'); q1.checked = true; fire(q1);
+  var s1 = st.textContent;
+  document.querySelector('[data-id="P2"] .kit-defect-btn').click();
+  var dt = document.querySelector('[data-id="P2"] textarea.kit-defect-text');
+  dt.value = "se ve mal"; dt.dispatchEvent(new Event("input", { bubbles: true }));
+  var s2 = st.textContent;
+  document.getElementById("consult-copy").click();
+  document.title = "STB|S0=" + s0 + "|S=" + s1 + "|S2=" + s2 + "|COPIED=" + (cap === null ? "NONE" : st.textContent) + "|";
+});</script>
+PROBE
+} > "$ST/body-b.html"
+bash "$WRAP" --title "st-b" --lang es --out "$ST/reports/st-b.html" < "$ST/body-b.html" > "$ST/wrap-b.log" 2>&1 \
+  || fail "status honesty: probe (b) failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$ST/wrap-b.log" | sed -n 1,4p)"
+rm -rf "$TMP/profile"
+CHROME_WINDOW=1280,900 chrome_dump "$ST/dom-b.html" "file://$ST/reports/st-b.html" 45 || true
+stb="$(grep -oE '<title>[^<]*</title>' "$ST/dom-b.html" | sed -n 1p)"
+[[ "$stb" == *"|S0=Sin responder todavía. · 2 puntos decididos aceptados tal cual|S=1 de 2 respondidas · falta Q2 · 2 puntos decididos aceptados tal cual|S2=1 de 2 respondidas · falta Q2 · 1 punto decidido aceptado tal cual · 1 fallo de la página sin corrección listo para copiar|COPIED=3 copiada(s)"* ]] \
+  || fail "status honesty: with open questions beside proposals the status must name the accepted count so it reconciles with Copy's count (want S0='Sin responder todavía. · 2 puntos decididos aceptados tal cual' before any answer, S='1 de 2 respondidas · falta Q2 · 2 puntos decididos aceptados tal cual' and, once P2 carries a defect report, S2 naming '1 fallo de la página sin corrección listo para copiar' too): $stb"
 
 # ---- BL-701: each block's own notes box reaches the reply under the block's `## ` heading ----
 # Free text exists at three levels (page, block, item); the block level had no box. Layer: browser,
