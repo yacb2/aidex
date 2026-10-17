@@ -83,6 +83,15 @@ stop it with `TaskStop` and relaunch the same brief. Almost every delegate that 
 is waiting on its own shell command; the agent definitions forbid sleep-poll loops for that
 reason.
 
+A delegate whose notification says it is waiting on its own background work is not stale
+and still counts as a running subagent: no handoff, no `TaskStop` while it waits. Its
+liveness is its command's output file (the one the notification names, or the file the
+command itself redirects to). While that file grows, it is alive. If the file already holds
+the command's closing line and no hand-back came, the wake-up was lost: send it one
+`SendMessage` asking for its report, the only ping this section allows, because `TaskStop`
+would re-run the whole suite. If the file has not grown for 15 minutes and holds no closing
+line, it is stale: `TaskStop` and relaunch.
+
 ## Gates before a commit
 
 - **Predicate shape goes to `aidex:review-diff-opus` first:** a diff that adds or moves a
