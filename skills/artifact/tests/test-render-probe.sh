@@ -31,6 +31,9 @@ bad() { printf '  FAIL: %s\n' "$1" >&2; FAIL=$((FAIL + 1)); }
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
+# has_shot <shots-dir> <name>: both full-page PNGs of the page exist in its run subdirectory.
+has_shot() { local d f; for d in "$1/$2".run-*; do [[ -s "$d/$2-1280.png" && -s "$d/$2-390.png" ]] && return 0; done; return 1; }
+
 echo "== Playwright missing =="
 # Both lookups pointed at nothing: no AIDEX_PLAYWRIGHT_DIR hit and an npm prefix
 # whose global root is empty.
@@ -59,7 +62,7 @@ done
 echo "== clean page =="
 out="$(bash "$PROBE" --shots "$TMP/shots" "$TMP/clean.html" 2>&1)"; rc=$?
 [[ $rc -eq 0 ]] && ok "clean fixture exits 0" || bad "clean fixture exit $rc: $out"
-[[ -s "$TMP/shots/clean-1280.png" && -s "$TMP/shots/clean-390.png" ]] \
+has_shot "$TMP/shots" clean \
   && ok "--shots writes clean-1280.png and clean-390.png" || bad "--shots did not write both screenshots"
 [[ "$(grep -c '^{' <<<"$out")" -eq 2 ]] && ok "one JSON line per width" || bad "expected 2 JSON lines: $out"
 
@@ -108,7 +111,7 @@ PY
   && ok "wrapped the gallery consultation (contract OK)" || bad "wrap-report failed on the gallery consultation"
 out="$(bash "$PROBE" --shots "$TMP/shots" "$TMP/gallery.html" 2>&1)"; rc=$?
 [[ $rc -eq 0 ]] && ok "the gallery consultation is clean at 1280 and 390 px" || bad "gallery exit $rc: $out"
-[[ -s "$TMP/shots/gallery-1280.png" && -s "$TMP/shots/gallery-390.png" ]] \
+has_shot "$TMP/shots" gallery \
   && ok "--shots writes gallery-1280.png and gallery-390.png" || bad "no gallery screenshots"
 
 echo "== a chart built from a spec: the F-shape data =="
@@ -119,7 +122,7 @@ echo "== a chart built from a spec: the F-shape data =="
   && ok "built chart-f5 from its spec" || bad "spec_build.py failed on chart-f5.spec.md"
 out="$(bash "$PROBE" --shots "$TMP/shots" "$TMP/chart-f5.html" 2>&1)"; rc=$?
 [[ $rc -eq 0 ]] && ok "the F-shape chart is clean at 1280 and 390 px" || bad "chart-f5 exit $rc: $out"
-[[ -s "$TMP/shots/chart-f5-1280.png" && -s "$TMP/shots/chart-f5-390.png" ]] \
+has_shot "$TMP/shots" chart-f5 \
   && ok "--shots writes chart-f5-1280.png and chart-f5-390.png" || bad "no chart-f5 screenshots"
 
 echo "== a chart whose names have no space to break at =="
@@ -193,7 +196,7 @@ echo "== the kit's own rows pass clean (must-pass, Phase 5) =="
 # -> fixed-over-text at both widths.
 out="$(bash "$PROBE" --shots "$TMP/shots" "$TMP/kit-rows.html" 2>&1)"; rc=$?
 [[ $rc -eq 0 ]] && ok "kit-rows fixture exits 0" || bad "kit-rows fixture exit $rc: $(grep '^DEFECT' <<<"$out")"
-[[ -s "$TMP/shots/kit-rows-1280.png" && -s "$TMP/shots/kit-rows-390.png" ]] \
+has_shot "$TMP/shots" kit-rows \
   && ok "--shots writes kit-rows-1280.png and kit-rows-390.png" || bad "no kit-rows screenshots"
 
 echo "== a five-row ledger leaves no shaded empty track (BL-614) =="
@@ -233,7 +236,7 @@ echo "== a diagram built from a spec (must pass clean) =="
   && ok "built diagram-flow from its spec" || bad "spec_build failed on diagram-flow.spec.md"
 out="$(bash "$PROBE" --shots "$TMP/shots" "$TMP/diagram-flow.html" 2>&1)"; rc=$?
 [[ $rc -eq 0 ]] && ok "diagram-flow exits 0 at 1280 and 390" || bad "diagram-flow exit $rc: $out"
-[[ -s "$TMP/shots/diagram-flow-1280.png" && -s "$TMP/shots/diagram-flow-390.png" ]] \
+has_shot "$TMP/shots" diagram-flow \
   && ok "--shots writes both diagram-flow screenshots" || bad "no diagram-flow screenshots"
 module="${AIDEX_PLAYWRIGHT_DIR:-}/node_modules/playwright"
 [[ -f "$module/package.json" ]] || module="$g/playwright"
@@ -539,14 +542,10 @@ echo "== tiles and manifest on a tall page =="
   done
   printf '</body></html>\n'
 } > "$TMP/tall.html"
-# A tile of an earlier, taller build must be gone after this run. The grader only reads
-# tiles the manifest lists, so a leftover is harmless to it; the deletion is kept as hygiene
-# and this is its only check.
-mkdir -p "$TMP/tall-shots" && : > "$TMP/tall-shots/tall-1280-t99.png"
+mkdir -p "$TMP/tall-shots"
 out="$(bash "$PROBE" --shots "$TMP/tall-shots" "$TMP/tall.html" 2>&1)"
 man="$TMP/tall-shots/tall-shots.json"
 [[ -s "$man" ]] && ok "--shots writes tall-shots.json" || bad "no manifest: $out"
-[[ ! -e "$TMP/tall-shots/tall-1280-t99.png" ]] && ok "a stale tile of an earlier build is deleted" || bad "stale tile kept"
 chk="$(python3 - "$man" "$TMP/tall-shots" <<'PY'
 import json, struct, sys, os, hashlib
 m = json.load(open(sys.argv[1])); d = sys.argv[2]
@@ -768,6 +767,66 @@ out="$(bash "$PROBE" --shots "$TMP/dup-shots" "$TMP/dupa/page.html" "$TMP/dupb/P
 out="$(bash "$PROBE" --shots "$TMP/c-shots" --contract figure-text-contrast "$TMP/clean.html" 2>&1)"; rc=$?
 [[ $rc -eq 2 ]] && ! grep -q '^SHOTS ' <<<"$out" \
   && ok "--shots with --contract is a usage error (exit 2), no SHOTS line" || bad "--shots + --contract: exit $rc: $out"
+
+echo "== a re-probe into one --shots dir never mixes two runs =="
+# BL-823: a grader launched while the builder re-probed read tiles of two builds. Each run now
+# writes into its own <name>.run-<stamp>/ and the manifest last, by rename; the previous run
+# is kept (a grader may still read it), older ones are pruned. Three runs of one page with a
+# different height each time, so the runs are told apart by what the tiles say.
+printf '<!doctype html><html><body style="margin:0"><div data-id="a" style="height:1000px">a</div></body></html>\n' > "$TMP/rerun.html"
+rr="$TMP/rerun-shots"; mf="$rr/rerun-shots.json"; inodes=()
+for h in 1000 1500 2000; do
+  if [[ $h -eq 2000 ]]; then
+    # F1: a dir newer than any real stamp may be another probe's run in progress; one older than
+    # the previous run is an orphan. The run must keep the first and sweep the second.
+    mkdir -p "$rr/rerun.run-29991231T235959999Z-p1" "$rr/rerun.run-20000101T000000000Z-p1"
+  fi
+  printf '<!doctype html><html><body style="margin:0"><div data-id="a" style="height:%spx">a</div></body></html>\n' "$h" > "$TMP/rerun.html"
+  out="$(bash "$PROBE" --shots "$rr" "$TMP/rerun.html" 2>&1)"
+  inodes+=("$(ls -i "$mf" | awk '{print $1}')")
+  stamp="$(sed -n 's/^SHOTS run=\([^ ]*\) .*/\1/p' <<<"$out")"
+  [[ $h -eq 1500 ]] && prev_stamp="$stamp"
+done
+chk="$(python3 - "$mf" "$rr" "$stamp" "$prev_stamp" <<'PY'
+import json, os, sys, glob
+mf, d, stamp, prev = sys.argv[1:5]
+m = json.load(open(mf))
+runs = sorted(os.path.basename(x) for x in glob.glob(os.path.join(d, "rerun.run-*")) if "29991231" not in x)
+if len(runs) != 2: print(f"run dirs {runs}, want the latest and the previous only"); sys.exit()
+if m["run"] != stamp or m["dir"] != f"rerun.run-{stamp}": print(f"manifest run/dir {m['run']} {m['dir']}, printed stamp {stamp}"); sys.exit()
+if runs != sorted([f"rerun.run-{prev}", m["dir"]]): print(f"kept {runs}, want previous {prev} and latest"); sys.exit()
+files = [t["file"] for w in ("1280", "390") for t in m["widths"][w]["tiles"]] + [m["widths"][w]["fullpage"] for w in ("1280", "390")]
+files += [x for x in m["written"] if not x.endswith("-shots.json")]
+for f in files:
+    if not f.startswith(m["dir"] + "/") or not os.path.isfile(os.path.join(d, f)): print(f"listed file not in the latest run or missing: {f}"); sys.exit()
+if m["widths"]["1280"]["page_height"] != 2000: print("manifest is not the latest build"); sys.exit()
+if any(".tmp" in n for n in os.listdir(d)): print("temp file left behind"); sys.exit()
+print("ok")
+PY
+)"
+[[ "$chk" == ok ]] && ok "after 3 runs: latest + previous run dirs only, the manifest lists only files of the latest, all exist" || bad "re-probe runs: $chk"
+[[ -d "$rr/rerun.run-29991231T235959999Z-p1" ]] && ok "a run dir newer than the previous run (another probe in progress) is not pruned" || bad "prune deleted a newer run dir"
+[[ ! -e "$rr/rerun.run-20000101T000000000Z-p1" ]] && ok "an orphan older than the previous run is swept" || bad "old orphan kept"
+# The inode check is a proxy for "a reader sees the old or the new manifest, never half of one":
+# rename gives a new inode, an in-place rewrite keeps it.
+[[ "${inodes[1]}" != "${inodes[2]}" ]] && ok "the manifest is replaced by rename (new inode), never rewritten in place" || bad "manifest inode unchanged across runs: ${inodes[*]}"
+
+# A probe that started earlier but finishes after another one sees prev = the later run's dir,
+# a stamp newer than its own; it must not prune the dir its own manifest names.
+ow="$TMP/own-shots"; mkdir -p "$ow/rerun.run-29991231T235959999Z-p1"
+printf '{"page":"rerun","run":"29991231T235959999Z-p1","dir":"rerun.run-29991231T235959999Z-p1","written":[]}\n' > "$ow/rerun-shots.json"
+bash "$PROBE" --shots "$ow" "$TMP/rerun.html" >/dev/null 2>&1
+chk="$(python3 - "$ow" <<'PY'
+import json, os, sys
+d = sys.argv[1]; m = json.load(open(os.path.join(d, "rerun-shots.json")))
+if not os.path.isdir(os.path.join(d, m["dir"])): print("manifest names a missing dir", m["dir"]); sys.exit()
+miss = [f for f in m["written"] if not f.endswith("-shots.json") and not os.path.isfile(os.path.join(d, f))]
+if miss or not m["written"]: print("missing", miss); sys.exit()
+if not os.path.isdir(os.path.join(d, "rerun.run-29991231T235959999Z-p1")): print("later run dir pruned"); sys.exit()
+print("ok")
+PY
+)"
+[[ "$chk" == ok ]] && ok "a probe finishing after a later-stamped run keeps its own dir and the later one" || bad "own-dir prune: $chk"
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [[ $FAIL -eq 0 ]]

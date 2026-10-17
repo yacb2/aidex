@@ -20,10 +20,13 @@
 # could not look is the defect it exists to catch.
 #
 # Usage: render-probe.sh [--shots <dir>] [--contract <slug>] [--invariants] <page.html>...
-#   --shots <dir>      also write <name>-1280.png and <name>-390.png (full page), viewport-height
-#                      tiles <name>-<width>-t01.png ... and <name>-shots.json (tiles in order,
-#                      the data-id items each holds, ids in page order, files written this run
-#                      with a run stamp); stdout gets `SHOTS run=<stamp> files=<n>` and one
+#   --shots <dir>      also write <name>-1280.png and <name>-390.png (full page) and viewport-height
+#                      tiles <name>-<width>-t01.png ... into a run subdirectory
+#                      <dir>/<name>.run-<stamp>/, then <name>-shots.json LAST and atomically
+#                      (temp file + rename): tiles in order, the data-id items each holds, ids
+#                      in page order, `run`, `dir`, and files written this run, every path
+#                      relative to <dir>. The previous run's directory is kept, older ones
+#                      for the page are pruned; stdout gets `SHOTS run=<stamp> files=<n>` and one
 #                      `SHOT <path>` per file
 #   --contract <slug>  run only that contract class; the last stdout line is
 #                      `CONTRACT <slug> findings=<n>` (absent on a crash)

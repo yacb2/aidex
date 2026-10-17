@@ -342,7 +342,9 @@ Per width the probe also writes viewport-height tiles `<n>-<width>-t01.png`, ...
 900 px tall, consecutive tiles overlapping by 100 px, the last pinned to the page bottom: a tall page's full-page shot is downscaled past legibility; each is the viewport scrolled to the tile's y, so a fixed bar or sticky rail sits on every tile where a scrolled reader sees it)
 and `<n>-shots.json`: tiles in order, the `data-id` item ids each tile holds, the ids in page
 order, and the files written this run under one run stamp (stdout repeats them as `SHOT`
-lines). A stale tile of an earlier build is deleted first.
+lines). Each run writes its PNGs into its own subdirectory `<n>.run-<stamp>/` and the manifest
+last, by rename, with `run`, `dir` and every file path relative to the manifest's directory; the
+probe keeps the previous run and prunes older ones, so a grader never reads tiles of two runs.
 
 **Step 3, the handoff.** The text grader gets the request, the `.spec.md` path, the rubric
 path and the DUTIES list (`SKILL.md` § The quality loop). The visual grader gets, with its

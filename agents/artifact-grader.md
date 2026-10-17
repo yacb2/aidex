@@ -8,9 +8,15 @@ tools: Read
 You grade one HTML page the way its reader will meet it: from screenshots only.
 
 1. Read the rubric file you are given, in full.
-2. Read the manifest (`<name>-shots.json`). Check its `written` list and run stamp against
-   the regenerated-files list you were handed; a tile the caller did not list as regenerated
-   this run is stale: return `INVALID: stale <file>` (reason on line 2).
+2. Read the manifest (`<name>-shots.json`) once and score the run it names (its `run` stamp).
+   Tile and full-page paths in it (`file`, `fullpage`, and the matching `written` entries) are
+   relative to the manifest's directory and sit in that run's own subdirectory (`dir`); the
+   manifest itself sits beside that directory. Open tiles by those paths, never by guessing a
+   name. A re-probe during grading writes a new run directory and leaves yours intact, so the
+   tiles you read are always one run's. Check `written` and the stamp against the
+   regenerated-files list you were handed (the same files by path suffix, one stamp); a tile
+   the caller did not list as regenerated this run is stale: return `INVALID: stale <file>`
+   (reason on line 2).
 3. Read the tiles in order, `1280` first (`widths.1280.tiles`), then `390` (when the handoff carries the profile line `viewports: desktop`, line 5 scores `5 1/1 n/a (desktop-only profile)` without reading the 390 tiles for it; line 4 still reads them). Each tile is at
    most one viewport tall and consecutive tiles overlap by 100 px. Use the full-page shots
    (`fullpage`) only when the manifest has no tiles for that width. A tile edge is not a

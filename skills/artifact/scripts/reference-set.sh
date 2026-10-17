@@ -3,8 +3,8 @@
 #
 # Usage: reference-set.sh [--no-probe] <set-dir> <out-dir>
 #   Builds <out-dir>/reference-set.html (reference_set.py), then runs render-probe
-#   on it and saves the shots: full-page <out-dir>/reference-set-1280.png and -390.png,
-#   viewport tiles and <out-dir>/reference-set-shots.json. --no-probe
+#   on it and saves the shots: full-page and viewport PNGs in a run subdirectory of <out-dir>,
+#   and <out-dir>/reference-set-shots.json. --no-probe
 #   stops after the build (the unit test's route: it needs no Chromium).
 #   The last lines are the grader handoff: page, the manifest, the run stamp, the rubric. The
 #   script does not call the grader; the session does.

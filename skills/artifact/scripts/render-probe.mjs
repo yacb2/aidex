@@ -574,10 +574,14 @@ setTimeout(() => {
   process.exit(4);
 }, deadline * 1000).unref();
 if (shots) fs.mkdirSync(shots, { recursive: true });
+const runDirName = base => `${base}.run-${runStamp}`;
 const report = [];
 // --shots bookkeeping: one run stamp for every file written this run, and one manifest
 // per page (tiles per width, item ids in page order) so the grader reads tiles by id.
-const runStamp = new Date().toISOString();
+// The stamp is filesystem-safe (UTC to the ms, plus the pid) and names the run's own
+// subdirectory per page: a re-probe never overwrites the tiles an earlier run's grader may
+// still be reading, and the manifest (written last, by rename) is the only way in.
+const runStamp = new Date().toISOString().replace(/[-:]/g, '').replace('.', '') + `-p${process.pid}`;
 const VIEW_H = 900;
 const manifests = new Map();
 const written = [];
@@ -783,14 +787,14 @@ for (const f of files) for (const width of [1280, 390]) {
         await page.addStyleTag({ content: 'html,body{scroll-behavior:auto !important;scroll-snap-type:none !important}' });
         await page.evaluate(() => scrollTo(0, 0));
         const base = path.basename(f, path.extname(f));
-        const full = path.join(shots, `${base}-${width}.png`);
+        const runDir = path.join(shots, runDirName(base));
+        fs.mkdirSync(runDir, { recursive: true });
+        const full = path.join(runDir, `${base}-${width}.png`);
         await page.screenshot({ path: full, fullPage: true });
         written.push(full);
         // Viewport-height tiles (a tall page's full-page shot is downscaled past legibility),
-        // each tagged with the item ids (data-id) whose box meets it. A stale tile from an
-        // earlier, taller build of the same page is removed first.
-        const tilePat = new RegExp(`^${base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-${width}-t\\d+\\.png$`);
-        for (const old of fs.readdirSync(shots)) if (tilePat.test(old)) fs.rmSync(path.join(shots, old));
+        // each tagged with the item ids (data-id) whose box meets it. They go into this run's
+        // own directory, so no stale tile of an earlier, taller build can sit among them.
         const geo = await page.evaluate(() => {
           const seen = new Map();
           for (const el of document.querySelectorAll('[data-id]')) {
@@ -807,9 +811,9 @@ for (const f of files) for (const width of [1280, 390]) {
           }
           return { H: document.documentElement.scrollHeight, items: [...seen.values()] };
         });
-        if (!manifests.has(f)) manifests.set(f, { page: base, run: runStamp, viewport_height: VIEW_H, ids: geo.items.map(it => it.id), widths: {}, written: [] });
+        if (!manifests.has(f)) manifests.set(f, { page: base, run: runStamp, dir: runDirName(base), viewport_height: VIEW_H, ids: geo.items.map(it => it.id), widths: {}, written: [] });
         const man = manifests.get(f);
-        man.written.push(path.basename(full));
+        man.written.push(path.posix.join(man.dir, path.basename(full)));
         // Tiles overlap (stride VIEW_H - 100) so a line cut at one tile's edge is whole in the
         // next; the last tile is pinned to H - VIEW_H so none is a thin sliver. A page no
         // taller than the viewport is one tile of its own height.
@@ -818,7 +822,7 @@ for (const f of files) for (const width of [1280, 390]) {
         const tiles = [];
         for (const [k, y] of ys.entries()) {
           const h = Math.min(VIEW_H, geo.H - y);
-          const file = path.join(shots, `${base}-${width}-t${String(k + 1).padStart(2, '0')}.png`);
+          const file = path.join(runDir, `${base}-${width}-t${String(k + 1).padStart(2, '0')}.png`);
           // Each tile is the viewport scrolled to y, not a clip of the scroll-0 full-page capture:
           // that capture draws a fixed bar once, over the first screen, and a sticky rail on t01
           // only, and the grader scored both as defects (BL-528). y never exceeds the page's
@@ -826,11 +830,11 @@ for (const f of files) for (const width of [1280, 390]) {
           // viewport has y = 0 and is clipped to its own height.
           await page.evaluate(y => scrollTo(0, y), y); await page.waitForTimeout(100);
           await page.screenshot({ path: file, clip: { x: 0, y: 0, width, height: h } });
-          written.push(file); man.written.push(path.basename(file));
-          tiles.push({ file: path.basename(file), y, height: h,
+          written.push(file); man.written.push(path.posix.join(man.dir, path.basename(file)));
+          tiles.push({ file: path.posix.join(man.dir, path.basename(file)), y, height: h,
             ids: geo.items.filter(it => it.top < y + h && it.bottom > y).map(it => it.id) });
         }
-        man.widths[width] = { fullpage: path.basename(full), page_height: geo.H, tiles };
+        man.widths[width] = { fullpage: path.posix.join(man.dir, path.basename(full)), page_height: geo.H, tiles };
       }
     }
     await page.close();
@@ -850,9 +854,24 @@ await browser.close();
 if (shots) {
   for (const [, m] of manifests) {
     const mf = path.join(shots, `${m.page}-shots.json`);
+    // The previous run is the one the old manifest names; it stays (a grader may still read it).
+    let prev = null;
+    try { prev = JSON.parse(fs.readFileSync(mf, 'utf8')).dir || null; } catch {}
     written.push(mf);
     m.written.push(path.basename(mf));
-    fs.writeFileSync(mf, JSON.stringify(m, null, 2) + '\n');
+    // Manifest LAST and atomic: a reader sees the old manifest or the new one, never half of either.
+    const tmp = `${mf}.tmp-${process.pid}`;
+    fs.writeFileSync(tmp, JSON.stringify(m, null, 2) + '\n');
+    fs.renameSync(tmp, mf);
+    // Prune: run directories of this page whose stamp sorts strictly BEFORE the previous run's
+    // (stamps are fixed-width, so lexical order is time order; -pNNN only breaks ms ties). A dir
+    // at or after it may be another probe's run in progress, so it stays; orphans of a crashed
+    // run are swept one run later. No readable previous (no manifest, old layout, corrupt) prunes
+    // nothing. Never this run's own dir: a probe that started earlier but finishes after another
+    // sorts before that one's stamp (prev) and must not delete what its own manifest names. The builder's own rm is blocked, so the probe does it.
+    const stampOf = d => d.slice(d.indexOf('.run-') + 5);
+    const runPat = new RegExp(`^${m.page.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.run-\\d{8}T\\d+Z-p\\d+$`);
+    for (const d of fs.readdirSync(shots)) if (runPat.test(d) && prev && d !== m.dir && stampOf(d) < stampOf(prev)) fs.rmSync(path.join(shots, d), { recursive: true, force: true });
   }
   console.log(`SHOTS run=${runStamp} files=${written.length}`);
   for (const w of written) console.log(`SHOT ${path.resolve(w)}`);
