@@ -203,11 +203,21 @@ producing half of the lock is `skills/artifact/tests/test-build-lock.sh`.
 ## subagent-poll-guard.py — no sleep-polling loops inside subagents (PreToolUse/Bash)
 
 Wired in `hooks.json` on the `Bash` matcher. When the payload carries `agent_id` (the call
-comes from a subagent) and the command matches an `until ...; do ... sleep` or
-`while ...; do ... sleep` loop, the hook answers `permissionDecision: deny` with a reason
-telling the delegate to run the command in the foreground with a timeout that covers it. The
-main session is never touched, and a loop without `sleep` is allowed. Why: a delegate polling
-on its own Bash call sits on the timeout and reads as a hung run.
+comes from a subagent), the hook splits the command into words and separators with one linear
+regex (quotes and comments kept apart) and walks the tokens, tracking command position and
+loop depth. It answers `permissionDecision: deny` when `sleep` (also `/bin/sleep`, or behind
+`timeout`, `nice`, `env` and similar wrappers) runs in command position inside a `for`, `while`
+or `until` body or a `while`/`until` condition, including the script of `bash -c '...'`. Only a
+`done` in command position closes a loop, so `out/done` or `echo done` does not. The reason says
+never poll, run the command once in the foreground and, if the result says it is running in
+the background, follow that result's own instruction. The main session is never touched; a
+loop without `sleep`, `sleep` as an argument, in a quoted string or a comment, `sleep.sh` and a
+`sleep` after `done` are allowed. Heredoc bodies are read as shell, and a command with an
+unbalanced quote is allowed. Why: a delegate polling on its own Bash call sits on the timeout
+and reads as a hung run.
 
-**Tests:** `python3 test-subagent-poll-guard.py` — 8 checks on `decide()`; deny cells and
-allow cells (loop without sleep, `until` inside a string, main session, backgrounded command).
+**Tests:** `python3 test-subagent-poll-guard.py` — 53 checks from one table: 46 cells on
+`decide()` (deny cells per loop shape, `done` sentinel, wrapper, path, line continuation,
+`bash -c` form and a backgrounded poll; allow cells for poll shapes inside arguments, quotes,
+comments and commit messages, and a `done` right after `}` or `fi`), 4 on the `REASON` text
+and 3 timing rows (each long input under 1 s).
