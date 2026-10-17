@@ -85,7 +85,7 @@ check "the gate row exists" '[[ -n "$GATE" ]]'
 check "it gates on the memory directory, not a line count" \
   '[[ "$GATE" == *"memory/"* && "$GATE" != *"lines"* ]]'
 
-echo "== the /aidex memory sub-action exists and names its three forms =="
+echo "== the /aidex:aidex memory sub-action exists and names its three forms =="
 # Nothing else fails if this block is deleted, and SKILL.md sits a handful of tokens under
 # a hard maximum — the newest, largest block is the first thing a future trim reaches for.
 SUB="$(sed -n '/^## Sub-action: `\/aidex:aidex memory`/,/^## Sub-action: `\/aidex:aidex init`/p' "$SKILL/SKILL.md")"

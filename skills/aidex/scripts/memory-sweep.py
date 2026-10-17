@@ -716,7 +716,7 @@ def main() -> int:
     ap.add_argument("--stamp", action="store_true",
                     help="record that the swept directories were AUDITED, silencing the "
                          "30-day SessionStart nudge until they change again. Only "
-                         "`/aidex memory` should pass it: running the sweep for a look "
+                         "`/aidex:aidex memory` should pass it: running the sweep for a look "
                          "is not an audit, and stamping on every plain run would mute "
                          "the nudge for every project nobody actually reviewed.")
     ap.add_argument("--reindex", action="store_true",
