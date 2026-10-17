@@ -10,7 +10,7 @@ with the seed on record.
 
 The sample is built from the owner's private pages, so it does not ship with
 this repo: it lives in the directory `AIDEX_SPEC_CORPUS` names. Unset, this
-prints one `SKIP` line saying so and exits 0 — a skip is printed, never silent.
+prints one `SKIP` line saying so and exits 2, run-all's SKIP — a skip is printed, never silent.
 
 Stdlib only, no runner: `python3 test_corpus_sample.py`, prints OK, exits 0.
 `test-goal-gate.sh` runs it, which is how the suite sees it.
@@ -32,7 +32,7 @@ def fail(msg):
 def main():
     if not CORPUS:
         print("SKIP test_corpus_sample: AIDEX_SPEC_CORPUS not set")
-        return
+        sys.exit(2)
     if not os.path.isfile(FIXTURE):
         fail("missing fixture %s" % FIXTURE)
     with open(FIXTURE) as fh:
@@ -51,7 +51,7 @@ def main():
         # on a clone of this public repo. Everything above is checkable
         # anywhere; the on-disk existence assertions below are not.
         print("SKIP (corpus root %s not present on this machine)" % root)
-        return
+        sys.exit(2)
 
     pages = doc.get("pages")
     if not isinstance(pages, list):

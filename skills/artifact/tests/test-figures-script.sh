@@ -50,7 +50,7 @@ for c in "${AIDEX_CHROME:-}" \
 done
 if [[ -z "$CHROME" ]]; then
   echo "SKIP: no Chrome/Chromium binary found — the figures script test DID NOT RUN"
-  exit 0
+  exit 2
 fi
 
 # The first ```js fence under the § Figures heading.

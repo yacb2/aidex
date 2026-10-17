@@ -8,8 +8,6 @@
 #   plan-exec-c06  fan-out: depends_on matches ids by string (1 vs '1'), a scalar depends_on is a one-item list
 #   plan-exec-c10  pipeline: phases skipped by a halt are in `blocked`; no phases at all throws, never an empty success
 #   plan-exec-c16  fan-out and pipeline: an arbiter ASK after retry exhaustion reaches `batchedAsks`
-#   plan-exec-c09  review: a null verdict is escalated, not a TypeError; a `passed:true` verdict that
-#                  carries a blocking finding fails the gate
 # Each scenario runs the whole script with stubbed workflow globals (same harness idea as
 # test-out-of-scope-bugs-survive.sh). Layer: unit over the script's return value.
 #
@@ -18,7 +16,7 @@
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
 WF="$ROOT/skills/plan-exec/assets/workflows"
-command -v node >/dev/null 2>&1 || { echo "SKIP: node not available"; exit 0; }
+command -v node >/dev/null 2>&1 || { echo "SKIP: node not available"; exit 2; }
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -32,10 +30,6 @@ const agent = async (prompt, opts) => {
   if (label.startsWith('verify:')) return { passed: !gateFails, exit_code: gateFails ? 1 : 0, evidence: 'e' }
   if (label === 'arbiter' && scenario === 'arbiter-down') return null
   if (label === 'arbiter') return { verdict: 'ASK', reason: 'blocker', batched_question: 'Provide the API key?' }
-  if (label === 'review') {
-    if (scenario === 'review-null') return null
-    return { passed: true, summary: 's', findings: [{ severity: 'blocking', detail: 'breaks X' }] }
-  }
   if (scenario === 'arbiter-down' || scenario === 'blocked-ask') return { done: false, summary: 's', blocked_reason: 'stuck' }
   if (scenario === 'crash' && label === 'exec:x') throw new Error('budget exhausted')
   return { done: true, summary: 'ok', proof: 'p.txt' }
@@ -98,9 +92,5 @@ check "c16 fan-out: a live arbiter ASK on a blocked implementer is batched" $FAN
   "o.batchedAsks.includes('Provide the API key?')"
 check "c16 pipeline: a live arbiter ASK on a blocked implementer is batched" pipeline-with-gate.workflow.js blocked-ask \
   "o.batchedAsks.includes('Provide the API key?')"
-check "c09 review: a null verdict is escalated, not a TypeError" review-with-gate.workflow.js review-null \
-  "!o.threw && o.escalation && o.escalation.verdict"
-check "c09 review: passed:true with a blocking finding fails the gate" review-with-gate.workflow.js review-lying \
-  "o.escalation && o.review.passed === false"
 
-[ "$fail" -eq 0 ] && echo "PASS: unrunnable, crashed, exhausted-ASK and review-verdict outcomes all reach the return value" || exit 1
+[ "$fail" -eq 0 ] && echo "PASS: unrunnable, crashed and exhausted-ASK outcomes all reach the return value" || exit 1

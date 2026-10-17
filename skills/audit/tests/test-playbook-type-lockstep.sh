@@ -17,16 +17,15 @@
 #   5. SKILL.md                             ### Supported audit types
 #   6. references/04-playbooks.md           the picker table
 #   7. README.md                            the audit row          [public]
-#   8. conventions/SKILL.md           the audits tier summary
-#   9. conventions/audit-conventions.md   the methodology table
+#   8. conventions/audit-conventions.md   the methodology table
 #
-# Sites 7-9 are outside this skill and are checked here anyway, because the enum is one
+# Sites 7-8 are outside this skill and are checked here anyway, because the enum is one
 # thing and the drift does not respect directories: the README's count was already fixed
 # once for this exact reason (647ced1, 2026-07-05, "Ships 7 playbooks") and had drifted
 # twice more by the time this guard was written.
 #
 # Run: bash skills/audit/tests/test-playbook-type-lockstep.sh
-# Exit: 0 if all nine agree.
+# Exit: 0 if all eight agree.
 
 set -uo pipefail
 
@@ -38,7 +37,6 @@ PLAYBOOKS="$DIR/references/04-playbooks.md"
 TPL_DIR="$DIR/assets/templates/methodology"
 REPO="$(cd "$DIR/../.." && pwd)"
 README="$REPO/README.md"
-CONV_SKILL="$REPO/skills/conventions/SKILL.md"
 CONV_AUDIT="$REPO/skills/conventions/references/audit-conventions.md"
 
 PASS=0
@@ -108,18 +106,17 @@ compare "04-playbooks.md's table has a row per shipped playbook" "$SHIPPED" "$TA
 check "04-playbooks.md still points at $NO_TEMPLATE outside the table" \
       "grep -q '\`$NO_TEMPLATE\`' '$PLAYBOOKS'"
 
-# --- sites 7-9: the copies outside this skill ------------------------------------
+# --- sites 7-8: the copies outside this skill ------------------------------------
 # Only reachable from a repo checkout: the plugin ships skills/, not README.md,
-# so in the installed ${CLAUDE_PLUGIN_ROOT}/skills/ tree these three are absent. Skipping is printed, never counted as a pass.
+# so in the installed ${CLAUDE_PLUGIN_ROOT}/skills/ tree these two are absent. Skipping is printed, never counted as a pass.
 PROSE_SITES=("$PLAYBOOKS")
-if [[ -f "$README" && -f "$CONV_SKILL" && -f "$CONV_AUDIT" ]]; then
-  PROSE_SITES+=("$README" "$CONV_SKILL" "$CONV_AUDIT")
+if [[ -f "$README" && -f "$CONV_AUDIT" ]]; then
+  PROSE_SITES+=("$README" "$CONV_AUDIT")
 
-  # README and conventions/SKILL.md each summarize the set as a parenthesized list
-  # after the word "playbooks". Flatten first — both sentences wrap.
+  # README summarizes the set as a parenthesized list after the word "playbooks".
+  # Flatten first — the sentence wraps.
   paren_list() { tr '\n' ' ' < "$1" | tr -s ' ' | grep -oE 'playbooks \([^)]*\)' | tr -d '()' | sed 's/^playbooks //' | norm; }
   compare "README.md lists every shipped playbook" "$SHIPPED" "$(paren_list "$README")"
-  compare "conventions/SKILL.md lists every shipped playbook" "$SHIPPED" "$(paren_list "$CONV_SKILL")"
 
   # audit-conventions.md carries the methodology table audit calls "the full
   # convention". Bounded by its own heading sentence and the custom-methodology line, so
@@ -128,7 +125,7 @@ if [[ -f "$README" && -f "$CONV_SKILL" && -f "$CONV_AUDIT" ]]; then
                 | grep -oE '^\| `[a-z0-9-]+`' | tr -d '|` ' | sort -u)"
   compare "audit-conventions.md's methodology table is the shipped set" "$SHIPPED" "$CONV_TYPES"
 else
-  printf '  skip: sites 7-9 (README.md, conventions) — not a repo checkout\n'
+  printf '  skip: sites 7-8 (README.md, conventions) — not a repo checkout\n'
 fi
 
 # --- no count of the types spelled in prose --------------------------------------

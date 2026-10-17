@@ -11,14 +11,14 @@
 # reported destructive action the arbiter stops.
 #
 # Each scenario runs the whole workflow script with stubbed workflow globals and checks
-# the JSON it returns. The review form is not run: it has no implementer to report one.
+# the JSON it returns.
 #
 # Run with: bash skills/plan-exec/tests/test-out-of-scope-bugs-survive.sh
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
 WF="$ROOT/skills/plan-exec/assets/workflows"
-command -v node >/dev/null 2>&1 || { echo "SKIP: node not available"; exit 0; }
+command -v node >/dev/null 2>&1 || { echo "SKIP: node not available"; exit 2; }
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT

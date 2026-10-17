@@ -129,12 +129,9 @@ put it in the cost estimate.)
 whole economy of the pattern: advise on every step and you pay for two models to do one
 job, inverting the saving. State the machine-checkable condition that fires the advisor.
 
-Reference implementation already in the suite:
-[`review-with-gate.workflow.js`](../../plan-exec/assets/workflows/review-with-gate.workflow.js)
-— a fresh `opus/high` reviewer over the cumulative diff, with the arbiter invoked **only
-on `passed=false`**, never per gate. Reuse its `CONTINUE / ASK / STOP` verdict contract
-(the ARBITER block of [`workflow-core.md`](../../conventions/references/workflow-core.md)) rather
-than inventing a new trigger vocabulary.
+Reuse the `CONTINUE / ASK / STOP` verdict contract (the ARBITER block of
+[`workflow-core.md`](../../conventions/references/workflow-core.md)) rather than inventing a new
+trigger vocabulary; invoke the arbiter **only on the machine-checkable trigger**, never per gate.
 
 ## Optional sections
 

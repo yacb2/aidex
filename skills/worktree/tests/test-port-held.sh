@@ -20,8 +20,8 @@ WT="$DIR/../scripts/worktree.sh"
 failures=0
 fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 
-command -v lsof >/dev/null 2>&1 || { echo "SKIP — lsof not available"; exit 0; }
-command -v python3 >/dev/null 2>&1 || { echo "SKIP — python3 not available"; exit 0; }
+command -v lsof >/dev/null 2>&1 || { echo "SKIP — lsof not available"; exit 2; }
+command -v python3 >/dev/null 2>&1 || { echo "SKIP — python3 not available"; exit 2; }
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/w19.XXXXXX")"; TMP="$(cd "$TMP" && pwd -P)"
 PIDS=""
