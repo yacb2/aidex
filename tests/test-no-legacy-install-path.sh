@@ -10,8 +10,13 @@ set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 SELF="tests/$(basename "${BASH_SOURCE[0]}")"
 
-hits="$(cd "$REPO_ROOT" && grep -rnI '~/\.aidex' . --exclude-dir=.git \
-  | sed 's|^\./||' | grep -v '^docs/retired/' | grep -v "^$SELF:")"
+# git grep: one pass, and --exclude-standard keeps gitignored scratch dirs (_tmp/, plugin-evals/)
+# out of the scan; --no-index reads the working tree, so it needs no committed state.
+hits="$(git -C "$REPO_ROOT" grep --no-index --exclude-standard -nIE '~/\.aidex' -- . ':(exclude)docs/retired' ":(exclude)$SELF")"
+
+# Sentinel: a scan that saw no file proves nothing (ROOT under a gitignored dir blanks it).
+git -C "$REPO_ROOT" grep --no-index --exclude-standard -lI . -- . >/dev/null \
+  || { echo "FAIL: scanned no files under $REPO_ROOT"; exit 1; }
 
 if [ -n "$hits" ]; then
   printf 'FAIL: shipped files outside docs/retired name the retired ~/.aidex/ layout:\n%s\n' "$hits"

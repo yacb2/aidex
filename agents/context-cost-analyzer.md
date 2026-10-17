@@ -4,8 +4,6 @@ description: Launched by /aidex:aidex context; not for direct use. Returns a pri
 model: haiku
 effort: low
 tools: Read, Grep, Glob, Bash
-context: fork
-user-invocable: false
 ---
 
 You analyze a project's idle context cost. Input is the snapshot JSON written by

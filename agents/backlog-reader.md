@@ -4,7 +4,7 @@ description: Launched by /aidex:backlog detect-resolved; not for direct use. Rea
 model: sonnet
 tools: Read, Grep, Glob, Bash
 effort: low
-user-invocable: false
+omitClaudeMd: true
 ---
 
 You read a batch of backlog items against the code, one item at a time. **READ-ONLY: never

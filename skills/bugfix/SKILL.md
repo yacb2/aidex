@@ -21,7 +21,7 @@ Test-driven bug fixing methodology that ensures every fix includes a regression 
 
 ## Workflow
 
-The bug-fix workflow is these nine steps — the agent table and prose below key to their step numbers:
+The bug-fix workflow is these nine steps — the prose below keys to their step numbers:
 
 1. Investigate root cause (don't guess)
    Then **sweep for siblings**: grep the repo for the same defect shape (the same call,
@@ -81,22 +81,13 @@ The bug-fix workflow is these nine steps — the agent table and prose below key
 
 ## Agent Configuration
 
-This skill uses specialized agents for parallel investigation:
-
-| Agent | Model | Purpose | When |
-|-------|-------|---------|------|
-| `aidex:bug-investigator` | Sonnet | Trace root cause through code | Step 1 |
-| `aidex:test-scout` | Sonnet | Find related tests and patterns | Step 1 |
-| `aidex:regression-checker` | Sonnet | Verify no regressions after fix | Step 6 |
-| Main session | Opus | Write test, write fix, decisions | Steps 2-5, 7-9 |
-
-Agent definitions: `../../agents/` (plugin level), launched by type: `subagent_type: aidex:bug-investigator`, `aidex:test-scout`, `aidex:regression-checker`. Model and effort come from each definition.
+Steps 1-6 run in `aidex:bugfix-opus`; the main session owns steps 7-9.
 
 ## Test Type Decision Guide
 
 Summary of the matrix in `test-patterns.md` (step 2 reads the full file). Adapt the
-categories to your stack — the framework names below are examples; the `test-scout` agent
-detects the project's actual runners from its config files:
+categories to your stack — the framework names below are examples; detect the project's actual runners
+from its config files:
 - **Unit test**: Pure functions, utilities, formatters, validators (e.g. Vitest, Jest, pytest)
 - **Component/integration test**: UI component rendering or API endpoint behavior (e.g.
   Vitest + Testing Library, pytest + a test client)

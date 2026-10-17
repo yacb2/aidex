@@ -3,6 +3,7 @@ name: drift-extract
 description: Launched by /aidex:reference drift's Workflow; not for direct use. Reads one code unit and returns facts with file:line evidence and a provenance label. Read-only.
 model: haiku
 effort: medium
+omitClaudeMd: true
 tools: Read, Grep, Glob
 maxTurns: 24
 ---

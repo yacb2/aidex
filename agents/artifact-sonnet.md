@@ -4,7 +4,6 @@ description: Use proactively for any HTML artifact page, new or revised, once it
 model: sonnet
 effort: low
 tools: Bash, Read, Write, Edit
-user-invocable: false
 ---
 # Artifact writer — you write a page SPEC, not HTML
 

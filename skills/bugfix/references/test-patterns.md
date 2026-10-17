@@ -1,9 +1,8 @@
 # Test Type Decision Guide
 
 How to choose the right type of regression test for a bug fix. The framework and path names
-below are **examples** — adapt them to your stack. The `test-scout` agent detects the project's
-actual test runners (Vitest, Jest, pytest, Playwright, Cypress, …) from its config files; lean
-on that rather than assuming any particular framework.
+below are **examples** — adapt them to your stack. Detect the runners from the project's config files
+(Vitest, Jest, pytest, Playwright, Cypress, …) rather than assuming any particular framework.
 
 ## Decision Matrix
 
@@ -78,7 +77,7 @@ Even for these, consider: can any ASPECT be tested? A CSS bug might have a testa
 For projects with both a backend and a frontend, place the test next to the layer that owns
 the bug, in that layer's framework. The rows below are an **example** mapping (a Django +
 Vue + Playwright project) — substitute your own stack's frameworks and conventional test
-locations. The `test-scout` agent reports where this project actually keeps its tests.
+locations. Detect the runners from the project's config files.
 
 | Bug location | Example framework | Example location |
 |-------------|-------------------|------------------|

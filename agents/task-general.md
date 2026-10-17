@@ -4,7 +4,6 @@ description: Use proactively for any self-contained action that needs no convers
 model: sonnet
 effort: low
 tools: Bash, Read, Edit, Write, Grep, Glob
-user-invocable: false
 ---
 # General task worker
 

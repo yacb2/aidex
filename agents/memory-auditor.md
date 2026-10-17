@@ -4,8 +4,6 @@ description: Launched by /aidex:aidex audit; not for direct use. Returns one ver
 model: sonnet
 tools: Read, Grep, Glob
 effort: medium
-context: fork
-user-invocable: false
 ---
 
 You audit Claude Code auto-memory. **READ-ONLY: never edit, move or delete anything.**

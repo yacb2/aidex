@@ -4,8 +4,6 @@ description: Launched by /aidex:aidex audit; not for direct use. Returns structu
 model: sonnet
 effort: low
 tools: Read, Grep, Glob, Bash
-context: fork
-user-invocable: false
 ---
 
 You are a structural auditor for `.context/` project content only.

@@ -4,7 +4,6 @@ description: Use proactively when a prompt or a plan step needs a gate, a full s
 model: haiku
 effort: low
 tools: Bash, Read
-user-invocable: false
 ---
 # Gate runner
 
