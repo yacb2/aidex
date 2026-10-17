@@ -94,6 +94,7 @@
       accepted: function (n) { return n + (n === 1 ? ' decided point accepted as written' : ' decided points accepted as written'); },
       acceptedHead: 'Accepted without correction',
       fixes: function (n) { return n + (n === 1 ? ' correction ready to copy' : ' corrections ready to copy'); },
+      reports: function (n) { return n + (n === 1 ? ' page problem report without a correction ready to copy' : ' page problem reports without a correction ready to copy'); },
       decidedCount: function (n, w) {
         var word = w === 'row' ? 'row' : w === 'item' ? 'item' : 'question';
         return n + ' ' + word + (n === 1 ? ' already settled' : 's already settled');
@@ -224,6 +225,7 @@
       accepted: function (n) { return n + (n === 1 ? ' punto decidido aceptado tal cual' : ' puntos decididos aceptados tal cual'); },
       acceptedHead: 'Decidido sin correcci\u00f3n',
       fixes: function (n) { return n + (n === 1 ? ' correcci\u00f3n lista para copiar' : ' correcciones listas para copiar'); },
+      reports: function (n) { return n + (n === 1 ? ' fallo de la p\u00e1gina sin correcci\u00f3n listo para copiar' : ' fallos de la p\u00e1gina sin correcci\u00f3n listos para copiar'); },
       decidedCount: function (n, w) {
         var word = w === 'row' ? 'fila' : w === 'item' ? 'elemento' : 'pregunta';
         var done = w === 'item' ? 'resuelto' : 'resuelta';
@@ -1026,7 +1028,7 @@
   }
 
   function collect() {
-    var answered = [], blank = [], lastGroup = null, n = 0, total = 0, proposals = 0, fixed = 0, accepted = [];
+    var answered = [], blank = [], lastGroup = null, n = 0, total = 0, proposals = 0, fixed = 0, reports = 0, accepted = [];
     /* `nodes` runs beside `answered`: the page node each chunk came from, so a
      * block whose only filled box is its own notes can be slotted in at the
      * block's place in the page rather than at the end. */
@@ -1063,6 +1065,7 @@
           if (corr) fixed++;
           /* BL-732: a selection emptied with nothing typed is no correction either: accepted as shipped. */
           if (!fix) accepted.push(acceptedLine(el));
+          else if (!corr) reports++;
           var none = el.querySelector('.consult-proposal-none');
           if (none) none.hidden = selSig(el) !== '';
           el.classList.toggle('has-defect', !!defectText(el));
@@ -1115,7 +1118,7 @@
      * the reply readers end a block at (reply_defect.ACCEPTED_HEAD). */
     if (accepted.length) answered.push('## ' + L.acceptedHead + '\n\n' + accepted.join('\n'));
     return { markdown: answered.join('\n\n'), answered: n, blank: blank,
-             total: total, proposals: proposals, fixed: fixed, accepted: accepted.length };
+             total: total, proposals: proposals, fixed: fixed, reports: reports, accepted: accepted.length };
   }
 
   function say(text) { status.forEach(function (s) { s.textContent = text; }); }
@@ -2013,13 +2016,18 @@
     /* Corrections typed on proposals count like answers (copy() counts them), but
      * apart from the questions: they are not part of the denominator. */
     var fx = r.fixed ? L.fixes(r.fixed) : '';
+    /* Copy sends the accepted proposals and the proposals' page-defect reports too, so the
+     * status names both as peers of the corrections: never "all decided" while Copy has
+     * something to send, and both counts beside the questions' progress so the two reconcile. */
+    var acc = r.accepted ? L.accepted(r.accepted) : '';
+    var rp = r.reports ? L.reports(r.reports) : '';
     if (!r.total) {
-      say([r.accepted ? L.accepted(r.accepted) : '', fx].filter(Boolean).join(' \u00b7 ') || L.allDecided);
+      say([acc, fx, rp].filter(Boolean).join(' \u00b7 ') || L.allDecided);
       return;
     }
-    say(r.answered
+    say((r.answered
       ? L.progress(r.answered, r.total) + (r.blank.length ? L.missing(r.blank) : '') + (fx ? ' \u00b7 ' + fx : '')
-      : (fx || L.none));
+      : (fx || L.none)) + (acc ? ' \u00b7 ' + acc : '') + (rp ? ' \u00b7 ' + rp : ''));
   }
 
   function copy() {
@@ -2044,7 +2052,7 @@
       if (groupNoteText(g)) copied[groupKey(g)] = fnv(groupNoteText(g));
     });
     save();
-    var sent = r.answered + r.fixed + r.accepted;   /* a defect report alone is no answer (BL-711) */
+    var sent = r.answered + r.fixed + r.accepted + r.reports;   /* a defect report alone is no answer (BL-711) but it travels, so it counts as sent */
     var msg = (sent ? L.copied(sent) : L.copiedNotes) + (r.blank.length ? L.blankList(r.blank) : L.noneBlank);
 
     function fallback() {
