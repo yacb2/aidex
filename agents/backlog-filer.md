@@ -5,7 +5,6 @@ model: sonnet
 effort: low
 tools: Bash, Read, Write
 skills: [aidex:backlog]
-user-invocable: false
 ---
 # Backlog filer
 

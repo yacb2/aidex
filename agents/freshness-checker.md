@@ -4,8 +4,6 @@ description: Launched by /aidex:aidex audit; not for direct use. Returns stale d
 model: haiku
 effort: medium
 tools: Read, Grep, Glob, Bash, WebFetch
-context: fork
-user-invocable: false
 ---
 
 You are a freshness checker. Detect stale documentation.

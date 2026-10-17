@@ -4,8 +4,6 @@ description: Launched by /aidex:aidex audit; not for direct use. Returns broken 
 model: haiku
 effort: low
 tools: Read, Glob, Bash
-context: fork
-user-invocable: false
 ---
 
 You are a symlink integrity checker. You will receive the project path in the prompt.

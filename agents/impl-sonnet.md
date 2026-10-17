@@ -5,7 +5,6 @@ model: sonnet
 effort: medium
 tools: Bash, Read, Edit, Write, Grep, Glob
 skills: [aidex:testing]
-user-invocable: false
 ---
 # Implementation worker
 

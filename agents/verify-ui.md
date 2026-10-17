@@ -3,6 +3,7 @@ name: verify-ui
 description: Launched by /aidex:ui-contract and /aidex:plan-exec; not for direct use. Returns the UI evidence gate's closing line, failed cells and contact-sheet path.
 model: sonnet
 effort: low
+omitClaudeMd: true
 tools: Bash, Read
 ---
 

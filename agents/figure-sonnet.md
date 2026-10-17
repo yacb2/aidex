@@ -4,7 +4,6 @@ description: Use proactively when an artifact page needs a wireframe or screen m
 model: sonnet
 effort: medium
 tools: Bash, Read, Write
-user-invocable: false
 ---
 # Figure writer
 

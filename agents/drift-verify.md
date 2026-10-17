@@ -3,6 +3,7 @@ name: drift-verify
 description: Launched by /aidex:reference drift's Workflow; not for direct use. Refutes a list of facts against the code they cite and returns a verdict per fact. Read-only.
 model: sonnet
 effort: high
+omitClaudeMd: true
 tools: Read, Grep, Glob
 maxTurns: 60
 ---

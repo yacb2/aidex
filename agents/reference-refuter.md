@@ -4,6 +4,7 @@ description: Launched by /aidex:reference step 5 (close gate); not for direct us
 model: sonnet
 tools: Read, Grep, Glob, Bash
 effort: high
+omitClaudeMd: true
 ---
 
 You are a **refuter**, not a reviewer. Your job is to find the false statements in a

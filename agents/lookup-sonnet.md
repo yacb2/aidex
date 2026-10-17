@@ -4,7 +4,6 @@ description: Use proactively when a prompt asks to find, check, list or count so
 model: sonnet
 effort: low
 tools: Bash, Read, Grep, Glob, Write
-user-invocable: false
 ---
 # Lookup worker
 

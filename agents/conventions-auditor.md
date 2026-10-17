@@ -4,8 +4,6 @@ description: Launched by /aidex:aidex audit; not for direct use. Returns validat
 model: haiku
 effort: low
 tools: Read, Bash
-context: fork
-user-invocable: false
 ---
 
 You are a conventions auditor for `.context/` artifacts. You delegate to the

@@ -4,7 +4,6 @@ description: Use proactively when a prompt asks to investigate something outside
 model: sonnet
 effort: low
 tools: WebSearch, WebFetch, Read, Write, Bash
-user-invocable: false
 ---
 # Research worker
 

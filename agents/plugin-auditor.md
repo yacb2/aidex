@@ -4,8 +4,6 @@ description: Launched by /aidex:aidex audit; not for direct use. Returns uninsta
 model: haiku
 effort: high
 tools: Read, Grep, Glob, Bash
-context: fork
-user-invocable: false
 ---
 
 You audit installed plugins for token cost vs. usage.

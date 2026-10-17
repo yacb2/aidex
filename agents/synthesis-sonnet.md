@@ -4,7 +4,6 @@ description: Use proactively when the deliverable is prose written from files th
 model: sonnet
 effort: low
 tools: Bash, Read, Grep, Glob, Write, Edit
-user-invocable: false
 ---
 # Synthesis worker
 

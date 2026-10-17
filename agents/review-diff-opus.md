@@ -5,7 +5,6 @@ model: opus
 effort: high
 tools: Bash, Read, Grep, Glob
 skills: [aidex:testing]
-user-invocable: false
 ---
 # Adversarial diff reviewer
 

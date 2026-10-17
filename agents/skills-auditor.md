@@ -4,8 +4,6 @@ description: Launched by /aidex:aidex audit; not for direct use. Returns skill s
 model: sonnet
 effort: low
 tools: Read, Glob, Grep
-context: fork
-user-invocable: false
 ---
 
 You are a skills auditor. Check skill structure across all scopes.

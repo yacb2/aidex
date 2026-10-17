@@ -25,33 +25,50 @@ EXCLUDED_PREFIXES=(tests/test-no-sigpipe-pipes.sh)
 # lookahead. The argument span skips quoted strings and stops at an unquoted | ; ) &.
 UNSAFE_READER='(?:^|[^|])\|&?\s*(?:grep\s(?:(?:[^|;)&\x27"]|\x27[^\x27]*\x27|"[^"]*")*\s)?(?:-[A-Za-z]*[qm][A-Za-z0-9]*|--quiet|--silent|--max-count)(?:[\s=]|$)|head(?:\s|$)|sed\s[^|;]*[0-9$/;{\s]q(?:[\s\x27"};]|$)|awk\s(?:[^|;)&\x27"]|\x27[^\x27]*\x27|"[^"]*")*?[\x27"]?(?:(?!\bEND\b)[^\x27"])*?\bexit\b)'
 
-# A file counts as pipefail when it sets it or sources a sibling .sh that does.
-has_pipefail() {
-  local root="$1" f="$2" lib
-  grep >/dev/null -E '^[[:space:]]*set .*pipefail' "$root/$f" && return 0
-  while IFS= read -r lib; do
-    [[ -n "$lib" && -f "$root/$(dirname "$f")/$lib" ]] \
-      && grep >/dev/null -E '^[[:space:]]*set .*pipefail' "$root/$(dirname "$f")/$lib" && return 0
-  done < <(sed -nE 's,^[[:space:]]*(source|\.)[[:space:]]+.*/([A-Za-z0-9_.-]+\.sh)["[:space:]]*(#.*)?$,\2,p' "$root/$f")
-  return 1
-}
-
 # Echo "file:line:text" for every unsafe pipe in the pipefail scripts under $1.
+# Single pass, no per-file spawns: one git grep lists the scripts that set pipefail, one finds
+# the lines that source a sibling .sh (a script also counts as pipefail when that sibling sets
+# it), and one perl process scans every candidate. --no-index reads the working tree, so the
+# fixture tree of cell 1 needs no git repo. No --exclude-standard: a .gitignore must not hide a
+# tracked script, nor blank the scan when the root sits under an ignored dir. Returns 3 when no
+# pipefail script is found at all (a scan that saw nothing proves nothing).
+SH_SPECS=(':(glob)skills/**/*.sh' ':(glob)tests/**/*.sh' ':(glob)hooks/**/*.sh')
+SET_PF='^[[:space:]]*set .*pipefail'
+SRC_RE='^[[:space:]]*(source|\.)[[:space:]]+.*/([A-Za-z0-9_.-]+\.sh)["[:space:]]*(#.*)?$'
 scan() {
-  local root="$1" f ex skip
+  local root="$1" f ex skip lib rest pf cands=() extra=() line
+  pf="$(git -C "$root" grep --no-index -lE "$SET_PF" -- "${SH_SPECS[@]}")"
+  [[ -n "$pf" ]] || return 3
+  while IFS= read -r f; do cands+=("$f"); done <<<"$pf"
+  while IFS= read -r line; do
+    f="${line%%:*}"; rest="${line#*:}"; rest="${rest#*:}"
+    [[ "$rest" =~ $SRC_RE ]] || continue
+    lib="${f%/*}/${BASH_REMATCH[2]}"
+    [[ $'\n'"$pf"$'\n' == *$'\n'"$lib"$'\n'* ]] && extra+=("$f")
+  done < <(git -C "$root" grep --no-index -nE "$SRC_RE" -- "${SH_SPECS[@]}")
+  cands+=(${extra[@]+"${extra[@]}"})
+  local files=()
   while IFS= read -r f; do
     skip=0
     for ex in "${EXCLUDED_PREFIXES[@]}"; do [[ "$f" == "$ex"* ]] && skip=1; done
-    [[ $skip -eq 1 ]] && continue
-    has_pipefail "$root" "$f" || continue
-    # Join a line ending in a pipe (bare or backslash) with the next, so a reader on the
-    # following line is seen; the joined line keeps the first line's number. A comment
-    # line never starts a join.
-    awk '{ l = $0; n = NR
-           while (l !~ /^[ \t]*#/ && l ~ /[^|]\|&?[ \t]*\\?[ \t]*$/ && (getline nx) > 0) { sub(/[ \t]*\\?[ \t]*$/, "", l); l = l " " nx }
-           print n ":" l }' "$root/$f" \
-      | UNSAFE="$UNSAFE_READER" perl -ne 'print if /$ENV{UNSAFE}/' | grep -vE '^[0-9]+:[[:space:]]*#' | sed "s|^|$f:|"
-  done < <(cd "$root" && find skills tests hooks -name '*.sh' 2>/dev/null | sort)
+    [[ $skip -eq 0 ]] && files+=("$f")
+  done < <(printf '%s\n' ${cands[@]+"${cands[@]}"} | sort -u)
+  [[ ${#files[@]} -gt 0 ]] || return 0
+  # Join a line ending in a pipe (bare or backslash) with the next, so a reader on the
+  # following line is seen; the joined line keeps the first line's number. A comment
+  # line never starts a join.
+  (cd "$root" && UNSAFE="$UNSAFE_READER" perl -e '
+    my $re = qr/$ENV{UNSAFE}/;
+    for my $f (@ARGV) {
+      open(my $fh, "<", $f) or next; my @l = <$fh>; close $fh; chomp @l;
+      for (my $i = 0; $i < @l; $i++) {
+        my ($n, $t) = ($i + 1, $l[$i]);
+        while ($t !~ /^[ \t]*#/ && $t =~ /[^|]\|&?[ \t]*\\?[ \t]*$/ && $i + 1 < @l) {
+          $t =~ s/[ \t]*\\?[ \t]*$//; $t .= " " . $l[++$i];
+        }
+        print "$f:$n:$t\n" if "$n:$t" =~ $re && $t !~ /^[ \t]*#/;
+      }
+    }' "${files[@]}")
 }
 
 failures=0
@@ -124,7 +141,8 @@ done
 printf '%s\n' "$got" | grep >/dev/null -E 'good.sh|nopipefail.sh' && fail "detector flagged a safe or non-pipefail file: $got"
 
 # Cell 2: the real tree has none.
-real="$(scan "$REPO_ROOT")"
+real="$(scan "$REPO_ROOT")"; scan_rc=$?
+[[ $scan_rc -ne 3 ]] || fail "scanned no files under $REPO_ROOT (no pipefail script found)"
 [[ -z "$real" ]] || fail "pipefail script pipes into an early-exit reader (use the forms in this file's header):
 $real"
 
