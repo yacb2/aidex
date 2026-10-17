@@ -53,8 +53,8 @@ for site in "${SITES[@]}"; do
   out="$(PATH="/usr/bin:/bin:$PATH" bash "$script" "$@" --help 2>"$WORK/err")"; rc=$?
   [[ $rc -eq 0 ]] || { fail "$site --help exited $rc ($(head -c 120 "$WORK/err"))"; continue; }
   [[ -n "$out" ]] || { fail "$site --help printed nothing"; continue; }
-  if printf '%s\n' "$out" | grep -q '^# '; then
-    fail "$site --help keeps a leading '# ': $(printf '%s\n' "$out" | grep -m1 '^# ')"
+  if printf '%s\n' "$out" | grep >/dev/null '^# '; then
+    fail "$site --help keeps a leading '# ': $(printf '%s\n' "$out" | grep '^# ' | sed -n 1p)"
   fi
   # First non-empty header line, read independently of the helper. Line 2 is the title
   # (script name first); register-item.sh and migrate-priorities.sh start at line 3.
@@ -64,11 +64,11 @@ for site in "${SITES[@]}"; do
   # or a wrong range, differs here.
   all="$(awk -v s="$start" 'NR>=s { if (!/^#/) exit; sub(/^# ?/, ""); print }' "$script")"
   [[ "$out" == "$all" ]] || fail "$site --help is not the whole header block"
-  first="$(printf '%s\n' "$out" | grep -m1 .)"
+  first="$(printf '%s\n' "$out" | grep . | sed -n 1p)"
   [[ "$first" == "$want" ]] || fail "$site --help starts with '$first', want '$want'"
   [[ $start -ne 2 || "$first" == "$(basename "$script")"* ]] || fail "$site --help does not open with the script name"
-  if printf '%s\n' "$out" | grep -Eq '^(set |\. "|[A-Z_]+=)'; then
-    fail "$site --help leaks a code line: $(printf '%s\n' "$out" | grep -Em1 '^(set |\. "|[A-Z_]+=)')"
+  if printf '%s\n' "$out" | grep -E >/dev/null '^(set |\. "|[A-Z_]+=)'; then
+    fail "$site --help leaks a code line: $(printf '%s\n' "$out" | grep -E '^(set |\. "|[A-Z_]+=)' | sed -n 1p)"
   fi
 done
 
