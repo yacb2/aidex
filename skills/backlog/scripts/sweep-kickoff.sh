@@ -47,7 +47,7 @@ while [[ $# -gt 0 ]]; do
     --merge)   MERGE="$2"; shift 2 ;;
     --dry-run) DRY=1; shift ;;
     --json)    JSON=1; shift ;;
-    -h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    -h|--help) usage_from_header "$0"; exit 0 ;;
     *)         die "unknown option: $1" ;;
   esac
 done

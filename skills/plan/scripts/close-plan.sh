@@ -19,12 +19,6 @@
 
 set -euo pipefail
 
-if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
-  C_GREEN=$'\033[32m' C_RED=$'\033[31m' C_RESET=$'\033[0m'
-else C_GREEN='' C_RED='' C_RESET=''; fi
-ok()  { printf '%s%s%s\n' "$C_GREEN" "$*" "$C_RESET" >&2; }
-die() { printf '%serror: %s%s\n' "$C_RED" "$*" "$C_RESET" >&2; exit 2; }
-
 # Shared resolver. This file used to carry its own copy, three fixes behind:
 # no $HOME boundary, no project-marker fallback, and no linked-worktree hop --
 # so from inside a worktree it wrote into a directory that vanishes on teardown
@@ -41,7 +35,7 @@ while [[ $# -gt 0 ]]; do
     --superseded-by) SUPERSEDED="$2"; shift 2 ;;
     --reason)        REASON="$2"; shift 2 ;;
     --force)         FORCE=1; shift ;;
-    -h|--help)       sed -n '2,/^$/p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    -h|--help)       usage_from_header "$0"; exit 0 ;;
     -*)              die "unknown option: $1" ;;
     *)               TARGET="$1"; shift ;;
   esac

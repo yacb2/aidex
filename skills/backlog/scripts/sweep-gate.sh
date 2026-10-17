@@ -66,7 +66,7 @@ while [[ $# -gt 0 ]]; do
     --worklist) [[ $# -ge 2 ]] || die "--worklist needs a work-list path or slug"; WORKLIST="$2"; shift 2 ;;
     --json)     JSON=1; shift ;;
     --from-log) [[ $# -ge 2 ]] || die "--from-log needs a file"; FROM_LOG="$2"; shift 2 ;;
-    -h|--help)  sed -n '2,/^$/p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    -h|--help)  usage_from_header "$0"; exit 0 ;;
     *)          die "unknown option: $1" ;;
   esac
 done

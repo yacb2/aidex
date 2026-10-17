@@ -26,6 +26,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 RP="$SCRIPT_DIR/../../plan/scripts/reindex-plans.sh"
 RA="$SCRIPT_DIR/../../audit/scripts/reindex-audits.sh"
 
+# Shared resolver. This file used to carry its own copy, three fixes behind:
+# no $HOME boundary, no project-marker fallback, and no linked-worktree hop --
+# so from inside a worktree it wrote into a directory that vanishes on teardown
+# while _lib.sh consumers wrote to the main tree. Pinned by
+# conventions/scripts/test-find-project-root.sh (no private copies).
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")/." && pwd -P)/_lib.sh"
+
 MODE=self ROOT="" PROJECT="" REFRESH=0 FORCE=0 DRY=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -34,17 +41,11 @@ while [[ $# -gt 0 ]]; do
     --refresh) REFRESH=1; shift ;;
     --force)   FORCE=1; shift ;;
     --dry-run) DRY=1; shift ;;
-    -h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    -h|--help) usage_from_header "$0"; exit 0 ;;
     *) printf 'unknown option: %s\n' "$1" >&2; exit 2 ;;
   esac
 done
 
-# Shared resolver. This file used to carry its own copy, three fixes behind:
-# no $HOME boundary, no project-marker fallback, and no linked-worktree hop --
-# so from inside a worktree it wrote into a directory that vanishes on teardown
-# while _lib.sh consumers wrote to the main tree. Pinned by
-# conventions/scripts/test-find-project-root.sh (no private copies).
-. "$(cd "$(dirname "${BASH_SOURCE[0]}")/." && pwd -P)/_lib.sh"
 
 # Classify an index file: missing | auto | manual
 classify_index() {

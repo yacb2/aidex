@@ -33,7 +33,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --out)   [[ $# -ge 2 ]] || die "--out needs a file"; OUT="$2"; shift 2 ;;
     --print) PRINT=1; shift ;;
-    -h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    -h|--help) usage_from_header "$0"; exit 0 ;;
     -*)      die "unknown option: $1" ;;
     *)       ARG="$1"; shift ;;
   esac

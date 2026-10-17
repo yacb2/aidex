@@ -208,7 +208,7 @@ scan_claimed_ids() {
   [[ -d "$d" ]] || return 0
   shopt -s nullglob
   for f in "$d"/BL-*; do
-    [[ -f "$f" ]] && basename "$f"
+    [[ -f "$f" ]] && printf '%s\n' "${f##*/}"
   done
   shopt -u nullglob
 }
@@ -580,7 +580,7 @@ while [[ $# -gt 0 ]]; do
     --check-ids)   CHECK_IDS_ONLY=1; shift ;;
     --no-index)    NO_INDEX=1; shift ;;
     -h|--help)
-      sed -n '3,/^$/p' "$0" | sed 's/^# \?//'
+      usage_from_header "$0" 3
       exit 0
       ;;
     *) die "unknown option: $1" ;;
@@ -737,25 +737,27 @@ write_index() {
     esac
   done < <(list_items "$dir" | read_dir_fields "status,title,priority,estimate,blocked_by,id,awaiting")
 
-  # Closed section: one-liner per archived item, newest-closed first (D-10).
+  # Closed section: one-liner per archived item, newest-closed first (D-10). Only the
+  # CLOSED_WINDOW newest rows are printed (P6). awk renders every row as the full line
+  # with the old sort key in front (`updated TAB line`), one `sort -r` orders them OUTSIDE
+  # bash, and bash only strips the key off the window: bash `read` on a pipe is a syscall
+  # per byte, and looping 800 archived rows through it was most of a reindex's CPU.
   local -a CLOSED_SORTED=()
-  local cid ctitle cstatus cupdated csuperseded cescalated clabel cline cbase
+  local CLOSED_TOTAL=0 CLOSED_WINDOW=20 closed_raw="" crow
   if [[ -d "$dir/_archive" ]]; then
-    local -a closed_tmp=()
-    while IFS=$'\037' read -r f cstatus ctitle cid cupdated csuperseded cescalated comps; do
-      cbase="${f##*/}"
-      [[ -z "$ctitle" ]] && ctitle="(untitled)"
-      if [[ -n "$csuperseded" ]]; then clabel="superseded → ${csuperseded}"
-      elif [[ -n "$cescalated" ]]; then clabel="${cstatus:-done} → ${cescalated}"
-      else clabel="${cstatus:-done}"; fi
-      cline="- ${cid:+**${cid}** · }[${ctitle}](_archive/${cbase}) — ${clabel}${cupdated:+ · ${cupdated}}${comps}"
-      # prefix with sort key (updated date, fallback empty sorts last)
-      closed_tmp+=("${cupdated:-0000-00-00}"$'\t'"$cline")
-    done < <(list_items "$dir/_archive" | read_dir_fields "status,title,id,updated,superseded_by,escalated_to")
-    if [[ ${#closed_tmp[@]} -gt 0 ]]; then
-      while IFS= read -r line; do
-        CLOSED_SORTED+=("${line#*$'\t'}")
-      done < <(printf '%s\n' "${closed_tmp[@]}" | sort -r)
+    closed_raw="$(list_items "$dir/_archive" | read_dir_fields "status,title,id,updated,superseded_by,escalated_to" \
+      | awk -F'\037' '{
+          n = split($1, p, "/")
+          if ($6 != "") lab = "superseded → " $6
+          else if ($7 != "") lab = (($2 == "") ? "done" : $2) " → " $7
+          else lab = ($2 == "") ? "done" : $2
+          printf "%s\t- %s[%s](_archive/%s) — %s%s%s\n", ($5 == "") ? "0000-00-00" : $5, \
+            ($4 == "") ? "" : "**" $4 "** · ", ($3 == "") ? "(untitled)" : $3, p[n], lab, ($5 == "") ? "" : " · " $5, $8
+        }' | sort -r || true)"
+    if [[ -n "$closed_raw" ]]; then
+      CLOSED_TOTAL="$(printf '%s\n' "$closed_raw" | wc -l | tr -d ' ')"
+      while IFS= read -r crow; do CLOSED_SORTED+=("${crow#*$'\t'}"); done \
+        < <(printf '%s\n' "$closed_raw" | sed -n "1,${CLOSED_WINDOW}p")
     fi
   fi
 
@@ -806,16 +808,14 @@ write_index() {
     fi
 
     printf -- '---\n\n'
-    if [[ ${#CLOSED_SORTED[@]} -gt 0 ]]; then
+    if [[ $CLOSED_TOTAL -gt 0 ]]; then
       printf '## Closed\n\n'
       printf '_Closed items (full bodies in [`_archive/`](_archive/)):_\n\n'
       # Window to the most recent 20 closures; older ones live in _archive/, so the
       # index tracks the active queue instead of lifetime throughput (BL-058).
-      if [[ ${#CLOSED_SORTED[@]} -gt 20 ]]; then
-        emit_rows "${CLOSED_SORTED[@]:0:20}"
-        printf '…and %d older closed items — see [`_archive/`](_archive/)\n' "$((${#CLOSED_SORTED[@]} - 20))"
-      else
-        emit_rows "${CLOSED_SORTED[@]}"
+      emit_rows "${CLOSED_SORTED[@]}"
+      if [[ $CLOSED_TOTAL -gt $CLOSED_WINDOW ]]; then
+        printf '…and %d older closed items — see [`_archive/`](_archive/)\n' "$((CLOSED_TOTAL - CLOSED_WINDOW))"
       fi
       printf '\n'
     else

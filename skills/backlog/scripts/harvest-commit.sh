@@ -30,7 +30,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --sha)     SHA="$2"; shift 2 ;;
     --message) MSG="$2"; shift 2 ;;
-    -h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    -h|--help) usage_from_header "$0"; exit 0 ;;
     *) shift ;;
   esac
 done

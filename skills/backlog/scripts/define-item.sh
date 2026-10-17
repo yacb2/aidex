@@ -37,7 +37,7 @@ while [[ $# -gt 0 ]]; do
     --touches)  TOUCHES="$2"; SET_TOUCHES=1; shift 2 ;;
     --depends)  DEPENDS="$2"; SET_DEPENDS=1; shift 2 ;;
     --no-index) NO_INDEX=1; shift ;;
-    -h|--help)  sed -n '2,/^$/p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    -h|--help)  usage_from_header "$0"; exit 0 ;;
     -*)         die "unknown option: $1" ;;
     *)          TARGET="$1"; shift ;;
   esac

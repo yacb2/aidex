@@ -22,17 +22,6 @@ set -euo pipefail
 
 LEGACY_NAMES=(email.md conversation.md)
 
-if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
-  C_RED=$'\033[31m' C_GREEN=$'\033[32m' C_YELLOW=$'\033[33m' C_BLUE=$'\033[34m' C_RESET=$'\033[0m'
-else
-  C_RED='' C_GREEN='' C_YELLOW='' C_BLUE='' C_RESET=''
-fi
-info() { printf '%s%s%s\n' "$C_BLUE" "$*" "$C_RESET" >&2; }
-ok()   { printf '%s%s%s\n' "$C_GREEN" "$*" "$C_RESET" >&2; }
-warn() { printf '%s%s%s\n' "$C_YELLOW" "$*" "$C_RESET" >&2; }
-err()  { printf '%s%s%s\n' "$C_RED" "$*" "$C_RESET" >&2; }
-die()  { err "error: $*"; exit 2; }
-
 # Shared resolver — never a private copy (pinned by test-find-project-root.sh).
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../conventions/scripts" && pwd -P)/_lib.sh"
 

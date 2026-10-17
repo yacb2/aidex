@@ -42,5 +42,39 @@ if [[ $rc -eq 4 ]] && ! grep -q "index is stale" <<<"$err" && grep -q "nonconfor
 else bad "guard-failure close misreported (rc=$rc): $err"; fi
 rm -rf "$T2"
 
+# P6: the Closed section prints the 20 newest closures and counts the rest. 23 archived items:
+# 19 with distinct dates (BL-201..BL-219, newest first), then BL-120 and BL-121 TYING on
+# `updated` exactly at the 20th/21st place, then two older ones. The tie breaks on the
+# rendered id, descending (the whole-line `sort -r` the window replaced): BL-121 takes
+# place 20, BL-120 falls into "…and 3 older". Its file sorts FIRST, so a sort that only
+# looks at the date and keeps input order would pick BL-120 instead.
+T3="$(mktemp -d)"; B3="$T3/.context/backlog"; mkdir -p "$B3/_archive"
+arch() { printf -- '---\ntitle: "%s"\nid: %s\nstatus: done\nupdated: %s\n---\n' "$3" "$2" "$4" >"$B3/_archive/$1"; }
+for i in $(seq 1 19); do arch "2026-08-01-m$i.md" "BL-$((200 + i))" "Item $i" "2026-09-$(printf '%02d' $((30 - i)))"; done
+arch 2026-08-01-a-tie.md BL-120 "Tie low id" 2026-09-10
+arch 2026-08-01-z-tie.md BL-121 "Tie high id" 2026-09-10
+arch 2026-08-01-old1.md BL-100 "Old one" 2026-08-30
+arch 2026-08-01-old2.md BL-101 "Old two" 2026-08-29
+( cd "$T3" && bash "$SCRIPTS/register-item.sh" --reindex >/dev/null )
+closed_ids="$(sed -n '/^## Closed/,$p' "$B3/00-index.md" | sed -n 's/^- \*\*\(BL-[0-9]*\)\*\*.*/\1/p' | tr '\n' ' ')"
+want="$(for i in $(seq 1 19); do printf 'BL-%d ' $((200 + i)); done)BL-121 "
+if [[ "$closed_ids" == "$want" ]] && grep -q '^…and 3 older closed items' "$B3/00-index.md"; then
+  ok "Closed window: 20 newest in order, tie on the 20th/21st place breaks by id, total counts 3 older"
+else bad "Closed window wrong: got [$closed_ids] want [$want]; $(grep '…and' "$B3/00-index.md" || echo 'no older-line')"; fi
+rm -rf "$T3"
+
+# P6 boundary: exactly 20 archived items fill the window, so there is NO "older" line and
+# all 20 rows print (a `-ge` in place of `-gt` would print "…and 0 older closed items").
+T4="$(mktemp -d)"; B4="$T4/.context/backlog"; mkdir -p "$B4/_archive"
+for i in $(seq 1 20); do
+  printf -- '---\ntitle: "Item %s"\nid: BL-%d\nstatus: done\nupdated: 2026-09-%02d\n---\n' "$i" $((300 + i)) "$i" >"$B4/_archive/2026-08-01-n$i.md"
+done
+( cd "$T4" && bash "$SCRIPTS/register-item.sh" --reindex >/dev/null )
+rows20="$(sed -n '/^## Closed/,$p' "$B4/00-index.md" | grep -c '^- ')"
+if [[ "$rows20" -eq 20 ]] && ! grep -q 'older closed items' "$B4/00-index.md"; then
+  ok "Closed window: exactly 20 archived items print 20 rows and no older line"
+else bad "exactly-20 boundary wrong: rows=$rows20; $(grep 'older closed' "$B4/00-index.md" || echo 'no older line')"; fi
+rm -rf "$T4"
+
 printf 'index-identical: %d passed, %d failed\n' "$PASS" "$FAIL"
 [[ $FAIL -eq 0 ]]

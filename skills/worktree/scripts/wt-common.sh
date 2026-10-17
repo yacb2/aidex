@@ -7,7 +7,7 @@
 # check-worktree-isolation, check-worktree-ports, check-worktree-runner). Print <script>'s leading comment block (its usage), whatever
 # its length: a hardcoded line range truncates the moment the header grows. The
 # caller passes its own "${BASH_SOURCE[0]}": inside this file that name is ours.
-wt_usage() { sed -n '2,${/^#/!q;p;}' "$1" | sed 's/^# \{0,1\}//'; }
+wt_usage() { usage_from_header "$1"; }   # usage_from_header: conventions/scripts/_lib.sh, sourced first by every caller
 
 # wt_default_start <root> <repo> — used by worktree.sh and worktree-multi.sh. The
 # repo's default branch as a start point: origin/HEAD's name, else main, else master, LOCAL first (owner repos run ahead of

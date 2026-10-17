@@ -29,6 +29,12 @@ warn()  { printf '%s%s%s\n' "$C_YELLOW" "$*" "$C_RESET" >&2; }
 err()   { printf '%s%s%s\n' "$C_RED"    "$*" "$C_RESET" >&2; }
 die()   { err "error: $*"; exit 2; }
 
+# usage_from_header <script> [start-line=2] — print <script>'s leading comment block
+# (its usage) with the "# " prefix stripped, whatever its length. \{0,1\} is portable
+# BRE: the GNU-only \? leaves the prefix on macOS /usr/bin/sed. The caller passes its
+# own "$0" / "${BASH_SOURCE[0]}": inside this file that name is ours.
+usage_from_header() { sed -n "${2:-2},\${/^#/!q;p;}" "$1" | sed 's/^# \{0,1\}//'; }
+
 # Project root — walk up until we find .context/ or hit /
 # find_project_root — the directory aidex artifacts belong to.
 #

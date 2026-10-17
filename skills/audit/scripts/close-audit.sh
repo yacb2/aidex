@@ -16,7 +16,7 @@ TARGET="" FORCE=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --force)   FORCE=1; shift ;;
-    -h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    -h|--help) usage_from_header "$0"; exit 0 ;;
     -*)        die "unknown option: $1" ;;
     *)         TARGET="$1"; shift ;;
   esac
