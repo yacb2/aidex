@@ -32,14 +32,16 @@ block against this canonical one and fails on any mismatch.
   the grading test and optimize to it (it satisfies the contract, not a visible test). The
   verifier's proof evidence is the only gate signal the implementer sees, and only as retry
   feedback. This is what closes the "test-visible implementer" leak.
-- **Reviewer is blind to the implementation** — the `review-with-gate` form spawns a **fresh**
-  reviewer whose only inputs are the cumulative diff + the plan's success criteria + an optional
-  **pushed** `standards_ref`; it is never handed the implementation transcript (it reviews from a
-  clean context, not the implementer's grown "dumb zone" session). `standards_ref` is the **push**
-  side of push/pull and reaches only the reviewer — an implementer that needs a standard **pulls** a
-  targeted one via its phase spec, so the reviewer can enforce a rule the implementer was never shown.
-  The review verdict's machine-checkable `passed` boolean (not its prose findings) is the gate
-  trigger, mirroring the Bash verifier's `proof.passed`.
+- **Reviewer is blind to the implementation** — no shipped template carries a terminal review today
+  (the standalone `review-with-gate` form was deleted, D6). To add a terminal clean-context review,
+  put an `agent()` call inside `pipeline-with-gate` (not `aidex:review-diff-opus`, which reads the
+  delegate's reply) that spawns a **fresh** reviewer whose only inputs are the cumulative diff + the
+  plan's success criteria + an optional **pushed** `standards_ref`; never hand it the implementation
+  transcript (it reviews from a clean context, not the implementer's grown "dumb zone" session).
+  `standards_ref` is the **push** side of push/pull and reaches only the reviewer — an implementer
+  that needs a standard **pulls** a targeted one via its phase spec, so the reviewer can enforce a
+  rule the implementer was never shown. Make the review verdict's machine-checkable `passed`
+  boolean (not its prose findings) the gate trigger, mirroring the Bash verifier's `proof.passed`.
 - **`verify_first` carried by the JS loop** in batch — `if (!proof.passed) retry`. The arbiter
   is the carrier only in the interactive (Stop-hook) host.
 - **Conditional arbiter** — invoked **only** on machine-checkable triggers (retry budget
@@ -293,9 +295,9 @@ it directly from here; the former `durability-arbiter` agent was retired 2026-10
 (`docs/retired/agents/`). The batch host must hold the prompt as a **JS template literal**, so the
 block is backtick-free (a backtick would terminate the literal), and its requested output matches
 CORE's `VERDICT_SCHEMA` (`verdict`/`reason`/`batched_question`/`log`). When the policy here changes,
-update the four workflow templates in lockstep — `test_arbiter_policy_lockstep.sh` guards against a
-one-sided edit (it asserts the canon block and each template's `ARBITER_PROMPT` still carry all five
-decision tiers + the verdict enum, without requiring byte-identity). The block is
+update the workflow templates in lockstep — `test_arbiter_policy_lockstep.sh` guards against a
+one-sided edit (it asserts the canon block still carries all five decision tiers + the verdict
+enum; `test_workflow_core_drift.sh` byte-diffs every template's block against it). The block is
 everything strictly between the two marker lines:
 
 ```js

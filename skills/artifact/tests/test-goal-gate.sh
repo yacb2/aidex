@@ -1276,9 +1276,11 @@ rc=$?
 printf '%s\n' "$sample_out"
 # With the real corpus set, a SKIP here would be a real-corpus case that
 # silently stopped running.
-if [ -n "$REAL" ]; then want_sample='^OK'; else want_sample='^(OK|SKIP)'; fi
-check "test_corpus_sample.py exits 0 and says OK (or SKIP without a corpus)" \
-  "$([ $rc -eq 0 ] && printf '%s' "$sample_out" | grep >/dev/null -E "$want_sample" && echo 1 || echo 0)" \
+# A skip exits 2 (run-all's SKIP), an OK exits 0: each exit code is paired with its line.
+want_sample=''
+if [ $rc -eq 0 ]; then want_sample='^OK'; elif [ $rc -eq 2 ] && [ -z "$REAL" ]; then want_sample='^SKIP'; fi
+check "test_corpus_sample.py exits 0 and says OK (or exits 2 and says SKIP without a corpus)" \
+  "$([ -n "$want_sample" ] && printf '%s' "$sample_out" | grep >/dev/null -E "$want_sample" && echo 1 || echo 0)" \
   "exit $rc"
 
 echo

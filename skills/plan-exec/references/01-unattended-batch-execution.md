@@ -45,12 +45,6 @@ single-agent baseline of that same plan, the threshold is the structural rule ab
     prerequisites (wave-scheduled, arbitrary depth). Use when the plan has independent phases
     (vertical slices with no edge between them). **Every parallel branch keeps the full
     two-stage gate** — this is the gated DAG, not an ungated Kanban.
-  - [`assets/workflows/review-with-gate.workflow.js`](../assets/workflows/review-with-gate.workflow.js)
-    — **terminal clean-context review**: a fresh `opus/high` reviewer judges the cumulative diff
-    against the plan's success criteria + an optional **pushed** `standards_ref`, never the
-    implementation transcript. Its `passed` boolean is the gate (mirrors `proof.passed`); a
-    failing review routes to the conditional arbiter. Run it **after** the implementing form when
-    you want a review that is not contaminated by the implementer's grown session.
 - **Choose the form by plan shape** (see "Deriving `args`" below): if **every phase after the
   first** depends on the one before it (a single chain) → `pipeline-with-gate`; if two or more phases
   are edge-free (empty/omitted `depends_on`), or the graph has a wave wider than one, and can run
@@ -73,14 +67,6 @@ single-agent baseline of that same plan, the threshold is the structural rule ab
   needs done first (omit/`[]` = edge-free); the pipeline form ignores it, the fan-out form
   schedules on it. `args` arrives as a JSON **string** — the script `JSON.parse`s it. Iterate
   via `{scriptPath}` re-invoke (picks up edits, runs fresh).
-- **Review form launch (separate invocation, after implementation):**
-  `args = JSON.stringify({ planPath, diffCmd, successCriteria, standards_ref, reviewModel,
-  reviewEffort, reviewAgentType, autonomySurface })`. `diffCmd` is the Bash command the
-  reviewer runs to get the cumulative diff (e.g. `cd <repo> && git diff <base>...HEAD`).
-  `standards_ref` is the **push** side of push/pull — a standard/rule text handed **only** to the
-  reviewer, so it can enforce a rule the implementer was never shown; omit it to review against the
-  success criteria alone. The implementer **pulls** any standard it needs through its own phase
-  spec in the implementing form — never push a standard into an implementer.
 - The arbiter is **conditional and directing**: the JS loop's `if (!proof.passed) retry` is the
   `verify_first` carrier in batch; the arbiter fires on retry-budget exhaustion, a **blocked
   implementer** (the director path: implementers return structured `WORK_SCHEMA` reports, a
@@ -119,8 +105,7 @@ For each unchecked phase, in order:
   definition that carries it (`.claude/agents/<name>.md` in the project, or `~/.claude/agents/`;
   see SKILL.md Orient step 7 for the stub). Omit the key when the plan has no such definition —
   the phase then runs on the default toolset and pays the full per-call prefix. Same key and same
-  handling in both implementing forms; the review form takes `reviewAgentType` alongside
-  `reviewModel`/`reviewEffort`, since that form has no phases.
+  handling in both forms.
 - `depends_on` — the phase's prerequisite phases (from the plan's `(depends_on: [...])` metadata;
   omit/`[]` = edge-free). This decides the form and the schedule. **Referent rule (load-bearing):**
   the plan writes `depends_on` in human terms (phase **numbers** like `[1, 2]`, or slugs); you must

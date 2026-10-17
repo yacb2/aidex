@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The default `autonomySurface` string is copied (on purpose, owner decision Q32) into
-# every workflow asset that builds a ctx: three in plan-exec, one in audit. The arbiter reads
+# every workflow asset that builds a ctx: two in plan-exec, one in audit. The arbiter reads
 # it as the run's binding rule, so a term added to one copy changes what that form's arbiter
 # may decide alone. This pins the copies equal and the set of copying files closed.
 #
@@ -13,7 +13,6 @@ SKILLS="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 ROOT="${WF_SKILLS_ROOT:-$SKILLS}"
 EXPECTED='plan-exec/assets/workflows/fan-out-with-gate.workflow.js
 plan-exec/assets/workflows/pipeline-with-gate.workflow.js
-plan-exec/assets/workflows/review-with-gate.workflow.js
 audit/assets/workflows/audit-fanout.workflow.js'
 
 fail=0
@@ -40,5 +39,5 @@ while IFS= read -r f; do
   $f: $def"; fi
 done <<<"$found"
 
-[ "$fail" -eq 0 ] && echo "OK — the default autonomySurface is identical in all 4 workflow assets"
+[ "$fail" -eq 0 ] && echo "OK — the default autonomySurface is identical in all 3 workflow assets"
 exit "$fail"

@@ -44,7 +44,6 @@ const agent = (prompt, opts) => {
   prompts[opts.label] = prompt
   if (/^verify:/.test(opts.label)) return Promise.resolve({ passed: true, exit_code: 0, evidence: 'ok' })
   if (opts.label === 'arbiter') return Promise.resolve({ verdict: 'CONTINUE', reason: 'ok' })
-  if (opts.label === 'review') return Promise.resolve({ passed: true, findings: [], summary: 'ok' })
   return Promise.resolve({ done: true, summary: 'ok', proof: 'proof.txt' })
 }
 const parallel = (fns) => Promise.all(fns.map((f) => f()))
@@ -56,9 +55,8 @@ if (promptsOut) fs.writeFileSync(promptsOut, JSON.stringify(
   Object.fromEntries(work.map((o) => [o.label, prompts[o.label]]))))
 console.log(work.map((o) => `${o.label}=${'agentType' in o ? (o.agentType ?? 'UNDEFINED') : 'ABSENT'}`).join(' '))
 PROBE
-  WITH='{"planPath":"p","phases":[{"id":"a","spec":"s","gateCmd":"true","agentType":"impl-restricted"}],
-         "diffCmd":"d","successCriteria":"c","reviewAgentType":"impl-restricted"}'
-  WITHOUT='{"planPath":"p","phases":[{"id":"a","spec":"s","gateCmd":"true"}],"diffCmd":"d","successCriteria":"c"}'
+  WITH='{"planPath":"p","phases":[{"id":"a","spec":"s","gateCmd":"true","agentType":"impl-restricted"}]}'
+  WITHOUT='{"planPath":"p","phases":[{"id":"a","spec":"s","gateCmd":"true"}]}'
   for wf in "$WF"/*.workflow.js; do
     [[ -e "$wf" ]] || continue
     name="${wf##*/}"
