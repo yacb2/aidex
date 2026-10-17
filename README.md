@@ -27,7 +27,7 @@ Then restart Claude Code. In any project, just ask naturally — the right skill
 
 ### Your first session
 
-The install lands 22 skills and 6 hooks and says nothing, on purpose — no first-run nudge.
+The install lands 21 skills and 6 hooks and says nothing, on purpose — no first-run nudge.
 Start here:
 
 1. `/aidex:aidex` — audits the Claude Code setup of the project you are in and tells you what it found.
@@ -54,7 +54,7 @@ aidex solves this with two pillars:
 
 The suite ships as a single Claude Code plugin. `.claude-plugin/plugin.json` declares it,
 `.claude-plugin/marketplace.json` makes the repo its own marketplace, `skills/` holds the
-22 skills — invoked `/aidex:<name>` — and `hooks/hooks.json` wires the six shipped hooks
+21 skills — invoked `/aidex:<name>` — and `hooks/hooks.json` wires the six shipped hooks
 automatically when the plugin is installed. Nothing is copied into `~/.claude/` and nothing
 is symlinked: symlinked skills and rules were the loader path with three separate bugs
 (Claude Code 2.0.62, 2.1.198, 2.1.239), and a plugin has neither problem.
@@ -72,7 +72,6 @@ aidex/                                   <-- the plugin, as Claude Code loads it
 │   ├── request/
 │   ├── research/
 │   ├── reference/
-│   ├── skill/
 │   ├── audit/
 │   ├── backlog/
 │   ├── loop/
@@ -97,7 +96,7 @@ project/.claude/skills/                  <-- your own project-specific skills (r
 
 | Scope | Location | Loaded in | Use for |
 |-------|----------|-----------|---------|
-| **Plugin** | `aidex` (installed via `/plugin`) | All projects | The 21 suite skills + the 6 hooks |
+| **Plugin** | `aidex` (installed via `/plugin`) | All projects | The 20 suite skills + the 6 hooks |
 | **Local** | `project/.claude/skills/` | That project only | Project-specific skills of your own |
 | **Per-project silencing** | `project/.claude/settings.local.json` `enabledPlugins` | That project only | Skills **provided by a plugin are exempt from `skillOverrides`**, at any key format — so aidex's skills cannot be silenced one by one. The only lever is `enabledPlugins: {"aidex@aidex": false}`, all-or-nothing for the whole plugin. `skillOverrides` (`name-only`, `user-invocable-only`, `off`) still applies to skills of your own. |
 
@@ -145,7 +144,7 @@ plugin cannot ship always-on rules, and each one's canon now lives in the `conve
 skill's `references/`, cited by the skills that need it (see
 [`docs/retired/`](docs/retired/README.md)).
 
-### 22 skills
+### 21 skills
 
 | Skill | Type | What it does |
 |-------|------|-------------|
@@ -156,7 +155,6 @@ skill's `references/`, cited by the skills that need it (see
 | **`request`** | User-invoked + context-triggered | Captures incoming stakeholder/client requests into `.context/requests/` before anyone acts on them. |
 | **`research`** | User-invoked + context-triggered | Investigation and spike notes into `.context/research/` before a plan or implementation. |
 | **`reference`** | User-invoked + context-triggered | Evergreen how-it-works documentation into `.context/references/` (architecture, runbooks, configuration). |
-| **`skill`** | User-invoked + context-triggered | Checks and structures a skill against this project's house skill conventions. |
 | **`audit`** | User-invoked + context-triggered | Operates `.context/audits/`. Sub-actions: `/aidex:audit new <type> <slug>` · `/aidex:audit validate` · `/aidex:audit escalate <id>` · `/aidex:audit close <run>` · `/aidex:audit reindex` · `/aidex:audit migrate` · `/aidex:audit coverage-matrix` · `/aidex:audit coverage-sweep` · `/aidex:audit affected-tests`. Ships stock playbooks (ux, ai-opportunities, retest, security, perf, a11y, hitl, test-coverage, docs-coverage, rule-ablation). `affected-tests` also names any changed file that measurably breaks and has no E2E reaching it, before the change lands. |
 | **`backlog`** | User-invoked + context-triggered | Creates consistent entries in `.context/backlog/` with origin tracking. Called by `/aidex:audit escalate` to close the audit→backlog loop. Also scores closed items' `estimate:` against the effort they actually cost — a read that gates nothing. |
 | **`loop`** | User-invoked + context-triggered | Designs agentic loops — writes a `.context/loops/` loop-spec (goal + verifiable gate + state file + guardrails + engine), then hands off execution to native `/goal`, `/loop`, the ralph-loop plugin, or `claude -p`. Sub-actions: `/aidex:loop design` · `new` · `run`. |

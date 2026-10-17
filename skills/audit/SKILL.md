@@ -224,7 +224,7 @@ If audits have accumulated inside `.context/plans/`:
 /aidex:audit migrate
 ```
 
-`migrate-audit.sh` scores each `.context/plans/` folder on file-presence heuristics and prints the candidate list plus the manual move steps. Once folders are moved, `inventory-seeder` generates the initial INVENTORY rows from their findings.
+`migrate-audit.sh` scores each `.context/plans/` folder on file-presence heuristics and prints the candidate list plus the manual move steps.
 
 **Read `${CLAUDE_PLUGIN_ROOT}/skills/audit/references/05-migration-guide.md` before accepting any move.**
 It holds what the legacy `plans/`-era layouts look like, which folders are audits and
@@ -244,16 +244,6 @@ without their tests since the last matrix. Act on the flagged rows with
 `/aidex:audit new test-coverage <slug>` scoped to them, then regenerate the matrix.
 `plan-exec` (at plan close) and `bugfix` (at GREEN) surface a one-line
 suggestion to run it (Phase 6).
-
----
-
-## Subagents
-
-| Agent | Model | Purpose |
-|---|---|---|
-| [inventory-seeder](../../agents/inventory-seeder.md) (`aidex:inventory-seeder`) | sonnet | Reads scattered findings from legacy folders and generates INVENTORY rows in canonical format. |
-
-Scripts delegate to this agent when needed. Direct use is also fine during manual migration work. Candidate detection is not an agent — `migrate-audit.sh` scores folders deterministically.
 
 ---
 

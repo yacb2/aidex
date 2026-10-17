@@ -2,8 +2,7 @@
 # migrate-audit.sh — two migration surfaces:
 #
 #   (default)  detect audit-like folders in .context/plans/ and propose moving
-#              them (heuristic detection; the move is manual and INVENTORY
-#              seeding is done by the inventory-seeder subagent via Claude).
+#              them (heuristic detection; the move is manual).
 #
 #   --layout   convert a LEGACY audits tree to the canon model (rebuild
 #              2026-07-02): YYYYMMDD run folders -> YYYY-MM-DD, legacy status
@@ -305,13 +304,9 @@ cat <<EOF
   3. For each candidate you accept, move it into that methodology, ISO-dated:
        git mv .context/plans/<name> .context/audits/<methodology>/YYYY-MM-DD-<slug>
   4. Rename any "issues.md" or similar to "findings.md" inside the moved folder.
-  5. If you have many candidates, launch the inventory-seeder agent
-       (Agent tool, subagent_type: aidex:inventory-seeder):
-       Provide it the methodology and the list of moved folders; it will generate
-       rows for audits/<methodology>/00-inventory.md.
-  6. Add an entry to .context/audits/<methodology>/00-changelog.md recording the
+  5. Add an entry to .context/audits/<methodology>/00-changelog.md recording the
      migration.
-  7. Refresh the run-level roll-up, which a manual move does not touch:
+  6. Refresh the run-level roll-up, which a manual move does not touch:
        /aidex:audit reindex   (from the migrated project — it resolves the root
        from the working directory, not from this script's argument)
   8. Run /aidex:audit validate to check coherence.

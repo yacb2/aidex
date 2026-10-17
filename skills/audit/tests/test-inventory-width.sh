@@ -196,8 +196,7 @@ for pb in "$TPL"/methodology/*.md.template; do
   [[ -n "$STRAY" ]] && printf '    %s\n' "$STRAY"
 
   # 03-lifecycle.md declares `triaged`, `in-progress` and `closed` legacy: tooling may
-  # READ them off an unmigrated board and must never write one. The agent section below
-  # therefore checks writes only. A playbook is neither reader nor migrator — new-audit.sh
+  # READ them off an unmigrated board and must never write one. A playbook is neither reader nor migrator — new-audit.sh
   # renders it into <methodology>/00-methodology.md as the instruction the auditor follows
   # — so the stricter rule applies here: a legacy status named at all is one the auditor
   # is told to select on or to write. Selection is the quieter half; retest asked for
@@ -215,41 +214,6 @@ for pb in "$TPL"/methodology/*.md.template; do
   BAD_MARKER="$(grep -nE 'fix:[A-Za-z0-9]' "$pb")"
   check "$name: invents no fix: marker for the Escalated To column" '[[ -z "$BAD_MARKER" ]]'
   [[ -n "$BAD_MARKER" ]] && printf '    %s\n' "$BAD_MARKER"
-done
-
-# ---------------------------------------------------------------------------
-# The agents are the fifth writer of that row, and the one d63d71c did not bring
-# to width. inventory-seeder.md carried an 8-column shape (no Notes) aimed at a
-# global INVENTORY.md, so /aidex:audit migrate -- the one path that mass-produces
-# rows -- produced them short a column, in a legacy location, with a legacy status.
-# An agent that embeds the shape cannot be migrated by editing the template, so the
-# assertion is that it embeds none and reads the target board's header instead.
-# ---------------------------------------------------------------------------
-echo "== agent row contract =="
-# Only inventory-seeder writes rows; the other plugin agents legitimately mention CHANGELOG.md.
-# A missing file must fail loudly: an empty glob here once made these checks pass vacuously.
-SEEDER="$SCRIPTS/../../../agents/inventory-seeder.md"
-if [[ ! -f "$SEEDER" ]]; then
-  check "agents/inventory-seeder.md exists at the plugin level" 'false'
-  SEEDERS=()
-else
-  SEEDERS=("$SEEDER")
-fi
-for ag in "${SEEDERS[@]}"; do
-  name="$(basename "$ag" .md)"
-  EMBED="$(grep -n '^| *ID *|' "$ag")"
-  check "$name: embeds no row shape of its own" '[[ -z "$EMBED" ]]'
-  [[ -n "$EMBED" ]] && printf '    %s\n' "$EMBED"
-  # The pre-D-02 root boards. audit-conventions.md says verbatim that there is no
-  # global INVENTORY.md / METHODOLOGY.md / CHANGELOG.md at .context/audits/.
-  LEGACY="$(grep -nE '\b(INVENTORY|METHODOLOGY|CHANGELOG)\.md' "$ag")"
-  check "$name: names no pre-D-02 root board" '[[ -z "$LEGACY" ]]'
-  [[ -n "$LEGACY" ]] && printf '    %s\n' "$LEGACY"
-  # 03-lifecycle.md: tooling may READ the legacy statuses and must never write one.
-  # A `→ `status`` is a write instruction; a quoted phrase being matched is a read.
-  WRITES="$(grep -nE '(→|->) *`(closed|triaged|in-progress)`' "$ag")"
-  check "$name: writes only the base status vocabulary" '[[ -z "$WRITES" ]]'
-  [[ -n "$WRITES" ]] && printf '    %s\n' "$WRITES"
 done
 
 # ---------------------------------------------------------------------------
