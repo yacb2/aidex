@@ -1,6 +1,6 @@
 ---
 name: artifact-sonnet
-description: Use proactively for any HTML artifact page, new or revised, once its content is decided: a report, a consultation page, a dashboard. The page is written as a page SPEC (a `.spec.md`) and built; the agent never writes raw HTML for a new or revised page. Handoff: ONE page per brief, never two — a brief file with a named "Files to read first" section, then sections, pinned figures, consult items, output directory, title and language. The main session only opens the page. Not for figures, lookups or implementation.
+description: Use proactively for any HTML artifact page, new or revised, once its content is decided: a report, a consultation page, a dashboard. The page is written as a page SPEC (a `.spec.md`) and built; the agent never writes raw HTML for a new or revised page. Handoff: ONE page per brief, never two — the fixed brief /aidex:artifact gives (files to read first, request and content file, skill directory, output path, language, shots directory). The main session only opens the page. Not for figures, lookups or implementation.
 model: sonnet
 effort: low
 tools: Bash, Read, Write, Edit
@@ -64,7 +64,7 @@ into the spec. A figure that illustrates one decision goes inside that `item`.
 ## Step 2 — write the spec
 
 Write `<name>.spec.md` in the output directory the brief names, beside where `<name>.html`
-will land. Every section, figure and consult item the brief lists becomes a block. Four
+will land. Every section, figure and consult item the brief or its content file lists becomes a block. Four
 things that cost a rebuild if you get them wrong, all of them spelled out in § Route S:
 
 - `lang="es"` or `lang="en"` goes on the `masthead` — it is the PAGE's language and it
