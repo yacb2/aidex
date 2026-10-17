@@ -38,3 +38,12 @@ itself and now carries the sibling-sweep and bounded-RED clauses.
 `skills/plan-exec/assets/workflows/review-with-gate.workflow.js` was deleted on 2026-10-17
 (0 launches in 60 days). A terminal clean-context review is an `agent()` call inside
 pipeline-with-gate (`workflow-core.md`, "Reviewer is blind"); the file is in git history.
+
+`skills/skill/` (with its `evals/`) and `agents/inventory-seeder.md` were retired on 2026-10-17.
+The skill had 0 real fires and 0 typed invocations after the plugin cutover, overlapped
+skill-creator, and no rule names it any more; the house skill conventions live on in
+`skills/conventions/references/skill-conventions.md`, and the English-only `description:` rule
+it carried is now enforced by `tests/test-skill-description-language.sh`. The agent was never
+launched; it was reachable only from the optional step 5 of the one-shot `audit migrate`, which
+is dropped from `migrate-audit.sh` and `05-migration-guide.md`, and its listing line rode every
+main request.
