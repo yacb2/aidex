@@ -37,7 +37,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --apply)   DRY_RUN=0; shift ;;
     --dry-run) DRY_RUN=1; shift ;;   # accepted, and now redundant
-    -h|--help) sed -n '3,/^$/p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    -h|--help) usage_from_header "$0" 3; exit 0 ;;
     *) die "unknown option: $1" ;;
   esac
 done

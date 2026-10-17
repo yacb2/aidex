@@ -30,7 +30,7 @@ set -euo pipefail
 ACTION="${1:-}"; shift || true
 case "$ACTION" in
   defer|reactivate) ;;
-  -h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \?//'; exit 0 ;;
+  -h|--help) usage_from_header "$0"; exit 0 ;;
   *) die "first argument must be: defer | reactivate" ;;
 esac
 
@@ -39,7 +39,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --reason)   REASON="$2"; shift 2 ;;
     --no-index) NO_INDEX=1; shift ;;
-    -h|--help)  sed -n '2,/^$/p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    -h|--help)  usage_from_header "$0"; exit 0 ;;
     -*)         die "unknown option: $1" ;;
     *)          TARGET="$1"; shift ;;
   esac

@@ -24,20 +24,21 @@
 
 set -euo pipefail
 
-MODE=write
-case "${1:-}" in
-  -h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \?//'; exit 0 ;;
-  --check) MODE=check ;;
-  --reindex|"") ;;
-  *) printf 'unknown option: %s\n' "$1" >&2; exit 2 ;;
-esac
-
 # The audit _lib.sh: it sources the shared conventions/scripts/_lib.sh (the
 # resolver; this file used to carry its own copy, three fixes behind -- no $HOME
 # boundary, no project-marker fallback, no linked-worktree hop -- pinned by
 # conventions/scripts/test-find-project-root.sh, no private copies) and defines
 # AWK_HAS_RUN, the Audit Runs token match run_counts uses.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/_lib.sh"
+
+MODE=write
+case "${1:-}" in
+  -h|--help) usage_from_header "$0"; exit 0 ;;
+  --check) MODE=check ;;
+  --reindex|"") ;;
+  *) printf 'unknown option: %s\n' "$1" >&2; exit 2 ;;
+esac
+
 
 ROOT="$(find_project_root)"
 AUDITS_DIR="$ROOT/.context/audits"

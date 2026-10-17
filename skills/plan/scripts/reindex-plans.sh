@@ -17,26 +17,21 @@
 
 set -euo pipefail
 
-if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
-  C_GREEN=$'\033[32m' C_YELLOW=$'\033[33m' C_RESET=$'\033[0m'
-else C_GREEN='' C_YELLOW='' C_RESET=''; fi
-ok()   { printf '%s%s%s\n' "$C_GREEN" "$*" "$C_RESET" >&2; }
-warn() { printf '%s%s%s\n' "$C_YELLOW" "$*" "$C_RESET" >&2; }
-
-MODE=write
-case "${1:-}" in
-  -h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \?//'; exit 0 ;;
-  --check) MODE=check ;;
-  --reindex|"") ;;
-  *) printf 'unknown option: %s\n' "$1" >&2; exit 2 ;;
-esac
-
 # Shared resolver. This file used to carry its own copy, three fixes behind:
 # no $HOME boundary, no project-marker fallback, and no linked-worktree hop --
 # so from inside a worktree it wrote into a directory that vanishes on teardown
 # while _lib.sh consumers wrote to the main tree. Pinned by
 # conventions/scripts/test-find-project-root.sh (no private copies).
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../conventions/scripts" && pwd -P)/_lib.sh"
+
+MODE=write
+case "${1:-}" in
+  -h|--help) usage_from_header "$0"; exit 0 ;;
+  --check) MODE=check ;;
+  --reindex|"") ;;
+  *) printf 'unknown option: %s\n' "$1" >&2; exit 2 ;;
+esac
+
 
 ROOT="$(find_project_root)"
 PLANS_DIR="$ROOT/.context/plans"
