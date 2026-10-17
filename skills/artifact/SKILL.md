@@ -163,6 +163,7 @@ on the HTML route) has passed `check-artifact`:
 1. `bash "${CLAUDE_SKILL_DIR}/scripts/render-probe.sh" --shots <dir> <page>.html` — fix
    every defect it prints and rebuild. Exit 3 means Playwright is missing: stop, print the
    install command it gave, and hand nothing over as checked. Never skip the probe.
+   A delegate's probe counts as this step when its hand-back carries the manifest path, the `SHOT` lines and `render-probe: clean` from a run stamped after the page's last build (the `.html` mtime): take them and go to step 2. Otherwise (no `render-probe: clean`, or the page was rebuilt later) run the probe here.
    Requires `node` and Playwright with Chromium: `npm i -g playwright && npx playwright install chromium` (or point `AIDEX_PLAYWRIGHT_DIR` at an existing install).
 2. Graders launch only after the builder's hand-back, never while a fix round is still building or re-probing: a re-probe writes a new run, and the grade would then describe a page that is no longer the latest build. Launch the `artifact-text-grader` agent and the visual grader in ONE message. (a) `aidex:artifact-text-grader` always: the request, the
    absolute path of the `.spec.md`, the path of `references/05-visual-review.md`, and the
