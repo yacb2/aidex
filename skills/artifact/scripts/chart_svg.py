@@ -557,12 +557,12 @@ def svg(kind, labels, series, unit="", lang="es", show_labels=None,
                      xtitle, g)
 
 
-def _titles_top(out, ytitle, g):
-    """The value axis's title, wrapped, at the top left; returns the y under it.
+def _titles_top(out, title, g):
+    """An axis title, wrapped, at the top left; returns the y under it.
     Horizontal, as F5 drew it: a rotated title is a line a reader turns their
     head for."""
     y = float(PAD_T)
-    lines = _wrap(ytitle, g.font, g.w - 2 * PAD_EDGE)
+    lines = _wrap(title, g.font, g.w - 2 * PAD_EDGE)
     for line in lines:
         out.append(_text_el(PAD_EDGE, y + g.font, g.font, line,
                             extra=' fill-opacity="0.7"'))
@@ -570,8 +570,8 @@ def _titles_top(out, ytitle, g):
     return y + (4 if lines else 0)
 
 
-def _titles_bottom(out, xtitle, y, g):
-    lines = _wrap(xtitle, g.font, g.w - 2 * PAD_EDGE)
+def _titles_bottom(out, title, y, g):
+    lines = _wrap(title, g.font, g.w - 2 * PAD_EDGE)
     for line in lines:
         out.append(_text_el(g.w / 2.0, y + g.font, g.font, line, "middle",
                             ' fill-opacity="0.7"'))
@@ -962,7 +962,8 @@ def _hbars(labels, series, unit, lang, show_labels, ytitle, xtitle, g):
 
     zero = xpix(0.0)
     out = []
-    y = _titles_top(out, ytitle, g)
+    # Rotated: the categories are the column of rows, so their title heads it.
+    y = _titles_top(out, xtitle, g)
     legend, rows = _legend(series, float(PAD_EDGE), float(g.w - PAD_EDGE), y,
                            g.font, g.legend_h)
     out += legend
@@ -1022,7 +1023,7 @@ def _hbars(labels, series, unit, lang, show_labels, ytitle, xtitle, g):
         tick_y += g.font + 4
         grid.append(_text_el(g.w - PAD_EDGE, tick_y, g.font, unit, "end",
                              ' fill-opacity="0.7"'))
-    bottom = _titles_bottom(grid, xtitle, tick_y + 8, g) + PAD_EDGE
+    bottom = _titles_bottom(grid, ytitle, tick_y + 8, g) + PAD_EDGE
     return "\n".join(_open(g, bottom) + out + grid + marks + values
                      + ["</svg>"])
 

@@ -636,6 +636,43 @@ try:
                  F_SPEC.replace("unit=USD", 'unit=USD y-title="USD neto" '
                                 'x-title="Profundidad de contexto"'),
                  ">USD neto<", ">Profundidad de contexto<")
+
+    # BL-827: where each title sits, not only that it is there (both are
+    # drawn in both renderings either way). Narrow bars are horizontal: the
+    # value axis is the tick row at the bottom, the categories a column of
+    # rows, so the value title goes under the ticks and the category title
+    # above the first category. The wide rendering keeps the vertical mapping.
+    def text_y(svg_text, content):
+        return [float(y) for y in re.findall(
+            r'<text x="[-\d.]+" y="([-\d.]+)"[^>]*>%s</text>'
+            % re.escape(content), svg_text)]
+
+    months = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio"]
+    eu = build('::: chart {type=bar unit=EUR y-title="Euros" x-title="Mes"}\n'
+               + "".join("%s,%d\n" % (m, 4000 + 1000 * i)
+                         for i, m in enumerate(months)) + ":::")
+    for tag, cls in (("narrow", "chart-n"), ("wide", "chart-w")):
+        sv = re.search(r'<svg class="%s".*?</svg>' % cls, eu, re.S).group(0)
+        tick_ys = [float(y) for y in re.findall(
+            r'<text x="[-\d.]+" y="([-\d.]+)" text-anchor="(?:middle|end)" '
+            r'font-size="[\d.]+" fill-opacity="0.7" fill="currentColor">'
+            r'[-+−]?\d[^<]*</text>', sv)]
+        val_y, cat_y = text_y(sv, "Euros"), text_y(sv, "Mes")
+        first_cat = min(text_y(sv, "Enero"))
+        if tag == "narrow":
+            check("BL-827: narrow bars draw the value title under the ticks "
+                  "and the category title above the first category",
+                  val_y and cat_y and tick_ys
+                  and val_y[0] > max(tick_ys) and cat_y[0] < first_cat,
+                  "Euros y=%r, ticks y=%r, Mes y=%r, Enero y=%r"
+                  % (val_y, tick_ys, cat_y, first_cat))
+        else:
+            check("BL-827: wide bars keep the value title above the ticks "
+                  "and the category title under the categories",
+                  val_y and cat_y and tick_ys
+                  and val_y[0] < min(tick_ys) and cat_y[0] > first_cat,
+                  "Euros y=%r, ticks y=%r, Mes y=%r, Enero y=%r"
+                  % (val_y, tick_ys, cat_y, first_cat))
     rejects("a stacked chart has no value axis to title",
             '::: chart {type=stacked y-title="x"}\na,1\n:::', 1,
             "y-title", SpecBuildError)
