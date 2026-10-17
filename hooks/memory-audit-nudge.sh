@@ -1,7 +1,7 @@
 #!/bin/sh
 # SessionStart hook — say once that this project's memory has drifted for a month.
 #
-# It reports; it does not audit. `/aidex memory` decides what to do about it.
+# It reports; it does not audit. `/aidex:aidex memory` decides what to do about it.
 #
 # This runs on EVERY session start in EVERY project, so silence is the common case and
 # the design is built around it: no stamp directory, no memory directory, no drift, or
@@ -10,10 +10,9 @@
 # directory under a fresh stamp is silent — because a nudge that fires on either alone
 # becomes the thing people mute.
 #
-# Fields, from the probe record in ~/.claude/scripts/handoff-session-start.sh (verified
-# live on 2.1.235, not taken from the docs):
-#   systemMessage      shown to the user at session start — this is the one we want
-#   additionalContext  goes to Claude's context and is invisible to the user
+# Fields (placement per the 2.1.302 SessionStart schema):
+#   systemMessage      TOP-LEVEL key, shown to the user at session start — the one we want
+#   additionalContext  inside hookSpecificOutput, goes to Claude's context, invisible to the user
 # SessionStart stdin carries session_id, cwd, hook_event_name and source.
 #
 # Fails open and silent on every path: no jq, no cwd, malformed stamp -> exit 0.
@@ -79,7 +78,7 @@ STATE_FILE="$STATE_DIR/mem-nudge-${SESSION:-unknown}-$SLUG"
 # every session start and must stay sub-millisecond. Size is in there because count and
 # mtime alone miss an edit that replaces a file without changing either — and Phases 6-8
 # of the cleanup rewrite memories in place, which is exactly that shape.
-DIGEST=$(find "$MEMDIR" -maxdepth 1 -name '*.md' -type f -exec stat -f '%m %z' {} \; 2>/dev/null \
+DIGEST=$(find "$MEMDIR" -maxdepth 1 -name '*.md' -type f -exec stat -f '%m %z' {} + 2>/dev/null \
   | awk '{n++; s+=$2; if ($1>m) m=$1} END {printf "%d:%d:%d", n+0, m+0, s+0}')
 case "$DIGEST" in ''|0:0:0) exit 0 ;; esac          # empty directory: nothing to nudge
 COUNT=${DIGEST%%:*}
@@ -105,6 +104,9 @@ fi
 
 printf '%s' "$DIGEST" > "$STATE_FILE" 2>/dev/null
 
-jq -n --arg m "Memory: $COUNT file(s) in this project, $WHEN. Run /aidex memory to review them." \
-  '{hookSpecificOutput: {hookEventName: "SessionStart", systemMessage: $m}}'
+# Top level only: a systemMessage nested in hookSpecificOutput is dropped by the
+# SessionStart schema (2.1.302), which hid this line on every run for 60 days. No
+# additionalContext: the action is a slash command the user runs, the model needs nothing.
+jq -n --arg m "Memory: $COUNT file(s) in this project, $WHEN. Run /aidex:aidex memory to review them." \
+  '{systemMessage: $m}'
 exit 0

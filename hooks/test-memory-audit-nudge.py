@@ -88,7 +88,9 @@ def run(cwd=PROJ, session="s1"):
 
 
 def message(out):
-    return ((out or {}).get("hookSpecificOutput") or {}).get("systemMessage") or ""
+    # Top level only: Claude Code drops a systemMessage nested in hookSpecificOutput, so
+    # for 60 days the line was emitted ~581 times and shown to the user zero times.
+    return (out or {}).get("systemMessage") or ""
 
 
 def fresh_session():
@@ -108,6 +110,8 @@ rc, out, _ = run(session=fresh_session())
 check("stale stamp + changed directory speaks", message(out) != "", out)
 check("the line names the file count", "2 file(s)" in message(out), message(out))
 check("and says how stale it is", "40d ago" in message(out), message(out))
+check("and names the command the user can run", "/aidex:aidex memory" in message(out),
+      out)
 check("it never blocks startup", rc == 0, rc)
 
 stamp(40)                                     # stale stamp, digest matches: unchanged
