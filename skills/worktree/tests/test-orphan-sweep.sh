@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # test-orphan-sweep.sh — isolated tests for orphan-sweep.sh. Stubs `docker` via
 # a PATH shim (mirrors the AIDEX_JUDGE_CMD/claude-shim injection pattern in
-# hooks/test-durability-hook.sh) so no real Docker daemon is required.
+# docs/retired/hooks/test-durability-hook.sh) so no real Docker daemon is required.
 #
 # Cases: orphan detected when the worktree dir is missing; no false positive
 # when the dir exists; --check exit codes; docker-absent degradation.

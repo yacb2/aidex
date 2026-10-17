@@ -10,7 +10,7 @@
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-GEN="$REPO_ROOT/skills/aidex/scripts/build-memory-worklist.py"
+GEN="$REPO_ROOT/scripts/build-memory-worklist.py"  # REPO_ROOT is docs/retired since the 2026-10-17 move
 PASS=0 FAIL=0
 ok()   { printf '  ok: %s\n' "$1"; PASS=$((PASS+1)); }
 bad()  { printf '  FAIL: %s\n' "$1" >&2; FAIL=$((FAIL+1)); }

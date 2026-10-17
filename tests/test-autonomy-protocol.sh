@@ -72,8 +72,8 @@ done
 # retirement into a permanent red.
 #
 # Durability now rests on skill-side autonomy plus the voluntary durability-arbiter,
-# which is what BL-067 designates as the substitute. hooks/durability-run.sh still
-# ships and is referenced by a design comment in conventions/scripts/_lib.sh.
+# which is what BL-067 designates as the substitute. docs/retired/hooks/durability-run.sh is
+# kept as retired scaffolding and is referenced by a design comment in conventions/scripts/_lib.sh.
 
 # ---------- (f) plan-exec fires the completion notifier, guarded on existence+executable ----------
 grep -q 'notify.sh' "$PLAN_EXEC_ALL" || fail "(f) plan-exec: no notify.sh reference"

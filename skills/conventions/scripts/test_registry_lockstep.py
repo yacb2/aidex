@@ -589,7 +589,7 @@ def main() -> int:
             failures.append(f"{skill_md.relative_to(SKILLS_DIR)} description is {n} "
                             f"chars — the canon budget is <900 (hard cap 1,024)")
 
-    # (retired) `hooks/aidex-router.sh` was checked here for emitting a skill that
+    # (retired) `docs/retired/hooks/aidex-router.sh` was checked here for emitting a skill that
     # exists. The hook is unwired and no longer installed (its replay came out
     # p=0.72), so its phrase table is frozen history in the pre-plugin spelling —
     # judging it against the live tree reports a rename that is not a defect.

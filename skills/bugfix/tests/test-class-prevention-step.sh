@@ -2,7 +2,7 @@
 # test-class-prevention-step.sh — the bugfix step that asks what prevents the CLASS (BL-436).
 #
 # The regression test guarantees the instance; nothing else in the skill asks about the
-# kind. The step is a question, never a hook — durability-stop-hook (4 blocks, 0
+# kind. The step is a question, never a hook — docs/retired/hooks/durability-stop-hook (4 blocks, 0
 # justified) is the precedent against enforcing a judgement call — so what is guarded
 # here is only that the question exists, sits where a reader meets it (after the commit,
 # before guided human verification) and keeps "nothing, one-off" as a writable answer.
