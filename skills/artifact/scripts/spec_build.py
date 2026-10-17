@@ -2492,7 +2492,7 @@ def hand_edit_defect(out, spec=None):
 def main(argv):
     p = UsageParser(
         prog="spec_build.py",
-        form="spec_build.py <spec.md> [-o <out.html> [--check] [--new-round] "
+        form="spec_build.py <spec.md> [-o <out.html> [--check] [--new-round [--no-reply]] "
              "[--discard-hand-edit]] "
              "[--lang es|en] [--title <title>]",
         description="Build a page spec into artifact-kit HTML.")
@@ -2517,6 +2517,9 @@ def main(argv):
                    help="passed to wrap-report.sh: this build opens a new reader "
                         "round, refused unless save-reply.sh saved the reply to "
                         "the open one (BL-507). Needs -o")
+    p.add_argument("--no-reply", action="store_true",
+                   help="with --new-round, passed to wrap-report.sh: the session "
+                        "opens the round although the reader sent no reply (BL-824)")
     p.add_argument("--discard-hand-edit", action="store_true",
                    help="rebuild over a built page that was edited by hand "
                         "(its HTML differs from the last build), discarding "
@@ -2537,6 +2540,8 @@ def main(argv):
         usage_exit(p.form, "--check needs -o <out.html>")
     if args.new_round and not args.out:
         usage_exit(p.form, "--new-round needs -o <out.html>")
+    if args.no_reply and not args.new_round:
+        usage_exit(p.form, "--no-reply needs --new-round")
 
     try:
         # A silent spec follows the profile the wrap and lang-follows-profile
@@ -2582,7 +2587,8 @@ def main(argv):
                          "--out", args.out, "--spec",
                          os.path.relpath(os.path.abspath(args.spec),
                                          os.path.dirname(os.path.abspath(args.out)))]
-                        + (["--new-round"] if args.new_round else []),
+                        + (["--new-round"] if args.new_round else [])
+                        + (["--no-reply"] if args.no_reply else []),
                         input=body.encode("utf-8")).returncode
     if rc != 0:
         if not prev_existed and not os.path.exists(args.out):

@@ -141,10 +141,13 @@ save the reply that decided the item with `save-reply.sh`, or reopen it.
 `consult-round` is the reader's round: it advances only once `save-reply.sh` has
 snapshotted the page at (or past) the current round, and re-wraps of an unanswered round
 keep their number. `wrap-report.sh --new-round` means "this wrap must advance the reader round": on a
-consult page it FAILS (page untouched), naming both `save-reply.sh` and dropping the flag,
-whenever the current round is open, i.e. a page exists and its round has no saved reply. Pass
-it to the FIRST wrap of a round opened over a reply; later wraps of that round, including a
-delegated `--building` build's, omit it. A page with no
+consult page it FAILS (page untouched), naming `save-reply.sh`, dropping the flag and
+`--no-reply`, whenever the current round is open, i.e. a page exists and its round has no
+saved reply. A round the session opens WITHOUT a reply takes `--new-round --no-reply`
+(BL-824): the wrap records the closed round in `.aidex-artifact-prev/<stem>.closed-round`
+once it passes, never in `.answered.html`, and refuses the flag when the round has a saved
+reply. Pass them to the FIRST wrap of the round only; later wraps of that round, including a
+delegated `--building` build's, omit them. A page with no
 consult surface has no reader rounds and keeps counting wraps.
 
 The markers are never translated — the labels the reader sees are, the tokens are not — and

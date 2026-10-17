@@ -60,8 +60,10 @@ The short of it:
 
 What `new-round` does and does NOT do is worth pinning, because the name reads
 like it moves a counter. It does not: the round number lives in
-`<meta name="consult-round">`, which `wrap-report.sh` derives from the contract
-baseline on every wrap, and any verb that also wrote it would be a second
+`<meta name="consult-round">`, which `wrap-report.sh` derives on every wrap from
+the contract baseline, advancing it only over a reply `save-reply.sh` saved or a
+round the session closed with `spec_build.py --new-round --no-reply` (BL-507,
+BL-824), and any verb that also wrote it would be a second
 counter to disagree with the first. The spec-level work a round transition
 needs is the LEDGER — "what earlier rounds settled, so a later round does not
 re-ask it" (`04-block-vocabulary.md`) — so that is what this verb writes, one
@@ -752,8 +754,9 @@ def new_round(spec_text, dropped=(), retitled=(), answered_html=None, reply=None
     spec does not carry and does NOT check it against the rows document: drop
     only rows that are really gone from it). The verb only
     records ids on the masthead and rebuilds: it never opens a round (no
-    `--new-round`), so `consult-round` is the wrap's, as in the module
-    docstring. Recorded once, kept by later rounds.
+    `--new-round`, no `--no-reply`), so `consult-round` is the wrap's, as in
+    the module docstring; a round opened without a reply needs
+    `spec_build.py --new-round --no-reply` as its first rebuild (BL-824). Recorded once, kept by later rounds.
 
     `retitled` (BL-611) is the opposite: ids that STAY with a reworded title, so
     each must still be in the spec; the id never changes, only the check is told

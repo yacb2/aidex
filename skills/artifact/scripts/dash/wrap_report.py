@@ -202,6 +202,36 @@ def _answered_path(outfile):
                         ".aidex-artifact-prev", stem + ".answered.html")
 
 
+def _closed_path(outfile):
+    """The marker `--new-round --no-reply` writes (BL-824): the number of a round
+    the SESSION closed without a reply. Separate from the answered snapshot on
+    purpose: spec_verbs `_expire_proposals` settles every proposal that snapshot
+    carries, and the reader saw none of a round closed this way."""
+    stem = os.path.splitext(os.path.basename(outfile))[0]
+    return os.path.join(os.path.dirname(os.path.abspath(outfile)),
+                        ".aidex-artifact-prev", stem + ".closed-round")
+
+
+def _closed_round(outfile):
+    """The round `_closed_path` records, or 0 when there is none."""
+    try:
+        with open(_closed_path(outfile), encoding="utf-8") as fh:
+            text = fh.read().strip()
+    except OSError:
+        return 0
+    return int(text) if text.isdigit() else 0
+
+
+def reply_saved(outfile):
+    """True when save-reply.sh snapshotted the page at or past its current round."""
+    base = _baseline_path(outfile)
+    ref = base if os.path.isfile(base) else os.path.abspath(outfile)
+    answered = _answered_path(outfile)
+    if not os.path.isfile(answered) or not os.path.isfile(ref):
+        return False
+    return (_round_of(answered) or 1) >= (_round_of(ref) or 1)
+
+
 def _current_round(outfile):
     base = _baseline_path(outfile)
     ref = base if os.path.isfile(base) else os.path.abspath(outfile)
@@ -212,21 +242,24 @@ def _current_round(outfile):
     return _round_of(ref) or 1
 
 
-def round_answered(outfile):
+def round_answered(outfile, closing=0):
     """True when the page's CURRENT round has a saved reply (BL-507).
 
     The answered snapshot is a copy of the page as the reader answered it, so it
     carries the round it answered; the baseline carries the round the reader has.
-    Snapshot round >= baseline round means that round was answered."""
+    Snapshot round >= baseline round means that round was answered. A round the
+    session closed with `--new-round --no-reply` counts the same way (BL-824):
+    `closing` is the round THIS wrap closes, held in memory until it passes, and
+    `<stem>.closed-round` the one an earlier passing wrap closed."""
+    if reply_saved(outfile):
+        return True
     base = _baseline_path(outfile)
     ref = base if os.path.isfile(base) else os.path.abspath(outfile)
-    answered = _answered_path(outfile)
-    if not os.path.isfile(answered) or not os.path.isfile(ref):
-        return False
-    return (_round_of(answered) or 1) >= (_round_of(ref) or 1)
+    closed = max(_closed_round(outfile), closing)
+    return bool(closed) and os.path.isfile(ref) and closed >= (_round_of(ref) or 1)
 
 
-def next_round(outfile, surface=True):
+def next_round(outfile, surface=True, closing=0):
     """The round number the page about to be written is, or 0 when it is not a
     round of anything (no `--out`). See `round_meta` for why the BASELINE, and
     not the file on disk, is what it counts from.
@@ -248,12 +281,12 @@ def next_round(outfile, surface=True):
         prev = 0
     else:
         prev = _round_of(ref) or 1
-    if surface and prev and not round_answered(out):
+    if surface and prev and not round_answered(out, closing):
         return prev
     return prev + 1
 
 
-def round_meta(outfile, surface=True):
+def round_meta(outfile, surface=True, closing=0):
     """`<meta name="consult-round">` for the page about to be written.
 
     What it is for: the composer keeps typed answers in localStorage and used to
@@ -276,7 +309,7 @@ def round_meta(outfile, surface=True):
     than a gap: without `--out` there is no thread to be a round of, and a page
     with no marker keeps the pre-round behaviour exactly.
     """
-    r = next_round(outfile, surface)
+    r = next_round(outfile, surface, closing)
     return f'<meta name="consult-round" content="{r}">' if r else ""
 
 
@@ -923,7 +956,7 @@ def held_round(outfile):
     return 0
 
 
-WRAP_FORM = "wrap-report.sh --title <title> [--lang <l>] [--favicon <e>] [--in <file>] [--out <page.html>] [--building] [--new-round] [--spec <spec.md>]  |  wrap-report.sh --done --out <page.html>"
+WRAP_FORM = "wrap-report.sh --title <title> [--lang <l>] [--favicon <e>] [--in <file>] [--out <page.html>] [--building] [--new-round [--no-reply]] [--spec <spec.md>]  |  wrap-report.sh --done --out <page.html>"
 
 
 def end_build(argv):
@@ -976,6 +1009,10 @@ def main():
     p.add_argument("--new-round", action="store_true",
                    help="assert this wrap opens a new reader round: refused, naming "
                         "save-reply.sh, when the current round has no saved reply")
+    p.add_argument("--no-reply", action="store_true",
+                   help="with --new-round: the session opens the new round although "
+                        "the reader sent no reply (BL-824). Records the closed round "
+                        "beside the page; refused when the round has a saved reply")
     p.add_argument("--spec", default=None, metavar="<spec.md>",
                    help="the page is built from this spec (spec_build.py passes "
                         "it): line 1 names it and says the page is not hand-edited")
@@ -990,6 +1027,10 @@ def main():
     if args.building and not args.outfile:
         usage_exit(WRAP_FORM, "--building needs --out <page> — the build lock is a file "
                    "beside the page, and a wrap to stdout has no page")
+
+    if args.no_reply and not args.new_round:
+        usage_exit(WRAP_FORM, "--no-reply needs --new-round — it says why this wrap "
+                   "opens a new round, and only --new-round opens one")
 
     # exists, not isfile: `--in /dev/stdin` and `<(...)` are pipes; a directory is refused here too.
     if args.infile and (not os.path.exists(args.infile) or os.path.isdir(args.infile)):
@@ -1063,17 +1104,31 @@ def main():
     # Before the kit is injected: the composer script and the kit CSS both spell
     # `data-decided`, and only the AUTHOR's markup carries items (`data-id`).
     surface = bool(CONSULT_ITEM.search(body))
-    this_round = next_round(args.outfile, surface)
+    # BL-824: the round the session closes with no reply. Held in memory and
+    # written to `<stem>.closed-round` only once this wrap has PASSED, beside the
+    # baseline: a wrap that fails leaves no trace, and the fixed one repeats the
+    # flags (a mistaken --no-reply must not leave round N unrebuildable).
+    closing = 0
+    if args.no_reply and args.outfile and surface:
+        open_round = _current_round(args.outfile)
+        if open_round >= 1 and reply_saved(args.outfile):
+            print(f"ERROR: round {open_round} has a saved reply, so --no-reply "
+                  f"contradicts it. Drop --no-reply: --new-round alone opens the "
+                  f"round over that reply.", file=sys.stderr)
+            return 1
+        closing = open_round
+    this_round = next_round(args.outfile, surface, closing)
     if args.new_round and args.outfile and surface:
         # "This wrap must advance the reader round": refused while the current
         # round is open, i.e. a page exists and has no saved reply for it.
         open_round = _current_round(args.outfile)
-        if open_round >= 1 and not round_answered(args.outfile):
+        if open_round >= 1 and not round_answered(args.outfile, closing):
             print(f"ERROR: round {open_round} is already open and has no saved reply. "
                   f"If this is a re-wrap of the round you are building, drop --new-round. "
                   f"If the reader has answered round {open_round}, run "
                   f"save-reply.sh {args.outfile} <reply-file> first, then wrap with "
-                  f"--new-round.", file=sys.stderr)
+                  f"--new-round. If you are opening the next round without a reply, "
+                  f"add --no-reply.", file=sys.stderr)
             return 1
     body = stamp_decided_rounds(body, args.outfile, this_round)
     # One clock for the meta, the visible line and the line printed at the end,
@@ -1093,7 +1148,7 @@ def main():
     built_meta = (f'<meta name="artifact-built" '
                   f'content="{esc(now.strftime(BUILT_FORMAT))}">')
     head_extra = "\n".join(p for p in (kit_head(), built_meta,
-                                       round_meta(args.outfile, surface),
+                                       round_meta(args.outfile, surface, closing),
                                        profile_delta(ctx), head_extra) if p)
     body = "\n".join(p for p in (body, kit_script()) if p)
     doc = document(args.title, body, lang=lang,
@@ -1283,8 +1338,24 @@ def main():
     if prev_for_check:
         cmd += ["--prev", prev_for_check]
     rc = None
+    marker_error = None
     try:
-        rc = 1 if checker_missing else subprocess.run(cmd).returncode
+        # The checker's round-pick rule must know the round this wrap closes,
+        # which is on disk only once the wrap has passed.
+        env = dict(os.environ, AIDEX_CLOSED_ROUND=str(closing)) if closing else None
+        rc = 1 if checker_missing else subprocess.run(cmd, env=env).returncode
+        # Passed: the round this wrap closes without a reply is recorded FIRST,
+        # before the source and the baseline advance (BL-824). A baseline at round
+        # N+1 with no marker leaves every later wrap failing consult-round-pick, so
+        # a marker that cannot be written does not land the page (rolled back
+        # below, while the snapshot still exists) and the same command retries.
+        if rc == 0 and closing:
+            try:
+                os.makedirs(baseline_dir, exist_ok=True)
+                with open(_closed_path(args.outfile), "w", encoding="utf-8") as fh:
+                    fh.write(f"{closing}\n")
+            except OSError as e:
+                marker_error, rc = e, 1
     finally:
         if rc != 0:
             not_landed()
@@ -1302,6 +1373,12 @@ def main():
         print(f"ERROR: check-artifact.sh is missing at {checker}, so the contract could "
               f"not be verified and {landed}.", file=sys.stderr)
         return 3
+    if marker_error:
+        print(f"ERROR: the page passed its contract, but round {closing} could not be "
+              f"recorded as closed without a reply at {_closed_path(args.outfile)} "
+              f"({marker_error}), so this wrap did not land and {landed}. Clear that "
+              f"path and run the same command again.", file=sys.stderr)
+        return 1
     if rc != 0:
         fix = (f"Fix {aftermath['source']} and wrap it again with --in"
                if aftermath.get("source") else "Fix what you wrote and wrap it again")

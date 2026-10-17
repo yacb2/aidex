@@ -67,7 +67,8 @@ page as the reader answered it, then prints one DUTY line per marked item;
 paste that list into the rewrite brief verbatim. Pass `--new-round` to the FIRST
 build (`spec_build.py` or `wrap-report.sh`) of a round opened over a reply (only the first; later wraps of that
 round, including a delegated `--building` build's, omit it): it fails, naming
-`save-reply.sh`, if no reply was saved. On the spec route, edit the spec for every
+`save-reply.sh`, if no reply was saved. A round the session opens without a reply takes
+`--new-round --no-reply`, on its FIRST build only, like `--new-round`; check-artifact FAILS a masthead eyebrow whose round differs from the page's (BL-824). On the spec route, edit the spec for every
 duty FIRST, then run the verbs: any rebuild after `save-reply.sh` opens the round,
 a verb's included, so when a verb (`decide`, `new-round`) is the first rebuild, no
 `--new-round` follows it (it would refuse: the round is already open). A `[show-me]` duty is

@@ -54,6 +54,8 @@ Checks (per file):
   consult-decided-trace an item open in `.aidex-artifact-prev/<stem>.answered.html`
                (else the baseline `<stem>.html`) and shown Decided now needs an
                answer in `<stem>.reply.md`; dropped items are exempt (BL-569)
+  consult-round-eyebrow the masthead eyebrow names a round (`ronda N`/`round N`)
+               other than the page's first consult-round meta (BL-824)
   svg-contrast figure text below 4.5:1 against what it is painted on, in either
                theme (BL-330). The one check with two severities: it FAILS a
                named file — the wrap — and only WARNS in `--census`, because a
@@ -4327,6 +4329,67 @@ def _round_of(text):
     return int(m.group(1)) if m else 0
 
 
+def _closed_round_of(prev_dir, stem):
+    """The round `wrap-report.sh --new-round --no-reply` closed without a reply
+    (BL-824), or 0: `<stem>.closed-round`, which a passing wrap writes, or
+    AIDEX_CLOSED_ROUND, which the wrap sets while it checks the page that
+    closes it (the marker is not on disk until that check has passed)."""
+    env = os.environ.get("AIDEX_CLOSED_ROUND", "").strip()
+    try:
+        with open(os.path.join(prev_dir, stem + ".closed-round"),
+                  encoding="utf-8") as fh:
+            text = fh.read().strip()
+    except OSError:
+        text = ""
+    return max(int(t) if t.isdigit() else 0 for t in (text, env))
+
+
+_EYEBROW_P = re.compile(r'<p\b[^>]*\bclass\s*=\s*["\'][^"\']*\beyebrow\b[^>]*>(.*?)</p>',
+                        re.I | re.S)
+_EYEBROW_ROUND = re.compile(r"\b(?:ronda|round)\s+(\d+)\b", re.I)
+
+
+def check_round_eyebrow(path):
+    """FAILs for BL-824 (consult-round-eyebrow): the masthead eyebrow names a
+    round (`ronda N` / `round N`) other than the page's first `consult-round`
+    meta, which the rail stamp prints. Only the MASTHEAD's eyebrow: the others
+    and gallery rows are history. Silent with no consult item, no meta, no
+    masthead or no round in its eyebrow, and in a verb's trial build (its temp
+    dir has no history, so the page there is always round 1)."""
+    if os.environ.get("AIDEX_TRIAL_BUILD") or not os.path.isfile(path):
+        return []
+    text = open(path, encoding="utf-8", errors="replace").read()
+    rnd = _round_of(text)
+    if not rnd or not consult_items(text):
+        return []
+    markup = strip_html_comments(strip_script_style(text))
+    m = MASTHEAD_OPEN.search(markup)
+    if not m:
+        return []
+    eyebrow = _EYEBROW_P.search(_subtree(markup, "header", markup.index(">", m.start()) + 1))
+    said = _EYEBROW_ROUND.search(re.sub(r"<[^>]+>", " ", eyebrow.group(1))) if eyebrow else None
+    if not said or int(said.group(1)) == rnd:
+        return []
+    # --no-reply can only RAISE the meta, so it is a remedy only for an eyebrow above it.
+    # A wrap closing round N (AIDEX_CLOSED_ROUND) under an eyebrow that names N is a
+    # repeat or a mistake: round N is already the open one, and correcting the eyebrow
+    # to N+1 would skip a round.
+    said_n = int(said.group(1))
+    if os.environ.get("AIDEX_CLOSED_ROUND") and said_n == rnd - 1:
+        fix = (f". Round {said_n} is already the open round and this wrap would "
+               f"open round {rnd}: if you are re-wrapping round {said_n}, drop "
+               f"--new-round --no-reply")
+    elif said_n > rnd:
+        fix = (f". If the session is opening this round without a reply from the "
+               f"reader, build it with --new-round --no-reply; if the eyebrow's "
+               f"number is not the consultation round, correct the eyebrow")
+    else:
+        fix = ": correct the eyebrow"
+    return [("consult-round-eyebrow", os.path.basename(path),
+             f"the masthead eyebrow says round {said.group(1)} but the page is "
+             f"consult-round {rnd}, which the rail stamp shows{fix}")]
+
+
 def _picked_only(reply_text, ident, ids):
     """The option lines of the LAST `##`/`###`-headed reply block for `ident`
     (reply_blocks) when the reader only PICKED: every non-blank line is a
@@ -4352,7 +4415,8 @@ def check_round_pick_open(path, strict=False):
     reply stay open legitimately. Applies only when the page's `consult-round`
     is past the round of `.aidex-artifact-prev/<stem>.answered.html`; a page
     claiming round > 1 with no answered snapshot or no saved reply FAILS
-    rather than passing unchecked.
+    rather than passing unchecked, unless `<stem>.closed-round` records the
+    previous round as closed without a reply (BL-824).
 
     `strict` (check-artifact `--new-round`, which the wrap passes on the build
     that OPENS a round): every bare pick must be decided. Without it (the
@@ -4371,6 +4435,8 @@ def check_round_pick_open(path, strict=False):
     rnd = _round_of(text)
     if rnd <= 1 or not any(i != "notes" for i in ordinary_item_ids(text)):
         return []                       # round 1, or no question item (a plain read)
+    if _closed_round_of(prev_dir, stem) >= rnd - 1:
+        return []                       # the session closed round rnd-1 with no reply (BL-824)
     if not (os.path.isfile(answered) and os.path.isfile(reply)):
         return [("consult-round-pick", name,
                  f"the page is round {rnd} but the previous round's saved "
@@ -4727,8 +4793,9 @@ def baseline_hygiene(walk_root):
                 page_there = os.path.exists(os.path.join(dirpath, page))
                 # save_reply.py's companions are keyed by STEM, not page name:
                 # `<stem>.reply.md` and `<stem>.answered.html` belong to
-                # `<stem>.html` (BL-546). Either spelling being there keeps them.
-                companion = re.sub(r"\.(reply\.md|answered\.html)$", ".html", e)
+                # `<stem>.html` (BL-546); so is wrap's `<stem>.closed-round` (BL-824).
+                # Either spelling being there keeps them.
+                companion = re.sub(r"\.(reply\.md|answered\.html|closed-round)$", ".html", e)
                 if companion != e:
                     page_there = page_there or os.path.exists(
                         os.path.join(dirpath, companion))
@@ -4918,6 +4985,7 @@ def main(argv):
         warnings.extend(spec_warns)
         failures.extend(check_decided_trace(f))
         failures.extend(check_round_pick_open(f, strict=new_round))
+        failures.extend(check_round_eyebrow(f))
 
     for check, name, msg in failures:
         print(f"  FAIL [{check}] {name}: {msg}")

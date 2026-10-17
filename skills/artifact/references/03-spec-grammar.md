@@ -786,6 +786,7 @@ Closed vocabularies the builder refuses outside of (M1):
 - `spec_verbs.py decide` on a `select=many` item records the labels in the options' own order, whatever order the verdict named them in; the same set in another order is already recorded (byte-identical, no new round stamp).
 - A `verdict` block holding a header and a separator but no cell row is refused (`one row per cell`), not built as an empty box.
 - `spec_build.py --new-round` needs `-o <out.html>`, like `--check`; without it the flag is refused instead of ignored.
+- `spec_build.py --no-reply` needs `--new-round`: it opens a round the reader sent no reply to, and is refused when the round has a saved reply (BL-824).
 - Item ids that differ only by case (`Q1`, `q1`) are refused; other blocks only collide on the exact id.
 - An option's hint is separated by ` — `; a spaced ` - ` or ` -- ` is refused.
 - A `pill`/`chip` tone is one of `md_body.SPAN_TONES`; a malformed or unknown tone is refused.
