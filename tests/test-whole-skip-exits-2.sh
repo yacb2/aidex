@@ -21,14 +21,8 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 cd "$REPO_ROOT"
 SELF="tests/test-whole-skip-exits-2.sh"
 
-# TEMP allowance (P4, owned by the main session at integration): the two whole-skip sites of
-# test-composer-functional.sh (echo lines 60 and 120; their exit 0 is 61 and 121) are fixed in
-# another unit. Delete this line when that edit lands.
-ALLOW_TEMP='skills/artifact/tests/test-composer-functional.sh:(60|120)'
-
 PY='
 import os, re, sys
-allow = re.compile(os.environ["ALLOW"] + r"$")
 self_path = os.environ["SELF"]
 sh_exit = re.compile(r"\bexit 0\b")
 py_exit = re.compile(r"\b(return|sys\.exit\(0\)|exit\(0\)|raise SystemExit\(0\))\s*$")
@@ -50,12 +44,12 @@ for rec in sys.stdin.buffer.read().split(b"\n"):
         examined += 1
         prev = (path, n)
         same = re.search(r";\s*(return|sys\.exit\(0\)|exit\(0\))\s*$", text) if py else sh_exit.search(text)
-        if same and not allow.match(f"{path}:{n}"):
+        if same:
             bad.append(f"{path}:{n}: {text.strip()}")
     elif prev and prev == (path, n - 1):
         nxt = text.strip()
         hit = py_exit.fullmatch(nxt) if py else re.match(r"exit 0\b", nxt)
-        if hit and not allow.match(f"{path}:{prev[1]}"):
+        if hit:
             bad.append(f"{path}:{prev[1]}: SKIP then exit at line {n}")
         prev = None
     else:
@@ -73,7 +67,7 @@ grc=$?
 if [[ $grc -ne 0 && $grc -ne 1 ]]; then
   echo "FAIL: git grep exited $grc — the lint could not read the tree"; exit 1
 fi
-res="$(ALLOW="$ALLOW_TEMP" SELF="$SELF" python3 -I -c "$PY" <"$raw")" \
+res="$(SELF="$SELF" python3 -I -c "$PY" <"$raw")" \
   || { echo "FAIL: the SKIP scanner crashed"; exit 1; }
 examined="$(printf '%s\n' "$res" | sed -n 1p)"
 out="$(printf '%s\n' "$res" | sed 1d)"

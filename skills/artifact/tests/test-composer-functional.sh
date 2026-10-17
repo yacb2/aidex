@@ -58,7 +58,7 @@ for c in "${AIDEX_CHROME:-}" \
 done
 if [[ -z "$CHROME" ]]; then
   echo "SKIP: no Chrome/Chromium binary found — the composer functional test DID NOT RUN"
-  exit 0
+  exit 2
 fi
 # Chrome.app's new headless gives its default window a 756x469 viewport; the
 # shell gives 800x600, and the cells were written against the former (at 600 px
@@ -118,7 +118,7 @@ printf '<!doctype html><title>pre</title>' > "$TMP/pre.html"
 chrome_dump "$TMP/pre.dom" "file://$TMP/pre.html" 20
 if ! grep -q '<title>pre</title>' "$TMP/pre.dom"; then
   echo "SKIP: Chrome exists but cannot run headless in this environment — the composer functional test DID NOT RUN"
-  exit 0
+  exit 2
 fi
 rm -rf "$TMP/profile"
 
