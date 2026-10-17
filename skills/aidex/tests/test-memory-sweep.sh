@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# test-memory-sweep.sh — the first test this script has ever had.
+# test-memory-sweep.sh — the one test home for memory-sweep.py: fixture-graded content checks,
+# lockstep with the rule, and the MEM-* hygiene checks plus --reindex (section 10).
 #
 # Until 2026-08-31 memory-sweep.py's own header claimed it "ships with" an adversarial
 # test. It did not. That is the exact shape the 2026-07-25 suite audit named — a checker
@@ -337,6 +338,93 @@ AFTER="$(find "$FIX" -type f -exec shasum {} \; | shasum)"
 [[ "$BEFORE" == "$AFTER" ]] \
   && pass "a sweep changed nothing on disk" \
   || fail "the sweep modified the fixture tree — it is documented as read-only"
+
+# --- 10. MEM-* hygiene checks and --reindex (merged from tests/test-memory-sweep.sh, M2) --
+# Each MEM-* rule gets a fixture that must trip it, plus a clean tree that must not. The
+# fixtures are written inline into their own dir, so section 1-9 state is untouched.
+SWEEP="$SCRIPT"
+M="$TMP/mem"; mkdir -p "$M"
+check() { if eval "$2"; then pass "$1"; else fail "$1"; fi; }
+mem() { mkdir -p "$M/$1/memory"; printf '%s' "$3" > "$M/$1/memory/$2"; }
+typed_body() { printf -- '---\nname: x\nmetadata:\n  type: %s\n---\n\n%s\n' "$1" "$2"; }
+filler() { python3 -c "import sys; print(' '.join(['word']*int(sys.argv[1])))" "$1"; }
+
+echo "== clean tree =="
+mem clean-proj a.md "$(typed_body project "one durable fact")"
+mem clean-proj MEMORY.md "- [a](a.md) — hook"
+OUT="$(AIDEX_MEMORY_ROOT="$M" python3 "$SWEEP" 2>&1)"; RC=$?
+check "clean tree exits 0" '[[ $RC -eq 0 ]]'
+check "clean tree says so" '[[ "$OUT" == *"clean"* ]]'
+
+echo "== MEM-LOG: a memory over the word budget =="
+mem log-proj big.md "$(typed_body project "$(filler 900)")"
+OUT="$(AIDEX_MEMORY_ROOT="$M" python3 "$SWEEP" 2>&1)"; RC=$?
+check "oversize memory is reported" '[[ "$OUT" == *"MEM-LOG"* && "$OUT" == *"big.md"* ]]'
+check "any finding exits 1" '[[ $RC -eq 1 ]]'
+# The boundary matters: 800 is the budget, so exactly-800 must NOT trip it.
+rm -rf "${M:?}/log-proj"
+mem edge-proj edge.md "$(printf -- '---\nname: x\nmetadata:\n  type: project\n---\n%s\n' "$(filler 793)")"
+EDGE_WORDS="$(wc -w < "$M/edge-proj/memory/edge.md" | tr -d ' ')"
+OUT="$(AIDEX_MEMORY_ROOT="$M" python3 "$SWEEP" 2>&1)"
+check "a memory exactly at the budget ($EDGE_WORDS w) is not flagged" '[[ "$EDGE_WORDS" -eq 800 && "$OUT" != *"MEM-LOG"* ]]'
+rm -rf "${M:?}/edge-proj"
+
+echo "== MEM-TYPE: no type: front-matter =="
+mem type-proj untyped.md "$(printf -- '---\nname: x\n---\n\nfact\n')"
+OUT="$(AIDEX_MEMORY_ROOT="$M" python3 "$SWEEP" 2>&1)"
+check "untyped memory is reported" '[[ "$OUT" == *"MEM-TYPE"* && "$OUT" == *"untyped.md"* ]]'
+rm -rf "${M:?}/type-proj"
+
+echo "== MEM-INDEX: always-on index over budget =="
+mem index-proj MEMORY.md "$(filler 1300)"
+mem index-proj a.md "$(typed_body project fact)"
+OUT="$(AIDEX_MEMORY_ROOT="$M" python3 "$SWEEP" 2>&1)"
+check "oversize index is reported" '[[ "$OUT" == *"MEM-INDEX"* ]]'
+# MEMORY.md is the index, never a memory — it must not also trip the per-file budget.
+check "the index is not counted as a memory" '[[ "$OUT" != *"MEM-LOG"* ]]'
+check "the index is not counted in the memory total" '[[ "$OUT" == *"2 memories"* ]]'
+rm -rf "${M:?}/index-proj"
+
+echo "== MEM-TMP: memory under a throwaway project path =="
+mem -private-tmp-scratch a.md "$(typed_body project fact)"
+OUT="$(AIDEX_MEMORY_ROOT="$M" python3 "$SWEEP" 2>&1)"
+check "throwaway project dir is reported" '[[ "$OUT" == *"MEM-TMP"* ]]'
+check "and the fix is a concrete command" '[[ "$OUT" == *"rm -rf"* ]]'
+rm -rf "${M:?}/-private-tmp-scratch"
+
+echo "== MEM-DUP: byte-identical memory directories =="
+mem dup-a a.md "$(typed_body project "same bytes")"
+mem dup-b a.md "$(typed_body project "same bytes")"
+OUT="$(AIDEX_MEMORY_ROOT="$M" python3 "$SWEEP" 2>&1)"
+check "identical dirs are reported once as a group" '[[ "$(grep -c "MEM-DUP" <<<"$OUT")" -eq 1 ]]'
+check "the group names both projects" '[[ "$OUT" == *"dup-a"* && "$OUT" == *"dup-b"* ]]'
+# Two dirs that merely share a filename are NOT duplicates.
+printf '%s' "$(typed_body project "different bytes")" > "$M/dup-b/memory/a.md"
+OUT="$(AIDEX_MEMORY_ROOT="$M" python3 "$SWEEP" 2>&1)"
+check "different content is not a duplicate" '[[ "$OUT" != *"MEM-DUP"* ]]'
+rm -rf "${M:?}/dup-a" "${M:?}/dup-b"
+
+echo "== --reindex: a deleted memory must not leave a live-looking index line =="
+# A cleanup deletes memory FILES and nothing touches MEMORY.md, so every deletion leaves
+# a dead line that reads exactly like a live fact, at full always-on cost, forever.
+rm -rf "${M:?}"/*
+mem ri-proj a.md "$(typed_body project "a durable fact")"
+mem ri-proj b.md "$(typed_body project "another durable fact")"
+printf -- '- [A](a.md) - hook\n- [B](b.md) - hook\n- [Gone](gone.md) - hook\n' > "$M/ri-proj/memory/MEMORY.md"
+OUT="$(AIDEX_MEMORY_ROOT="$M" python3 "$SWEEP" --reindex --dry-run --project=ri-proj 2>&1)"
+check "dry run reports the dead line" '[[ "$OUT" == *"would drop 1 dead line"* ]]'
+check "dry run changes nothing"       'grep -q "gone.md" "$M/ri-proj/memory/MEMORY.md"'
+OUT="$(AIDEX_MEMORY_ROOT="$M" python3 "$SWEEP" --reindex --project=ri-proj 2>&1)"
+check "the dead line is gone"         '! grep -q "gone.md" "$M/ri-proj/memory/MEMORY.md"'
+check "the live lines survive"        '[[ $(grep -c "^- \\[" "$M/ri-proj/memory/MEMORY.md") -eq 2 ]]'
+# An unlinked memory is REPORTED, never deleted: the index is the cheap thing to rebuild.
+printf -- '---\nname: c\nmetadata:\n  type: project\n---\n\nunlinked\n' > "$M/ri-proj/memory/c.md"
+OUT="$(AIDEX_MEMORY_ROOT="$M" python3 "$SWEEP" --reindex --project=ri-proj 2>&1)"
+check "an unlinked memory is reported" '[[ "$OUT" == *"1 unlinked: c.md"* ]]'
+check "and is not deleted"             '[[ -f "$M/ri-proj/memory/c.md" ]]'
+
+# The rule names the sweep so it is reachable (lockstep, section 2, checks ids only).
+check "the rule names the sweep so it is reachable" 'grep -q "memory-sweep.py" "$RULE"'
 
 # ----------------------------------------------------------------------------------
 if [[ $FAILURES -eq 0 ]]; then

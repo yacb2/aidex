@@ -88,7 +88,7 @@ zero. §7.4's k≥2 rule and §7.7's one-variable rule both apply to any re-test
 user-level settings rather than replacing them — probed directly, control and test arms.
 The harness overlay at `eval-pty.sh` carries only a `permissions` key, so **any
 `UserPromptSubmit` hook registered in the user's global settings is live inside every eval
-run.** `hooks/aidex-router.sh` is such a hook and it fires on 165 of the 311 cases in
+run.** `docs/retired/hooks/aidex-router.sh` (since retired) was such a hook and it fired on 165 of the 311 cases in
 `skills/*/evals/`, naming the exact skill under test on most fired positives — while the
 success predicate is that skill's marker file, making a hook-forced invocation
 indistinguishable from semantic selection. Runs 1–6 (May 2026) **predate the router**

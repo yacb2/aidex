@@ -216,7 +216,7 @@ what the skill would add, so the without-arm scores too. Until 2026-09-16 the
 runner gated every case on `delta >= EVAL_MIN_DELTA`, so a full-suite run exited
 1 and named those six correct cases as failures. A gate that is wrong on six of
 nineteen is a gate the operator learns to ignore, which is exactly how
-`durability-stop-hook.sh` earned its retirement.
+`docs/retired/hooks/durability-stop-hook.sh` earned its retirement.
 
 Mark such a case in its `case.yaml`:
 

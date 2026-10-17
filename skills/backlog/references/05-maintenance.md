@@ -1,0 +1,15 @@
+# Backlog maintenance sub-actions
+
+> Split out of `SKILL.md` (C6, 2026-10-17): one-time fleet migrations, the language report and the
+> estimate calibration. They serve legacy states that are rare now, so they load on demand. The
+> scripts stay in `scripts/`; this file only holds their dispatch rows. Paths below are relative
+> to `skills/backlog/`.
+
+| Command | Script | Purpose |
+|---|---|---|
+| `bash scripts/normalize-language.sh` | [scripts/normalize-language.sh](../scripts/normalize-language.sh) | **Reports** backlog bodies that read Spanish-dominant (D-04). Read-only, and it translates nothing — rewriting an item's prose is a human or assisted step, never automatic. No second detector: it filters `validate.py --type backlog --json` for `body-language-not-english`, so the sweep and the validator can never disagree. Exit 1 when any item is reported |
+| `bash scripts/migrate-ids.sh [--apply]` | [scripts/migrate-ids.sh](../scripts/migrate-ids.sh) | Backfill stable `id: BL-NNN` into items predating the id scheme (D-09). Idempotent. **Only safe where every existing id already conforms** — it skips any file that has an id, and feeds every id's digits into its max, so one legacy `BL-20260610` makes it mint `BL-20260611`. Use `renumber-ids.py` where that is the case |
+| `python3 scripts/renumber-ids.py [--apply]` | [scripts/renumber-ids.py](../scripts/renumber-ids.py) | Make the **open queue's** ids conforming: insert one where absent, replace a nonconforming one and rewrite every citation of the old code. `_archive/`/`_deferred/` keep theirs, so citations from closed work stay valid. New ids allocate above the project's highest conforming id. Dry-run by default; tars `.context/` to `_tmp/` before writing |
+| `python3 scripts/migrate-filenames.py [--apply]` | [scripts/migrate-filenames.py](../scripts/migrate-filenames.py) | Move open items to `YYYY-MM-DD-bl-nnn-<slug>.md` and rewrite every inbound reference in the same pass. Skips and reports items with a non-`BL-NNN` id, a duplicate id, no date prefix, or a filename a commit message cites; aborts if `git log` fails (a vendored repo only warns). Requires the dangling-ref count equal before and after. Dry-run by default; same `_tmp/` backup |
+| `bash scripts/migrate-priorities.sh [--apply]` | [scripts/migrate-priorities.sh](../scripts/migrate-priorities.sh) | Idempotent: normalize legacy `**Priority**: High/Low/...` to P0–P3 codes. Dry-run by default |
+| `python3 scripts/estimate-calibration.py [--from <dir>] [--project <p>]` | [scripts/estimate-calibration.py](../scripts/estimate-calibration.py) | **A read, never a gate**: scores closed items' `estimate:` against realized effort from the usage-retro miner, per bucket, with median **and** p90/max plus tail concentration. Prints no single accuracy number — one would average the flat middle with the spreading tail. Not wired into any lifecycle script and never blocks a run; it is measurement feedback, not a prompt for a better estimate. A full run mines the corpus (~4 min); `--from` reuses a previous run |

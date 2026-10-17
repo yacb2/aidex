@@ -23,7 +23,7 @@
 # ---------------------------------------------------------------------------
 # SUNSET CRITERION — review 2026-11-30, three months from 2026-08-31
 # ---------------------------------------------------------------------------
-# This repo retired `durability-stop-hook.sh` on 2026-08-03 after "4 blocks, 0
+# This repo retired `durability-stop-hook.sh` (now docs/retired/hooks/) on 2026-08-03 after "4 blocks, 0
 # justified, 4 misfires". It could retire it because the criterion had been written
 # down in advance. A new BLOCKing hook without one repeats the failure the retirement
 # was supposed to teach, so:

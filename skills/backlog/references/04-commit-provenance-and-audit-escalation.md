@@ -15,6 +15,13 @@ directly (no plan); in the **plan** (per phase) when escalated — never both.
 - **Trailers:** `Backlog: BL-007` (fixed directly) · `Plan: <slug>#<phase>` (escalated).
 - The harvester is idempotent and a silent no-op when no trailer is present.
 
+## Commit-hook sub-actions
+
+| Command | Script | Purpose |
+|---|---|---|
+| `bash scripts/install-commit-hook.sh` | [scripts/install-commit-hook.sh](../scripts/install-commit-hook.sh) | Wire a repo-local post-commit hook that harvests commit SHAs from trailers into `commits:` (D-09). Idempotent; never global |
+| `bash scripts/harvest-commit.sh [--sha <s>] [--message <m>]` | [scripts/harvest-commit.sh](../scripts/harvest-commit.sh) | The harvester the hook calls; parses `Backlog:`/`Plan:` trailers and records the SHA. Cross-artifact |
+
 ## Integration with audits (`/aidex:audit escalate <id>`)
 
 When called by `/aidex:audit escalate <id>`, the skill:
