@@ -3,6 +3,7 @@ name: verify-browser-opus
 description: Use when a screen's appearance must be judged in the running app and no measurable property decides it (visual hierarchy, balance, "does it look right"). Needs the chrome-devtools MCP server. Handoff - the URL, the steps, the viewports, what a good result looks like, and a screenshot directory. Drives Chrome DevTools, leaves the page open, returns a judgment with reasons and screenshot paths, never images. Not for measurable checks (overflow, contrast, clipping, spacing, a named state - use aidex:verify-browser-sonnet), authenticated personal accounts or E2E suites (Playwright).
 model: opus
 effort: medium
+omitClaudeMd: true
 tools: Bash, Read, Edit, Write, mcp__chrome-devtools__new_page, mcp__chrome-devtools__list_pages, mcp__chrome-devtools__select_page, mcp__chrome-devtools__navigate_page, mcp__chrome-devtools__resize_page, mcp__chrome-devtools__emulate, mcp__chrome-devtools__take_snapshot, mcp__chrome-devtools__take_screenshot, mcp__chrome-devtools__click, mcp__chrome-devtools__hover, mcp__chrome-devtools__fill, mcp__chrome-devtools__fill_form, mcp__chrome-devtools__type_text, mcp__chrome-devtools__press_key, mcp__chrome-devtools__wait_for, mcp__chrome-devtools__handle_dialog, mcp__chrome-devtools__evaluate_script, mcp__chrome-devtools__list_console_messages, mcp__chrome-devtools__get_console_message, mcp__chrome-devtools__list_network_requests, mcp__chrome-devtools__get_network_request
 ---
 # Browser verification worker
