@@ -72,13 +72,27 @@ def cmd_hash(root, cmd):
 
 def approved(cmd):
     """A cmd: front-matter value is arbitrary shell, and a cloned repo's backlog is not trusted:
-    it runs only when `defer-item.sh defer --ready-when` (the owner) wrote sha256(root \\n cmd)
-    into the local, untracked allowlist."""
-    path = os.environ.get('AIDEX_READY_WHEN_ALLOW') or os.path.expanduser('~/.claude/aidex/ready-when-allow.txt')
+    it runs only when the owner put sha256(root \\n cmd) into the local, untracked allowlist
+    with approve-ready-when.sh (which needs a terminal, so an agent cannot)."""
+    path = os.path.expanduser('~/.claude/aidex/ready-when-allow.txt')  # fixed: a repo-shipped env cannot move it
+    root = os.path.realpath(ROOT)
+    real = os.path.realpath(path)
+    if real == root or real.startswith(root + os.sep):  # an allowlist inside the project is the project's, not the owner's
+        return False
     try:
         return cmd_hash(ROOT, cmd) in open(path).read().split()
     except OSError:
         return False
+
+
+def show(text):
+    """Text for a terminal: every non-printable character escaped (`\\x1b`), so a cmd: cannot hide itself."""
+    return ''.join(c if c.isprintable() else c.encode('unicode_escape').decode() for c in text)
+
+
+def approve_line(bl):
+    return (f"! bash {os.path.join(os.path.dirname(os.path.abspath(__file__)), 'approve-ready-when.sh')} {bl}"
+            "   (owner only: agents must not run this)")
 
 
 def ready(value):
@@ -251,7 +265,7 @@ def main():
             needs.append(i)
         elif i['ready_when'] and (i.setdefault('ready', ready(i['ready_when']))) is not True:
             rw = i['ready_when']
-            i['reason'] = 'waiting: ' + ('needs approval: ' + rw[4:].strip() if i['ready'] == APPROVE else rw)
+            i['reason'] = 'waiting: ' + ('needs approval: ' + show(rw[4:].strip()) if i['ready'] == APPROVE else show(rw))
             review.append(i)
         elif i['signals']:
             i['reason'] = ', '.join(i['signals'])
@@ -298,12 +312,15 @@ def main():
     print()
     print(f'DEFERRED — condition check ({len(deferred)}) — READY items go back with `defer-item.sh reactivate`')
     for i in deferred:
-        why = {'READY': i['ready_when'], 'WAITING': i['ready_when'],
-               'NEEDS APPROVAL': 'not run, not approved: ' + i['ready_when'],
-               'BAD FORM': 'ready_when ' + i['ready_when'] + ' (not date:YYYY-MM-DD or cmd:...)',
+        rw = show(i['ready_when'])
+        why = {'READY': rw, 'WAITING': rw,
+               'NEEDS APPROVAL': 'not run, not approved: ' + rw,
+               'BAD FORM': 'ready_when ' + rw + ' (not date:YYYY-MM-DD or cmd:...)',
                'ASK OWNER': 'blocked_by ' + i['blocked_by']}[i['verdict']]
-        print(f"  {i['id']:8} {i['priority']:3} {i['verdict']:9} {i['title'][:50]}")
-        print(f"  {'':8} {'':3} {'':9} {why}")
+        print(f"  {i['id']:8} {i['priority']:3} {i['verdict']:14} {i['title'][:50]}")
+        print(f"  {'':8} {'':3} {'':14} {why}")
+        if i['verdict'] == 'NEEDS APPROVAL':
+            print(f"  {'':8} {'':3} {'':14} {approve_line(i['id'])}")
 
 
 if __name__ == '__main__':

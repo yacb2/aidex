@@ -10,7 +10,8 @@
 # Options:
 #   --reason "<text>"   (defer) the external blocker; sets/appends `blocked_by`. Required.
 #   --ready-when "<v>"  (defer) when it can come back: `date:YYYY-MM-DD` or `cmd:<shell command>`
-#                       (met on exit 0; a cmd: is approved by this very write, see the conventions).
+#                       (met on exit 0). A cmd: is NOT approved by this write:
+#                       the owner approves it with approve-ready-when.sh (needs a terminal).
 #                       Optional; for date/count waits, not human-event waits.
 #   --no-index          skip index regeneration
 #
@@ -84,18 +85,11 @@ if [[ "$ACTION" == "defer" ]]; then
   if [[ -n "$READY_WHEN" ]] && ! python3 -c '
 import datetime, re, sys
 v = sys.argv[1]
+if re.search(r"[\t\r\n]", v): sys.exit(1)   # stored with spaces, hashed raw: refuse
 if v.startswith("cmd:") and v[4:].strip(): sys.exit(0)
 if re.fullmatch(r"date:\d{4}-\d{2}-\d{2}", v): datetime.date.fromisoformat(v[5:]); sys.exit(0)
 sys.exit(1)' "$READY_WHEN" 2>/dev/null; then
     die "--ready-when must be date:YYYY-MM-DD or cmd:<shell command>"
-  fi
-  if [[ "$READY_WHEN" == cmd:* ]]; then
-    # the owner writing a cmd: through defer IS the approval: sweep-eligible.py runs only hashes listed here
-    ALLOW="${AIDEX_READY_WHEN_ALLOW:-$HOME/.claude/aidex/ready-when-allow.txt}"
-    HASH="$(python3 -c 'import hashlib, os, sys
-print(hashlib.sha256((os.path.realpath(sys.argv[1]) + "\n" + sys.argv[2][4:].strip()).encode()).hexdigest())' "$ROOT" "$READY_WHEN")"
-    mkdir -p "$(dirname "$ALLOW")"; touch "$ALLOW"
-    grep -qxF "$HASH" "$ALLOW" || printf '%s\n' "$HASH" >> "$ALLOW"
   fi
   DI_READY="$(yaml_escape "$READY_WHEN")" DI_REASON="$(yaml_escape "$REASON")" rewrite "$FILE" -v today="$TODAY" '
     BEGIN { d=0; infm=0; seen_blocked=0; reason=ENVIRON["DI_REASON"]; ready=ENVIRON["DI_READY"] }

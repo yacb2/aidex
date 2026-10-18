@@ -179,6 +179,11 @@ def order(part, bdir, inc, exc):
             'deferred': part.get('deferred', [])}
 
 
+def show(text):
+    """Every non-printable character escaped, so a cmd: cannot hide itself on a terminal."""
+    return ''.join(c if c.isprintable() else c.encode('unicode_escape').decode() for c in text)
+
+
 def summary(d):
     print("QUEUE (%d items, %d clusters) — in execution order" % (d["n_eligible"], len(d["queue"])))
     n = 1
@@ -201,11 +206,14 @@ def summary(d):
     for i in d["needs_decision"]:
         print("  %-8s %-3s %-3s  %-22s %s" % (i["id"], i["priority"], i["estimate"], i["reason"], i["title"][:50]))
     shown = [i for i in d["deferred"] if i["verdict"] != "WAITING"]
-    print("\nDEFERRED — condition check (%d, %d shown: READY go back with defer-item.sh reactivate, ASK OWNER need a date, BAD FORM need a fix, NEEDS APPROVAL were not written by defer)" % (len(d["deferred"]), len(shown)))
+    print("\nDEFERRED — condition check (%d, %d shown: READY go back with defer-item.sh reactivate, ASK OWNER need a date, BAD FORM need a fix, NEEDS APPROVAL are owner-approved)" % (len(d["deferred"]), len(shown)))
     for i in shown:
-        print("  %-8s %-3s %-9s %s" % (i["id"], i["priority"], i["verdict"], i["title"][:50]))
+        print("  %-8s %-3s %-14s %s" % (i["id"], i["priority"], i["verdict"], i["title"][:50]))
         if i["verdict"] in ("BAD FORM", "NEEDS APPROVAL"):
-            print("  %-8s %-3s %-9s ready_when %s" % ("", "", "", i["ready_when"]))
+            print("  %-8s %-3s %-14s ready_when %s" % ("", "", "", show(i["ready_when"])))
+        if i["verdict"] == "NEEDS APPROVAL":
+            print("  %-8s %-3s %-14s ! bash %s %s   (owner only: agents must not run this)" % (
+                "", "", "", os.path.join(os.path.dirname(os.path.abspath(__file__)), "approve-ready-when.sh"), i["id"]))
 
 
 def main():

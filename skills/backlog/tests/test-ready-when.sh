@@ -9,7 +9,7 @@ SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts" && pwd -P)"
 PASS=0 FAIL=0
 ok()  { printf '  ok: %s\n' "$1"; PASS=$((PASS+1)); }
 bad() { printf '  FAIL: %s\n' "$1" >&2; FAIL=$((FAIL+1)); }
-TMP="$(mktemp -d)"; export AIDEX_READY_WHEN_ALLOW="$TMP/no-such-dir/allow.txt"; trap 'rm -rf "$TMP"' EXIT
+TMP="$(mktemp -d)"; export HOME="$TMP/home"; ALLOWFILE="$HOME/.claude/aidex/ready-when-allow.txt"; mkdir -p "$HOME"; trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/p/.context/backlog" "$TMP/p/src/gap"; : > "$TMP/p/src/gap/lane.py"; cd "$TMP/p"
 B="$TMP/p/.context/backlog"
 reg() { bash "$SCRIPTS/register-item.sh" --origin manual --no-index "$@" 2>/dev/null; }
@@ -25,6 +25,12 @@ PY
   bash "$SCRIPTS/define-item.sh" "$f" --touches "src/gap" --no-index >/dev/null 2>&1
   printf '%s' "$f"
 }
+# the owner's approval, seeded straight into the temp project's allowlist (approve-ready-when.sh needs a TTY)
+seed() { local root="${SEED_ROOT:-$TMP/p}"; python3 -c 'import importlib,os,sys
+sys.path.insert(0, sys.argv[1]); se = importlib.import_module("sweep-eligible")
+os.makedirs(os.path.dirname(sys.argv[2]), exist_ok=True)
+open(sys.argv[2], "a").write(se.cmd_hash(sys.argv[3], sys.argv[4][4:].strip()) + "\n")' "$SCRIPTS" "$HOME/.claude/aidex/ready-when-allow.txt" "$root" "$1"; }
+defer_cmd() { bash "$DFR" defer "$1" --reason "${3:-r}" --ready-when "$2" --no-index >/dev/null 2>&1; seed "$2"; }
 raw() { awk -v k="$2" '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && index($0, k": ")==1 {print substr($0, length(k)+3); exit}' "$1"; }
 verdict() { python3 "$SCRIPTS/sweep-eligible.py" --json | python3 -c 'import json,sys
 d=json.load(sys.stdin); print({i["id"]:i["verdict"] for i in d["deferred"]}[sys.argv[1]], end="")' "$1"; }
@@ -37,13 +43,15 @@ A="$(mk "past date")"; Bf="$(mk "future date")"; C="$(mk "cmd true")"; D="$(mk "
 bash "$DFR" defer BL-001 --reason "r1" --ready-when "$PAST" --no-index >/dev/null 2>&1
 bash "$DFR" defer BL-002 --reason "r2" --ready-when "$FUT" --no-index >/dev/null 2>&1
 bash "$DFR" defer BL-003 --reason "r3" --ready-when "cmd:test -f src/gap/lane.py" --no-index >/dev/null 2>&1
-bash "$DFR" defer BL-004 --reason "r4" --ready-when "cmd:test -f nope.txt" --no-index >/dev/null 2>&1
+[[ ! -e "$ALLOWFILE" ]] && ok "defer --ready-when cmd: never writes the allowlist (an agent cannot approve)" || bad "defer wrote the allowlist"
+seed "cmd:test -f src/gap/lane.py"
+defer_cmd BL-004 "cmd:test -f nope.txt" r4
 bash "$DFR" defer BL-005 --reason "owner answer" --no-index >/dev/null 2>&1
 DEFD="$B/_deferred"
 [[ "$(raw "$DEFD"/*bl-001*.md ready_when)" == "\"$PAST\"" ]] && ok "defer --ready-when writes the field" || bad "write: $(raw "$DEFD"/*bl-001*.md ready_when)"
 [[ -z "$(raw "$DEFD"/*bl-005*.md ready_when)" ]] && ok "defer without --ready-when writes none" || bad "bl-005 has ready_when"
 X="$(mk "format target")"   # BL-006, active: the refusal must come from the format check
-for bad_v in "tomorrow" "date:2026-02-30" "cmd:" "cmd: "; do
+for bad_v in "tomorrow" "date:2026-02-30" "cmd:" "cmd: " $'cmd:echo\ta' $'cmd:echo\ra' $'cmd:echo\na'; do
   bash "$DFR" defer BL-006 --reason x --ready-when "$bad_v" --no-index >/dev/null 2>"$TMP/e"; RC=$?
   [[ $RC -ne 0 ]] && grep -q -- "--ready-when must be" "$TMP/e" && [[ -f "$X" ]] \
     && ok "ready_when '$bad_v' is refused by the format check, item stays in the root" || bad "refuse '$bad_v': rc=$RC err=$(cat "$TMP/e")"
@@ -89,13 +97,13 @@ PY
 sect_has eligible BL-009 && bad "unrecognised ready_when 'Date:2999-01-01' reached ELIGIBLE" || { sect_has review BL-009 && ok "unrecognised ready_when parks the item in REVIEW" || bad "BL-009 nowhere"; }
 
 echo ok > flag.txt
-bash "$DFR" defer BL-010 --reason r --ready-when 'cmd:grep -q "ok" flag.txt' --no-index >/dev/null 2>&1
+defer_cmd BL-010 'cmd:grep -q "ok" flag.txt'
 [[ "$(verdict BL-010)" == READY ]] && ok "cmd with double quotes survives yaml escaping: READY" || bad "quoted cmd: $(verdict BL-010) raw=$(raw "$DEFD"/*bl-010*.md ready_when)"
 J2="$(mk "bracket cmd")"
-bash "$DFR" defer BL-011 --reason r --ready-when 'cmd:[ "$(cat flag.txt)" = ok ]' --no-index >/dev/null 2>&1
+defer_cmd BL-011 'cmd:[ "$(cat flag.txt)" = ok ]'
 [[ "$(verdict BL-011)" == READY ]] && ok "cmd with an inner quoted substitution compared to an unquoted word: READY" || bad "bracket cmd: $(verdict BL-011)"
 J3="$(mk "trailing quote cmd")"
-bash "$DFR" defer BL-012 --reason r --ready-when 'cmd:test "$(cat flag.txt)" = ok && echo "done"' --no-index >/dev/null 2>&1
+defer_cmd BL-012 'cmd:test "$(cat flag.txt)" = ok && echo "done"'
 [[ "$(verdict BL-012)" == READY ]] && ok "cmd ending in an escaped quote: READY" || bad "trailing quote cmd: $(verdict BL-012)"
 
 K="$(mk "today")"; bash "$DFR" defer BL-013 --reason r --ready-when "date:$(date +%Y-%m-%d)" --no-index >/dev/null 2>&1
@@ -108,7 +116,7 @@ print({i["id"]:i["verdict"] for i in json.load(sys.stdin)["deferred"]}["BL-010"]
 
 # a timed-out cmd leaves no child behind
 L="$(mk "slow cmd")"; MARK="$TMP/slow-$$"
-bash "$DFR" defer BL-014 --reason r --ready-when "cmd:sleep 31$$ & wait" --no-index >/dev/null 2>&1
+defer_cmd BL-014 "cmd:sleep 31$$ & wait"
 python3 "$SCRIPTS/sweep-eligible.py" --json >/dev/null 2>&1
 if pgrep -f "sleep 31$$" >/dev/null; then pkill -f "sleep 31$$"; bad "timed-out cmd left its child running"; else ok "timed-out cmd leaves no child process"; fi
 [[ "$(verdict BL-014)" == WAITING ]] && ok "a timed-out cmd is WAITING, not an error" || bad "timeout verdict: $(verdict BL-014)"
@@ -162,13 +170,8 @@ grep -q "BL-017 .*outside this repo" "$TMP/ko3" && ! grep -qF "twice over" "$TMP
   && ok "a long non-waiting REVIEW reason prints no overflow line" || bad "overflow for non-waiting reason: $(grep -n 'BL-017' -A2 "$TMP/ko3")"
 
 # --- cmd: approval (security): a cmd: runs only when the local allowlist holds its hash ---
-ALLOW="$AIDEX_READY_WHEN_ALLOW"; MK="$TMP/marker"
-[[ -s "$ALLOW" ]] && ok "defer --ready-when cmd: created the allowlist (and its missing directory)" || bad "allowlist not created"
-bash "$DFR" defer BL-017 --reason r --ready-when "cmd:test -f src/gap/lane.py" --no-index >/dev/null 2>&1
-bash "$DFR" reactivate BL-017 --no-index >/dev/null 2>&1; bash "$DFR" defer BL-017 --reason r --ready-when "cmd:test -f src/gap/lane.py" --no-index >/dev/null 2>&1
-[[ "$(sort "$ALLOW" | uniq -d | wc -l | tr -d ' ')" == 0 ]] && ok "approving the same command twice adds no duplicate line" || bad "duplicate allowlist lines"
-
-P="$(mk "hand written cmd")"   # BL-018: a pulled-in item, never approved through defer
+ALLOW="$ALLOWFILE"; MK="$TMP/marker"
+P="$(mk "hand written cmd")"   # BL-018: a pulled-in item nobody approved
 bash "$DFR" defer BL-018 --reason r --no-index >/dev/null 2>&1
 python3 - "$DEFD"/*bl-018*.md "$MK" <<'PY'
 import sys
@@ -179,8 +182,8 @@ PY
 python3 "$SCRIPTS/sweep-eligible.py" | grep -qF "cmd:touch $MK" && ok "the command text is shown for review" || bad "command text not shown"
 
 Q="$(mk "approved via defer")"   # BL-019
-bash "$DFR" defer BL-019 --reason r --ready-when "cmd:touch $MK" --no-index >/dev/null 2>&1
-[[ "$(verdict BL-019)" == READY && -e "$MK" ]] && ok "a cmd: written through defer is approved: runs and is READY" || bad "approved via defer: $(verdict BL-019) marker=$([[ -e $MK ]] && echo yes || echo no)"
+defer_cmd BL-019 "cmd:touch $MK"
+[[ "$(verdict BL-019)" == READY && -e "$MK" ]] && ok "a cmd: whose hash the owner approved runs and is READY" || bad "approved cmd: $(verdict BL-019) marker=$([[ -e $MK ]] && echo yes || echo no)"
 rm -f "$MK"
 
 # the same text approved for ANOTHER project root is not approved here
@@ -190,10 +193,10 @@ python3 - "$DEFD"/*bl-020*.md "$MK" <<'PY'
 import sys
 p,mk=sys.argv[1:3]; t=open(p).read().replace('\ntouches:', '\nready_when: "cmd:touch %s.other"\ntouches:' % mk, 1); open(p,'w').write(t)
 PY
-OTHER="$TMP/other-allow.txt"
-python3 -c 'import hashlib,sys; print(hashlib.sha256(("/some/other/root\n"+sys.argv[1]).encode()).hexdigest())' "touch $MK.other" > "$OTHER"
-V="$(AIDEX_READY_WHEN_ALLOW="$OTHER" verdict BL-020)"
-[[ "$V" == "NEEDS APPROVAL" && ! -e "$MK.other" ]] && ok "an approval recorded for another root does not approve here" || bad "other-root approval: $V marker=$([[ -e $MK.other ]] && echo ran)"
+mkdir -p "$TMP/q/.context/backlog"
+SEED_ROOT="$TMP/q" seed "cmd:touch $MK.other"    # the very same text, approved in project q
+V="$(verdict BL-020)"
+[[ "$V" == "NEEDS APPROVAL" && ! -e "$MK.other" ]] && ok "the same command approved in project q does not approve it in project p" || bad "other-root approval: $V marker=$([[ -e $MK.other ]] && echo ran)"
 
 # an active item carrying an unapproved cmd: is REVIEW with the command, never ELIGIBLE, never run
 T="$(mk "active hand written cmd")"   # BL-021
@@ -207,5 +210,58 @@ python3 "$SCRIPTS/sweep-eligible.py" | grep -qF "waiting: needs approval: touch 
 bash "$SCRIPTS/sweep-kickoff.sh" --dry-run > "$TMP/ko4" 2>&1
 grep -q "BL-020 .*NEEDS APPROVAL" "$TMP/ko4" && grep -qF "cmd:touch $MK.other" "$TMP/ko4" \
   && ok "kickoff deferred section shows NEEDS APPROVAL with the command" || bad "kickoff NEEDS APPROVAL"
+
+# the owner line: a NEEDS APPROVAL row says how, and that it is owner only
+APPR="$SCRIPTS/approve-ready-when.sh"
+python3 "$SCRIPTS/sweep-eligible.py" > "$TMP/se" 2>&1
+grep -qF "! bash $APPR BL-020" "$TMP/se" && grep -qF "owner only: agents must not run this" "$TMP/se" && ! grep -q "defer --ready-when" "$TMP/se" \
+  && ok "sweep-eligible NEEDS APPROVAL row names approve-ready-when.sh, owner only" || bad "sweep-eligible owner line: $(grep -n 'BL-020' -A2 "$TMP/se")"
+grep -qF "! bash $APPR BL-020" "$TMP/ko4" && grep -qF "owner only: agents must not run this" "$TMP/ko4" \
+  && ok "kickoff NEEDS APPROVAL row names approve-ready-when.sh, owner only" || bad "kickoff owner line"
+
+# approve-ready-when.sh refuses without a terminal and writes nothing
+BEFORE="$(cksum < "$ALLOW")"
+bash "$APPR" BL-020 </dev/null >"$TMP/ap.out" 2>"$TMP/ap.err"; RC=$?
+[[ $RC -eq 2 && "$(cksum < "$ALLOW")" == "$BEFORE" ]] && ok "approve-ready-when.sh refuses (exit 2) without a TTY, allowlist untouched" || bad "approve no-tty: rc=$RC err=$(cat "$TMP/ap.err")"
+
+# with a pty (script(1)): n writes nothing, y appends once, a second y adds no duplicate
+if command -v script >/dev/null 2>&1; then
+  pty() { ( perl -e 'select(undef,undef,undef,1.0)'; printf '%s\n' "$1"; perl -e 'select(undef,undef,undef,1.0)' ) | script -q /dev/null bash "$APPR" BL-020 >"$TMP/ap.pty" 2>&1; }
+  pty n
+  [[ "$(cksum < "$ALLOW")" == "$BEFORE" && "$(verdict BL-020)" == "NEEDS APPROVAL" ]] && ok "answering n approves nothing" || bad "n wrote: $(cat "$TMP/ap.pty")"
+  pty y; pty y
+  grep -qF "touch $MK.other" "$TMP/ap.pty" && grep -qF "Approve this command for this project? [y/N]" "$TMP/ap.pty" \
+    && ok "approve prints the exact command and the question" || bad "approve prompt: $(cat "$TMP/ap.pty")"
+  [[ "$(verdict BL-020)" == READY && -e "$MK.other" ]] && ok "after y the command is approved: runs and is READY" || bad "after y: $(verdict BL-020)"
+  [[ "$(sort "$ALLOW" | uniq -d | wc -l | tr -d ' ')" == 0 ]] && ok "approving twice adds no duplicate line" || bad "duplicate allowlist lines"
+else
+  echo "  SKIP: script(1) not available, the TTY approval path is untested"
+fi
+
+# --- hardening: allowlist location, control characters ---
+idof() { basename "$1" | sed -E 's/^[0-9-]+(bl-[0-9]+)-.*/\1/' | tr a-z A-Z; }
+# an allowlist inside the project (HOME pointed there by a repo) is never trusted
+U="$(mk "repo allowlist")"; UID_="$(idof "$U")"
+bash "$DFR" defer "$UID_" --reason r --ready-when "cmd:touch $MK.repo" --no-index >/dev/null 2>&1
+HOME="$TMP/p/hm" seed "cmd:touch $MK.repo"
+V2="$(HOME="$TMP/p/hm" verdict "$UID_")"
+[[ "$V2" == "NEEDS APPROVAL" && ! -e "$MK.repo" ]] && ok "an allowlist under the project root is not trusted" || bad "repo allowlist honoured: $V2"
+
+# control characters in a cmd: are shown escaped, never raw, and never hide the command
+W="$(mk "escape sequence")"; WID="$(idof "$W")"
+bash "$DFR" defer "$WID" --reason r --no-index >/dev/null 2>&1
+python3 - "$(ls "$DEFD"/*"$(echo "$WID" | tr A-Z a-z)"-*.md)" <<'PY'
+import sys, json
+p=sys.argv[1]; v=json.dumps("cmd:echo hi\x1b[2K\rtrue\tx")
+t=open(p).read().replace('\ntouches:', '\nready_when: %s\ntouches:' % v, 1); open(p,'w').write(t)
+PY
+python3 "$SCRIPTS/sweep-eligible.py" > "$TMP/se2" 2>&1; bash "$SCRIPTS/sweep-kickoff.sh" --dry-run > "$TMP/ko5" 2>&1
+if LC_ALL=C grep -q $'[\x01-\x09\x0b-\x1f]' "$TMP/se2" "$TMP/ko5"; then bad "raw control bytes in the NEEDS APPROVAL output"; else ok "no control byte reaches sweep-eligible or kickoff output"; fi
+grep -qF 'echo hi\x1b[2K\rtrue\tx' "$TMP/se2" && ok "the control characters are shown escaped" || bad "escaped form missing: $(grep -n "$WID" -A2 "$TMP/se2")"
+if command -v script >/dev/null 2>&1; then
+  B2="$(cksum < "$ALLOW")"
+  ( perl -e 'select(undef,undef,undef,1.0)'; printf 'y\n'; perl -e 'select(undef,undef,undef,1.0)' ) | NO_COLOR=1 script -q /dev/null bash "$APPR" "$WID" >"$TMP/ap2" 2>&1; RC=$?
+  [[ "$(cksum < "$ALLOW")" == "$B2" ]] && ! LC_ALL=C grep -q $'\x1b' "$TMP/ap2" && ok "approve refuses a cmd with control characters and never prints them raw" || bad "approve control chars: rc=$RC"
+fi
 
 echo "passed=$PASS failed=$FAIL"; [[ $FAIL -eq 0 ]]
