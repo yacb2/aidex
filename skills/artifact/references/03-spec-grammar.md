@@ -300,6 +300,10 @@ and closes only on a bare line of **its own** marker. This is not a nicety — i
 lets a spec document this grammar, or paste a shell run that echoes `:::`, without the
 example opening a block. A code fence left unclosed at end of file takes the rest of its
 enclosing block as code (degrade, never drop) and is **not** a malformed-spec error.
+At top level the build still names it: one `WARN [unclosed-code-fence]` line on stderr
+carrying the fence's opening line, and when the swallowed lines hold a `:::` open the
+check is `unclosed-code-fence-swallows-blocks` and `spec_build.py --check` fails before
+writing the page, which stays as it was (BL-848).
 
 ## The `chart` body: data rows
 

@@ -2300,7 +2300,7 @@ def build(spec_text, lang=None, base_dir=".", page=None, warnings=None):
     lang = spec_lang(spec_text) or lang or "es"
     ctx = BuildContext(lang=lang, base_dir=base_dir, page=page,
                        warnings=warnings)
-    tree = parse(spec_text)
+    tree = parse(spec_text, warnings=ctx.warnings)
     ctx.tree = tree
     _autofix(tree, lang)
     _refuse_links(spec_text)
@@ -2561,6 +2561,15 @@ def main(argv):
         return 1
     for check, line, msg in warnings:
         sys.stderr.write("WARN [%s] %s:%d: %s\n" % (check, args.spec, line, msg))
+    if args.check and any(c == "unclosed-code-fence-swallows-blocks"
+                          for c, _, _ in warnings):
+        # BL-848: the page would be a valid kit page, so the contract passes it;
+        # only the spec knows its blocks went into a code fence (WARN above).
+        # Refused BEFORE the wrap: a failing build leaves the page as it was.
+        sys.stderr.write("spec-build: --check fails: an unclosed code fence "
+                         "swallowed `:::` blocks (see the WARN above); the "
+                         "page was not written\n")
+        return 1
 
     if not args.out:
         sys.stdout.write(body)
