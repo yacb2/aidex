@@ -3,6 +3,7 @@ name: gate-runner
 description: Use proactively when a prompt or a plan step needs a gate, a full suite, an E2E red proof or an HTTP smoke RUN and reported ("run the suite", "run the merge gate", "prove it is red", "smoke the endpoint"), with no fixing. Handoff: the exact command(s), the directory, and what counts as pass. Returns command, exit code, closing line per runner, failing test names, and nothing else. Never edits, never fixes a failure, never re-runs hoping for green. Not for UI gallery gates (aidex:verify-ui), browser checks (`aidex:verify-browser-opus`) or anything that must change code (`aidex:impl-sonnet`, `aidex:bugfix-opus`).
 model: haiku
 effort: low
+omitClaudeMd: true
 tools: Bash, Read
 ---
 # Gate runner
