@@ -91,8 +91,13 @@ def show(text):
 
 
 def approve_line(bl):
-    return (f"! bash {os.path.join(os.path.dirname(os.path.abspath(__file__)), 'approve-ready-when.sh')} {bl}"
-            "   (owner only: agents must not run this)")
+    """The owner's copy-ready approval line, or None: the id comes from front matter, so
+    only a plain BL-NNN id is ever printed into a shell line."""
+    if not re.fullmatch(r'BL-\d+', bl or ''):
+        return None
+    import shlex
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'approve-ready-when.sh')
+    return f"! bash {shlex.quote(script)} {bl}   (owner only: agents must not run this)"
 
 
 def ready(value):
@@ -320,7 +325,7 @@ def main():
         print(f"  {i['id']:8} {i['priority']:3} {i['verdict']:14} {i['title'][:50]}")
         print(f"  {'':8} {'':3} {'':14} {why}")
         if i['verdict'] == 'NEEDS APPROVAL':
-            print(f"  {'':8} {'':3} {'':14} {approve_line(i['id'])}")
+            print(f"  {'':8} {'':3} {'':14} {approve_line(i['id']) or 'approve it by hand: id ' + show(i['id']) + ' is not BL-NNN'}")
 
 
 if __name__ == '__main__':

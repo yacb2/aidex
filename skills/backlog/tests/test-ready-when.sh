@@ -264,4 +264,19 @@ if command -v script >/dev/null 2>&1; then
   [[ "$(cksum < "$ALLOW")" == "$B2" ]] && ! LC_ALL=C grep -q $'\x1b' "$TMP/ap2" && ok "approve refuses a cmd with control characters and never prints them raw" || bad "approve control chars: rc=$RC"
 fi
 
+# a hostile id never reaches the printed shell line (the id comes from front matter)
+cat > "$TMP/p/.context/backlog/_deferred/2026-10-18-bl-hostile.md" <<'HX'
+---
+title: "hostile id"
+id: "BL-77;touch /tmp/aidex-hostile-id"
+status: open
+priority: P3
+blocked_by: "r"
+ready_when: "cmd:true"
+---
+HX
+python3 "$SCRIPTS/sweep-eligible.py" > "$TMP/hx" 2>&1
+grep -q "BL-77" "$TMP/hx" && ! grep -q '! bash .*BL-77' "$TMP/hx" && ok "a non-BL-NNN id gets no runnable approve line" || bad "hostile id reached the approve line: $(grep BL-77 "$TMP/hx")"
+rm -f "$TMP/p/.context/backlog/_deferred/2026-10-18-bl-hostile.md"
+
 echo "passed=$PASS failed=$FAIL"; [[ $FAIL -eq 0 ]]

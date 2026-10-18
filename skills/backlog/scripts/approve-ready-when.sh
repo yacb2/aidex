@@ -31,7 +31,7 @@ FILE="$(resolve_backlog_target "$BACKLOG_DIR" "$TARGET" read_id fuzzy)"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # prints "<realpath root>\n<cmd text>" for the item's ready_when
-INFO="$(cd "$ROOT" && python3 - "$FILE" "$SCRIPT_DIR" <<'PY'
+INFO="$(cd "$ROOT" && python3 -I - "$FILE" "$SCRIPT_DIR" <<'PY'
 import importlib, os, re, sys
 sys.path.insert(0, sys.argv[2])
 se = importlib.import_module('sweep-eligible')
@@ -46,9 +46,9 @@ print(rw[4:].strip(), end='')
 PY
 )" || die "no cmd: ready_when on $(basename "$FILE")"
 REAL_ROOT="${INFO%%$'\n'*}"; CMD="${INFO#*$'\n'}"
-HASH="$(python3 -c 'import hashlib,sys; print(hashlib.sha256((sys.argv[1] + "\n" + sys.argv[2]).encode()).hexdigest())' "$REAL_ROOT" "$CMD")"
+HASH="$(python3 -I -c 'import hashlib,sys; print(hashlib.sha256((sys.argv[1] + "\n" + sys.argv[2]).encode()).hexdigest())' "$REAL_ROOT" "$CMD")"
 
-SHOWN="$(python3 -c 'import sys
+SHOWN="$(python3 -I -c 'import sys
 print("".join(c if c.isprintable() else c.encode("unicode_escape").decode() for c in sys.argv[1]), end="")' "$CMD")"
 printf 'Project root: %s\nCommand:      %s\n' "$REAL_ROOT" "$SHOWN"
 printf 'Approve this command for this project? [y/N] '
@@ -56,7 +56,7 @@ read -r ANS </dev/tty || ANS=""
 [[ "$ANS" == y || "$ANS" == Y ]] || { echo "not approved"; exit 1; }
 
 ALLOW="$HOME/.claude/aidex/ready-when-allow.txt"
-case "$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$ALLOW")" in
+case "$(python3 -I -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$ALLOW")" in
   "$REAL_ROOT"/*) die "the allowlist $ALLOW is inside the project; refusing" ;;
 esac
 mkdir -p "$(dirname "$ALLOW")"; touch "$ALLOW"
