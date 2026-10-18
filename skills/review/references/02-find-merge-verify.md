@@ -12,7 +12,8 @@ defers to it, and `tests/test-resolve-target.sh` #26 pins that.
 
 Item N below is "Step 3.N" in `SKILL.md` and the catalog; `SKILL.md` opts in to `Workflow`.
 Every `Agent` call passes `effort`: `medium` for a finder, `high` for a verifier, never
-`xhigh` or `max`; no `model` is passed (the session's).
+`xhigh` or `max`. A verifier also passes `model: sonnet`; a finder passes no `model` (the
+session's). Measurement behind the verifier model: `01-review-angles.md` § Cost.
 
 0. **Every agent is read-only on the project, and this goes in every prompt verbatim.**
    The skill's own `allowed-tools` has no `Edit`/`Write`, but subagents do not inherit it

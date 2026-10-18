@@ -134,16 +134,16 @@ caveat it carries are owned by `${CLAUDE_PLUGIN_ROOT}/skills/review/references/0
 which is where a re-measurement lands.
 
 **Name the model and effort in the same breath as the cost.** This skill is
-`model-policy: per-stage`: every `Agent` call passes an explicit `effort` and no `model`,
-so the model is the session's and the effort is set by role — **finders `medium`,
-verifiers `high`**. Never `xhigh` or `max` on a subagent: Anthropic's guidance for these
+`model-policy: per-stage`: every `Agent` call passes an explicit `effort` set by role —
+**finders `medium` at the session's model (no `model` passed), verifiers `high` on
+`model: sonnet`**. Never `xhigh` or `max` on a subagent: Anthropic's guidance for these
 models is that at those levels the model starts its own rounds of review and spawns
 reviewer subagents, which multiplies the verifier bill. Effort is the main cost dial here
 because 34 agents reading a whole module is not 8 agents reading a diff (34 = the 6
 finders plus 28 verifiers of the measured run; the 28 is derived, not recorded). So say
 it: *"N finders at &lt;session model&gt;/medium + one verifier per candidate at
-&lt;session model&gt;/high."* The medium/high pair is a policy choice, not a measurement:
-no run has costed it.
+sonnet/high."* The finder pair is a policy choice; the verifier model was measured
+(`01-review-angles.md` § Cost, 2026-10-18).
 
 Present: target, files/LOC, lenses chosen with their evidence, angles per lens, angles
 dropped (and, separately, angles not selected), the cost floor stated as above, and the
