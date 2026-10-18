@@ -13,7 +13,7 @@ usage: sweep-order.py <backlog-dir> [--include BL-N,..] [--exclude BL-N,..]
                       [--format json|summary|refs]
 Exit 2 on a `depends:` cycle (a queue that cannot be ordered is a kickoff error).
 """
-import argparse, importlib, json, os, sys
+import argparse, importlib, json, os, re, shlex, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 define_check = importlib.import_module('define-check')
@@ -212,8 +212,11 @@ def summary(d):
         if i["verdict"] in ("BAD FORM", "NEEDS APPROVAL"):
             print("  %-8s %-3s %-14s ready_when %s" % ("", "", "", show(i["ready_when"])))
         if i["verdict"] == "NEEDS APPROVAL":
-            print("  %-8s %-3s %-14s ! bash %s %s   (owner only: agents must not run this)" % (
-                "", "", "", os.path.join(os.path.dirname(os.path.abspath(__file__)), "approve-ready-when.sh"), i["id"]))
+            if re.fullmatch(r"BL-\d+", i["id"] or ""):  # the id comes from front matter: only BL-NNN reaches a shell line
+                print("  %-8s %-3s %-14s ! bash %s %s   (owner only: agents must not run this)" % (
+                    "", "", "", shlex.quote(os.path.join(os.path.dirname(os.path.abspath(__file__)), "approve-ready-when.sh")), i["id"]))
+            else:
+                print("  %-8s %-3s %-14s approve it by hand: id %s is not BL-NNN" % ("", "", "", show(i["id"])))
 
 
 def main():
