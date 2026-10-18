@@ -309,13 +309,16 @@ def _parse_open(line_no, rest):
 MAX_DEPTH = 100
 
 
-def parse(spec_text):
+def parse(spec_text, warnings=None):
     """The spec as a list of top-level `BlockNode`s.
 
     Content lines are gathered into `prose` nodes: consecutive lines, blank
     lines included, form ONE prose block, and a prose block ends at the next
     open fence, the next close fence, or end of file. The same rule applies
     inside a fence.
+
+    `warnings`, when a list, collects (check, line, message) tuples — the shape
+    `spec_build.build()` collects — for a top-level code fence left open at EOF.
     """
     lines = [ln[:-1] if ln.endswith("\r") else ln
              for ln in spec_text.split("\n")]
@@ -401,6 +404,24 @@ def parse(spec_text):
         raise SpecSyntaxError(
             opened,
             "block '%s' opened here is never closed%s" % (node.block_type, extra))
+    if code_marker is not None and warnings is not None:
+        # BL-848. At top level the open fence is not an error (the grammar), but
+        # it can still swallow every block written after it with nothing to say
+        # so. Name it; a `:::` open among the swallowed lines is the case
+        # `--check` refuses, so it carries its own check name.
+        opens = [i for i, ln in enumerate(lines[code_line:], code_line + 1)
+                 if OPEN.match(ln) and not CLOSE.match(ln)]
+        if opens:
+            warnings.append((
+                "unclosed-code-fence-swallows-blocks", code_line,
+                "the %s code fence opened here is never closed, so the rest "
+                "of the spec is code — including %d `:::` open(s), the first at "
+                "line %d. Close the fence" % (code_marker, len(opens), opens[0])))
+        else:
+            warnings.append((
+                "unclosed-code-fence", code_line,
+                "the %s code fence opened here is never closed, so the rest "
+                "of the spec is code" % code_marker))
     return doc
 
 

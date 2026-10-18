@@ -1846,6 +1846,65 @@ try:
               ('data-id="%s"' % ident) in page)
 
     print()
+    print("== a top-level code fence left open at EOF is named (BL-848) ==")
+    # The grammar lets an unclosed ``` take the rest of the spec as code. Placed
+    # before `::: group`, it swallowed every later block and the page still built
+    # with "artifact contract OK": no item, one <pre>. The build now names the
+    # fence's opening line, and --check refuses when a `:::` open went into it.
+    head = ('::: masthead {eyebrow="F" byline="Fuente: test" '
+            'visual="none: formato"}\n# Página\n\nUna pregunta.\n:::\n\n')
+    tail = ('::: group {#G1 title="Grupo"}\n::: item {#Q1 title="P"}\n'
+            'Situación hoy. ¿Qué hacemos?\n\n- A {recommended}\n- B\n:::\n:::\n\n'
+            '::: notes {title="Notas"}\n:::\n')
+    def fence_build(spec, fout):
+        fspec = os.path.join(os.path.dirname(fout), "fence.spec.md")
+        with open(fspec, "w", encoding="utf-8") as fh:
+            fh.write(spec)
+        return subprocess.run([sys.executable, BUILD, fspec, "-o", fout,
+                               "--check"], capture_output=True, text=True)
+
+    for k, (label, spec, fence_line, check_name) in enumerate((
+            ("swallows the blocks after it", head + "```\necho hola\n" + tail,
+             7, "unclosed-code-fence-swallows-blocks"),
+            ("swallows only prose", head + tail + "```\necho hola\n", 18,
+             "unclosed-code-fence"),
+            # A bare `:::` with trailing spaces matches OPEN's pattern too; it
+            # is a close, so swallowing it is swallowing prose.
+            ("swallows only a `::: ` close", head + tail + "```\n::: \n", 18,
+             "unclosed-code-fence"))):
+        refused = check_name.endswith("swallows-blocks")
+        warns = []
+        build(spec, warnings=warns)
+        named = [w for w in warns if w[0].startswith("unclosed-code-fence")]
+        check("build() warns once, as [%s] at the fence's line, when it %s"
+              % (check_name, label),
+              len(named) == 1 and named[0][:2] == (check_name, fence_line),
+              repr(warns))
+        rdir = os.path.join(tmp, "fence-%d" % k)
+        os.mkdir(rdir)
+        fout = os.path.join(rdir, "fence.html")
+        r = fence_build(spec, fout)
+        check("--check %s when the open fence %s"
+              % ("fails" if refused else "passes", label),
+              (r.returncode != 0) == refused
+              and ("fence.spec.md:%d" % fence_line) in r.stderr
+              and (("swallowed `:::` blocks" in r.stderr) == refused), r.stderr)
+        if not refused:
+            continue
+        # A refused build is a failing build: it leaves the page exactly as it
+        # was (wrap_report.py) — none on a first build, the old bytes over one.
+        check("...and a first build that --check refuses writes no page",
+              not os.path.exists(fout), r.stderr)
+        # The old page carries no ids, so the wrap's own rounds guard (an id
+        # dropped between rounds) cannot be what keeps it.
+        r = fence_build(head + "Sin bloques todavía.\n", fout)
+        before = open(fout, "rb").read() if os.path.exists(fout) else None
+        r2 = fence_build(spec, fout)
+        check("...and a refused rebuild leaves the existing page byte-exact",
+              r.returncode == 0 and r2.returncode != 0 and before is not None
+              and open(fout, "rb").read() == before, r.stderr + r2.stderr)
+
+    print()
     print("== the built page names its spec on line 1 (scn-edit-spec-page) ==")
     # A spec-built page looked like hand-written HTML, so an agent asked to
     # change a recommendation Read the page and edited it in place. Line 1 is
