@@ -37,6 +37,8 @@
 #   bashpy   python3 -c "...Path('tests/test_p.py').write_text(...)" only -> a row
 #   bashrun  pytest tests/test_r.py and sed -i on a test only -> not a session
 #   multiedit a MultiEdit of a test file only -> a row
+#   wfsub    a Workflow delegate (subagents/workflows/wf_*/agent-*.jsonl) writes a test -> a row,
+#            writer subagent; its nested .meta.json agentType preloads with agents-pre -> y
 #   agents   impl-opus.md frontmatter skills: [aidex:bugfix] -> sub n; skills: - aidex:testing
 #            (agentType aidex:impl-opus) -> y; --preloaded-agents impl-opus -> y
 # Commits (throwaway git repo): fix+test+RED, fix+test, fix without test,
@@ -98,6 +100,11 @@ dump(f"{P}/sub.jsonl", [use(D + "1.000Z", "Skill", {"skill": "aidex:bugfix"})[0]
                         use(D + "2.000Z", "Agent", {"subagent_type": "impl-opus"})[0]])
 dump(f"{P}/sub/subagents/agent-a1.jsonl", [w(D + "3.000Z", "/r/tests/test-x.sh")])
 with open(f"{P}/sub/subagents/agent-a1.meta.json", "w") as fh:
+    json.dump({"agentType": "aidex:impl-opus"}, fh)
+# BL-846: a Workflow run nests its agents one level down, under subagents/workflows/wf_*/.
+dump(f"{P}/wfsub.jsonl", [use(D + "1.000Z", "Skill", {"skill": "aidex:bugfix"})[0]])
+dump(f"{P}/wfsub/subagents/workflows/wf_t1/agent-w1.jsonl", [w(D + "3.000Z", "/r/tests/test-w.sh")])
+with open(f"{P}/wfsub/subagents/workflows/wf_t1/agent-w1.meta.json", "w") as fh:
     json.dump({"agentType": "aidex:impl-opus"}, fh)
 DENY = ("PreToolUse:Write hook error: aidex:testing: this is the first new test file in this "
         "context, so the testing core has to be read before it lands.\nLoad the aidex:testing "
@@ -185,7 +192,7 @@ col() {  # col <session> <column> [tsv]
 }
 eq "only test-writing, in-window, non-experiment sessions are rows" \
    "$(awk -F'\t' 'NR>1{print $2}' "$TMP/s.tsv" | sort | tr '\n' ' ')" \
-   "after basedir bashdeny bashfirst bashpy before blindretry editfirst hook multiedit never nonerr slash sub tsx webapp "
+   "after basedir bashdeny bashfirst bashpy before blindretry editfirst hook multiedit never nonerr slash sub tsx webapp wfsub "
 eq "before: core before first test write" "$(col before core_before_first_test_write)" y
 eq "after: signal after the write is not before" "$(col after core_before_first_test_write)" n
 eq "after: but core was in context at some point" "$(col after core_anywhere)" y
@@ -206,7 +213,8 @@ eq "bashdeny: the denied Bash is not a write, the Read before the retry counts" 
    "$(col bashdeny core_before_first_test_write)" y
 eq "bashdeny: only the retry is counted" "$(col bashdeny n_test_writes)" 1
 eq "sub: an agent whose skills: lacks testing is not preloaded" "$(col sub core_before_first_test_write)" n
-eq "summary line" "$(printf '%s\n' "$out" | grep -c 'core before first test write: 5/16')" 1
+eq "wfsub: a Workflow delegate's test write is counted, attributed to the subagent" "$(col wfsub first_writer)" subagent
+eq "summary line" "$(printf '%s\n' "$out" | grep -c 'core before first test write: 5/17')" 1
 
 echo "== experiment dirs =="
 run --include-all --tsv "$TMP/i.tsv" >/dev/null
@@ -220,6 +228,8 @@ echo "== preloaded agents =="
 run --tsv "$TMP/p.tsv" --agents-dir "$T-agents-pre" >/dev/null
 eq "sub: skills: [aidex:testing] in the frontmatter preloads a plugin-prefixed agent" \
    "$(col sub core_before_first_test_write "$TMP/p.tsv")" y
+eq "wfsub: the nested .meta.json agentType preloads a Workflow delegate" \
+   "$(col wfsub core_before_first_test_write "$TMP/p.tsv")" y
 run --tsv "$TMP/o.tsv" --preloaded-agents impl-opus >/dev/null
 eq "sub: --preloaded-agents overrides the definitions" "$(col sub core_before_first_test_write "$TMP/o.tsv")" y
 

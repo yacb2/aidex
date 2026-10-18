@@ -28,7 +28,8 @@ write — except a Bash result "Exit code N", which ran — and a write event re
 a resumed or forked transcript (same uuid) counts once.
 
 Transcripts are ~/.claude/projects/<project>/<session>.jsonl, with subagents at
-<project>/<session>/subagents/*.jsonl (+ .meta.json carrying agentType). Events are
+<project>/<session>/subagents/*.jsonl, Workflow delegates one level down in
+subagents/workflows/wf_*/ (+ .meta.json carrying agentType). Events are
 windowed by their own timestamp. Experiment copies are skipped (project dirs
 containing -tmp-, _tmp, worktrees-agent, e1-wt, rehearsal) unless --include-all;
 eval runs under /private/tmp need it. Transcripts with 0 counted sessions exit 1
@@ -334,7 +335,11 @@ def sessions(root, since, until, preloaded, include_all):
             continue
         sid = os.path.basename(main)[:-6]
         contexts = [("main", main, False)]
-        for sub in sorted(glob.glob(os.path.join(main[:-6], "subagents", "*.jsonl"))):
+        # A Workflow run nests its agents in subagents/workflows/wf_*/ beside a journal.jsonl
+        # that is not a transcript (BL-846).
+        subs = os.path.join(main[:-6], "subagents")
+        for sub in sorted(glob.glob(os.path.join(subs, "*.jsonl"))
+                          + glob.glob(os.path.join(subs, "workflows", "wf_*", "agent-*.jsonl"))):
             try:
                 kind = json.load(open(sub[:-6] + ".meta.json")).get("agentType", "")
             except (OSError, ValueError):
