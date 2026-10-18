@@ -163,13 +163,25 @@ announced floor **132k**, actual spend **2.2M**, ~**17×**. n=1.
 
 **The model is the other half of the bill.** This skill is `model-policy: per-stage`:
 each `Agent` call passes `effort` (finders `medium`, verifiers `high`, never `xhigh` or
-`max`) and no `model`, so agents run at the invoking session's model. Anthropic's guidance
+`max`); finders pass no `model` and run at the invoking session's model, verifiers pass
+`model: sonnet` (measured below, 2026-10-18). Anthropic's guidance
 for current models is that effort is the primary dial, and that at `xhigh`/`max` a model
 starts its own review rounds and spawns reviewer subagents, which is why those two levels
 are excluded. The measured 17x run (34 agents: 6 finders plus 28 verifiers, the 28 derived
 by subtraction) predates this policy: it ran inherited at the session's tier, model not
 recorded. The cost of the medium/high pair is unmeasured. On a module review model and
 effort are the dominant term, which is why Step 2 has to name them beside the floor.
+
+**Verifier model, measured 2026-10-18 (aidex_ws audit `2026-10-18-usage-retro-efficiency`,
+`lever-C1-3-workflow-models.md`).** 20 verify prompts from five past find-merge-verify runs
+(two repos, opus-5-5 by inheritance) were replayed tonight: opus twice, sonnet once, effort
+`high`. Opus agreed with itself on 16/20. Sonnet agreed with the second opus run on 18/20,
+and with the opus verdict on 14 of the 16 where both opus runs agreed; one of the two misses
+refuted a low-severity dead-code finding, the other answered `unclear`. Sonnet's
+disagreement sits inside opus's own run-to-run noise, at half the price per token. Inherited
+opus verify was $483 of $1,861 Workflow spend in 2026-10-05..18. Limits: n=20; the code had
+moved since some originals, so agreement is measured among tonight's replays, not against
+the originals.
 
 The cause is not waste, and the fix is not fewer verifiers. They did not opine: they stood
 up sandboxes and reproduced the defects with real commands and exit codes, which is what
