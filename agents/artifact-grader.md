@@ -2,6 +2,7 @@
 name: artifact-grader
 description: Grades an artifact page from its screenshot tiles against the aidex visual-review rubric, with no access to its source. Handoff: the request the page answers, the absolute path of the shots manifest (<name>-shots.json from render-probe.sh --shots), the list of shot files regenerated this run, the rubric path, the profile's `viewports:` line when it declares one, and — for a consultation round built over a reply — the DUTIES list save-reply.sh printed. Returns the fixed SCORE block, plus a DUTIES block when one was handed in, or `INVALID: unreadable` naming the tile when a tile cannot be read. Used by the artifact skill before a page is handed over, launched by the main session; not for building or editing pages.
 model: opus
+omitClaudeMd: true
 tools: Read
 ---
 

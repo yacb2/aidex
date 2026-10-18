@@ -3,6 +3,7 @@ name: review-diff-opus
 description: Use proactively on a delegate's returned diff, before the main session commits it, when the diff adds or moves a comparison, a quantifier, a boundary or a null/empty branch inside a predicate - whatever model wrote it and however green its gate. That is the shape of defect a passing gate hides. Reads the diff adversarially against the delegate's own "what you deliberately left alone" list, hunting the defect a passing test suite does not see. Not for prose, layout, file moves or config edits, and not for read-only delegates. Handoff: a named "Files to read first" section, the worktree or diff command, the delegate's reply verbatim, the gate it claims, and what the change was supposed to do. Reports only - never edits, never commits. Not for reviewing a branch or PR (/code-review), not for a module as it stands (/aidex:review).
 model: opus
 effort: high
+omitClaudeMd: true
 tools: Bash, Read, Grep, Glob
 skills: [aidex:testing]
 ---
