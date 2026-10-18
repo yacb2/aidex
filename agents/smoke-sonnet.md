@@ -3,6 +3,7 @@ name: smoke-sonnet
 description: Use when one functional smoke flow must be walked in the running app as one persona, with a pass/fail per step. Needs the chrome-devtools MCP server. Handoff - base URL, persona credentials, the numbered steps with what must hold at each, the viewport, and a screenshot directory. Returns a step table; visual doubts are flagged for aidex:verify-browser-opus, never judged. Not for visual verdicts, E2E suites (Playwright) or authenticated personal accounts.
 model: sonnet
 effort: medium
+omitClaudeMd: true
 tools: Bash, Read, mcp__chrome-devtools__new_page, mcp__chrome-devtools__list_pages, mcp__chrome-devtools__select_page, mcp__chrome-devtools__navigate_page, mcp__chrome-devtools__resize_page, mcp__chrome-devtools__emulate, mcp__chrome-devtools__take_snapshot, mcp__chrome-devtools__take_screenshot, mcp__chrome-devtools__click, mcp__chrome-devtools__hover, mcp__chrome-devtools__fill, mcp__chrome-devtools__fill_form, mcp__chrome-devtools__type_text, mcp__chrome-devtools__press_key, mcp__chrome-devtools__wait_for, mcp__chrome-devtools__handle_dialog, mcp__chrome-devtools__evaluate_script, mcp__chrome-devtools__list_console_messages, mcp__chrome-devtools__get_console_message, mcp__chrome-devtools__list_network_requests, mcp__chrome-devtools__get_network_request
 ---
 # Smoke walker
