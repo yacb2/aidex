@@ -9,10 +9,12 @@
 #
 # Options:
 #   --reason "<text>"   (defer) the external blocker; sets/appends `blocked_by`. Required.
+#   --ready-when "<v>"  (defer) when it can come back: `date:YYYY-MM-DD` or `cmd:<shell command>`
+#                       (met on exit 0). Optional; for date/count waits, not human-event waits.
 #   --no-index          skip index regeneration
 #
 # defer:      active root → _deferred/  · sets blocked_by · stamps updated
-# reactivate: _deferred/  → active root · clears blocked_by · stamps updated
+# reactivate: _deferred/  → active root · clears blocked_by and ready_when · stamps updated
 
 set -euo pipefail
 
@@ -34,10 +36,11 @@ case "$ACTION" in
   *) die "first argument must be: defer | reactivate" ;;
 esac
 
-TARGET="" REASON="" NO_INDEX=0
+TARGET="" REASON="" READY_WHEN="" NO_INDEX=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --reason)   REASON="$2"; shift 2 ;;
+    --ready-when) READY_WHEN="$2"; shift 2 ;;
     --no-index) NO_INDEX=1; shift ;;
     -h|--help)  usage_from_header "$0"; exit 0 ;;
     -*)         die "unknown option: $1" ;;
@@ -77,16 +80,28 @@ if [[ "$ACTION" == "defer" ]]; then
 
   # set/append blocked_by + stamp updated; status → open (a `doing` item deferred
   # mid-sweep is not being worked any more — it kept `doing` on 2026-08-28)
-  DI_REASON="$(yaml_escape "$REASON")" rewrite "$FILE" -v today="$TODAY" '
-    BEGIN { d=0; infm=0; seen_blocked=0; reason=ENVIRON["DI_REASON"] }
+  if [[ -n "$READY_WHEN" ]] && ! python3 -c '
+import datetime, re, sys
+v = sys.argv[1]
+if v.startswith("cmd:") and v[4:].strip(): sys.exit(0)
+if re.fullmatch(r"date:\d{4}-\d{2}-\d{2}", v): datetime.date.fromisoformat(v[5:]); sys.exit(0)
+sys.exit(1)' "$READY_WHEN" 2>/dev/null; then
+    die "--ready-when must be date:YYYY-MM-DD or cmd:<shell command>"
+  fi
+  DI_READY="$(yaml_escape "$READY_WHEN")" DI_REASON="$(yaml_escape "$REASON")" rewrite "$FILE" -v today="$TODAY" '
+    BEGIN { d=0; infm=0; seen_blocked=0; reason=ENVIRON["DI_REASON"]; ready=ENVIRON["DI_READY"] }
     d==1 && /^status:[[:space:]]*"?doing"?[[:space:]]*$/ { print "status: open"; next }
     /^---[[:space:]]*$/ {
       d++
       if (d==1) { infm=1; print; next }
-      if (d==2) { if (!seen_blocked) print "blocked_by: \"" reason "\""; infm=0; print; next }
+      if (d==2) { if (!seen_blocked) print "blocked_by: \"" reason "\""; if (ready != "") print "ready_when: \"" ready "\""; infm=0; print; next }
     }
     infm==1 {
       if ($0 ~ /^updated:/) { print "updated: " today; next }
+      if ($0 ~ /^ready_when:/) {   # --ready-when replaces it; without the flag it is kept
+        if (ready != "") next
+        print; next
+      }
       if ($0 ~ /^blocked_by:/) {
         # a quoted value is already escaped: drop only its wrapping quotes
         val=$0; sub(/^blocked_by:[[:space:]]*/,"",val); sub(/[[:space:]]+$/,"",val)
@@ -130,6 +145,7 @@ elif [[ "$ACTION" == "reactivate" ]]; then
     infm==1 {
       if ($0 ~ /^updated:/)    { print "updated: " today; next }
       if ($0 ~ /^blocked_by:/) { print "blocked_by: \"\""; next }
+      if ($0 ~ /^ready_when:/) next
       print; next
     }
     { print }

@@ -766,12 +766,12 @@ write_index() {
   local did dtitle dpriority dupdated dblocked dline dbase
   if [[ -d "$dir/_deferred" ]]; then
     local -a deferred_tmp=()
-    while IFS=$'\037' read -r f dtitle did dpriority dupdated dblocked comps; do
+    while IFS=$'\037' read -r f dtitle did dpriority dupdated dblocked dready comps; do
       dbase="${f##*/}"
       [[ -z "$dtitle" ]] && dtitle="(untitled)"
-      dline="- ${did:+**${did}** · }[${dtitle}](_deferred/${dbase}) — ${dpriority:-P?} · blocked_by: \"${dblocked}\"${dupdated:+ · ${dupdated}}${comps}"
+      dline="- ${did:+**${did}** · }[${dtitle}](_deferred/${dbase}) — ${dpriority:-P?} · blocked_by: \"${dblocked}\"${dready:+ · ready_when: \"${dready}\"}${dupdated:+ · ${dupdated}}${comps}"
       deferred_tmp+=("${dupdated:-0000-00-00}"$'\t'"$dline")
-    done < <(list_items "$dir/_deferred" | read_dir_fields "title,id,priority,updated,blocked_by")
+    done < <(list_items "$dir/_deferred" | read_dir_fields "title,id,priority,updated,blocked_by,ready_when")
     if [[ ${#deferred_tmp[@]} -gt 0 ]]; then
       while IFS= read -r line; do
         DEFERRED_SORTED+=("${line#*$'\t'}")

@@ -153,6 +153,7 @@ drops it before the partition, so it shows in no list.
 | `depends` | `BL-NNN[, …]`, `merge:BL-NNN`, or absent | Ids that must close before this one (`A→B` written on B), written at registration (`--depends`) or as a *sweep triage verdict*. `merge:BL-NNN` marks the same change seen twice — a **MERGE** pair that closes in one commit carrying both `Backlog:` trailers. |
 | `verify` | one free line | The **hypothesis** of how this will be proven, by whoever registers it — corrected at triage, made concrete as rows in `## Verification` before close. An item nobody could say how to prove is an item nobody can close in a sweep. |
 | `blocked_by` | Free text or `<type>/<filename>` | Non-empty means parked waiting on third party; priority stays. |
+| `ready_when` | `date:YYYY-MM-DD` or `cmd:<shell command>`, or absent | When a parked item may come back. `date:` is met on or after that day; `cmd:` is met when the command exits 0 (run from the project root, 10 s cap). Written by `defer-item.sh defer --ready-when`, cleared by `reactivate`. **Date and count waits use `ready_when` in `_deferred/`; human-event waits (an owner answer, a vendor) keep only `blocked_by`.** `sweep-eligible.py` lists every deferred item as READY / WAITING / ASK OWNER (no `ready_when`), and shows an active item with an unmet `ready_when` under REVIEW as `waiting:`, never ELIGIBLE. |
 | `awaiting` | `owner` or absent | **Written by `close-item.sh --sweep`, never by hand.** Every mechanical row is proven and an `owner` row still has an empty proof: the item is parked — not `done`, not archived, listed under `## Awaiting owner` in the index, out of every queue — until the owner fills the cell and it is closed again. Exists because a closed-looking item gets archived by mistake. |
 | `escalated_to` | `<type>/<filename>` (D-03) or empty | Set when work moves to a plan (typically combined with `status: doing`). A cross-repo escalation carries `<target-repo>/<id>` — see [Cross-project routing](#cross-project-routing). |
 | `commits` | space-separated SHAs, or empty | **Machine-required (D-09):** `harvest-commit.sh` appends resolved SHAs here so closure is verifiable, not just asserted. |
@@ -388,12 +389,14 @@ sets/appends `blocked_by`, stamps `updated`, and regenerates the index.
 
 ```bash
 bash scripts/defer-item.sh defer BL-018 --reason "vendor v2 API not yet GA"
+# with a machine-checkable return condition (date:YYYY-MM-DD or cmd:<command>):
+bash scripts/defer-item.sh defer BL-018 --reason "wait for 150 launches" --ready-when "date:2026-12-07"
 # or by slug:
 bash scripts/defer-item.sh defer migrate-vendor-v2 --reason "vendor v2 API not yet GA"
 ```
 
 **Reactivating (`reactivate`):** moves the file back to the active root, clears
-`blocked_by`, stamps `updated`, and regenerates the index.
+`blocked_by` and `ready_when`, stamps `updated`, and regenerates the index.
 
 ```bash
 bash scripts/defer-item.sh reactivate BL-018

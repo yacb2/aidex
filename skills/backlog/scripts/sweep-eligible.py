@@ -16,7 +16,7 @@ four commits each, across two repos — were both in that group.
 Usage:
   sweep-eligible.py [--size XS,S] [--json]
 """
-import argparse, json, os, re, subprocess, sys
+import argparse, datetime, json, os, re, signal, subprocess, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import importlib
@@ -61,6 +61,65 @@ def body_signals(text):
             s = s.split('\n', 1)[0].strip(' -*')
             out[label] = f'{label} — «{s[:80]}»'
     return [out[k] for k in sorted(out)]
+
+
+def ready(value):
+    """`ready_when` -> True (met), False (not met) or None (no value / not a known form).
+    `date:YYYY-MM-DD` is met on or after that day; `cmd:<shell>` is met when it exits 0
+    (run from the project root, 10 s cap — a timeout counts as not met)."""
+    kind, _, arg = value.partition(':')
+    arg = arg.strip()
+    if kind == 'date':
+        try:
+            return datetime.date.today() >= datetime.date.fromisoformat(arg)
+        except ValueError:
+            return False
+    if kind == 'cmd' and arg:
+        proc = subprocess.Popen(arg, shell=True, cwd=ROOT, start_new_session=True, stdin=subprocess.DEVNULL,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            return proc.wait(timeout=10) == 0
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)  # the shell's children too, not just the shell
+            except (ProcessLookupError, PermissionError):
+                pass  # it exited between the timeout and the kill
+            proc.wait()
+            return False
+    return None
+
+
+def ready_when_of(path, fm):
+    """The `ready_when` value as written: defer-item.sh stores it yaml-escaped (`\\"`, `\\\\`), and
+    define-check's unquote only strips quotes, which would hand the shell the escaped text."""
+    m = re.search(r'^ready_when:[ \t]*(.*)$', open(path, encoding='utf-8').read().split('\n---', 1)[0], re.M)
+    raw = m.group(1).strip() if m else ''
+    if raw.startswith('"') and raw.endswith('"') and len(raw) >= 2:
+        try:
+            return json.loads(raw)
+        except ValueError:
+            pass
+    return fm.get('ready_when', '')
+
+
+def deferred_items(root):
+    """Every `_deferred/` item with the verdict of its `ready_when`."""
+    d = os.path.join(root, '.context', 'backlog', '_deferred')
+    out = []
+    for f in sorted(os.listdir(d)) if os.path.isdir(d) else []:
+        if not f.endswith('.md') or f.startswith('00-'):
+            continue
+        it = define_check.parse(os.path.join(d, f))
+        if not it:
+            continue
+        fm = it['fm']
+        rw = ready_when_of(os.path.join(d, f), fm)
+        r = ready(rw) if rw else None
+        bad = bool(rw) and r is None
+        out.append({'id': fm.get('id', '?'), 'priority': fm.get('priority', '-'), 'title': fm.get('title', ''),
+                    'ready_when': rw, 'blocked_by': fm.get('blocked_by', ''), 'file': f,
+                    'verdict': 'BAD FORM' if bad else 'ASK OWNER' if r is None else 'READY' if r else 'WAITING'})
+    return out
 
 
 _QUEUED = re.compile(r'^[ \t]*\d+\.[ \t]+\[ \][ \t]+(BL-\d+)\b', re.M)
@@ -121,6 +180,7 @@ def parse(path):
         'priority': fm.get('priority', '-'),
         'estimate': fm.get('estimate', '-'),
         'blocked_by': fm.get('blocked_by', ''),
+        'ready_when': ready_when_of(path, fm),
         'signals': body_signals(d['text']),
     }
 
@@ -164,6 +224,9 @@ def main():
         elif i['cross_repo']:
             i['reason'] = 'cross-repo: ' + ', '.join(sorted({p.split('/', 1)[0] for p in i['cross_repo']}))
             needs.append(i)
+        elif i['ready_when'] and ready(i['ready_when']) is not True:
+            i['reason'] = 'waiting: ' + i['ready_when']
+            review.append(i)
         elif i['signals']:
             i['reason'] = ', '.join(i['signals'])
             review.append(i)
@@ -176,11 +239,14 @@ def main():
 
     review.sort(key=lambda i: (i['priority'], rank.get(i['estimate'].upper(), 9), i['file']))
 
+    deferred = deferred_items(ROOT)
+
     if a.json:
         open_wl = {}
         for where in queued.values():
             open_wl[where] = open_wl.get(where, 0) + 1
         print(json.dumps({'eligible': eligible, 'review': review, 'needs_decision': needs,
+                          'deferred': deferred,
                           'open_worklists': open_wl}, indent=2))
         return
 
@@ -193,6 +259,8 @@ def main():
         # the reason carries the quoted sentence; a 34-char column cut it at «A decision
         label, _, quote = i['reason'].partition(' — ')
         print(f"  {i['id']:8} {i['priority']:3} {i['estimate']:3}  {label[:34]:34} {i['title'][:40]}")
+        if len(label) > 34:  # `waiting: <value>`: the clipped part is the value the reader needs
+            print(f"  {'':8} {'':3} {'':3}  {label}")
         if quote:
             print(f"  {'':8} {'':3} {'':3}  {quote}")
     print()
@@ -201,6 +269,14 @@ def main():
         print(f"  {i['id']:8} {i['priority']:3} {i['estimate']:3}  {i['reason'][:40]:40} {i['title'][:40]}")
         if len(i['reason']) > 40:  # the clipped part is the work-list name — the part the reader needs
             print(f"  {'':8} {'':3} {'':3}  {i['reason']}")
+    print()
+    print(f'DEFERRED — condition check ({len(deferred)}) — READY items go back with `defer-item.sh reactivate`')
+    for i in deferred:
+        why = {'READY': i['ready_when'], 'WAITING': i['ready_when'],
+               'BAD FORM': 'ready_when ' + i['ready_when'] + ' (not date:YYYY-MM-DD or cmd:...)',
+               'ASK OWNER': 'blocked_by ' + i['blocked_by']}[i['verdict']]
+        print(f"  {i['id']:8} {i['priority']:3} {i['verdict']:9} {i['title'][:50]}")
+        print(f"  {'':8} {'':3} {'':9} {why}")
 
 
 if __name__ == '__main__':

@@ -175,7 +175,8 @@ def order(part, bdir, inc, exc):
                     'merge': any(p <= members for p in merge_pairs),
                     'items': [{k: by_id[m][k] for k in ('id', 'title', 'priority', 'estimate', 'surface', 'touches', 'depends')} for m in seq]})
     return {'queue': out, 'review': review_out, 'needs_decision': needs,
-            'n_eligible': len(queue), 'n_blocked': n_blocked, 'fan_out': len(queue) > 20}
+            'n_eligible': len(queue), 'n_blocked': n_blocked, 'fan_out': len(queue) > 20,
+            'deferred': part.get('deferred', [])}
 
 
 def summary(d):
@@ -194,9 +195,17 @@ def summary(d):
     print("\nREVIEW (%d) — defined, but READ the body before starting; re-run with --include <id> to queue it" % len(d["review"]))
     for i in d["review"]:
         print("  %-8s %-3s %-3s  %-34s %s" % (i["id"], i["priority"], i["estimate"], i["reason"][:34], i["title"][:40]))
+        if len(i["reason"].partition(" — ")[0]) > 34:  # `waiting: <value>`: the clipped part is the value the reader needs
+            print("  %-8s %-3s %-3s  %s" % ("", "", "", i["reason"]))
     print("\nNEEDS-DECISION (%d) — ONE consultation artifact, never into the run" % len(d["needs_decision"]))
     for i in d["needs_decision"]:
         print("  %-8s %-3s %-3s  %-22s %s" % (i["id"], i["priority"], i["estimate"], i["reason"], i["title"][:50]))
+    shown = [i for i in d["deferred"] if i["verdict"] != "WAITING"]
+    print("\nDEFERRED — condition check (%d, %d shown: READY go back with defer-item.sh reactivate, ASK OWNER need a date, BAD FORM need a fix)" % (len(d["deferred"]), len(shown)))
+    for i in shown:
+        print("  %-8s %-3s %-9s %s" % (i["id"], i["priority"], i["verdict"], i["title"][:50]))
+        if i["verdict"] == "BAD FORM":
+            print("  %-8s %-3s %-9s ready_when %s" % ("", "", "", i["ready_when"]))
 
 
 def main():
