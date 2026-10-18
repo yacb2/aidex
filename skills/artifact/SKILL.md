@@ -92,6 +92,27 @@ in its `## Language` section that `wrap-report.sh` reads as the artifact's
 follows it, close-outs included; only a `human-verification.*` page takes
 `--lang en` (`lang-follows-profile` fails any other contradiction).
 
+## The builder brief
+
+When `aidex:artifact-sonnet` builds the page, its brief is this fixed form and nothing
+more. The agent file already says what it reads, how it builds and probes and what it
+returns; a longer brief repeats it and costs the main session its slowest turns (LOOP-014:
+20-47 s of brief writing before the launch). The content is the only part you write: a
+consultation's situation leads, options and decided items, or a report's sections, numbers
+and pinned figures, go in the content file, or name a file that already holds them.
+
+```
+Files to read first: <content file, absolute path>, then your Step 1 references.
+Request: <one sentence: what the page answers>. Content: <content file, or "inline below">.
+Skill directory: <absolute path of this skill>
+Output: <absolute path of the page's .spec.md>
+Language: <the profile's language>
+Shots: <absolute shots directory>
+Return also what you deliberately left alone, one line each.
+```
+
+Write the form to a file and launch the agent with that path: its first and last lines are the two sections a delegation rule asks every brief to carry.
+
 ## Spec-first
 
 **A new page, and a revision of a page that already has one, are written as a
@@ -163,11 +184,12 @@ on the HTML route) has passed `check-artifact`:
 1. `bash "${CLAUDE_SKILL_DIR}/scripts/render-probe.sh" --shots <dir> <page>.html` — fix
    every defect it prints and rebuild. Exit 3 means Playwright is missing: stop, print the
    install command it gave, and hand nothing over as checked. Never skip the probe.
+   A delegate's probe counts as this step when its hand-back carries the manifest path and `render-probe: clean`, and the manifest is newer than the page (the probe writes it last; the `.html` mtime is the last build): read the manifest once and hand its `run` stamp and `written` list to step 2. A missing part, a defect line, or a manifest older than the `.html`: run the probe here.
    Requires `node` and Playwright with Chromium: `npm i -g playwright && npx playwright install chromium` (or point `AIDEX_PLAYWRIGHT_DIR` at an existing install).
 2. The grader launches only after the builder's hand-back, never while a fix round is still building or re-probing: a re-probe writes a new run, and the grade would then describe a page that is no longer the latest build. Launch the `artifact-grader` agent (`subagent_type: aidex:artifact-grader`) with the request, the absolute path of the manifest
    (`<name>-shots.json`, which lists the viewport-height tiles and the item ids each
-   holds) instead of the two full-page shots, the list of files the probe printed as
-   written this run (`SHOT <path>` lines, one run stamp), the path of
+   holds) instead of the two full-page shots, the files written this run (the probe's
+   `SHOT <path>` lines, or the manifest's `written` list when step 1 took a delegate's probe; one run stamp), the path of
    `references/05-visual-review.md`, the profile's `viewports: desktop` line when `.context/profiles/artifact.md` declares it, and — for a consultation round built over a reply —
    the DUTIES list `save-reply.sh` printed (it includes gallery rows with a non-approved verdict and region-mark rows): the grader maps each duty to its item by id and
    scores it met/not-met alongside the rubric. A delegate builds, probes and returns the
