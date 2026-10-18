@@ -52,8 +52,8 @@ pointing into its section. The §0-§7b numbers are the steps of `route-b.md`, �
   6. Link the page from its anchor, set `artifact-anchor`, state the absolute path in
      the reply, `open` it (§6-7).
 - **The quality loop** — both routes, before anything is handed over:
-  `render-probe.sh --shots`, then the text grader and (pages with figures) the visual
-  grader, fix and repeat until their summed score is 9, at most 3 rounds (§ The quality loop).
+  `render-probe.sh --shots`, then the `artifact-grader` agent, fix and repeat until it
+  scores 9, at most 3 rounds (§ The quality loop).
 - **Consultation?** §8 on top: stable ids never renumbered, a notes box on every item,
   the general-notes item last, the composer with both bars, a visual or a declared
   `none:` reason — and the ledger updated every iteration, before the reply.
@@ -323,7 +323,7 @@ script's output with no request to answer):
 |---|---|---|
 | 1. Build and contract | `spec_build.py <n>.spec.md -o <n>.html --check` (S) or `wrap-report.sh --out <n>.html` (B) | the check is OK |
 | 2. Render probe | `bash "${CLAUDE_PLUGIN_ROOT}/skills/artifact/scripts/render-probe.sh" --shots "${TMPDIR:-/tmp}/aidex-shots/<n>" <n>.html` | exit 0 |
-| 3. Grade | `aidex:artifact-text-grader` (spec) plus `aidex:artifact-grader` with `lines: 2-5` (tiles), as `SKILL.md` § The quality loop step 2 says | summed `SCORE` 9 or more |
+| 3. Grade | the `artifact-grader` agent (`aidex:artifact-grader` from the plugin) | `SCORE` 9 or more |
 
 `render-probe.mjs` is the headless-browser engine `render-probe.sh` runs (internal; call the `.sh`).
 
@@ -346,9 +346,7 @@ lines). Each run writes its PNGs into its own subdirectory `<n>.run-<stamp>/` an
 last, by rename, with `run`, `dir` and every file path relative to the manifest's directory; the
 probe keeps the previous run and prunes older ones, so a grader never reads tiles of two runs.
 
-**Step 3, the handoff.** The text grader gets the request, the `.spec.md` path, the rubric
-path and the DUTIES list (`SKILL.md` § The quality loop). The visual grader gets, with its
-`lines: 2-5` line, exactly these things: the user's request
+**Step 3, the handoff.** Launch the grader with exactly these things: the user's request
 in their words, the absolute path of the manifest `<n>-shots.json` (not the two full-page
 shots), the files the probe printed as written this run (the caller records them before
 launching, so the grader can refuse a stale tile), the profile's `viewports: desktop`

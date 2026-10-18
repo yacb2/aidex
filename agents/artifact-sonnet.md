@@ -91,11 +91,6 @@ return `BRIEF INCOMPLETE: no situation lead for <ids>`.** A brief that says "use
 - Options that differ on screen carry the pinned figure the brief gives.
 - Items the brief marks as decided go in a "decidido, corrígeme si no" group, one `item decided=<verdict> proposal=yes` each: the reader corrects them in place.
 
-**Content rules the text grader scores (rubric lines 1, 6, 7).** The title states the
-finding or verdict, never the topic. The block that answers the request comes first. Each
-section heading says what the section found. Every number comes from one source and has the
-same value, with its unit, in the figure, the table and the prose.
-
 ## Step 3 — build it
 
 One command builds, wraps and runs the contract check:
