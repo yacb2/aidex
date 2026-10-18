@@ -16,7 +16,7 @@ four commits each, across two repos — were both in that group.
 Usage:
   sweep-eligible.py [--size XS,S] [--json]
 """
-import argparse, datetime, json, os, re, signal, subprocess, sys
+import argparse, datetime, hashlib, json, os, re, signal, subprocess, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import importlib
@@ -63,10 +63,29 @@ def body_signals(text):
     return [out[k] for k in sorted(out)]
 
 
+APPROVE = 'approve'  # ready(): a cmd: whose hash is not in the local allowlist — shown, never run
+
+
+def cmd_hash(root, cmd):
+    return hashlib.sha256((os.path.realpath(root) + '\n' + cmd).encode()).hexdigest()
+
+
+def approved(cmd):
+    """A cmd: front-matter value is arbitrary shell, and a cloned repo's backlog is not trusted:
+    it runs only when `defer-item.sh defer --ready-when` (the owner) wrote sha256(root \\n cmd)
+    into the local, untracked allowlist."""
+    path = os.environ.get('AIDEX_READY_WHEN_ALLOW') or os.path.expanduser('~/.claude/aidex/ready-when-allow.txt')
+    try:
+        return cmd_hash(ROOT, cmd) in open(path).read().split()
+    except OSError:
+        return False
+
+
 def ready(value):
-    """`ready_when` -> True (met), False (not met) or None (no value / not a known form).
-    `date:YYYY-MM-DD` is met on or after that day; `cmd:<shell>` is met when it exits 0
-    (run from the project root, 10 s cap — a timeout counts as not met)."""
+    """`ready_when` -> True (met), False (not met), APPROVE (a cmd: nobody approved) or None
+    (no value / not a known form). `date:YYYY-MM-DD` is met on or after that day; an approved
+    `cmd:<shell>` is met when it exits 0 (run from the project root, 10 s cap — a timeout counts
+    as not met)."""
     kind, _, arg = value.partition(':')
     arg = arg.strip()
     if kind == 'date':
@@ -75,6 +94,8 @@ def ready(value):
         except ValueError:
             return False
     if kind == 'cmd' and arg:
+        if not approved(arg):
+            return APPROVE
         proc = subprocess.Popen(arg, shell=True, cwd=ROOT, start_new_session=True, stdin=subprocess.DEVNULL,
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:
@@ -116,9 +137,13 @@ def deferred_items(root):
         rw = ready_when_of(os.path.join(d, f), fm)
         r = ready(rw) if rw else None
         bad = bool(rw) and r is None
+        if r == APPROVE:
+            r, verdict = None, 'NEEDS APPROVAL'
+        else:
+            verdict = 'BAD FORM' if bad else 'ASK OWNER' if r is None else 'READY' if r else 'WAITING'
         out.append({'id': fm.get('id', '?'), 'priority': fm.get('priority', '-'), 'title': fm.get('title', ''),
                     'ready_when': rw, 'blocked_by': fm.get('blocked_by', ''), 'file': f,
-                    'verdict': 'BAD FORM' if bad else 'ASK OWNER' if r is None else 'READY' if r else 'WAITING'})
+                    'verdict': verdict})
     return out
 
 
@@ -224,8 +249,9 @@ def main():
         elif i['cross_repo']:
             i['reason'] = 'cross-repo: ' + ', '.join(sorted({p.split('/', 1)[0] for p in i['cross_repo']}))
             needs.append(i)
-        elif i['ready_when'] and ready(i['ready_when']) is not True:
-            i['reason'] = 'waiting: ' + i['ready_when']
+        elif i['ready_when'] and (i.setdefault('ready', ready(i['ready_when']))) is not True:
+            rw = i['ready_when']
+            i['reason'] = 'waiting: ' + ('needs approval: ' + rw[4:].strip() if i['ready'] == APPROVE else rw)
             review.append(i)
         elif i['signals']:
             i['reason'] = ', '.join(i['signals'])
@@ -273,6 +299,7 @@ def main():
     print(f'DEFERRED — condition check ({len(deferred)}) — READY items go back with `defer-item.sh reactivate`')
     for i in deferred:
         why = {'READY': i['ready_when'], 'WAITING': i['ready_when'],
+               'NEEDS APPROVAL': 'not run, not approved: ' + i['ready_when'],
                'BAD FORM': 'ready_when ' + i['ready_when'] + ' (not date:YYYY-MM-DD or cmd:...)',
                'ASK OWNER': 'blocked_by ' + i['blocked_by']}[i['verdict']]
         print(f"  {i['id']:8} {i['priority']:3} {i['verdict']:9} {i['title'][:50]}")

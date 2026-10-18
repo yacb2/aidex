@@ -9,7 +9,7 @@ SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts" && pwd -P)"
 PASS=0 FAIL=0
 ok()  { printf '  ok: %s\n' "$1"; PASS=$((PASS+1)); }
 bad() { printf '  FAIL: %s\n' "$1" >&2; FAIL=$((FAIL+1)); }
-TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+TMP="$(mktemp -d)"; export AIDEX_READY_WHEN_ALLOW="$TMP/no-such-dir/allow.txt"; trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/p/.context/backlog" "$TMP/p/src/gap"; : > "$TMP/p/src/gap/lane.py"; cd "$TMP/p"
 B="$TMP/p/.context/backlog"
 reg() { bash "$SCRIPTS/register-item.sh" --origin manual --no-index "$@" 2>/dev/null; }
@@ -160,5 +160,52 @@ grep -qF "outside this repo" "$TMP/ko2" || true
 bash "$SCRIPTS/sweep-kickoff.sh" --dry-run > "$TMP/ko3" 2>&1
 grep -q "BL-017 .*outside this repo" "$TMP/ko3" && ! grep -qF "twice over" "$TMP/ko3" \
   && ok "a long non-waiting REVIEW reason prints no overflow line" || bad "overflow for non-waiting reason: $(grep -n 'BL-017' -A2 "$TMP/ko3")"
+
+# --- cmd: approval (security): a cmd: runs only when the local allowlist holds its hash ---
+ALLOW="$AIDEX_READY_WHEN_ALLOW"; MK="$TMP/marker"
+[[ -s "$ALLOW" ]] && ok "defer --ready-when cmd: created the allowlist (and its missing directory)" || bad "allowlist not created"
+bash "$DFR" defer BL-017 --reason r --ready-when "cmd:test -f src/gap/lane.py" --no-index >/dev/null 2>&1
+bash "$DFR" reactivate BL-017 --no-index >/dev/null 2>&1; bash "$DFR" defer BL-017 --reason r --ready-when "cmd:test -f src/gap/lane.py" --no-index >/dev/null 2>&1
+[[ "$(sort "$ALLOW" | uniq -d | wc -l | tr -d ' ')" == 0 ]] && ok "approving the same command twice adds no duplicate line" || bad "duplicate allowlist lines"
+
+P="$(mk "hand written cmd")"   # BL-018: a pulled-in item, never approved through defer
+bash "$DFR" defer BL-018 --reason r --no-index >/dev/null 2>&1
+python3 - "$DEFD"/*bl-018*.md "$MK" <<'PY'
+import sys
+p,mk=sys.argv[1:3]; t=open(p).read().replace('\ntouches:', '\nready_when: "cmd:touch %s"\ntouches:' % mk, 1); open(p,'w').write(t)
+PY
+[[ "$(verdict BL-018)" == "NEEDS APPROVAL" ]] && ok "hand-written cmd: is NEEDS APPROVAL" || bad "unapproved cmd verdict: $(verdict BL-018)"
+[[ ! -e "$MK" ]] && ok "the unapproved command was not run" || bad "unapproved command RAN (marker exists)"
+python3 "$SCRIPTS/sweep-eligible.py" | grep -qF "cmd:touch $MK" && ok "the command text is shown for review" || bad "command text not shown"
+
+Q="$(mk "approved via defer")"   # BL-019
+bash "$DFR" defer BL-019 --reason r --ready-when "cmd:touch $MK" --no-index >/dev/null 2>&1
+[[ "$(verdict BL-019)" == READY && -e "$MK" ]] && ok "a cmd: written through defer is approved: runs and is READY" || bad "approved via defer: $(verdict BL-019) marker=$([[ -e $MK ]] && echo yes || echo no)"
+rm -f "$MK"
+
+# the same text approved for ANOTHER project root is not approved here
+R="$(mk "other root")"   # BL-020
+bash "$DFR" defer BL-020 --reason r --no-index >/dev/null 2>&1
+python3 - "$DEFD"/*bl-020*.md "$MK" <<'PY'
+import sys
+p,mk=sys.argv[1:3]; t=open(p).read().replace('\ntouches:', '\nready_when: "cmd:touch %s.other"\ntouches:' % mk, 1); open(p,'w').write(t)
+PY
+OTHER="$TMP/other-allow.txt"
+python3 -c 'import hashlib,sys; print(hashlib.sha256(("/some/other/root\n"+sys.argv[1]).encode()).hexdigest())' "touch $MK.other" > "$OTHER"
+V="$(AIDEX_READY_WHEN_ALLOW="$OTHER" verdict BL-020)"
+[[ "$V" == "NEEDS APPROVAL" && ! -e "$MK.other" ]] && ok "an approval recorded for another root does not approve here" || bad "other-root approval: $V marker=$([[ -e $MK.other ]] && echo ran)"
+
+# an active item carrying an unapproved cmd: is REVIEW with the command, never ELIGIBLE, never run
+T="$(mk "active hand written cmd")"   # BL-021
+python3 - "$T" "$MK" <<'PY'
+import sys
+p,mk=sys.argv[1:3]; t=open(p).read().replace('\ntouches:', '\nready_when: "cmd:touch %s.active"\ntouches:' % mk, 1); open(p,'w').write(t)
+PY
+sect_has eligible BL-021 && bad "unapproved active cmd: reached ELIGIBLE" || ok "unapproved active cmd: is not ELIGIBLE"
+python3 "$SCRIPTS/sweep-eligible.py" | grep -qF "waiting: needs approval: touch $MK.active" && [[ ! -e "$MK.active" ]] \
+  && ok "active item: REVIEW 'waiting: needs approval: <cmd>', not run" || bad "active approval reason / ran"
+bash "$SCRIPTS/sweep-kickoff.sh" --dry-run > "$TMP/ko4" 2>&1
+grep -q "BL-020 .*NEEDS APPROVAL" "$TMP/ko4" && grep -qF "cmd:touch $MK.other" "$TMP/ko4" \
+  && ok "kickoff deferred section shows NEEDS APPROVAL with the command" || bad "kickoff NEEDS APPROVAL"
 
 echo "passed=$PASS failed=$FAIL"; [[ $FAIL -eq 0 ]]

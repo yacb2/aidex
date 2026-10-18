@@ -201,10 +201,10 @@ def summary(d):
     for i in d["needs_decision"]:
         print("  %-8s %-3s %-3s  %-22s %s" % (i["id"], i["priority"], i["estimate"], i["reason"], i["title"][:50]))
     shown = [i for i in d["deferred"] if i["verdict"] != "WAITING"]
-    print("\nDEFERRED — condition check (%d, %d shown: READY go back with defer-item.sh reactivate, ASK OWNER need a date, BAD FORM need a fix)" % (len(d["deferred"]), len(shown)))
+    print("\nDEFERRED — condition check (%d, %d shown: READY go back with defer-item.sh reactivate, ASK OWNER need a date, BAD FORM need a fix, NEEDS APPROVAL were not written by defer)" % (len(d["deferred"]), len(shown)))
     for i in shown:
         print("  %-8s %-3s %-9s %s" % (i["id"], i["priority"], i["verdict"], i["title"][:50]))
-        if i["verdict"] == "BAD FORM":
+        if i["verdict"] in ("BAD FORM", "NEEDS APPROVAL"):
             print("  %-8s %-3s %-9s ready_when %s" % ("", "", "", i["ready_when"]))
 
 
