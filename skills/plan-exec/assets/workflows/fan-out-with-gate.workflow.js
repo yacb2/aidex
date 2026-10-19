@@ -158,7 +158,11 @@ function arbiter(situation, autonomySurface) {
 // Durable per-phase loop: implement -> (director on blocked / pending actions) ->
 // verify -> retry K -> conditional arbiter on exhaustion.
 async function runPhase(phase, ctx) {
-  const K = ctx.maxRetries ?? 2
+  // A retry COUNT: K retries = K + 1 attempts. `args` arrives as JSON, so a string "3" is
+  // coerced (unchecked it made K + 1 = "31"); anything not a non-negative integer is refused.
+  const rawK = ctx.maxRetries ?? 2
+  if (!/^\d+$/.test(String(rawK))) throw new Error(`maxRetries must be a non-negative integer, got ${JSON.stringify(rawK)}`)
+  const K = Number(rawK)
   let feedback = ''
   let directed = 0
   const asks = []
@@ -301,6 +305,9 @@ const ctx = {
   preAuthorized: cfg.preAuthorized || [],
   maxRetries: cfg.maxRetries ?? 2,
 }
+// Refused once at launch (CORE's runPhase refuses it too): thrown inside a wave, parallel()
+// would turn it into one null row per phase and the message would be lost.
+if (!/^\d+$/.test(String(ctx.maxRetries))) throw new Error(`maxRetries must be a non-negative integer, got ${JSON.stringify(ctx.maxRetries)}`)
 
 // Ids and depends_on entries are compared as strings (1 and '1' are one phase; a scalar
 // depends_on is a one-item list); no phases at all is a wrong launch, never an empty success.

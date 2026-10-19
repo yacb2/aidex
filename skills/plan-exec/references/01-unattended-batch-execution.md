@@ -136,7 +136,8 @@ no acceptance test to track — the declared `gateCmd` is still the sole gate.
 array in order and ignores it.
 
 Pass `planPath`, the run's `autonomySurface` (from the plan), `preAuthorized` (any publish the
-plan pre-authorized), and `maxRetries` (default 2). To **resume** a crashed/stopped run, re-invoke
+plan pre-authorized), and `maxRetries` (default 2; a non-negative integer, K retries = K + 1
+attempts; anything else is refused at launch). To **resume** a crashed/stopped run, re-invoke
 `Workflow` with `{scriptPath, resumeFromRunId}` — completed phases replay from the journal.
 
 ### Phase tier hint (model/effort)

@@ -155,7 +155,11 @@ function arbiter(situation, autonomySurface) {
 // Durable per-phase loop: implement -> (director on blocked / pending actions) ->
 // verify -> retry K -> conditional arbiter on exhaustion.
 async function runPhase(phase, ctx) {
-  const K = ctx.maxRetries ?? 2
+  // A retry COUNT: K retries = K + 1 attempts. `args` arrives as JSON, so a string "3" is
+  // coerced (unchecked it made K + 1 = "31"); anything not a non-negative integer is refused.
+  const rawK = ctx.maxRetries ?? 2
+  if (!/^\d+$/.test(String(rawK))) throw new Error(`maxRetries must be a non-negative integer, got ${JSON.stringify(rawK)}`)
+  const K = Number(rawK)
   let feedback = ''
   let directed = 0
   const asks = []
