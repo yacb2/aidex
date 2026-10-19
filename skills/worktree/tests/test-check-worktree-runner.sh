@@ -223,6 +223,28 @@ out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
 [[ "$rc" -ne 0 ]] || fail "elsewhere: a dotenv import in src/ must NOT exempt the root config, got: $out"
 grep -q '8710' <<<"$out" || fail "elsewhere: must name the port, got: $out"
 
+# --- 11. a linked worktree whose config.env is untracked in main (BL-814) ----
+# In a split workspace `.context/` is tracked, so the worktree has one, but
+# config.env is not: the check looked only at <worktree>/.context/worktrees/
+# config.env and exited 2 "nothing was checked". The config is the main tree's;
+# the files examined are the worktree's own (the leak below exists only there).
+p="$(mk_project wtmain)"
+( cd "$p" && /usr/bin/git init -q -b main . && printf 'config.env\n' > .context/worktrees/.gitignore \
+  && /usr/bin/git add -A && /usr/bin/git -c user.email=t@e.com -c user.name=t commit -qm i \
+  && /usr/bin/git worktree add -q "$TMP/wtmain-wt" ) >/dev/null 2>&1
+w="$TMP/wtmain-wt"
+[[ -d "$w/.context" && ! -f "$w/.context/worktrees/config.env" ]] || fail "wtmain: fixture must reproduce the untracked-config worktree"
+mkdir -p "$w/frontend/tests/e2e-setup"  # empty in main, so git did not carry it
+cat > "$w/frontend/tests/e2e-setup/test-config.ts" <<'TS'
+export const CONFIG = { BACKEND_URL: process.env.E2E_BACKEND_URL || 'http://localhost:8710' }
+TS
+out="$(bash "$CHECK" "$w" 2>&1)"; rc=$?
+grep -qi 'nothing was checked' <<<"$out" && fail "wtmain: must read the main tree's config, got: $out"
+[[ "$rc" -eq 1 ]] || fail "wtmain: the worktree's leaky harness must be a finding (exit 1), got $rc: $out"
+grep -q '8710' <<<"$out" || fail "wtmain: must name the port in the worktree's file, got: $out"
+out="$(cd "$w" && bash "$CHECK" 2>&1)"; rc=$?
+[[ "$rc" -eq 1 ]] || fail "wtmain (cwd, no args): must reach a verdict, got $rc: $out"
+
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"
   exit 1

@@ -99,7 +99,8 @@ dir_loads_slot_env() {
 # `port('E2E_BACKEND_PORT', 8710)` is caught. A `||`-only rule missed it, and
 # missed it on the very project the defect was reported from.
 dev_literals() {  # dev_literals <project-root> -> one literal per line
-  local root="$1" cfg="$1/.context/worktrees/config.env" links
+  local root="$1" cfg links
+  cfg="$(wt_cfg_path "$root")"
   links="$(wt_cfg_field "$cfg" WT_LINKS)"
   {
     ( cd "$root" && docker compose --profile '*' config --no-interpolate --format json 2>/dev/null ) \
@@ -113,7 +114,8 @@ dev_literals() {  # dev_literals <project-root> -> one literal per line
 }
 
 scan_project() {  # -> <file>:<line>\t<kind>\t<what>\t<why> per finding
-  local root="$1" cfg="$1/.context/worktrees/config.env"
+  local root="$1" cfg
+  cfg="$(wt_cfg_path "$root")"
   local parts part d f line lit devlits
 
   [[ -f "$cfg" ]] || return 0
@@ -163,7 +165,7 @@ ROOT="${TARGET:-$(find_project_root)}"
 # Examining nothing is not a pass. `scan_project` returns 0 when there is no config.env and when
 # WT_PARTICIPANTS is empty, and the verdict below cannot tell either from a
 # project whose harnesses are genuinely clean.
-RUNNER_CFG="$ROOT/.context/worktrees/config.env"
+RUNNER_CFG="$(wt_cfg_path "$ROOT")"
 if [[ ! -f "$RUNNER_CFG" ]]; then
   err "no worktree config at $RUNNER_CFG — nothing was checked."
   exit 2
