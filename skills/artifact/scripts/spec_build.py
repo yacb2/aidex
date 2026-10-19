@@ -54,6 +54,7 @@ import html as htmllib
 import io
 import os
 import re
+import shlex
 import struct
 import subprocess
 import sys
@@ -2478,14 +2479,44 @@ def hand_edit_defect(out, spec=None):
                  min(len(had), len(has)))
     changed = sum(1 for x, y in zip(had, has) if x != y) + abs(len(had) - len(has))
     shown = (has[first] if first < len(has) else "(line removed)").strip()[:100]
-    spec_arg = spec or "<spec.md>"
+    spec_arg = shlex.quote(spec) if spec else "<spec.md>"
     return ("%s differs from %s, what the last build wrote: it was hand-edited "
             "(%d line%s changed; first at line %d: %s). The page is an output: "
             "move the change into the spec (or use the `add-item` / `decide` / "
             "`new-round` verbs) and rebuild; to overwrite the hand edit on "
             "purpose, build with `spec_build.py %s -o %s --discard-hand-edit`"
             % (out, baseline, changed, "" if changed == 1 else "s", first + 1,
-               shown, spec_arg, out))
+               shown, spec_arg, shlex.quote(out)))
+
+
+def refuse_unexpired_proposals(args, spec_text):
+    """True (after writing the refusal) when this rebuild would open a round over
+    a saved reply that accepted a proposal untouched (BL-840). The wrap opens the
+    round from that state (a reply saved for the open round), with or without
+    --new-round; the round transition is the verb's, which expires the proposals
+    the reader accepted, and a round opened here would show them again, live."""
+    if not (wrap_report._current_round(args.out) >= 1
+            and wrap_report.reply_saved(args.out)):
+        return False
+    import spec_verbs                       # lazy: spec_verbs imports this module
+    accepted = spec_verbs.unexpired_proposals(args.spec, args.out, spec_text)
+    if not accepted:
+        return False
+    cmd = [os.path.join(os.path.dirname(os.path.abspath(__file__)), "spec_verbs.py"),
+           "new-round", args.spec, "--out", args.out]
+    cmd += ["--lang", args.lang] if args.lang else []
+    cmd += ["--discard-hand-edit"] if args.discard_hand_edit else []
+    sys.stderr.write(
+        "spec-build: refused: this rebuild would open round %d over the saved "
+        "reply, which accepted the proposal%s %s untouched, and show %s again "
+        "as open. Run `python3 %s` instead (it expires accepted proposals and "
+        "opens the round); nothing was written\n"
+        % (wrap_report._current_round(args.out) + 1,
+           "" if len(accepted) == 1 else "s",
+           ", ".join("#" + i for i in accepted),
+           "it" if len(accepted) == 1 else "them",
+           " ".join(shlex.quote(c) for c in cmd)))
+    return True
 
 
 # --- CLI ---------------------------------------------------------------------
@@ -2551,6 +2582,14 @@ def main(argv):
         # Before build(): a gallery copies its captures beside the page while
         # it builds, and a refusal must leave no `<name>-assets/` behind.
         refuse_missing_visual(spec_text)
+        if args.out:
+            defect = (None if args.discard_hand_edit
+                      else hand_edit_defect(args.out, args.spec))
+            if defect:
+                sys.stderr.write("spec-build: %s\n" % defect)
+                return 1
+            if refuse_unexpired_proposals(args, spec_text):
+                return 1
         warnings = []
         body = build(spec_text, lang=lang,
                      base_dir=os.path.dirname(os.path.abspath(args.spec)),
@@ -2574,10 +2613,6 @@ def main(argv):
     if not args.out:
         sys.stdout.write(body)
         return 0
-    defect = None if args.discard_hand_edit else hand_edit_defect(args.out, args.spec)
-    if defect:
-        sys.stderr.write("spec-build: %s\n" % defect)
-        return 1
     if not title:
         sys.stderr.write("spec-build: no document title — give the masthead a "
                          "title, or pass --title\n")
