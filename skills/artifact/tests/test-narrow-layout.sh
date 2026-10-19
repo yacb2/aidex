@@ -3,6 +3,9 @@
 #   BL-584  the content column is at least 350 px (it was 292: body padding plus the
 #           100vw - 6rem cap took 96 px), and a 3-prose-column table stays short (7 lines a row at most; 9 with
 #           the column fix alone, 16 before it);
+#   BL-853  a 6-column table in a consultation item (built from a spec, so the builder's
+#           data-label is part of what is measured) stacks at 390 px: no sideways scroll,
+#           rows as label: value blocks;
 #   BL-586  a sub-list item pitch is no larger than a top-level one, and an ol and a
 #           ul share one left edge.
 # Layer: browser, because the widths and gaps are what the cascade computes, not
@@ -78,4 +81,46 @@ awk -v v="$cw" 'BEGIN { exit !(v >= 350) }' || fail "BL-584: the content column 
 awk -v v="$lines" 'BEGIN { exit !(v >= 1 && v <= 7) }' || fail "BL-584: a 3-column table row runs to ${lines:-?} lines at 390 px (want 1..7; it was 16)"
 awk -v a="$subgap" -v b="$topgap" 'BEGIN { exit !(a != "" && b != "" && a <= b) }' || fail "BL-586: sub-item pitch ${subgap:-?}px exceeds the top-level pitch ${topgap:-?}px"
 awk -v a="$olx" -v b="$ulx" 'BEGIN { d = a - b; if (d < 0) d = -d; exit !(a != "" && b != "" && d <= 1) }' || fail "BL-586: ol left edge ${olx:-?}px differs from ul ${ulx:-?}px"
+# BL-853: the spec-built page, measured the same way.
+python3 "$HERE/../scripts/spec_build.py" "$HERE/fixtures/narrow-layout/wide-table.spec.md" -o "$TMP/wide-built.html" > "$TMP/wide-build.log" 2>&1 \
+  || fail "the wide-table spec failed to build: $(sed -n 1,4p "$TMP/wide-build.log")"
+python3 - "$TMP/wide-built.html" "$TMP/wide.html" <<'PY'
+import sys
+s = open(sys.argv[1], encoding="utf-8").read()
+js = """<script>window.addEventListener('load', function () {
+  var tw = document.querySelector('.consult-item .tw');
+  var st = tw.querySelector('td strong'), nx = st.nextSibling, rg = document.createRange();
+  rg.setStart(nx, 0); rg.setEnd(nx, 1);
+  var ovf = tw.classList.contains('overflows');
+  /* fitTables sets .overflows on a stacked table that still overflows; force it so the
+     fade and the cue rules are measured in the one state where they matter. */
+  tw.classList.add('overflows');
+  document.title = 'WT|SCROLL=' + (tw.scrollWidth - tw.clientWidth) +
+    '|ROW=' + getComputedStyle(tw.querySelector('tbody tr')).display +
+    '|DOC=' + (document.documentElement.scrollWidth - innerWidth) +
+    '|OVF=' + ovf +
+    '|CUE=' + getComputedStyle(tw.nextElementSibling).display +
+    '|MASK=' + getComputedStyle(tw).maskImage +
+    '|GAP=' + Math.round(rg.getBoundingClientRect().left - st.getBoundingClientRect().right) + '|';
+});</script></body>"""
+open(sys.argv[2], "w", encoding="utf-8").write(s.replace("</body>", js, 1))
+PY
+: > "$TMP/dom2.html"
+perl -e 'setpgrp(0,0); exec @ARGV' "$CHROME" --headless=new --disable-gpu --no-first-run --disable-extensions --hide-scrollbars \
+  --window-size=390,900 --user-data-dir="$TMP/profile2" --dump-dom "file://$TMP/wide.html" > "$TMP/dom2.html" 2>/dev/null &
+CHROME_PID=$!
+for ((i = 0; i < 90; i++)); do
+  grep -q '</html>' "$TMP/dom2.html" 2>/dev/null && break
+  kill -0 "$CHROME_PID" 2>/dev/null || break
+  sleep 0.5
+done
+kill -9 -- "-$CHROME_PID" 2>/dev/null; wait "$CHROME_PID" 2>/dev/null; CHROME_PID=""
+t2="$(grep -oE '<title>[^<]*</title>' "$TMP/dom2.html" | sed -n 1p)"
+echo "measured: $t2"
+[[ "$t2" == *"WT|SCROLL=0|"* ]] || fail "BL-853: a 6-column table in a consultation item scrolls sideways at 390 px: $t2"
+[[ "$t2" == *"|DOC=0|"* ]] || fail "BL-853: a long hash, URL or path widens the page past 390 px: $t2"
+[[ "$t2" == *"|OVF=false|"* && "$t2" == *"|CUE=none|"* && "$t2" == *"|MASK=none|"* ]] || fail "BL-853: a stacked table shows the scroll fade or cue it cannot use: $t2"
+gap="$(sed -E 's/.*\|GAP=(-?[0-9]+)\|.*/\1/' <<<"$t2")"
+awk -v g="$gap" 'BEGIN { exit !(g >= -1 && g <= 6) }' || fail "BL-853: text after <strong> sits ${gap:-?}px from it (a flex cell splits inline formatting; want a space, 6 px at most): $t2"
+[[ "$t2" == *"|ROW=block|"* ]] || fail "BL-853: its rows are not stacked (want display:block) at 390 px: $t2"
 [[ $failures -eq 0 ]] && { echo "test-narrow-layout: ok"; exit 0; } || exit 1
