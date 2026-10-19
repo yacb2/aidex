@@ -41,6 +41,8 @@ next to the code. No profile, or a pack that is not installed: say so and follow
 `${CLAUDE_PLUGIN_ROOT}/skills/coverage/SKILL.md` § Resolving the stack packs — never
 improvise framework content from memory.
 
+For every predicate, regex, parser or comparison, give the test table at least one input that must be refused and one that must pass next to the boundary, plus the empty, malformed and wrong-case input; a matcher tested only on its happy example is untested.
+
 ## What to run
 
 The new or changed test alone, by the profile's single-test command for its leg
