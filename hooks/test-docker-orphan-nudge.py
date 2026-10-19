@@ -118,7 +118,8 @@ try:
     check("candidates: says verify by hand", "verify by hand before removing anything" in m, m)
     check("candidates: no removal command in the message", "docker " not in m and "rm " not in m and "down" not in m, m)
     # `/aidex:worktree status` runs the default, workspace-scoped sweep, which prints
-    # `down -v` / `volume rm` for a live worktree outside $WS_PARENT/$WS_NAME-wt-*.
+    # `down` (no -v) / `rmi` / `network rm` for a live worktree moved with a plain `mv` whose
+    # stack is stopped (stale working_dir, no container running).
     check("candidates: pointer is the label-judged listing, not status",
           'bash "%s" --all' % os.path.realpath(os.path.join(SWEEP_DIR, "orphan-sweep.sh")) in m and "worktree status" not in m, m)
     check("fresh summary: no scan launched", not wait_for(SWEEP_LOG, limit=0.5))

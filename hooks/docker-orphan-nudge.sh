@@ -5,8 +5,9 @@
 #
 # It reports; it deletes nothing and prints no removal command. Its only pointer is the
 # read-only `orphan-sweep.sh --all` listing, never `/aidex:worktree status`: that runs the
-# default, workspace-scoped sweep, which prints `down -v` / `volume rm` for any -wt-
-# project not at $WS_PARENT/$WS_NAME-wt-* (a moved or custom-location live worktree).
+# default, workspace-scoped sweep, which prints `down` (no -v) / `rmi` / `network rm` for a
+# -wt- project not at $WS_PARENT/$WS_NAME-wt-* whose working_dir is gone and no container
+# is running (a live worktree moved with a plain `mv` keeps its old one).
 # The judgement is `orphan-sweep.sh --all` (skills/worktree/scripts/orphan-sweep-all.sh);
 # this hook makes ZERO docker calls on the start path. It reads the summary that scan
 # wrote under ~/.claude/tmp/docker-orphans/ and, when that summary is missing or older

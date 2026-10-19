@@ -36,8 +36,8 @@ cat > "$TMP/bin/docker" <<'SHIM'
 #!/usr/bin/env bash
 case "$1" in
   info) exit 0 ;;
-  ps)
-    printf '%s\n' "myproj-wt-alive" "myproj-wt-dead"
+  ps) # project, working_dir (the dead one's is gone), mounts
+    printf '%s\t%s\t\n' "myproj-wt-alive" "" "myproj-wt-dead" /nonexistent/myproj-wt-dead
     ;;
   volume)
     printf '%s\n' "myproj-wt-alive_pgdata" "myproj-wt-orphanvol_pgdata"
@@ -61,15 +61,16 @@ if printf '%s' "$out" | grep >/dev/null 'ORPHAN compose project: myproj-wt-dead'
 else
   fail "orphaned compose project not reported: $out"
 fi
-if printf '%s' "$out" | grep >/dev/null 'docker compose -p myproj-wt-dead down -v --rmi local --remove-orphans'; then
+if printf '%s' "$out" | grep >/dev/null 'docker compose -p myproj-wt-dead down --rmi local --remove-orphans'; then
   pass "exact worktree_down command printed for orphan"
 else
   fail "worktree_down command missing/wrong: $out"
 fi
-if printf '%s' "$out" | grep >/dev/null 'ORPHAN volume: myproj-wt-orphanvol_pgdata'; then
-  pass "orphaned volume reported"
+# No container of myproj-wt-orphanvol proves its worktree gone: listed, never `volume rm` (BL-857).
+if printf '%s' "$out" | grep >/dev/null 'NOT JUDGED volume: myproj-wt-orphanvol_pgdata'; then
+  pass "container-less volume reported, not judged"
 else
-  fail "orphaned volume not reported: $out"
+  fail "container-less volume not reported as NOT JUDGED: $out"
 fi
 if printf '%s' "$out" | grep >/dev/null 'ORPHAN image: myproj-wt-orphanimg'; then
   pass "orphaned image reported"
@@ -158,7 +159,7 @@ cat > "$TMP/nbin/docker" <<'SHIM'
 #!/usr/bin/env bash
 case "$1" in
   info) exit 0 ;;
-  ps) printf '%s\n' "myapp-wt-cn" "myapp-wt-dead" ;;
+  ps) printf '%s\t%s\t\n' "myapp-wt-cn" "" "myapp-wt-dead" /nonexistent/myapp-wt-dead ;;
   *) exit 0 ;;
 esac
 SHIM
@@ -439,6 +440,196 @@ for mode in hang fail; do
         && fail "fail ${flag:-plain}: breaker reported on a non-timeout failure: $out" || pass "fail ${flag:-plain}: no breaker report"
     fi
   done
+done
+
+echo "== no destructive line for a live, unjudgeable or volume-sharing project (BL-857) =="
+# Layer: script-level, docker shim that answers per --format (no daemon). The name rule
+# alone handed `down -v` to a live worktree at a custom location; a pinned volume
+# (ph_postgres_data) shared with the main stack got `down -v` too.
+mkdir -p "$TMP/elsewhere/myproj-wt-custom" "$TMP/vbin"
+cat > "$TMP/vbin/docker" <<SHIM
+#!/usr/bin/env bash
+T=\$'\t'
+case "\$*" in
+  info) ;;
+  "ps -a --no-trunc"*working_dir*Mounts*State*) cat <<EOF   # without --no-trunc docker cuts volume names
+myproj-wt-custom\${T}$TMP/elsewhere/myproj-wt-custom\${T}myproj-wt-custom_db
+myproj-wt-nolabel\${T}\${T}myproj-wt-nolabel_db
+myproj-wt-shared\${T}$TMP/gone/myproj-wt-shared\${T}ph_postgres_data
+myproj-wt-shared\${T}$TMP/gone/myproj-wt-shared\${T}ph_postgres_data
+myproj\${T}$TMP/myproj\${T}ph_postgres_data,/host/src
+myproj\${T}$TMP/myproj\${T}ph_postgres_data
+myproj-wt-gone2\${T}$TMP/gone/myproj-wt-gone2\${T}/host/src,myproj-wt-gone2_db
+otherproj\${T}$TMP/other\${T}myproj-wt-gone3_db
+myproj-wt-moved\${T}$TMP/gone/m\${T}myproj-wt-moved_db\${T}running
+\${T}\${T}myproj-wt-gone4_db
+EOF
+  ;;
+  "ps -a"*) printf '%s\n' myproj-wt-custom myproj-wt-nolabel myproj-wt-shared myproj myproj-wt-gone2 otherproj "" ;;
+  "volume ls"*) printf '%s\n' myproj-wt-custom_db myproj-wt-nolabel_db ph_postgres_data myproj-wt-gone2_db myproj-wt-gone3_db myproj-wt-gone4_db myproj-wt-moved_db ;;
+esac
+exit 0
+SHIM
+chmod +x "$TMP/vbin/docker"
+out="$( cd "$ROOT" && PATH="$TMP/vbin:$PATH" bash "$SCRIPT" 2>&1 )"
+has()  { if grep -Fq -- "$2" <<< "$out"; then pass "$1"; else fail "$1: missing '$2' in: $out"; fi; }
+hasnt(){ if grep -Fq -- "$2" <<< "$out"; then fail "$1: unexpected '$2' in: $out"; else pass "$1"; fi; }
+has   "custom location: listed live by its working_dir" "LIVE (working_dir exists): $TMP/elsewhere/myproj-wt-custom"
+hasnt "custom location: no compose command" "compose -p myproj-wt-custom"
+hasnt "custom location: its volume is not removable" "volume rm myproj-wt-custom_db"
+has   "no working_dir label: not judged" "NOT JUDGED compose project: myproj-wt-nolabel"
+hasnt "no working_dir label: no compose command" "compose -p myproj-wt-nolabel"
+hasnt "no working_dir label: its volume is not removable" "volume rm myproj-wt-nolabel_db"
+has   "no working_dir label: its volume is still listed, not judged" "NOT JUDGED volume: myproj-wt-nolabel_db"
+has   "shared pinned volume: down without -v" "  docker compose -p myproj-wt-shared down --rmi local --remove-orphans"
+hasnt "shared pinned volume: no down -v" "compose -p myproj-wt-shared down -v"
+[[ "$(grep -Fxc -- "  # no -v: shared volume ph_postgres_data is mounted by: myproj" <<< "$out")" -eq 1 ]] \
+  && pass "shared pinned volume: named once, with its other project once" \
+  || fail "shared pinned volume: want exactly one line naming myproj once: $out"
+has   "an orphan proven gone gets down without -v" "  docker compose -p myproj-wt-gone2 down --rmi local --remove-orphans"
+hasnt "a bind path is not a volume: no note names it" "/host/src"
+has   "a gone project's own volume: listed with no command" "ORPHAN volume: myproj-wt-gone2_db  (verify by hand; no command printed: a moved worktree with a stopped stack looks identical, see worktree-conventions.md)"
+hasnt "default mode never prints volume rm (a moved, stopped worktree looks gone)" "volume rm"
+[[ "$(grep -Fxc -- "  # judged gone: $TMP/gone/myproj-wt-shared does not exist" <<< "$out")" -eq 1 ]] \
+  && pass "the ORPHAN block shows its proof, once per working_dir" \
+  || fail "want exactly one 'judged gone: $TMP/gone/myproj-wt-shared' line: $out"
+hasnt "a volume mounted by another project's container: no volume rm" "volume rm myproj-wt-gone3_db"
+has   "a volume mounted by another project's container: the mounter is named" "myproj-wt-gone3_db is mounted by: otherproj"
+hasnt "a volume mounted by a container outside compose: no volume rm" "volume rm myproj-wt-gone4_db"
+has   "moved worktree, container running: listed live" "LIVE (container running)"
+hasnt "moved worktree, container running: no compose command" "compose -p myproj-wt-moved"
+hasnt "moved worktree, container running: its volume is not removable" "volume rm myproj-wt-moved_db"
+# nolabel, shared and gone2, and the nolabel and gone2/3/4 volumes; never the LIVE project or its volume.
+has   "a not-judged project counts as a finding, a live one does not" "7 orphan(s) found"
+
+echo "== no removal line without a container proving the worktree gone (BL-857 round 2) =="
+# Layer: script-level, docker shim switched by MODE (no daemon). A volume whose project has
+# no container (stack downed, or the listing failed) has no working_dir to judge, so it gets
+# no `volume rm`; it is NOT JUDGED whether or not $TMP/elsewhere/myproj-wt-custom exists (that
+# directory is NOT a liveness proof here). An orphan mounting a volume not named <project>_*
+# (name:-pinned or external, e.g. ph_postgres_data) gets `down` without -v: a git worktree
+# declares the main stack's pinned volume too, and nothing else may mount it right now.
+HEX=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+mkdir -p "$TMP/rbin"
+cat > "$TMP/rbin/docker" <<SHIM
+#!/usr/bin/env bash
+T=\$'\t'
+case "\$MODE \$*" in
+  *" info") ;;
+  "nocontainers ps -a"*) ;;
+  "psfail"*" ps -a"*) exit 1 ;;
+  "partial ps -a"*) printf '%s\n' "myproj-wt-dead\${T}$TMP/gone/d\${T}myproj-wt-dead_db\${T}exited"; exit 1 ;;
+  "partial volume ls"*) echo myproj-wt-dead_db ;;
+  "partial images --format"*) echo myproj-wt-dead-web ;;
+  "partial images -f dangling=true -q") echo d1 ;;
+  "partial images -f dangling=true -f"*) echo d1 ;;
+  "partial inspect"*) echo myproj-wt-dead ;;
+  "partial network ls"*) echo myproj-wt-dead_default ;;
+  "partial network inspect"*) echo 0 ;;
+  "pinned ps -a"*) printf '%s\n' "myproj-wt-dead\${T}$TMP/gone/x\${T}ph_postgres_data" ;;
+  "names ps -a"*) cat <<EOF
+myproj-wt-anon\${T}$TMP/gone/a\${T}$HEX,myproj-wt-anon_db
+myproj-wt-short\${T}$TMP/gone/s\${T}${HEX:1}
+myproj-wt-upper\${T}$TMP/gone/u\${T}$(tr a-f A-F <<< "$HEX")
+myproj-wt-dead\${T}$TMP/gone/d\${T}myproj-wt-dead-x_db
+myproj-wt-long\${T}$TMP/gone/l\${T}${HEX}0
+myproj-wt-pre\${T}$TMP/gone/p\${T}g$HEX
+EOF
+  ;;
+  "states ps -a"*State*) cat <<EOF
+myproj-wt-paused\${T}$TMP/gone/p\${T}\${T}paused
+myproj-wt-restarting\${T}$TMP/gone/r\${T}\${T}restarting
+myproj-wt-mixed\${T}$TMP/gone/m\${T}\${T}exited
+myproj-wt-mixed\${T}$TMP/gone/m\${T}\${T}running
+myproj-wt-exited\${T}$TMP/gone/e\${T}\${T}exited
+myproj-wt-dead\${T}$TMP/gone/d\${T}\${T}dead
+myproj-wt-created\${T}$TMP/gone/c\${T}\${T}created
+myproj-wt-wrongcase\${T}$TMP/gone/w\${T}\${T}Running
+myproj-wt-removing\${T}$TMP/gone/x\${T}\${T}removing
+EOF
+  ;;
+  "bare ps -a"*) cat <<EOF
+myproj-wt-bare\${T}$TMP/gone/b\${T}
+myproj-wt-baz\${T}$TMP/gone/z\${T}myproj-wt-baz_cache
+EOF
+  ;;
+  "bare volume ls"*) echo myproj-wt-baz_cache ;;
+  "pinned volume ls"*) echo ph_postgres_data ;;
+  "nocontainers volume ls"*|"psfail volume ls"*) echo myproj-wt-custom_db ;;
+esac
+exit 0
+SHIM
+chmod +x "$TMP/rbin/docker"
+rsweep() { out="$( cd "$ROOT" && PATH="$TMP/rbin:$PATH" MODE="$1" bash "$SCRIPT" "${@:2}" 2>&1 )"; code=$?; }
+# A stray environment variable of the same name must not count as proof.
+gone_projects=myproj-wt-custom rsweep nocontainers
+hasnt "no container: the volume gets no volume rm" "volume rm myproj-wt-custom_db"
+has   "no container: the volume is listed NOT JUDGED" "NOT JUDGED volume: myproj-wt-custom_db"
+has   "no container: a NOT JUDGED volume is a finding" "1 orphan(s) found"
+has   "no container: the pointer to verify by hand" "#   git worktree list; docker volume inspect myproj-wt-custom_db"
+rsweep psfail --check
+hasnt "container listing failed: no volume rm" "volume rm"
+has   "container listing failed: the sweep is reported incomplete" "sweep incomplete (degraded)"
+rsweep psfailempty --check
+hasnt "container listing failed, nothing listed: not a clean bill" "No orphaned"
+[[ $code -eq 1 ]] && pass "container listing failed, nothing listed: --check exits 1" || fail "container listing failed, nothing listed: --check exit $code"
+rsweep pinned
+has   "pinned volume, nobody else mounts it: down without -v" "  docker compose -p myproj-wt-dead down --rmi local --remove-orphans"
+hasnt "pinned volume, nobody else mounts it: no down -v" "compose -p myproj-wt-dead down -v"
+has   "pinned volume, nobody else mounts it: the volume is named" "  # no -v: ph_postgres_data is not named myproj-wt-dead_*"
+rsweep names
+has   "an anonymous (64-hex) volume: down without -v" "  docker compose -p myproj-wt-anon down --rmi local --remove-orphans"
+hasnt "an anonymous (64-hex) volume gets no note" "# no -v: $HEX is not"
+has   "63 hex chars is a name, not an anonymous id" "# no -v: ${HEX:1} is not named myproj-wt-short_*"
+has   "upper-case hex is a name, not an anonymous id" "# no -v: $(tr a-f A-F <<< "$HEX") is not named myproj-wt-upper_*"
+has   "64 hex chars plus a trailing one is a name" "# no -v: ${HEX}0 is not named myproj-wt-long_*"
+has   "64 hex chars after a leading letter is a name" "# no -v: g$HEX is not named myproj-wt-pre_*"
+has   "a prefix sibling's volume (dead-x_db) is not dead's own" "# no -v: myproj-wt-dead-x_db is not named myproj-wt-dead_*"
+echo "== default mode never prints down -v; a running container proves the project live (BL-857 round 3) =="
+# Layer: script-level, same MODE shim. A bare `-p <proj> down -v` run from the workspace
+# root loads its compose.yaml and removes a name:-pinned volume nobody mounts at that
+# moment, so default mode never offers -v. Nor does it print `volume rm`: a worktree moved
+# with a plain mv whose stack is stopped looks exactly like a removed one.
+unjudged_projects=myproj-wt-baz rsweep bare    # a stray environment variable is no verdict
+hasnt "no mounts: no down -v" "compose -p myproj-wt-bare down -v"
+has   "no mounts: down without -v" "  docker compose -p myproj-wt-bare down --rmi local --remove-orphans"
+hasnt "no mounts: no empty volume note" "# no -v:  "
+hasnt "own volume only: no down -v" "compose -p myproj-wt-baz down -v"
+has   "own volume only: down without -v" "  docker compose -p myproj-wt-baz down --rmi local --remove-orphans"
+has   "own volume only: listed with no command" "ORPHAN volume: myproj-wt-baz_cache  (verify by hand; no command printed: a moved worktree with a stopped stack looks identical, see worktree-conventions.md)"
+hasnt "own volume only: no volume rm" "volume rm"
+rsweep states
+for p in paused restarting mixed; do
+  hasnt "state $p: no compose command" "compose -p myproj-wt-$p "
+done
+[[ "$(grep -Fxc "  LIVE (container running)" <<< "$out")" -eq 3 ]] \
+  && pass "running, restarting and paused (any one container) read live" \
+  || fail "want 3 LIVE (container running) lines: $out"
+# Docker emits lowercase states only: a wrong-case one (Running) is malformed and is not
+# read live; removing is a container on its way out. Both refused, like exited/dead/created.
+for p in exited dead created wrongcase removing; do
+  has "state $p: not live, gets down" "  docker compose -p myproj-wt-$p down --rmi local --remove-orphans"
+done
+has   "an ORPHAN block shows its proof" "  # judged gone: $TMP/gone/e does not exist"
+rsweep states --slug mixed
+has   "--slug: a running container is still residue" "  docker compose -p myproj-wt-mixed down --rmi local --remove-orphans"
+hasnt "--slug: no down -v either" "down -v"
+[[ $code -eq 1 ]] && pass "--slug: running residue exits 1" || fail "--slug: running residue exit $code"
+rsweep bare --slug baz
+has   "--slug: a volume keeps its removal line" "  docker volume rm myproj-wt-baz_cache   # confirm"
+
+echo "== a container listing that failed partway: no removal line at all (BL-857 round 4) =="
+# Layer: script-level, same MODE shim: `ps -a` prints one row, then exits 1. A running
+# container missing from the partial listing would read gone, so nothing gets a command.
+for args in "" "--slug dead"; do
+  rsweep partial $args
+  has   "partial listing ${args:-default}: the listing is kept" "compose project: myproj-wt-dead"
+  has   "partial listing ${args:-default}: reported incomplete" "sweep incomplete (degraded): the container listing failed"
+  hasnt "partial listing ${args:-default}: no compose command" "docker compose -p"
+  hasnt "partial listing ${args:-default}: no rmi for a tagged image" "docker rmi myproj-wt-dead-web"
+  hasnt "partial listing ${args:-default}: no rmi for a dangling layer" "docker rmi d1"
+  hasnt "partial listing ${args:-default}: no network rm" "docker network rm"
+  hasnt "partial listing ${args:-default}: no volume rm" "docker volume rm"
 done
 
 echo

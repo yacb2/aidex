@@ -187,7 +187,8 @@ substitute an eyeball.
    ```
    and surface its report as-is — any `<project>-wt-*` compose project, volume, tagged
    image, **untagged build layer, or network** with no matching worktree directory on
-   disk, plus the exact reclaim command for each. This is **report-only**: never run the
+   disk, plus the exact reclaim command for each one proven orphaned (a volume, a `LIVE`
+   or a `NOT JUDGED` entry carries none; see below). This is **report-only**: never run the
    printed commands without the user confirming them first (see the Docker safety doctrine in
    `conventions/references/worktree-conventions.md` — "dangling is not disposable"). Degrades silently to a one-line note when
    Docker isn't installed/running.
@@ -222,9 +223,20 @@ removal command. A live worktree moved with a plain `mv` reads as a candidate un
 stack is recreated, so verify by hand with the user before removing anything.
 
 The default sweep of step 4 is not a second opinion on a candidate: it judges liveness
-only by `$WS_PARENT/$WS_NAME-wt-*` directories and prints `down -v` and `volume rm` for
-any `-wt-` project not found there, which includes a moved worktree and one created at a
-custom location.
+by `$WS_PARENT/$WS_NAME-wt-*` directories, then by the same `working_dir` label, then by
+container state, so a worktree moved with a plain `mv` whose stack is stopped (stale
+label, nothing running) still gets `down`, `rmi` and `network rm`. A project whose
+`working_dir` exists prints `LIVE (working_dir exists)`, one with a running, restarting or
+paused container `LIVE (container running)`, one without the label `NOT JUDGED`, its
+volumes too. An `ORPHAN compose project` block names its proof, one
+`# judged gone: <working_dir> does not exist` line per directory. No volume gets
+`volume rm` from this sweep (`--slug`, the attribution pre-flight, keeps it): a moved
+worktree with a stopped stack looks identical to a removed one, so a gone project's volume is listed as `ORPHAN volume: <vol>  (verify by hand; ...)` and one
+with no container to read as `NOT JUDGED volume:`. The project line is always `down`
+without `-v` (under `--slug` too): run from the workspace root, `-p <project> down -v`
+would remove the main stack's name:-pinned volume whenever nothing mounts it. A shared
+volume or one not named `<project>_*` is named on a `# no -v:` line. When the container
+listing failed, even partway, no removal command is printed at all (BL-857).
 
 ### Doc-shape check
 
