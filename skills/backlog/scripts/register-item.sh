@@ -761,22 +761,21 @@ write_index() {
     fi
   fi
 
-  # Deferred section: open-but-blocked items parked in _deferred/, newest first.
+  # Deferred section: open-but-blocked items parked in _deferred/, newest first. Same shape
+  # as the closed section: awk renders each row as `updated TAB line` (0000-00-00 when there
+  # is no date), one `sort -r` orders them, bash only strips the key (BL-828).
   local -a DEFERRED_SORTED=()
-  local did dtitle dpriority dupdated dblocked dline dbase
+  local drow
   if [[ -d "$dir/_deferred" ]]; then
-    local -a deferred_tmp=()
-    while IFS=$'\037' read -r f dtitle did dpriority dupdated dblocked dready comps; do
-      dbase="${f##*/}"
-      [[ -z "$dtitle" ]] && dtitle="(untitled)"
-      dline="- ${did:+**${did}** · }[${dtitle}](_deferred/${dbase}) — ${dpriority:-P?} · blocked_by: \"${dblocked}\"${dready:+ · ready_when: \"${dready}\"}${dupdated:+ · ${dupdated}}${comps}"
-      deferred_tmp+=("${dupdated:-0000-00-00}"$'\t'"$dline")
-    done < <(list_items "$dir/_deferred" | read_dir_fields "title,id,priority,updated,blocked_by,ready_when")
-    if [[ ${#deferred_tmp[@]} -gt 0 ]]; then
-      while IFS= read -r line; do
-        DEFERRED_SORTED+=("${line#*$'\t'}")
-      done < <(printf '%s\n' "${deferred_tmp[@]}" | sort -r)
-    fi
+    while IFS= read -r drow; do DEFERRED_SORTED+=("${drow#*$'\t'}"); done < <(
+      list_items "$dir/_deferred" | read_dir_fields "title,id,priority,updated,blocked_by,ready_when" \
+        | awk -F'\037' '{
+            n = split($1, p, "/")
+            printf "%s\t- %s[%s](_deferred/%s) — %s · blocked_by: \"%s\"%s%s%s\n", ($5 == "") ? "0000-00-00" : $5, \
+              ($3 == "") ? "" : "**" $3 "** · ", ($2 == "") ? "(untitled)" : $2, p[n], \
+              ($4 == "") ? "P?" : $4, $6, ($7 == "") ? "" : " · ready_when: \"" $7 "\"", \
+              ($5 == "") ? "" : " · " $5, $8
+          }' | sort -r || true)
   fi
   rm -f "$COMP_TABLE"
 
