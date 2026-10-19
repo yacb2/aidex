@@ -204,6 +204,28 @@ substitute an eyeball.
    wrong cwd is not a cosmetic error — it once printed `docker volume rm` for a
    worktree that was live with three running containers.
 
+### Machine-wide orphan listing (`--all`)
+
+The session-start Docker nudge (`hooks/docker-orphan-nudge.sh`) points only at this
+script, by absolute path. Answer it with this listing, never with the no-args status
+check above:
+
+```bash
+bash "${CLAUDE_SKILL_DIR}/scripts/orphan-sweep.sh" --all
+```
+
+It lists a compose project — `-wt-` or ad-hoc — as a CANDIDATE ORPHAN only when every
+one of its containers carries Docker's `working_dir` label and none of those
+directories exists; it never parses a name. It prints the project, its working dirs,
+its container count and its volumes (as "attached to", never as removable), and no
+removal command. A live worktree moved with a plain `mv` reads as a candidate until its
+stack is recreated, so verify by hand with the user before removing anything.
+
+The default sweep of step 4 is not a second opinion on a candidate: it judges liveness
+only by `$WS_PARENT/$WS_NAME-wt-*` directories and prints `down -v` and `volume rm` for
+any `-wt-` project not found there, which includes a moved worktree and one created at a
+custom location.
+
 ### Doc-shape check
 
 Whenever an existing `00-index.md` is read (no-args status), run the
