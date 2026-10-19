@@ -633,6 +633,25 @@ try:
           'data-label="Dos" checked>', "<code>{chosen}</code>")
     rejects("item: a backtick-quoted {chosen} in a LABEL is refused",
             CH.replace("Tres", "Tres `{chosen}`"), 2, "data-label")
+    # BL-822: the reader's PROVISIONAL answer (an option ticked beside an ask)
+    # is preselected on the next round while the item stays open
+    # (consultation.md § What a chosen option MEANS). `{provisional}` checks it.
+    PV = CH.replace(" decided=yes", "").replace(" {chosen}", " {provisional}")
+    pv = holds("item: {provisional} checks that option on an OPEN item",
+               PV, 'data-label="Dos" checked>', 'data-label="Uno" data-recommended>')
+    check("item: ...the item stays open and the marker does not ship as text",
+          "data-decided" not in pv and "{provisional}" not in pv, pv)
+    rejects("item: {provisional} on a decided item is refused",
+            PV.replace('title="t"}', 'title="t" decided=yes}'), 2, "{provisional}")
+    rejects("item: {provisional} on a dropped item is refused, naming dropped",
+            PV.replace('title="t"}', 'title="t" dropped="no aplica"}'), 2,
+            "is dropped")
+    rejects("item: two {provisional} on a select=one item are refused",
+            PV.replace("- Tres", "- Tres {provisional}"), 2, "more than one")
+    holds("item: select=many checks every {provisional} option",
+          PV.replace('title="t"}', 'title="t" select=many}')
+            .replace("- Tres", "- Tres {provisional}"),
+          'data-label="Dos" checked>', 'data-label="Tres" checked>')
     # BL-687: the designated shape for "decided, correct me if not" is one
     # `item decided=yes` per point, inside its consult group (04-block-vocabulary.md).
     # The fixture is the documented example, so the doc cannot drift from the builder.

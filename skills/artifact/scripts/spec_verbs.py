@@ -347,11 +347,18 @@ def _match_labels(said, labels, many):
     One label for select=one; for select=many a `, `-joined set partitioned
     against the label set longest-first, so a label that holds a comma
     (`Uno, dos`) is read whole."""
+    got = _match_label_list(said, labels, many)
+    return None if got is None else ", ".join(got)
+
+
+def _match_label_list(said, labels, many):
+    """`_match_labels` as a list of labels, so a caller never splits the joined
+    set on `, ` (a label may hold one)."""
     fold = {}
     for l in sorted(labels, key=len, reverse=True):
         fold.setdefault(l.lower(), l)
     if said.lower() in fold:
-        return fold[said.lower()]
+        return [fold[said.lower()]]
     if not many:
         return None
 
@@ -371,7 +378,7 @@ def _match_labels(said, labels, many):
     got = parts(said, frozenset())
     if not got:
         return None
-    return ", ".join(sorted(got, key=labels.index))      # a set: the options' order
+    return sorted(got, key=labels.index)                 # a set: the options' order
 
 
 _OTHER_LABELS = tuple(o.lower() for o in gallery_items.OTHER)
@@ -485,7 +492,9 @@ def decide(spec_text, item_id, verdict, reply=None):
     caller still rebuilds, so running it twice is safe. The one exception is an
     item still carrying `proposal=` (BL-711): the first call drops that attribute,
     since deciding a proposal is the writer settling what the reader answered it
-    with; the second call is then byte-identical. A DIFFERENT verdict
+    with; the second call is then byte-identical. Likewise an option line carrying
+    `{provisional}` (BL-822) loses the marker, which the build refuses on a
+    decided item. A DIFFERENT verdict
     OVERWRITES rather than refusing — `owner-changed`, the reader revising an
     earlier answer, is one of the four labels a round's brief carries, and
     `wrap_report.stamp_decided_rounds` already handles it: a decided item whose
@@ -596,14 +605,17 @@ def decide(spec_text, item_id, verdict, reply=None):
     # BL-711: deciding a proposal is the writer settling what the reader answered it
     # with, so it stops being a proposal (else `new-round` would keep it open forever).
     unproposed = "proposal" in node.attrs and _drop_attr(lines, node, "proposal")
+    # BL-822: `{provisional}` preselects an OPEN item's pick and the build refuses
+    # it on a decided one, so deciding drops it (the verdict now speaks for it).
+    touched = _drop_provisional(lines, node) or unproposed
     recorded = spec_build.PLAIN.sub("", node.attrs.get("decided", "")).strip()
     if labels and many:                  # the same set in another order
         recorded = _match_labels(recorded, labels, many) or recorded
     if recorded == spec_build.PLAIN.sub("", verdict).strip():
-        return "\n".join(lines) if unproposed else spec_text
+        return "\n".join(lines) if touched else spec_text
     old_verdict = node.attrs.get("decided", "").strip()
     if not _set_attr(lines, node, "decided", verdict):
-        return "\n".join(lines) if unproposed else spec_text
+        return "\n".join(lines) if touched else spec_text
     _update_ledger_row(lines, tree, node, old_verdict, verdict)
     return "\n".join(lines)
 
@@ -695,6 +707,39 @@ def _drop_attr(lines, node, name):
     return True
 
 
+def _drop_provisional(lines, node, only=None):
+    """Remove `{provisional}` from `node`'s prose lines, in place, outside
+    backtick spans and code fences (there it is the author showing the syntax,
+    which the build never reads); False when there was none. `only`, a set of
+    plain option labels, limits it to those options (new-round expires each
+    option on its own); None drops every one (decide)."""
+    mark = re.compile(r"[ \t]*" + re.escape(spec_build.PROVISIONAL))
+    labels = ([spec_build.PLAIN.sub("", l).strip() for l in spec_build.option_labels(node)]
+              if only is not None else [])
+    changed, opt = False, -1             # opt: the option the line belongs to
+    for child in node.children:
+        if child.block_type != "prose":
+            continue
+        fence = None
+        for i in range(child.line - 1, child.line - 1 + len(child.raw_body)):
+            before, fence = fence, md_body.fence_state(lines[i], fence)
+            if before is not None or fence is not None:
+                continue
+            ln = lines[i]                # an option starts as spec_build._split_options reads it
+            if (md_body.MARKER.match(ln) and not md_body.ORDERED.match(ln)
+                    and not ln[:1].isspace()):
+                opt += 1
+            if only is not None and not (0 <= opt < len(labels)
+                                         and labels[opt] in only):
+                continue
+            parts = re.split(r"((?<!\\)`[^`]+`)", lines[i])
+            new = "".join(p if k % 2 else mark.sub("", p)
+                          for k, p in enumerate(parts))
+            if new != lines[i]:
+                lines[i], changed = new, True
+    return changed
+
+
 def _expire_proposals(text, answered_html, reply=None):
     """`proposal=yes` (BL-692) lasts one round: an item that carried it on the
     saved answered page has been seen by the reader, so it becomes an ordinary
@@ -742,6 +787,55 @@ def _expire_proposals(text, answered_html, reply=None):
     return "\n".join(lines) if hit else text
 
 
+def _expire_provisional(text, answered_html, reply=None):
+    """`{provisional}` (BL-822) lasts while the reader keeps the pick. An option
+    the answered page drew checked on an open item keeps its marker only while
+    the LAST block of the live reply for that item still names its label (as
+    `- <label> [provisional]`, or a plain pick a `decide` settles next):
+    `[not-now]`, an ask only, another pick, a page defect only or no block at
+    all is the reader withdrawing it, so the marker goes, else the next round
+    ships it checked again and an untouched page confirms it. Each option is
+    judged on its own (select=many). A marker the answered page did not draw
+    checked was written this round and stays, whichever order the verbs run in;
+    with no answered page or no saved reply nothing was read, so nothing expires."""
+    if not answered_html or not (reply or "").strip():
+        return text
+    shown = check_artifact.checked_labels(answered_html)
+    tree = _parse(text, "the spec")
+    ids = _ids_of(tree, "item")
+    live = check_artifact._live_reply(reply)
+    lines = _split(text)
+    hit = False
+    for n in _walk(tree):
+        if (n.block_type != "item" or n.id not in shown
+                or n.attrs.get("decided", "").strip()):
+            continue                     # decide drops it on a decided item
+        plain = lambda ls: [spec_build.PLAIN.sub("", l).strip() for l in ls]
+        try:
+            gone = set(plain(spec_build.provisional_labels(n))) \
+                & set(plain(shown[n.id]))
+            labels = plain(spec_build.option_labels(n))
+        except SpecBuildError:
+            continue
+        if not gone:
+            continue
+        many = n.attrs.get("select", "one").strip() == "many"
+        found = _reply_block(live, n.id, ids)
+        block = (check_artifact.split_defect("\n".join(found[0]))[0].split("\n")
+                 if found else [])
+        for i, raw in enumerate(block):
+            t = raw.strip()
+            if t.startswith("- ") or (i == 0 and found[1]):   # `Q1: <answer>` head
+                t = t[2:].strip() if t.startswith("- ") else t
+                t = re.sub(r"\s*\[provisional\]$", "", t)
+                t = re.sub(r"\s*\((?:recomendada|no recomendada|recommended|not recommended)\)$", "", t)
+                gone -= set(_match_label_list(spec_build.PLAIN.sub("", t).strip(),
+                                              labels, many) or ())
+        if gone:
+            hit |= _drop_provisional(lines, n, gone)
+    return "\n".join(lines) if hit else text
+
+
 def new_round(spec_text, dropped=(), retitled=(), answered_html=None, reply=None):
     """`_sync_ledger`, then record `dropped` and `retitled` ids on the masthead.
 
@@ -771,6 +865,8 @@ def new_round(spec_text, dropped=(), retitled=(), answered_html=None, reply=None
     # stays a proposal, whichever order the verbs run in; with no snapshot nothing
     # expires.
     text = _expire_proposals(spec_text, answered_html, reply)
+    # BL-822: a `{provisional}` pick the saved reply no longer carries is withdrawn.
+    text = _expire_provisional(text, answered_html, reply)
     text = _sync_ledger(text)
     clean = lambda ids: [i for i in (d.strip().lstrip("#") for d in ids) if i]
     dropped = list(dict.fromkeys(clean(dropped)))

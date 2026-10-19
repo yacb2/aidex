@@ -85,6 +85,7 @@
       defectLabel: 'What is wrong with the page',
       defectHead: 'Page problem',
       provisional: 'Provisional: you chose an option and asked for something as well. The next round answers the ask and keeps this question open, with that option already ticked.',
+      provisionalPrev: 'Provisional from the last round: the option you chose while asking for something comes ticked again. Leaving it ticked confirms it; untick it or choose another to change it.',
       toLight: 'Light',
       toDark: 'Dark',
       themeTitle: 'Switch this page between light and dark',
@@ -216,6 +217,7 @@
       defectLabel: 'Qu\u00e9 est\u00e1 mal en la p\u00e1gina',
       defectHead: 'Fallo de la p\u00e1gina',
       provisional: 'Provisional: elegiste una opci\u00f3n y adem\u00e1s pediste algo. La pr\u00f3xima ronda responde lo que pediste y deja esta pregunta abierta, con esa opci\u00f3n ya marcada.',
+      provisionalPrev: 'Provisional de la ronda anterior: la opci\u00f3n que elegiste mientras ped\u00edas algo vuelve marcada. Si la dejas marcada, la confirmas; desm\u00e1rcala o elige otra para cambiarla.',
       toLight: 'Claro',
       toDark: 'Oscuro',
       themeTitle: 'Cambia esta p\u00e1gina entre claro y oscuro',
@@ -873,6 +875,26 @@
   function markOf(i) { return i.dataset.label || i.value || ''; }
   /* Settled by an earlier round's answer: what collapseDecided folds away. */
   function isSettled(el) { return isDecided(el) && !isProposal(el); }
+  /* A PRESET open item (BL-822): the build checks a `{provisional}` option, the
+   * reader's provisional pick from last round, on an item that is still asked.
+   * Like a proposal, its shipped `checked` is a default, not the reader's state:
+   * snapshotItem() stores the selection only once it differs from it (an
+   * emptied one too), marked `p`, and restore() lets that entry replace it, or
+   * the HTML default would come back on every fresh open. */
+  function hasPreset(el) {
+    return !isDecided(el) && [].some.call(el.querySelectorAll('.opts input[type="radio"], .opts input[type="checkbox"]'),
+      function (i) { return !i.closest('.kit-ask') && i.defaultChecked; });
+  }
+  function markPresets() {
+    items.forEach(function (el) {
+      if (!hasPreset(el) || el.querySelector('.kit-provisional-prev')) return;
+      var tag = document.createElement('p');
+      tag.className = 'kit-provisional-prev';
+      tag.textContent = L.provisionalPrev;
+      var opts = el.querySelector('.opts');
+      opts.parentNode.insertBefore(tag, opts);
+    });
+  }
 
   function sealDecided() {
     document.querySelectorAll('.consult-group').forEach(function (g) {
@@ -1246,7 +1268,7 @@
      * the item, so leaving it in would change every fingerprint the moment the
      * kit gained these controls, and every answer stored by a reader mid-thread
      * would read as "the question changed" and be dropped on the upgrade. */
-    clone.querySelectorAll('.kit-tag, .consult-proposal, .consult-proposal-none, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-defect, .kit-feedback, .kit-more, .kit-provisional, .kit-marks-tile, .kit-marks-list, .consult-kicker, .tw-cue').forEach(function (c) { c.remove(); });
+    clone.querySelectorAll('.kit-tag, .consult-proposal, .consult-proposal-none, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-defect, .kit-feedback, .kit-more, .kit-provisional, .kit-marks-tile, .kit-marks-list, .consult-kicker, .tw-cue, .kit-provisional-prev').forEach(function (c) { c.remove(); });
     /* The generator's own <details> keeps its radios in the question (a row
      * built before it existed hashed them flat), but its summary word is chrome:
      * left in, every stored gallery answer would read as a changed question. */
@@ -1309,9 +1331,15 @@
     /* A proposal keeps only what the reader did: its pre-selected option is the
      * writer's and must not make the item look answered, so the selection is
      * stored only once it differs from the proposed one (BL-692, BL-700). */
-    el.querySelectorAll(isProposal(el) && !selChanged(el) ? '.kit-ask input:checked' : 'input[type="radio"]:checked, input[type="checkbox"]:checked')
+    /* A preset item (BL-822) likewise: an untouched preselection is the page's
+     * default and stores nothing; one the reader changed (or emptied) is stored
+     * whole with `p`, which tells restore() to clear the default first. */
+    var preset = hasPreset(el), presetMoved = preset && selSig(el) !== selSig(el, true);
+    el.querySelectorAll((isProposal(el) && !selChanged(el)) || (preset && !presetMoved)
+      ? '.kit-ask input:checked' : 'input[type="radio"]:checked, input[type="checkbox"]:checked')
       .forEach(function (i) { s.m.push(markOf(i)); });
     if (s.m.length) any = true;
+    if (presetMoved) { s.p = 1; any = true; }
     FREE.forEach(function (kind) {
       var vals = [];
       el.querySelectorAll(kind.q).forEach(function (x) { vals.push(freeValue(x)); });
@@ -1384,8 +1412,8 @@
         var hit = false;
         /* A stored proposal selection REPLACES the proposed one (a checkbox
          * group would otherwise keep the proposed boxes ticked beside it). */
-        if (isProposal(el) && [].some.call(el.querySelectorAll('input[type="radio"], input[type="checkbox"]'),
-              function (i) { return !i.closest('.kit-ask') && (s.m || []).indexOf(markOf(i)) !== -1; })) {
+        if ((hasPreset(el) && s.p) || (isProposal(el) && [].some.call(el.querySelectorAll('input[type="radio"], input[type="checkbox"]'),
+              function (i) { return !i.closest('.kit-ask') && (s.m || []).indexOf(markOf(i)) !== -1; }))) {
           el.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(function (i) { i.checked = false; });
         }
         el.querySelectorAll('input[type="radio"], input[type="checkbox"]')
@@ -3194,6 +3222,7 @@
     addOtherChoices();
     addAskRows();
     sealDecided();
+    markPresets();
     releasableRadios();
     exclusiveNotNow();
     var recovered = restore();

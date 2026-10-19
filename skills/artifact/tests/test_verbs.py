@@ -254,6 +254,104 @@ refuses("...and reads the verdict in its plain form, as the builder does",
         lambda: decide(PAGE.replace(YES_OPTS, "- Yes\n- No {recommended}"),
                        "Q1", "**Yes**"),
         "mark the 'Yes' option {chosen} first")
+# BL-822: an item carrying the reader's `{provisional}` pick is decided the round
+# the reader confirms it; the build refuses the marker on a decided item, so
+# decide drops it and the page carries the verdict instead.
+PROV = PAGE.replace(YES_OPTS, "- Fences de Pandoc — prosa {recommended}\n"
+                              "- YAML anidado — `{provisional}` citado {provisional}")
+try:
+    got = decide(PROV, "Q1", "YAML anidado")
+except VerbError as exc:
+    got = str(exc)
+check("decide on a {provisional} item drops the marker and records the verdict",
+      'decided="YAML anidado"' in got and "citado {provisional}" not in got
+      and "`{provisional}` citado" in got, got)
+try:
+    page = spec_verbs.spec_build.build(got)
+except Exception as exc:                                 # noqa: BLE001
+    page = repr(exc)
+check("...and the page rebuilds decided on the verdict, no marker in a label",
+      'data-decided="YAML anidado"' in page and '{provisional}"' not in page,
+      page[:600])
+# ...but a `{provisional}` inside a code fence in the item's prose is the author
+# showing the syntax: the build never reads it, so decide leaves it byte-identical.
+FENCED = "```\n- Sí {provisional}\n```\n\n"
+PROVF = PAGE.replace(YES_OPTS, FENCED.rstrip("\n") + "\n\n" + YES_OPTS.replace(
+    "estructura explícita", "estructura explícita {provisional}"))
+try:
+    got = decide(PROVF, "Q1", "YAML anidado")
+except VerbError as exc:
+    got = str(exc)
+check("decide leaves a fenced {provisional} byte-identical",
+      'decided="YAML anidado"' in got and FENCED in got
+      and "estructura explícita {provisional}" not in got, got)
+# ...and on an item whose verdict is already recorded (the build's own refusal names
+# decide as the fix), decide still drops the marker, so the spec builds again.
+PROVD = PROV.replace('title="Fences o YAML"    }',
+                     'title="Fences o YAML" decided="YAML anidado"}', 1)
+try:
+    got = decide(PROVD, "Q1", "YAML anidado")
+    page = spec_verbs.spec_build.build(got)
+except Exception as exc:                                 # noqa: BLE001
+    got = page = repr(exc)
+check("decide on an already-decided {provisional} item drops the marker and the spec builds",
+      "citado {provisional}" not in got and "`{provisional}` citado" in got
+      and 'data-decided="YAML anidado"' in page, got)
+# BL-822 review: `{provisional}` lasts while the reader keeps the pick. new-round reads
+# the saved reply against the ANSWERED page, as _expire_proposals does: an option the
+# reader saw checked there whose label the item's last block no longer carries
+# ([not-now], an ask only, another pick, a page defect, no block at all) is withdrawn,
+# so its marker goes; else the next round would ship it checked again and an
+# untouched page would confirm a pick the reader dropped. The answered page is a real
+# build, so "the reader saw it checked" is the page's own `checked`.
+PAGE_PV = spec_verbs.spec_build.build(PROV)
+HQ1 = "### Q1 · Fences o YAML\n\n"
+for why, rep_, stays in (
+        ("[not-now]", HQ1 + "- [not-now]\n", False),
+        ("an ask only", HQ1 + "- [show-me]\n", False),
+        ("another provisional pick", HQ1 + "- Fences de Pandoc [provisional]\n", False),
+        ("no block for the item", "### Q2 · Marcador de columna\n\n- [show-me]\n", False),
+        ("only a page defect", HQ1 + "- [page-defect]\n", False),
+        ("[not-now] beside a page defect",
+         HQ1 + "- [not-now]\n\n#### Fallo de la página\n\nno se ve\n", False),
+        ("the same provisional pick", HQ1 + "- YAML anidado [provisional]\n- [show-me]\n", True),
+        ("the same pick beside a page defect",
+         HQ1 + "- YAML anidado\n\n#### Fallo de la página\n\nno se ve\n", True),
+        ("the same pick in the chat form", "Q1: YAML anidado [provisional]\n", True)):
+    got = new_round(PROV, answered_html=PAGE_PV, reply=rep_)
+    check("new-round on a {provisional} item whose reply carries %s %s the marker"
+          % (why, "keeps" if stays else "drops"),
+          ("citado {provisional}" in got) == stays and "`{provisional}` citado" in got, got)
+# A marker the author writes THIS round (the reader's Other, a select or a reworded
+# label) was not checked on the answered page, so the reply that prompted it cannot
+# withdraw it, in any order of the verbs; nor can a reply when the item was not shown.
+OTHER = HQ1 + "- Otra — lo explico en las notas [provisional]\n- [question]\n\nYAML anidado\n"
+for why, page_ in (("was not checked on the answered page",
+                    spec_verbs.spec_build.build(PAGE)),
+                   ("was not on the answered page",
+                    PAGE_PV.replace('data-id="Q1"', 'data-id="Q9"'))):
+    got = new_round(PROV, answered_html=page_, reply=OTHER)
+    check("new-round keeps a {provisional} option that %s" % why,
+          "citado {provisional}" in got, got)
+# select=many: each marker is judged on its own label, and a set is read as labels,
+# never split on ", " (a label may hold one).
+PROVM = PAGE.replace('title="Fences o YAML"    }', 'title="Fences o YAML" select=many}', 1) \
+    .replace(YES_OPTS, "- Fences de Pandoc {provisional}\n- YAML anidado {provisional}\n"
+                       "- Uno, dos {provisional}")
+PAGE_M = spec_verbs.spec_build.build(PROVM)
+got = new_round(PROVM, answered_html=PAGE_M,
+                reply=HQ1 + "- YAML anidado [provisional]\n- Uno, dos [provisional]\n- [show-me]\n")
+check("new-round on select=many drops only the {provisional} the reader unticked",
+      "- Fences de Pandoc\n" in got and "- YAML anidado {provisional}" in got
+      and "- Uno, dos {provisional}" in got, got)
+got = new_round(PROVM, answered_html=PAGE_M,
+                reply="Q1: Fences de Pandoc, YAML anidado, Uno, dos [provisional]\n")
+check("new-round keeps every {provisional} on a select=many item whose chat-form set carries them",
+      got.count("{provisional}") == 3, got)
+check("new-round with no saved reply or no answered page leaves {provisional} alone",
+      all("citado {provisional}" in g for g in (
+          new_round(PROV, answered_html=PAGE_PV, reply=""),
+          new_round(PROV, reply=HQ1 + "- [not-now]\n"))))
 
 PREFIXED = ('::: masthead {title="T" visual="none: x"}\nUna.\n:::\n\n'
             '::: group {#G1 title="G"}\n'
@@ -994,10 +1092,10 @@ try:
                       and n.value.id == "spec_build"})
     check("...and calls no emitter: the only spec_build names it touches are "
           "the ones a caller may",
-          touched == ["HINT_SEP", "LANGS", "PLAIN", "build", "chosen_labels",
-                     "clean_item_title", "hand_edit_defect", "has_options",
-                     "main", "option_labels", "page_title",
-                     "refuse_missing_visual", "resolve_lang"],
+          touched == ["HINT_SEP", "LANGS", "PLAIN", "PROVISIONAL", "build",
+                     "chosen_labels", "clean_item_title", "hand_edit_defect",
+                     "has_options", "main", "option_labels", "page_title",
+                     "provisional_labels", "refuse_missing_visual", "resolve_lang"],
           str(touched))
     writes = re.findall(r'open\(([^,]+), "w"', source)
     check("...and the only file it opens for writing is the spec's own temp",
