@@ -693,6 +693,63 @@ build_envs() {  # build_envs <slot|"">
   local line; envs=()
   while IFS= read -r line; do [[ -n "$line" ]] && envs+=("$line"); done < <(compose_env_lines "${1:-}")
 }
+# Volumes `compose down -v` must not remove (BL-862). down -v removes every
+# NON-external volume the compose file declares, by its resolved name, whoever
+# created it (docker/compose pkg/compose/down.go ensureVolumesDown, Force: true);
+# the engine refuses only while a container still references it (moby
+# daemon/volume/service/store.go Remove: hasRef), and a container drops that
+# reference when it is REMOVED, not stopped (daemon/delete.go -> mounts.go
+# removeMountPoints). So the main stack's `name:`-pinned volume, after a plain
+# `compose down` of the main tree, went with the worktree's teardown.
+# The label says who CREATED a volume, not who shares it: a literal `name:`
+# resolves to one volume under the main project and under every worktree, and
+# whichever stack came up first labels it (the other only gets a compose
+# warning). So the file is also rendered as the main project, as
+# check-compose-isolation does, and a name that comes out the same is the main's.
+# Prints "<volume>: <why>" per declared volume that exists and was either created
+# by another project (its compose label is not exactly $CPROJ), resolves to the
+# same name under the main project, or is referenced by a container of another
+# project, in any state. Returns 1 when that cannot be judged; the caller then
+# keeps every volume. Runs in the compose dir; the arguments are the prefix each
+# docker call runs under (env, timeout).
+kept_volumes() {  # kept_volumes <runner...>
+  local names main mains existing v label refs
+  main="$(compose_project_name "$PROJECT")"
+  names="$("$@" docker compose -p "$CPROJ" --profile '*' config --format json 2>/dev/null | volume_names)" || return 1
+  mains="$("$@" env "$WT_SUFFIX_VAR=" docker compose -p "$main" --profile '*' config --format json 2>/dev/null \
+    | volume_names)" || return 1
+  existing="$("$@" docker volume ls -q 2>/dev/null)" || return 1
+  while IFS= read -r v; do
+    [[ -n "$v" ]] && grep -qxF -- "$v" <<<"$existing" || continue
+    label="$("$@" docker volume inspect -f '{{index .Labels "com.docker.compose.project"}}' "$v" 2>/dev/null)" || return 1
+    if [[ "$label" != "$CPROJ" ]]; then
+      echo "$v: created by ${label:+project '$label'}${label:-no compose project}"; continue
+    fi
+    if grep -qxF -- "$v" <<<"$mains"; then
+      echo "$v: same name under the main project '$main'"; continue
+    fi
+    refs="$("$@" docker ps -a --filter "volume=$v" --format '{{.Names}} {{.Label "com.docker.compose.project"}}' 2>/dev/null)" || return 1
+    refs="$(awk -v p="$CPROJ" 'NF && $2 != p { print $1 }' <<<"$refs" | tr '\n' ' ')"
+    [[ -z "$refs" ]] || echo "$v: mounted by ${refs% } (another project)"
+  done <<<"$names"
+}
+# The non-external volume names in `compose config --format json` on stdin.
+volume_names() {
+  python3 -I -c 'import json, sys
+for v in (json.load(sys.stdin).get("volumes") or {}).values():
+    if not v.get("external"): print(v["name"])'
+}
+# Sets `vflag` to -v, or to nothing when kept_volumes names a volume or cannot judge.
+judge_volumes() {  # judge_volumes <compose dir> <runner...>
+  local dir="$1" kept line; shift
+  vflag="-v"
+  if ! kept="$(cd "$dir" && kept_volumes "$@")"; then
+    vflag=""; warn "could not judge which volumes compose down -v would remove — tearing down without -v, every volume kept"
+  elif [[ -n "$kept" ]]; then
+    vflag=""
+    while IFS= read -r line; do warn "keeping volume $line — tearing down without -v"; done <<<"$kept"
+  fi
+}
 write_wt_env() {
   local dest="$1" slot="$2" f="$1/.env"
   if [[ -e "$f" || -L "$f" ]] && ! head -1 "$f" 2>/dev/null | grep >/dev/null -F -- "$WT_ENV_MARKER"; then
@@ -1073,9 +1130,12 @@ if [[ "$cmd" == "new" ]]; then
   rollback() {
     warn "rolling back $CPROJ"
     if $CREATED_DIR || [[ -d "$DEST" ]]; then
-      ( cd "${DEST:-$ROOT}" 2>/dev/null || cd "$ROOT"
+      local rbdir="$ROOT"; [[ -d "$DEST" ]] && rbdir="$DEST"
+      # Unbounded, like the down below (point 1 above); BL-862 for why it is asked.
+      judge_volumes "$rbdir" env COMPOSE_PROJECT_NAME="$CPROJ" "$WT_SUFFIX_VAR=-$SLUG"
+      ( cd "$rbdir"
         env COMPOSE_PROJECT_NAME="$CPROJ" "$WT_SUFFIX_VAR=-$SLUG" \
-          docker compose -p "$CPROJ" --profile '*' down -v --rmi local --remove-orphans ) >/dev/null 2>&1
+          docker compose -p "$CPROJ" --profile '*' down ${vflag:+"$vflag"} --rmi local --remove-orphans ) >/dev/null 2>&1
       local dang
       dang="$(docker images -f dangling=true -f "label=com.docker.compose.project=$CPROJ" -q | tr '\n' ' ')"
       [[ -n "${dang// /}" ]] && docker rmi $dang >/dev/null 2>&1
@@ -1283,8 +1343,9 @@ if [[ "$cmd" == "down" ]]; then
   unreclaimed=""
   # Bounded: a wedged daemon hung both calls here for good. A legitimate `down -v`
   # can take minutes, hence its own, longer deadline.
+  judge_volumes "$COMPOSE_DIR" with_timeout "${AIDEX_DOCKER_TIMEOUT:-30}" env "${envs[@]}"
   ( cd "$COMPOSE_DIR" && with_timeout "${AIDEX_DOWN_TIMEOUT:-300}" \
-      env "${envs[@]}" docker compose -p "$CPROJ" --profile '*' down -v --rmi local --remove-orphans ) \
+      env "${envs[@]}" docker compose -p "$CPROJ" --profile '*' down ${vflag:+"$vflag"} --rmi local --remove-orphans ) \
     || unreclaimed="compose down failed (exit $?)"
 
   # `--rmi local` cannot reach untagged layers this project built; nothing else
