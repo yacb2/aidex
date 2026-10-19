@@ -60,6 +60,23 @@ rows['no units throws'] = async () => {
   await assert.rejects(run({ ...base, units: [] }, {}), /units/)
   await assert.rejects(run({ ...base }, {}), /units/)
 }
+// BL-855: extract and compare are Read-only agents; a relative path in their prompt resolves
+// against the agent's cwd, not the dir prepare.py wrote. The passing side is every other row ('/r', '/w').
+// The hint names the example of the key that was wrong, never the other key's.
+const relRow = (key, hint, otherHint) => async () => {
+  let calls = 0
+  const beh = { u: { extract: () => (calls++, { facts: [], not_covered: [] }) } }
+  for (const v of ['_tmp/reference-drift/p', './w', 'w/', '~/w', '', null, undefined]) {
+    await assert.rejects(run({ ...base, [key]: v, units: ['u'] }, beh), e => {
+      assert.match(e.message, new RegExp(`args\\.${key} must be an absolute path`))
+      assert.ok(e.message.includes(hint) && !e.message.includes(otherHint), e.message)
+      return true
+    })
+  }
+  assert.strictEqual(calls, 0, 'an agent ran before the path guard threw')
+}
+rows['a relative work dir throws before any agent runs'] = relRow('work', '"$PWD/_tmp/reference-drift/<project>" for work', 'for root')
+rows['a relative root throws before any agent runs'] = relRow('root', '"$PWD" for root', 'for work')
 rows['empty extract with not_covered is failed at extract'] = async () => {
   const { out } = await run({ ...base, units: ['u'] }, { u: { extract: { facts: [], not_covered: ['a.py'] } } })
   assert.deepStrictEqual([unit(out, 'u').status, unit(out, 'u').failed_stage], ['failed', 'extract'])

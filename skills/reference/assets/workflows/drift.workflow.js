@@ -340,6 +340,10 @@ const done = (slug, status, failed_stage, extra) => ({ slug, status, failed_stag
   facts_confirmed: useVerify ? 0 : null, facts_dropped_inferred: 0, facts_to_compare: 0, facts_unverified: 0, not_covered: 0, findings: [], ...extra })
 
 phase('Units')
+// extract, verify and compare are Read-only: a relative path in their prompt resolves against the agent's cwd (BL-855).
+for (const [key, eg] of [['root', '"$PWD" for root'], ['work', '"$PWD/_tmp/reference-drift/<project>" for work']]) {
+  if (typeof A[key] !== 'string' || !A[key].startsWith('/')) throw new Error(`args.${key} must be an absolute path (got ${JSON.stringify(A[key])}): pass the absolute form of the path given to prepare.py, e.g. ${eg}`)
+}
 if (!Array.isArray(A.units) || !A.units.length) throw new Error('args.units must be a non-empty list of unit slugs from manifest.json')
 // A Workflow run caps at 1,000 agent() calls; past it the last units silently lose a stage (BL-739).
 // A unit costs at most 2 extract attempts + 2 verify batches + compare = 5 calls, or 3 with verify off.
