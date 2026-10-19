@@ -140,6 +140,16 @@ if [[ "$cmd" == "create" ]]; then
         || die "$r: no default branch found (no origin/HEAD, main or master) to fork $BRANCH from — pass --base <commit-ish>, or create $BRANCH in $r first (git -C $r branch $BRANCH <commit>); nothing created"
     fi
   done
+  # A root participant gets per-worktree excludes (extensions.worktreeConfig, below).
+  # Under that extension a core.worktree in the shared config applies to EVERY worktree
+  # (a new checkout resolves its toplevel to the main tree), so git wants it moved to
+  # the main tree's config.worktree first; refuse rather than move the user's setting.
+  # That holds when the extension is already on, too.
+  for r in "${REPOS[@]}"; do
+    [[ "$r" == "." || "$r" == "./" ]] || continue
+    [[ -z "$(git -C "$ROOT" config --local --get core.worktree 2>/dev/null)" ]] \
+      || die "the root repo sets core.worktree in .git/config; per-worktree excludes need extensions.worktreeConfig, which requires moving it to config.worktree first — nothing created"
+  done
   for l in "${LINKS[@]:-}"; do
     [[ -z "$l" ]] && continue
     [[ -e "$ROOT/$l" ]] || die "wrapper file to link not found: $l (relative to $ROOT)"
@@ -183,78 +193,88 @@ if [[ "$cmd" == "create" ]]; then
       # .env) into $DEST. In a plain directory that is invisible; in a root CHECKOUT
       # they are untracked files, so the checkout is dirty from the moment it is
       # created — and `IS_DIRTY` reads $DEST, so a plain `down` would refuse forever,
-      # naming aidex's own bookkeeping as the user's uncommitted work. Exclude them
-      # in info/exclude: it touches nothing tracked (BL-259). It is NOT local to this
-      # checkout -- info/ is a common-dir path, so this is the main repo's file,
-      # shared by every worktree -- hence each line is added only when absent, or
-      # every create would append the block again.
-      _ex="$(git -C "$DEST" rev-parse --git-path info/exclude 2>/dev/null)"
-      if [[ -n "$_ex" ]]; then
-        mkdir -p "$(dirname "$_ex")"
-        # The other participants are checked out INSIDE this one, so the root repo
-        # sees each as an untracked directory. Same reasoning: it is aidex's layout,
-        # not the user's work, and leaving it visible makes IS_DIRTY answer "dirty"
-        # for every root-participant worktree ever created — which is the same as
-        # answering nothing.
-        # `/.env`, anchored: worktree.sh generates only the checkout's top-level .env.
-        # A bare `.env` also hid the user's own <dir>/.env in this checkout (and in
-        # the main tree), so `down` discarded it as ignored (BL-770).
-        _lines=('# aidex worktree bookkeeping (worktree.sh)' '.wt-slot' '.wt-branch' '/.env')
-        for _p in ${REST[@]+"${REST[@]}"}; do _lines+=("/$(basename "$_p")/"); done
-        # Older versions left a bare `.env` (it hides any <dir>/.env) and one block per
-        # create: 86987d0f appended the whole block on every create, 33ac4406 later added
-        # the per-line dedupe. Migrate ONLY inside those blocks (BL-770). A body line is
-        # one of `.wt-slot`, `.wt-branch`, `.env`/`/.env` (only the first per block) or
-        # `/<name>/`; anything else (a blank, a comment, a user rule, a second `.env`)
-        # ends the block and is kept as it is, in place. Bare `.env` becomes `/.env`,
-        # later blocks fold into the first, the block is closed by one blank line, and
-        # every wanted line the block lacks is added to it.
-        # Known limits: a user `/<name>/` rule right after a later block is folded into
-        # block 1 and can move past a user negation; the migrating write replaces a
-        # symlinked exclude file with a regular file and sets mode 644.
-        if [[ -s "$_ex" ]] && grep -qxF -- "${_lines[0]}" "$_ex"; then
-          _mig="$(mktemp "$(dirname "$_ex")/exclude.XXXXXX")"
-          if WANT="$(printf '%s\n' "${_lines[@]:1}")" awk -v hdr="${_lines[0]}" '
-            function member(x) {
-              return x == ".wt-slot" || x == ".wt-branch" || x == ".env" || x == "/.env" || x ~ /^\/[^\/]+\/$/
-            }
-            BEGIN { nw = split(ENVIRON["WANT"], w, "\n") }
-            {
-              if (inb) {
-                isenv = ($0 == ".env" || $0 == "/.env")
-                if (member($0) && !(isenv && envseen)) {
-                  if (isenv) envseen = 1
-                  l = ($0 == ".env") ? "/.env" : $0
-                  if (!(l in have)) { have[l] = 1; body[++nb] = l }
-                  next
-                }
-                inb = 0
-                if ($0 == "") next
-              }
-              if ($0 == hdr) {
-                inb = 1; envseen = 0
-                if (!seen) { seen = 1; out[++n] = hdr; slot = n; next }
-                if (n > 0 && out[n] == "") n--
+      # naming aidex's own bookkeeping as the user's uncommitted work (BL-259).
+      # The other participants are checked out INSIDE this one, so the root repo
+      # sees each as an untracked directory too: aidex's layout, not the user's work.
+      #
+      # The excludes are scoped to THIS checkout (BL-771). info/exclude is a
+      # common-dir path, shared by every worktree: lines written there also hid the
+      # main tree's own .env, .wt-* and /<participant>/ from its git status, and
+      # nothing removed them. A per-worktree core.excludesFile (extensions.worktreeConfig)
+      # pointing into the checkout's private gitdir goes away with the checkout.
+      # That value REPLACES the user's global excludes file in this checkout, so the
+      # global file's lines are copied above aidex's.
+      # `/.env`, anchored: worktree.sh generates only the checkout's top-level .env.
+      # A bare `.env` also hid the user's own <dir>/.env (BL-770).
+      _lines=('# aidex worktree bookkeeping (worktree.sh)' '.wt-slot' '.wt-branch' '/.env')
+      _parts=()
+      for _p in ${REST[@]+"${REST[@]}"}; do _parts+=("/$(basename "$_p")/"); done
+      _gx="$(git -C "$ROOT" config --type=path --get core.excludesFile 2>/dev/null || true)"
+      [[ -n "$_gx" ]] || _gx="${XDG_CONFIG_HOME:-$HOME/.config}/git/ignore"
+      scope_excludes() {  # <checkout> [/<participant>/ ...] -> its own excludes file, set as its per-worktree value
+        local wt="$1" wx; wx="$(git -C "$1" rev-parse --absolute-git-dir)/aidex-exclude"
+        shift
+        : > "$wx"
+        if [[ -f "$_gx" && -r "$_gx" ]]; then
+          cat "$_gx" >> "$wx"
+          # A file not ending in a newline would glue aidex's header onto its last line.
+          if [[ -s "$_gx" && -n "$(tail -c1 "$_gx")" ]]; then printf '\n' >> "$wx"; fi
+        fi
+        printf '%s\n' "${_lines[@]}" "$@" >> "$wx"
+        git -C "$wt" config --worktree core.excludesFile "$wx"
+      }
+      # Only when off: every write takes .git/config.lock, and a concurrent `git config`
+      # in the main tree (or another create) would then fail one of the two.
+      [[ "$(git -C "$ROOT" config --bool --get extensions.worktreeConfig 2>/dev/null)" == true ]] \
+        || git -C "$ROOT" config extensions.worktreeConfig true
+      scope_excludes "$DEST" ${_parts[@]+"${_parts[@]}"}
+      # Older versions wrote that block to the shared info/exclude, one per create
+      # before 33ac4406. Strip ONLY inside those blocks (BL-770's block rule): after the
+      # header, a body line is one of `.wt-slot`, `.wt-branch`, `.env`/`/.env` (only
+      # the first per block) or `/<name>/`; anything else (a comment, a user rule, a
+      # second `.env`) ends the block and is kept in place. A blank line closing a
+      # block goes with it.
+      # Known limits: a user `/<name>/` rule right after a block is stripped with it;
+      # the rewrite replaces a symlinked exclude file with a regular file, mode 644.
+      _ex="$(git -C "$ROOT" rev-parse --git-path info/exclude 2>/dev/null || true)"
+      [[ "$_ex" == /* ]] || _ex="$ROOT/$_ex"
+      if [[ -s "$_ex" ]] && grep -qxF -- "${_lines[0]}" "$_ex"; then
+        _mig="$(mktemp "$(dirname "$_ex")/exclude.XXXXXX")"
+        _gone="$(mktemp "$(dirname "$_ex")/exclude.XXXXXX")"
+        # Kept lines go to $_mig; every stripped `/<name>/` goes to $_gone.
+        if awk -v hdr="${_lines[0]}" -v gone="$_gone" '
+          function member(x) {
+            return x == ".wt-slot" || x == ".wt-branch" || x == ".env" || x == "/.env" || x ~ /^\/[^\/]+\/$/
+          }
+          {
+            if (inb) {
+              isenv = ($0 == ".env" || $0 == "/.env")
+              if (member($0) && !(isenv && envseen)) {
+                if (isenv) envseen = 1
+                else if ($0 ~ /^\/[^\/]+\/$/) print > gone
                 next
               }
-              out[++n] = $0
+              inb = 0
+              if ($0 == "") next
             }
-            END {
-              for (j = 1; j <= nw; j++) if (!(w[j] in have)) { have[w[j]] = 1; body[++nb] = w[j] }
-              for (i = 1; i <= n; i++) {
-                print out[i]
-                if (i == slot) { for (j = 1; j <= nb; j++) print body[j]; print "" }
-              }
-            }' "$_ex" > "$_mig" && { cmp -s "$_mig" "$_ex" || { chmod 644 "$_mig" && mv "$_mig" "$_ex"; }; }; then
-            :
-          fi
-          rm -f "$_mig"
+            if ($0 == hdr) { inb = 1; envseen = 0; next }
+            print
+          }' "$_ex" > "$_mig"; then
+          # Root checkouts made before this fix had only the shared block; stripping it
+          # would surface their bookkeeping and make their `down` refuse (BL-259). Give
+          # each one (it holds .wt-slot and has no per-worktree value yet) its own first,
+          # with every `/<name>/` the stripped blocks held: those are the participants it
+          # was hidden from, whatever THIS create lists. The first entry is the main tree.
+          _old_parts=()
+          while IFS= read -r _p; do _old_parts+=("$_p"); done < <(sort -u "$_gone")
+          while IFS= read -r _wt; do
+            [[ -e "$_wt/.wt-slot" ]] || continue
+            [[ -z "$(git -C "$_wt" config --worktree --get core.excludesFile 2>/dev/null)" ]] || continue
+            scope_excludes "$_wt" ${_old_parts[@]+"${_old_parts[@]}"}
+          done < <(git -C "$ROOT" worktree list --porcelain | sed -n 's/^worktree //p' | tail -n +2)
+          { chmod 644 "$_mig" && mv "$_mig" "$_ex"; } || true
         fi
-        # A file not ending in a newline would glue the first line onto its last.
-        [[ -s "$_ex" && -n "$(tail -c1 "$_ex")" ]] && printf '\n' >> "$_ex"
-        for _line in "${_lines[@]}"; do
-          grep -qxF -- "$_line" "$_ex" 2>/dev/null || printf '%s\n' "$_line" >> "$_ex"
-        done
+        rm -f "$_mig" "$_gone"
       fi
       ok "worktree: (root) -> $DEST (branch $BRANCH)"
     else
