@@ -63,7 +63,10 @@ has "$REF" "The next round is not briefed while the live arm's run is in flight"
 has "$REF" 'If the owner answers first, the live run is killed and the screen is logged with `live_gate_green` null and does not count toward the 5' "an owner answer can wait on, or race, the live gate run"
 
 # isolation: start point, sketch worktree setup, redirect of kit/profile/rows
-has "$REF" '-b gbshadow/<screen> <live sketch branch>' "worktree command lacks the live sketch branch start point"
+has "$REF" '--branch gbshadow/<screen> --base <live sketch branch>' "worktree command lacks the live sketch branch start point"
+has "$REF" 'worktree.sh new gbshadow-<screen>' "shadow setup does not go through worktree.sh (port slot, compose name)"
+has "$SHADOW" 'worktree.sh new' "shadow agent setup does not go through worktree.sh"
+has "$REF" 'worktree.sh down gbshadow-<screen> --delete-branch' "shadow teardown leaves its stack and volumes behind"
 has "$REF" '02-sketch-round-kit.md` § The sketch worktree' "reference does not point at the sketch worktree setup"
 has "$REF" '<shadow worktree>/.gbshadow/' "reference lacks the shadow-only destination for kit/profile/rows"
 
