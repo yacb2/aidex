@@ -175,6 +175,8 @@ class BuildContext:
         self.tree = ()      # the parsed spec, set by `build` (a gallery reads its items)
         # (check, spec line, message) build warnings; the CLI prints them.
         self.warnings = [] if warnings is None else warnings
+        # BL-841: ledger line -> the row keys `emit_ledger` did not render.
+        self.hidden_rows = {}
 
 
 # --- the dispatch table ------------------------------------------------------
@@ -404,8 +406,32 @@ def emit_section(node, ctx):
     classes = " ".join(node.classes)
     out = ['<section%s id="%s">'
            % (' class="%s"' % esc(classes) if classes else "", esc(node.id))]
+    body = [h for h in emit_children(node, ctx) if h]
+    # BL-841: a ledger whose every row is in the composer's fold renders
+    # nothing; a section left with only its head is the "heading over nothing"
+    # refused above, so it is not drawn — except `#sec-ledger` on a page with
+    # no masthead, where it is the only anchor the composer's Decided section
+    # has (check-artifact `decided-section-anchor`). A section that stays keeps
+    # its heading and eyebrow, the author's text: the build names the hidden
+    # rows rather than rewrite a count it cannot read.
+    hidden = [k for c in node.children for k in ctx.hidden_rows.get(c.line, ())
+              if c.block_type == "ledger"]
+    dropped = not body and not (node.id == "sec-ledger" and not any(
+        n.block_type == "masthead" for n in ctx.tree or ()))
+    if hidden:
+        ctx.warnings.append((
+            "ledger-rows-hidden", node.line,
+            "`section` %s: ledger rows %s are not rendered, the fold of "
+            "decided items shows them (BL-841); %s" % (
+                node.id, ", ".join(hidden),
+                "the section held nothing else, so it is not drawn: a link "
+                "to #%s now points nowhere" % node.id if dropped else
+                "if this section's heading or eyebrow counts its rows, "
+                "update it")))
+    if dropped:
+        return ""
     out.extend(_sec_head(a.get("eyebrow"), a["heading"]))
-    out.extend(emit_children(node, ctx))
+    out.extend(body)
     out.append("</section>")
     return "\n".join(out)
 
@@ -1223,10 +1249,34 @@ def _checkout_root(node, base_dir):
     return top
 
 
+def ledger_row_value(title, verdict):
+    """The VALUE of the ledger row `spec_verbs new-round` files for a decided
+    item: the title, plus ` (verdict)` unless the verdict is the bare "settled"
+    flag. One owner: the verb writes it and `emit_ledger` recognises it."""
+    v = PLAIN.sub("", verdict).strip().lower()
+    return title if v in contract_defects.NOT_A_VERDICT + ("",) \
+        else "%s (%s)" % (title, verdict.strip())
+
+
 @emitter("ledger")
 def emit_ledger(node, ctx):
     _attrs(node, set(), forbid_id=True)
+    # BL-841: an item still on this page that the composer folds into "N
+    # preguntas ya resueltas" (decided, not a proposal) already shows its
+    # outcome there; the row `spec_verbs new-round` files for it would print it
+    # a second time, unfolded, beside the fold. That row — and only that row,
+    # matched by its exact value — stays in the spec, the record the verbs
+    # read, and is not rendered. A row with any other value (rewritten with a
+    # condition, carried in under a colliding id, or for a dropped item, which
+    # new-round never files) is a record the fold does not carry: it renders.
+    filed = {n.id: ledger_row_value(
+                 clean_item_title(n.id, n.attrs.get("title", "").strip()) or n.id,
+                 n.attrs["decided"])
+             for n in _walk(ctx.tree or []) if n.block_type == "item" and n.id
+             and PLAIN.sub("", n.attrs.get("decided", "")).strip()
+             and n.attrs.get("proposal", "").strip() not in YES_VALUES}
     rows = []
+    hidden = ctx.hidden_rows.setdefault(node.line, [])
     for ln in _prose_lines(node):
         if not ln.strip():
             continue
@@ -1254,11 +1304,17 @@ def emit_ledger(node, ctx):
             rows.append('  <div><span class="v">%s</span></div>'
                         % md_body._inline(text))
             continue
+        if filed.get(key.strip()) == value.strip():
+            hidden.append(key.strip())
+            continue
         rows.append('  <div><span class="k">%s</span><span class="v">%s</span></div>'
                     % (md_body._inline(key.strip()),
                        md_body._inline(value.strip())))
     # An EMPTY ledger is a ledger — the row count is not the shape (the same
-    # reading check_artifact.py's `_ledger_shape` takes).
+    # reading check_artifact.py's `_ledger_shape` takes). One emptied by BL-841
+    # is not drawn: every row it had is in the composer's fold.
+    if hidden and not rows:
+        return ""
     return "\n".join(['<div class="%s">' % _classes("ledger", node)] + rows
                      + ["</div>"])
 
