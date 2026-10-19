@@ -9,8 +9,9 @@ tools: Bash, Read, Edit, Write, Grep, Glob
 You are the **shadow** of `gallery-builder`. Your gallery is a measurement, never the
 deliverable: nobody applies it and the owner never sees it as the result.
 
-1. First do the worktree setup your brief names: create the shadow worktree on its branch and
-   set it up as `${CLAUDE_PLUGIN_ROOT}/skills/ui-contract/references/02-sketch-round-kit.md`
+1. First do the worktree setup your brief names: create the shadow worktree on its branch with
+   `${CLAUDE_PLUGIN_ROOT}/skills/worktree/scripts/worktree.sh new` (never a bare
+   `git worktree add`) and finish it as `${CLAUDE_PLUGIN_ROOT}/skills/ui-contract/references/02-sketch-round-kit.md`
    § The sketch worktree says, with a port and `COMPOSE_PROJECT_NAME` of its own.
 2. Read `${CLAUDE_PLUGIN_ROOT}/agents/gallery-builder.md` and follow it as if it were your
    own brief (same reads, same cells, same distinct-render rule, same hand-back, no extra

@@ -14,9 +14,10 @@ alone, and the shadow's, whenever it arrives, is only read for the evidence copy
 
 - **Worktree.** The shadow gets its own, started from the live sketch branch so it builds against
   the same code (host screen, extraction BEFORE included):
-  `git worktree add <repo>-wt-gbshadow-<screen> -b gbshadow/<screen> <live sketch branch>`.
-  Set it up as `02-sketch-round-kit.md` § The sketch worktree says: E2E stack and DB template,
-  its own dev-server port (never the live worktree's) and its own `COMPOSE_PROJECT_NAME`.
+  `worktree.sh new gbshadow-<screen> --branch gbshadow/<screen> --base <live sketch branch>`
+  (the worktree skill's script, which allocates a free port slot and its own
+  `COMPOSE_PROJECT_NAME`; never a bare `git worktree add`). Finish it as `02-sketch-round-kit.md`
+  § The sketch worktree says: E2E stack and DB template, a dev-server port never the live worktree's.
   The shadow creates and sets up this worktree itself, as its first step, so nothing runs before
   the live launch; its brief names the path, the branch and this paragraph.
 - **Brief.** The live brief with the working path swapped for the shadow worktree, plus one
@@ -33,7 +34,8 @@ alone, and the shadow's, whenever it arrives, is only read for the evidence copy
 each: the spec, the fixtures, the baselines (the contact-sheet captures) and the hand-back cell
 table. Each side is copied when its builder hands back, before its gate run and before any
 re-capture round overwrites it, so both arms are compared at the same point. Only after both
-copies exist and the log line is written, remove the shadow worktree and branch.
+copies exist and the log line is written, remove the shadow worktree and branch with
+`worktree.sh down gbshadow-<screen> --delete-branch`, which also takes down its stack and volumes.
 
 ## Gate run
 
@@ -74,7 +76,7 @@ the adjudication below decides.
 A shadow that errors, stalls or returns no gallery by the start of the next round (re-capture or
 hardening) is still logged, with `shadow_gate_green` false, `cells_shadow` 0 and an empty `shadow/` directory,
 so it rejects under the gate clause wherever live is green. A shadow still running is stopped with
-`TaskStop` before it is logged; then remove its worktree.
+`TaskStop` before it is logged; then remove its worktree with `worktree.sh down`.
 
 ## Adjudication
 
