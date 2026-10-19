@@ -4,6 +4,15 @@ Owner decision 2026-10-19 (q6, "Sí, arrancar la sombra"): measure whether `aide
 can drop from opus/high to sonnet/medium. Same method as the earlier shadow trials: the
 candidate runs beside the live agent, is never applied, and is logged for a later readout.
 
+## Contents
+
+- [What runs](#what-runs)
+- [Evidence kept (before anything is removed)](#evidence-kept-before-anything-is-removed)
+- [Gate run](#gate-run)
+- [Log](#log)
+- [Adjudication](#adjudication)
+- [Readout](#readout)
+
 ## What runs
 
 On a **first build** only (the screen has no gallery spec; see SKILL.md § First build), launch
