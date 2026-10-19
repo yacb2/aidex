@@ -913,6 +913,14 @@ try:
     holds("num: a right-aligned separator cell marks the column",
           "| ruta | KB |\n|---|---:|\n| A | 37 |",
           '<th class="num">KB</th>', '<td class="num">37</td>')
+    # BL-853: a table of four or more columns carries each header on its cells, so the
+    # kit can stack the row as label: value pairs at 390 px (CSS reads data-label).
+    holds("table: a 4-column table labels each td with its header",
+          "| ruta | KB | `modo` | nota \"x\" |\n|---|---:|---|---|\n| A | 37 | rw | ok |",
+          '<td data-label="ruta">A</td>', '<td class="num" data-label="KB">37</td>',
+          '<td data-label="modo">rw</td>', '<td data-label="nota &quot;x&quot;">ok</td>')
+    check("table: a 3-column table is left without data-label",
+          "data-label" not in build("| a | b | c |\n|---|---|---|\n| 1 | 2 | 3 |"))
     holds("pill and chip are INLINE spans, not fences",
           "Con [confianza alta]{.pill .high} y un [deferred]{.chip .chip-kill}.",
           '<span class="pill high">confianza alta</span>',
