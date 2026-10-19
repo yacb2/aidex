@@ -38,8 +38,8 @@ cat > "$TMP/bin/docker" <<'FAKE'
 #   beta-wt-other  — another project's live worktree -> must NEVER be reported
 case "$*" in
   "info") exit 0 ;;
-  *"ps -a"*)
-    printf '%s\n' alpha-wt-live alpha-wt-dead beta-wt-other ;;
+  *"ps -a"*)   # project, working_dir (alpha-wt-dead's is gone), mounts
+    printf '%s\t%s\t\n' alpha-wt-live "" alpha-wt-dead /nonexistent/alpha-wt-dead beta-wt-other "" ;;
   *"volume ls"*)
     printf '%s\n' alpha-wt-live_postgres_data alpha-wt-dead_postgres_data beta-wt-other_postgres_data ;;
   *"images -f dangling=true -f label=com.docker.compose.project=alpha-wt-dead -q")
@@ -123,7 +123,7 @@ cat > "$TMP/bin-sib/docker" <<'FAKE'
 #!/usr/bin/env bash
 case "$*" in
   "info") exit 0 ;;
-  *"ps -a"*)          echo ws-wt-foo-bar ;;
+  *"ps -a"*)          printf 'ws-wt-foo-bar\t/nonexistent/ws-wt-foo-bar\t\n' ;;
   *"volume ls"*)      echo ws-wt-foo-bar_db ;;
   *"images -f dangling=true"*) : ;;
   *"images --format"*) echo ws-wt-foo-bar-backend ;;
@@ -176,7 +176,7 @@ FAKE
 lbl_stub "$TMP/bin-l1" ws-wt-foo-bar_db ws-wt-foo-bar-xyz ws-wt-foo
 mkdir -p "$TMP/lbl1/ws/.context" "$TMP/lbl1/ws-wt-foo"
 out1="$(cd "$TMP/lbl1/ws" && PATH="$TMP/bin-l1:$PATH" bash "$SCRIPT" --check 2>&1)"
-grep -q 'ORPHAN volume: ws-wt-foo-bar_db' <<<"$out1" || fail "L1: the dead foo-bar's volume must still be reported: $out1"
+grep -q 'NOT JUDGED volume: ws-wt-foo-bar_db' <<<"$out1" || fail "L1: the dead foo-bar's volume must still be reported: $out1"
 grep -q 'image: ws-wt-foo-bar-xyz' <<<"$out1" && fail "L1: live foo's image labelled ws-wt-foo was reported as an orphan: $out1"
 
 # 2: foo and foo-api both live; foo owns ws-wt-foo-api (service api).

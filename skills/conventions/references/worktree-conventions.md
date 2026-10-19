@@ -196,13 +196,21 @@ running container, not whether the data matters. Skipped teardowns accumulate un
   to be attached to a running container right now.
 - **Permitted:** anonymous-volume prune (`docker volume prune -f`, Docker ≥23
   semantics — anonymous volumes only, never named ones) and an explicit
-  `docker volume rm <name>` for a **specific named volume taken from a sweep report the
-  user has confirmed**. Never `rm` a volume the sweep didn't name, and never `rm` from
-  memory of "probably orphaned" — always from the current report.
+  `docker volume rm <name>` for a **specific named volume named in a sweep report and
+  verified by hand with the user**. Never `rm` a volume the sweep didn't name, and never
+  `rm` from memory of "probably orphaned" — always from the current report.
 - The orphan sweep (`worktree/scripts/orphan-sweep.sh`, wired into
   `/aidex:worktree status`) is **report-only by construction**: it prints the exact
   reclaim command per orphan and never executes anything. Deletion is always a
   separate, explicit, human-confirmed step.
+- **A volume gets no command from the workspace sweep** (BL-857). A worktree moved with
+  a plain `mv` whose stack is stopped (Docker Desktop restart, reboot) keeps its old
+  `working_dir` label and has no running container, so Docker reads it exactly like a
+  removed one, and `git worktree list` reports both as prunable at the old path. The
+  sweep therefore lists such a volume as `ORPHAN volume: <vol>  (verify by hand; ...)`
+  and the `ORPHAN compose project` block names the old directory it was judged by
+  (`# judged gone: <working_dir> does not exist`). Before any `volume rm`, find the tree
+  by hand: if it was moved, the volume holds live data.
 
 ## Lifecycle
 

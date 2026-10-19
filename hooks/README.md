@@ -232,9 +232,10 @@ parsed. The line names the count and projects, says nothing was deleted and to v
 hand before removing anything, and points only to the read-only listing
 `bash "<plugin>/skills/worktree/scripts/orphan-sweep.sh" --all`; neither carries a removal
 command. It never points to `/aidex:worktree status`: that runs the default,
-workspace-scoped sweep, which prints `down -v` and `volume rm` for any `-wt-` project not
-at `$WS_PARENT/$WS_NAME-wt-*`, so a live worktree that was moved or lives elsewhere would
-be handed a removal command.
+workspace-scoped sweep, which still prints `down` (no `-v`), `rmi` and `network rm` for a
+`-wt-` project not at `$WS_PARENT/$WS_NAME-wt-*` whose containers' `working_dir` is gone and
+none of them running, so a live worktree moved with a plain `mv` whose stack is stopped
+would be handed a removal command (its volumes are listed with none).
 
 **Zero docker calls on the start path.** It reads `~/.claude/tmp/docker-orphans/summary`
 and, when that is missing or older than 20 h, launches the scan detached (own process

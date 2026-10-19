@@ -4,7 +4,15 @@
 # behind by a skipped worktree teardown. Cross-checks discovered Docker
 # resources against the worktree directories that are actually still on disk
 # (siblings named `<project>-wt-<slug>`),
-# and prints the exact reclaim command for each orphan. Never deletes anything
+# and prints the exact reclaim command for each orphan. Outside --slug a compose
+# project gets a command only when none of its containers' working_dir labels names an
+# existing directory, none is running, restarting or paused (LIVE) and none is missing
+# its label (NOT JUDGED), and that command is `down` without -v (--slug too); a volume
+# shared with another project or not named <project>_* is named on a `# no -v:` line.
+# Outside --slug no volume ever gets `volume rm`: a worktree moved with a plain mv whose
+# stack is stopped reads exactly like a removed one, so a gone project's volume is listed
+# for a check by hand (BL-857). A container listing that failed, even partway, prints no
+# removal command at all. Never deletes anything
 # itself — see the safety doctrine in
 # conventions/references/worktree-conventions.md ("dangling is not
 # disposable").
@@ -166,13 +174,20 @@ dk() {
     echo "docker did not answer within ${dt} s running: docker $* (not judged)."
     degraded=$((degraded + 1)); o=""; tripped=1
   fi
+  dk_rc=$r
   printf -v "$v" '%s' "$o"
 }
 
 # --- inventory, fetched once up front: owner_slug needs every slug known to
 #     exist before it can resolve a bare "-" suffix to the right one. ---
-dk compose_projects ps -a --format '{{.Label "com.docker.compose.project"}}'
-compose_projects="$(sort -u <<< "$compose_projects")"
+# One line per container: project, working_dir, mounts (--no-trunc: full volume names), state.
+L='com.docker.compose.project' TAB=$'\t'
+dk containers ps -a --no-trunc --format "{{.Label \"$L\"}}$TAB{{.Label \"$L.working_dir\"}}$TAB{{.Mounts}}$TAB{{.State}}"
+# A failed listing reads as "no containers": every liveness and mount proof below is
+# unknown. A plain failure does not trip the breaker; the sweep is still incomplete.
+failed=0
+[[ $dk_rc -ne 0 ]] && failed=1
+compose_projects="$(cut -f1 <<< "$containers" | sort -u)"
 dk volumes volume ls --format '{{.Name}}'
 volumes="$(sort -u <<< "$volumes")"
 dk images images --format '{{.Repository}}'
@@ -206,24 +221,104 @@ else
   echo "Scanning for orphaned ${SCOPE}* Docker resources..."
 fi
 
+# mounters VOL EXCEPT — the project of every container that mounts VOL, other than
+# EXCEPT, space-separated; "(no compose project)" for a container outside compose.
+mounters() {
+  awk -F'\t' -v v="$1" -v x="$2" '$1 != x {
+    n = split($3, m, ","); for (i = 1; i <= n; i++) if (m[i] == v) print ($1 == "" ? "(no compose project)" : $1) }' \
+    <<< "$containers" | sort -u | paste -sd ' ' -
+}
+
+# say_cmd CMD... — print a removal command, unless the container listing failed: a
+# running container missing from a partial listing reads as gone, so nothing is judged.
+say_cmd() { if [[ $failed -eq 0 ]]; then echo "  $*"; fi; }    # never false: _lib.sh sets -e
+
 # --- compose projects ---
+# Outside --slug a missing $WS_PARENT/$WS_NAME-wt-<slug> directory is not proof of an
+# orphan (BL-857): a worktree at a custom location reads the same. Docker's own
+# working_dir label decides first, as in orphan-sweep-all.sh; a project proven LIVE or
+# left NOT JUDGED joins known_projects, so none of its resources gets a removal line.
+gone_projects=() unjudged_projects=()
 while IFS= read -r proj; do
   [[ -z "$proj" ]] && continue
   in_scope "$proj" || continue
-  if ! is_known "$proj"; then
+  is_known "$proj" && continue
+  if [[ -z "$SLUG" ]]; then
+    live="" unread=0
+    while IFS= read -r w; do
+      if [[ -z "$w" ]]; then unread=1; elif [[ -e "$w" ]]; then live="$w"; fi
+    done < <(awk -F'\t' -v p="$proj" '$1 == p { print $2 }' <<< "$containers")
+    if [[ -n "$live" ]]; then
+      echo "compose project: $proj"
+      echo "  LIVE (working_dir exists): $live"
+      known_projects+=("$proj"); continue
+    fi
+    # A worktree moved with a plain mv keeps its old working_dir label; a running
+    # container still proves it live.
+    if awk -F'\t' -v p="$proj" '$1 == p && $4 ~ /running|restarting|paused/ { f = 1 } END { exit !f }' <<< "$containers"; then
+      echo "compose project: $proj"
+      echo "  LIVE (container running)"
+      known_projects+=("$proj"); continue
+    fi
+    if [[ $unread -eq 1 ]]; then
+      echo "NOT JUDGED compose project: $proj"
+      echo "  # a container carries no working_dir label; verify by hand before removing anything:"
+      echo "  #   docker ps -a --filter label=$L=$proj"
+      known_projects+=("$proj"); unjudged_projects+=("$proj")
+      orphans_found=$((orphans_found + 1)); continue
+    fi
+    gone_projects+=("$proj")    # every working_dir is gone: the only proof a volume rm needs
+    # Never `down -v` here: run from the workspace root, `-p <proj> down -v` loads its
+    # compose file and removes every non-external volume it declares, the main stack's
+    # name:-pinned one included, whenever nothing mounts it. Each <proj>_* volume gets its
+    # own gated line below; a shared or differently named one is named here.
     echo "$LABEL compose project: $proj"
-    echo "  docker compose -p $proj down -v --rmi local --remove-orphans"
-    orphans_found=$((orphans_found + 1))
+    awk -F'\t' -v p="$proj" '$1 == p { print "  # judged gone: " $2 " does not exist" }' <<< "$containers" | sort -u
+    say_cmd docker compose -p "$proj" down --rmi local --remove-orphans
+    while IFS= read -r v; do
+      [[ -z "$v" || "$v" == /* || "$v" =~ ^[0-9a-f]{64}$ ]] && continue    # a bind path; an anonymous volume
+      m="$(mounters "$v" "$proj")"
+      if [[ -n "$m" ]]; then echo "  # no -v: shared volume $v is mounted by: $m"
+      elif [[ "$v" != "${proj}_"* ]]; then echo "  # no -v: $v is not named ${proj}_* (name:-pinned or external)"
+      fi
+    done < <(awk -F'\t' -v p="$proj" '$1 == p { print $3 }' <<< "$containers" | tr ',' '\n' | sort -u)
+    orphans_found=$((orphans_found + 1)); continue
   fi
+  echo "$LABEL compose project: $proj"
+  say_cmd docker compose -p "$proj" down --rmi local --remove-orphans
+  orphans_found=$((orphans_found + 1))
 done <<< "$compose_projects"
 
 # --- volumes ---
 while IFS= read -r vol; do
   [[ -z "$vol" ]] && continue
   in_scope "$vol" || continue
+  owner="$PREFIX$(owner_slug "$vol")"
+  if [[ " ${unjudged_projects[*]:-} " == *" $owner "* ]]; then    # empty under --slug
+    echo "NOT JUDGED volume: $vol"
+    echo "  # $owner is NOT JUDGED above; verify by hand before removing anything:"
+    echo "  #   git worktree list; docker volume inspect $vol"
+    orphans_found=$((orphans_found + 1)); continue
+  fi
   if ! is_known "$vol"; then
-    echo "$LABEL volume: $vol"
-    echo "  docker volume rm $vol   # confirm before removing — see safety doctrine in worktree-conventions.md"
+    m="$(mounters "$vol" "$owner")"
+    # Outside --slug a volume rm needs its project proven gone above (BL-857): with no
+    # container (stack downed, listing failed) a live worktree anywhere reads the same.
+    if [[ -z "$SLUG" && -z "$m" && " ${gone_projects[*]:-} " != *" $owner "* ]]; then
+      echo "NOT JUDGED volume: $vol"
+      echo "  # no container of $owner shows its working_dir gone; verify by hand before removing anything:"
+      echo "  #   git worktree list; docker volume inspect $vol"
+      orphans_found=$((orphans_found + 1)); continue
+    fi
+    if [[ -n "$m" ]]; then
+      echo "$LABEL volume: $vol"
+      echo "  # not removable: $vol is mounted by: $m"
+    elif [[ -z "$SLUG" ]]; then
+      echo "$LABEL volume: $vol  (verify by hand; no command printed: a moved worktree with a stopped stack looks identical, see worktree-conventions.md)"
+    else
+      echo "$LABEL volume: $vol"
+      say_cmd "docker volume rm $vol   # confirm before removing — see safety doctrine in worktree-conventions.md"
+    fi
     orphans_found=$((orphans_found + 1))
   fi
 done <<< "$volumes"
@@ -246,7 +341,7 @@ while IFS= read -r img; do
   in_scope "$img" "$lbl" || continue
   if ! is_known "$img" "$lbl"; then
     echo "$LABEL image: $img"
-    echo "  docker rmi $img"
+    say_cmd docker rmi "$img"
     orphans_found=$((orphans_found + 1))
   fi
 done <<< "$images"
@@ -276,7 +371,7 @@ while IFS= read -r proj; do
   [[ -z "$ids" ]] && continue
   n="$(wc -w <<< "$ids" | tr -d ' ')"
   echo "$LABEL dangling images: $proj ($n)"
-  echo "  docker rmi $ids"
+  say_cmd docker rmi "$ids"
   orphans_found=$((orphans_found + 1))
 done <<< "$dangling_projects"
 
@@ -300,7 +395,7 @@ while IFS= read -r net; do
   fi
   echo "$LABEL network: $net ($attached container(s) attached)"
   if [[ "$attached" == "0" ]]; then
-    echo "  docker network rm $net"
+    say_cmd docker network rm "$net"
   else
     echo "  # still has attached containers — tear their stack down first, do not force-remove"
   fi
@@ -309,13 +404,14 @@ done <<< "$networks"
 
 echo
 [[ "$degraded" -gt 0 ]] && warn "sweep incomplete (degraded): $((degraded - skipped)) docker call(s) timed out; $skipped skipped after the breaker tripped; not judged."
+[[ "$failed" -gt 0 ]] && warn "sweep incomplete (degraded): the container listing failed; liveness and mounts not judged."
 if [[ "$orphans_found" -gt 0 ]]; then
   if [[ -n "$SLUG" ]]; then
     warn "$orphans_found resource group(s) attributable to $SCOPE."
   else
     warn "$orphans_found orphan(s) found."
   fi
-elif [[ "$degraded" -eq 0 ]]; then
+elif [[ $((degraded + failed)) -eq 0 ]]; then
   if [[ -n "$SLUG" ]]; then
     ok "no Docker resources attributable to $SCOPE."
   else
@@ -324,7 +420,7 @@ elif [[ "$degraded" -eq 0 ]]; then
 fi
 
 # An unjudged image is not a clean bill: --slug exit 0 releases a teardown.
-if { $CHECK || [[ -n "$SLUG" ]]; } && [[ $((orphans_found + degraded)) -gt 0 ]]; then
+if { $CHECK || [[ -n "$SLUG" ]]; } && [[ $((orphans_found + degraded + failed)) -gt 0 ]]; then
   exit 1
 fi
 exit 0

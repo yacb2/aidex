@@ -750,7 +750,7 @@ done
 # project name is normalised.
 mk_docker '#!/bin/sh
 echo "ARGS $*" >> "$DOCKER_LOG"
-case "$*" in "ps -a --format"*) echo myapp-wt-cn ;; esac
+case "$*" in "ps -a "*--format*) echo myapp-wt-cn ;; esac
 exit 0'
 P="$TMP/My.App"
 mk_branch_fixture "$P" cn >/dev/null 2>&1
