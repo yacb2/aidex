@@ -64,6 +64,11 @@ if [[ -d "$D" ]]; then
   got="$( cd "$D" && bash -c "source '$LIB'; find_project_root" 2>/dev/null )"
   [[ "$got" == "$(cd "$D" && pwd -P)" ]] && ok "find_project_root resolves to \$DEST, not the main tree" \
     || fail "find_project_root returned '$got', wanted '$(cd "$D" 2>/dev/null && pwd -P)'"
+  # From a participant subdir too: backend is a linked worktree of a sub-repo whose
+  # main tree is outside $DEST, so $DEST's .context/ still owns it (BL-769 review).
+  got="$( cd "$D/backend" && bash -c "source '$LIB'; find_project_root" 2>/dev/null )"
+  [[ "$got" == "$(cd "$D" && pwd -P)" ]] && ok "find_project_root from \$DEST/backend resolves to \$DEST" \
+    || fail "from \$DEST/backend find_project_root returned '$got', wanted '$(cd "$D" 2>/dev/null && pwd -P)'"
 
   # And a real artifact write must land in the worktree's own backlog.
   mkdir -p "$D/.context/backlog"

@@ -49,7 +49,11 @@ usage_from_header() { sed -n "${2:-2},\${/^#/!q;p;}" "$1" | sed 's/^# \{0,1\}//'
 #
 # Never `git rev-parse --show-toplevel` instead. That answers the wrong root twice over:
 # inside a linked worktree it is the worktree (which vanishes on teardown), and in a
-# multi-repo workspace it is the sub-repo, not the workspace `.context/`. A private
+# multi-repo workspace it is the sub-repo, not the workspace `.context/`. The one
+# sanctioned use is below (BL-769): a linked worktree nested inside a workspace whose
+# `.context/` ALSO contains that worktree's main tree resolves to the worktree. A
+# worktree DEST container (WT_LINKS `.context` symlink, root participant) holds only
+# the worktree, never the main tree, so its `.context/` keeps winning. A private
 # resolver in a script that chains with others would update the queue in one tree while
 # the item closes in another. Pinned by test-find-project-root.sh (no private copies).
 #
@@ -75,6 +79,25 @@ find_project_root() {
   while [[ "$dir" != "/" && -n "$dir" ]]; do
     [[ -n "$stop" && "$dir" == "$stop" ]] && break
     if [[ -d "$dir/.context" ]]; then
+      # BL-769, owner decision 2026-10-18 (q16): a LINKED worktree created inside a
+      # workspace (aidex_ws/_tmp/wt/<x>) reached the workspace's live .context/ here,
+      # before the hop below could run. When the .context/ found contains both the
+      # worktree and its main tree (strictly below it), the worktree root is the
+      # answer. A worktree DEST container's .context/ does not contain the main tree,
+      # and a normal checkout never enters this branch (common dir == git dir).
+      local wcommon wgitdir wtop wmain
+      if wcommon="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" \
+         && wgitdir="$(git rev-parse --absolute-git-dir 2>/dev/null)" \
+         && [[ -n "$wcommon" && "$wcommon" != "$wgitdir" ]] \
+         && wtop="$(git rev-parse --show-toplevel 2>/dev/null)" \
+         && wtop="$(cd "$wtop" 2>/dev/null && pwd -P)" \
+         && [[ "$wtop" == "$dir"/* ]]; then
+        wmain="$(cd "$(dirname "$wcommon")" 2>/dev/null && pwd -P)" || wmain=""
+        if [[ -n "$wmain" && "$wmain" == "$dir"/* ]]; then
+          printf '%s\n' "$wtop"
+          return 0
+        fi
+      fi
       printf '%s\n' "$dir"
       return 0
     fi
