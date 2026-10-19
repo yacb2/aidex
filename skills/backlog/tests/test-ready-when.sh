@@ -79,7 +79,7 @@ for p,v in ((sys.argv[1],sys.argv[2]),(sys.argv[3],sys.argv[4])):
 PY
 [[ ",$(sect eligible)," == *",BL-007,"* ]] && bad "unmet ready_when still ELIGIBLE" || ok "active item with unmet ready_when is not ELIGIBLE"
 [[ ",$(sect review)," == *",BL-007,"* && ",$(sect eligible)," == *",BL-008,"* ]] && ok "unmet goes to REVIEW, met stays ELIGIBLE" || bad "review=$(sect review) eligible=$(sect eligible)"
-python3 "$SCRIPTS/sweep-eligible.py" | grep -q "waiting: $FUT" && ok "REVIEW reason reads 'waiting: <value>'" || bad "reason text"
+python3 "$SCRIPTS/sweep-eligible.py" | grep >/dev/null "waiting: $FUT" && ok "REVIEW reason reads 'waiting: <value>'" || bad "reason text"
 
 # reactivate clears it
 bash "$DFR" reactivate BL-002 --no-index >/dev/null 2>&1
@@ -128,7 +128,7 @@ python3 - "$H1" "$LONG" <<'PY'
 import sys,re
 p,v=sys.argv[1:3]; t=re.sub(r'^ready_when:.*$', 'ready_when: "%s"' % v, open(p).read(), count=1, flags=re.M); open(p,'w').write(t)
 PY
-python3 "$SCRIPTS/sweep-eligible.py" | grep -qF "waiting: $LONG" && ok "REVIEW prints the whole waiting value" || bad "long waiting value clipped"
+python3 "$SCRIPTS/sweep-eligible.py" | grep >/dev/null -F "waiting: $LONG" && ok "REVIEW prints the whole waiting value" || bad "long waiting value clipped"
 KO="$(bash "$SCRIPTS/sweep-kickoff.sh" --dry-run 2>&1)"; echo "$KO" > "$TMP/ko"; grep -qF "waiting: $LONG" "$TMP/ko" && ok "kickoff REVIEW prints the whole waiting value" || bad "kickoff clips waiting value"
 
 # the kickoff the owner sees carries the deferred section
@@ -157,7 +157,7 @@ import sys
 p=sys.argv[1]; t=open(p).read().replace('\ntouches:', '\nready_when: "Date:2020-01-01"\ntouches:', 1); open(p,'w').write(t)
 PY
 [[ "$(verdict BL-016)" == "BAD FORM" ]] && ok "malformed deferred ready_when: BAD FORM" || bad "bad form verdict: $(verdict BL-016)"
-python3 "$SCRIPTS/sweep-eligible.py" | grep -qF "Date:2020-01-01" && ok "sweep-eligible prints the malformed value" || bad "malformed value hidden"
+python3 "$SCRIPTS/sweep-eligible.py" | grep >/dev/null -F "Date:2020-01-01" && ok "sweep-eligible prints the malformed value" || bad "malformed value hidden"
 bash "$SCRIPTS/sweep-kickoff.sh" --dry-run > "$TMP/ko2" 2>&1
 grep -q "BL-016 .*BAD FORM" "$TMP/ko2" && ok "kickoff deferred section shows BAD FORM rows" || bad "kickoff lacks BAD FORM"
 
@@ -179,7 +179,7 @@ p,mk=sys.argv[1:3]; t=open(p).read().replace('\ntouches:', '\nready_when: "cmd:t
 PY
 [[ "$(verdict BL-018)" == "NEEDS APPROVAL" ]] && ok "hand-written cmd: is NEEDS APPROVAL" || bad "unapproved cmd verdict: $(verdict BL-018)"
 [[ ! -e "$MK" ]] && ok "the unapproved command was not run" || bad "unapproved command RAN (marker exists)"
-python3 "$SCRIPTS/sweep-eligible.py" | grep -qF "cmd:touch $MK" && ok "the command text is shown for review" || bad "command text not shown"
+python3 "$SCRIPTS/sweep-eligible.py" | grep >/dev/null -F "cmd:touch $MK" && ok "the command text is shown for review" || bad "command text not shown"
 
 Q="$(mk "approved via defer")"   # BL-019
 defer_cmd BL-019 "cmd:touch $MK"
@@ -205,7 +205,7 @@ import sys
 p,mk=sys.argv[1:3]; t=open(p).read().replace('\ntouches:', '\nready_when: "cmd:touch %s.active"\ntouches:' % mk, 1); open(p,'w').write(t)
 PY
 sect_has eligible BL-021 && bad "unapproved active cmd: reached ELIGIBLE" || ok "unapproved active cmd: is not ELIGIBLE"
-python3 "$SCRIPTS/sweep-eligible.py" | grep -qF "waiting: needs approval: touch $MK.active" && [[ ! -e "$MK.active" ]] \
+python3 "$SCRIPTS/sweep-eligible.py" | grep >/dev/null -F "waiting: needs approval: touch $MK.active" && [[ ! -e "$MK.active" ]] \
   && ok "active item: REVIEW 'waiting: needs approval: <cmd>', not run" || bad "active approval reason / ran"
 bash "$SCRIPTS/sweep-kickoff.sh" --dry-run > "$TMP/ko4" 2>&1
 grep -q "BL-020 .*NEEDS APPROVAL" "$TMP/ko4" && grep -qF "cmd:touch $MK.other" "$TMP/ko4" \

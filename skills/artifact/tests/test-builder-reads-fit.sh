@@ -30,7 +30,7 @@ candidates="$(printf '%s\n%s\n' "$fenced" "$prose" | grep -E '(^|[^A-Za-z])(cat|
 # (a rename must not turn a violation into a quiet pass), a file at the limit or over is a FAIL.
 while IFS= read -r name; do
   [[ -n "$name" ]] || continue
-  path="$(find "$SKILL/references" -name "$name" -type f | head -1)"
+  path="$(find "$SKILL/references" -name "$name" -type f | sed -n 1p)"
   if [[ -z "$path" ]]; then
     fail "artifact-sonnet.md names $name on a shell line but no such reference exists"
     continue
