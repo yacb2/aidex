@@ -78,6 +78,7 @@ import contextlib
 import fcntl
 import os
 import re
+import shlex
 import shutil
 import sys
 import tempfile
@@ -90,6 +91,7 @@ import check_artifact                                       # noqa: E402
 import contract_defects                                     # noqa: E402
 import gallery_items                                        # noqa: E402
 import md_body                                              # noqa: E402
+import wrap_report                                          # noqa: E402
 from _usage import UsageParser, usage_exit                  # noqa: E402
 import spec_build                                           # noqa: E402
 import spec_parser                                          # noqa: E402
@@ -979,14 +981,17 @@ def _spec_lock(spec_path):
         os.close(fd)
 
 
-def apply_edit(spec_path, transform, out=None, lang=None, needs_page=False):
+def apply_edit(spec_path, transform, out=None, lang=None, needs_page=False,
+               discard_hand_edit=False):
     """Run one transform over `spec_path`, then rebuild the page, with the spec
     locked for the whole cycle (see `_spec_lock`). See `_apply_edit`."""
     with _spec_lock(spec_path):
-        return _apply_edit(spec_path, transform, out, lang, needs_page)
+        return _apply_edit(spec_path, transform, out, lang, needs_page,
+                           discard_hand_edit)
 
 
-def _apply_edit(spec_path, transform, out=None, lang=None, needs_page=False):
+def _apply_edit(spec_path, transform, out=None, lang=None, needs_page=False,
+                discard_hand_edit=False):
     """Run one transform over `spec_path`, then rebuild the page.
 
     The order is the contract: read, transform, VALIDATE with the REBUILD'S OWN
@@ -1023,10 +1028,19 @@ def _apply_edit(spec_path, transform, out=None, lang=None, needs_page=False):
                         % (spec_path, exc.object[exc.start], exc.start))
 
     out = out or default_out(spec_path)
-    defect = spec_build.hand_edit_defect(out, spec_path)
+    # `discard_hand_edit`: the builder's own flag, passed through, so the verb
+    # a builder refusal names can run where the page was hand-edited (BL-840).
+    defect = None if discard_hand_edit else spec_build.hand_edit_defect(out, spec_path)
     if defect:
         raise VerbError("%s — nothing was written" % defect)
     new = transform(old)
+    if (wrap_report._current_round(out) >= 1
+            and wrap_report.reply_saved(out)):
+        # BL-840: this rebuild opens the round over the saved reply (the wrap reads
+        # that state), so whichever verb runs first expires what the reader
+        # accepted, as `new_round` does; the builder refuses a round that would not.
+        new = _expire_proposals(new, _answered_snapshot(spec_path, out),
+                                _prev_file(spec_path, out, ".reply.md"))
     base_dir = os.path.dirname(os.path.abspath(spec_path))
     # The language the builder CLI would pick for this spec, not a constant.
     try:
@@ -1079,8 +1093,9 @@ def _apply_edit(spec_path, transform, out=None, lang=None, needs_page=False):
             "no page at %s: the page has not been built yet, and decide / "
             "new-round act on a built page's rounds — run the first build "
             "(`python3 %s %s -o %s`) before this verb; nothing was written"
-            % (out, os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                 "spec_build.py"), spec_path, out))
+            % (out, shlex.quote(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                             "spec_build.py")),
+               shlex.quote(spec_path), shlex.quote(out)))
 
     if new != old:
         _trial_build(spec_path, new, os.path.basename(out), lang)
@@ -1088,7 +1103,7 @@ def _apply_edit(spec_path, transform, out=None, lang=None, needs_page=False):
     # The page is produced HERE and only here, by the same CLI a hand build
     # runs: `build()` for the body, `wrap-report.sh` for the envelope, the kit
     # and the build stamp. No verb writes HTML.
-    rc, findings = _rebuild_capturing_findings(spec_path, out, lang)
+    rc, findings = _rebuild_capturing_findings(spec_path, out, lang, discard_hand_edit)
     if rc != 0:
         rolled = ""
         if new != old:
@@ -1107,7 +1122,7 @@ def _apply_edit(spec_path, transform, out=None, lang=None, needs_page=False):
     return out
 
 
-def _rebuild_capturing_findings(spec_path, out, lang):
+def _rebuild_capturing_findings(spec_path, out, lang, discard_hand_edit=False):
     """(rc, text): spec_build.main with fds 1-2 captured (the wrap's subprocess
     writes the FAIL lines there), replayed to stderr, and the FAIL lines of
     the output-folder checks returned for the BuildFailed message."""
@@ -1120,7 +1135,8 @@ def _rebuild_capturing_findings(spec_path, out, lang):
         os.dup2(tmp.fileno(), 1)
         os.dup2(tmp.fileno(), 2)
         try:
-            rc = spec_build.main([spec_path, "-o", out, "--lang", lang])
+            rc = spec_build.main([spec_path, "-o", out, "--lang", lang]
+                                 + (["--discard-hand-edit"] if discard_hand_edit else []))
         except Exception as exc:                          # noqa: BLE001
             # A raise is a failed rebuild, not a crash: the caller rolls back.
             rc = 1
@@ -1149,14 +1165,14 @@ class BuildFailed(Exception):
 
 
 def add_item_file(spec_path, group_id, item_id, title, body="", options=(),
-                  out=None, lang=None):
+                  out=None, lang=None, discard_hand_edit=False):
     return apply_edit(spec_path,
                       lambda text: add_item(text, group_id, item_id, title,
                                             body, options),
-                      out=out, lang=lang)
+                      out=out, lang=lang, discard_hand_edit=discard_hand_edit)
 
 
-def decide_many_file(spec_path, pairs, out=None, lang=None):
+def decide_many_file(spec_path, pairs, out=None, lang=None, discard_hand_edit=False):
     """Record several `(id, verdict)` pairs, then rebuild ONCE: one reader reply
     that decides N items is one round, not N (BL-497). One refused pair refuses
     the whole call, nothing written."""
@@ -1166,7 +1182,8 @@ def decide_many_file(spec_path, pairs, out=None, lang=None):
         for item_id, verdict in pairs:
             text = decide(text, item_id, verdict, reply)
         return text
-    return apply_edit(spec_path, transform, out=out, lang=lang, needs_page=True)
+    return apply_edit(spec_path, transform, out=out, lang=lang, needs_page=True,
+                      discard_hand_edit=discard_hand_edit)
 
 
 def _prev_file(spec_path, out, suffix):
@@ -1187,7 +1204,25 @@ def _answered_snapshot(spec_path, out):
     return _prev_file(spec_path, out, ".answered.html")
 
 
-def new_round_file(spec_path, out=None, lang=None, dropped=(), retitled=()):
+def unexpired_proposals(spec_path, out, spec_text):
+    """The ids `new-round` would expire now (`_expire_proposals` over the saved
+    snapshot and reply), in spec order. A `spec_build.py` rebuild that opens the
+    round refuses while any remain (BL-840): it would show them again, live."""
+    try:
+        expired = _expire_proposals(spec_text, _answered_snapshot(spec_path, out),
+                                    _prev_file(spec_path, out, ".reply.md"))
+    except VerbError:   # an unparseable spec: the builder names its line next
+        return []
+    if expired == spec_text:
+        return []
+    props = lambda text: [n.id for n in _walk(_parse(text, "the spec"))
+                          if n.block_type == "item" and "proposal" in n.attrs]
+    left = set(props(expired))
+    return [i for i in props(spec_text) if i not in left]
+
+
+def new_round_file(spec_path, out=None, lang=None, dropped=(), retitled=(),
+                   discard_hand_edit=False):
     answered = _answered_snapshot(spec_path, out)
     reply = _prev_file(spec_path, out, ".reply.md")
 
@@ -1200,16 +1235,17 @@ def new_round_file(spec_path, out=None, lang=None, dropped=(), retitled=()):
                 "(the answers lost in owner case 225f968e). Decide each first: "
                 "%s"
                 % (", ".join("#" + i for i, _ in picks),
-                   "; ".join("decide --id %s --verdict \"%s\"" % (i, v)
+                   "; ".join("decide --id %s --verdict \"%s\"%s"
+                             % (i, v, " --discard-hand-edit" if discard_hand_edit else "")
                              for i, v in picks)))
         return new_round(text, dropped, retitled, answered, reply)
-    return apply_edit(spec_path,
-                      guarded, out=out, lang=lang, needs_page=True)
+    return apply_edit(spec_path, guarded, out=out, lang=lang, needs_page=True,
+                      discard_hand_edit=discard_hand_edit)
 
 
 # --- CLI ---------------------------------------------------------------------
 def main(argv):
-    tail = " [--out <page.html>] [--lang es|en]"
+    tail = " [--out <page.html>] [--lang es|en] [--discard-hand-edit]"
     nr_form = ("spec_verbs.py new-round <spec.md> [--drop <#id>]... "
                "[--retitle <#id>]..." + tail)
     hints = {"--drop": nr_form, "--retitle": nr_form}
@@ -1229,6 +1265,9 @@ def main(argv):
         sp.add_argument("--lang", default=None, choices=spec_build.LANGS,
                         help="the page language when the masthead has no lang=; "
                              "default: the project profile's, else es")
+        sp.add_argument("--discard-hand-edit", action="store_true",
+                        help="rebuild over a hand-edited page, discarding the "
+                             "edit (as spec_build.py --discard-hand-edit)")
         return sp
 
     a = common(subs.add_parser("add-item", help="add an item to a group",
@@ -1281,7 +1320,8 @@ def main(argv):
         if args.verb == "add-item":
             out = add_item_file(args.spec, args.group.lstrip("#"),
                                 args.ident.lstrip("#"), args.title, args.body,
-                                args.options, out=args.out, lang=args.lang)
+                                args.options, out=args.out, lang=args.lang,
+                                discard_hand_edit=args.discard_hand_edit)
         elif args.verb == "decide":
             idents = [i.lstrip("#") for i in args.ident]
             if len(set(idents)) != len(idents):
@@ -1291,11 +1331,13 @@ def main(argv):
                         % (len(idents), len(args.verdict)))
             out = decide_many_file(
                 args.spec, list(zip(idents, args.verdict)),
-                out=args.out, lang=args.lang)
+                out=args.out, lang=args.lang,
+                discard_hand_edit=args.discard_hand_edit)
         else:
             out = new_round_file(args.spec, out=args.out, lang=args.lang,
                                  dropped=[i.lstrip("#") for i in args.dropped],
-                                 retitled=[i.lstrip("#") for i in args.retitled])
+                                 retitled=[i.lstrip("#") for i in args.retitled],
+                                 discard_hand_edit=args.discard_hand_edit)
     except (VerbError, BuildFailed) as exc:
         sys.stderr.write("spec-verbs %s: %s\n" % (args.verb, exc))
         return 1
