@@ -382,7 +382,7 @@ def _nice_step(span, target=5):
 
 
 def _clean(v, unit):
-    """`v` without float noise, at a precision relative to `unit` (the half
+    """`v` without float noise, at a precision relative to `unit` (the
     step): a fixed `round(v, 10)` collapsed a 3e-12 domain to 0..0."""
     v = round(v, max(0, -int(math.floor(math.log10(unit)))) + 3)
     return 0.0 if v == 0 else v
@@ -401,29 +401,24 @@ def _places(x):
 def _scale(lo, hi, target=5):
     """`(d_lo, d_hi, ticks)`: the drawn domain and its tick values.
 
-    Each end of the domain is the data's end rounded OUT to half a step, and
-    labelled: -36.23 .. 272.87 at a step of 100 draws -50 .. 300, ticked at
-    -50 / 0 / 100 / 200 / 300. Rounding to a whole step would give the 36 of
-    negative data a 100 of room; not rounding at all is the arm-B chart, ticked
-    at its own data extremes. Every inner tick is a multiple of the step, so 0
-    is always a tick — and 0 is always in the domain, forced here as well as in
-    `_domain`, so a direct call cannot lose it.
+    Each end of the domain is the data's end rounded OUT to a whole step:
+    -36.23 .. 272.87 at a step of 100 draws -100 .. 300, ticked at
+    -100 / 0 / 100 / 200 / 300. Every step is equal, so the top tick is never
+    a half step after the last (9000 after 8000 at a step of 2000); not
+    rounding at all is the arm-B chart, ticked at its own data extremes. Every
+    tick is a multiple of the step, so 0 is always a tick - and 0 is always in
+    the domain, forced here as well as in `_domain`, so a direct call cannot
+    lose it.
     """
     lo, hi = min(lo, 0.0), max(hi, 0.0)
     if hi == lo:
         hi = lo + 1.0
     step = _nice_step(hi - lo, target)
-    # The ends round out to HALF a step only when the half is as round as the
-    # step (100 -> 50, 0.2 -> 0.1); a step of 5 or 1 would put 12.5 or 1.5 at
-    # the end and force a decimal onto an axis of integers.
-    half = step / 2.0
-    if _places(half) > _places(step):
-        half = step
-    d_lo = _clean(math.floor(lo / half + 1e-9) * half, half)
-    d_hi = _clean(math.ceil(hi / half - 1e-9) * half, half)
+    d_lo = _clean(math.floor(lo / step + 1e-9) * step, step)
+    d_hi = _clean(math.ceil(hi / step - 1e-9) * step, step)
     first = int(math.ceil(d_lo / step - 1e-9))
     last = int(math.floor(d_hi / step + 1e-9))
-    ticks = set(_clean(k * step, half) for k in range(first, last + 1))
+    ticks = set(_clean(k * step, step) for k in range(first, last + 1))
     return d_lo, d_hi, sorted(ticks | {d_lo, d_hi})
 
 
