@@ -108,6 +108,18 @@ per cell. What it must guarantee:
   state's own markup inside one passes every check by not being looked at. Something
   that must merely not move a baseline (a clock, a version string) belongs in the
   volatile-region or mask list below, where the checks still see it.
+- **Background pollers are mocked by the harness by default, where the harness installs
+  that default.** A poller the shell runs on every page (an activity or notification
+  badge) gets an empty-state route mock installed by the harness before each cell's own
+  mocks, so no gallery spec repeats it. Detect it, never assume it: the harness module
+  registers a default poller route before the cell's mocks. **A project whose harness
+  lacks the default keeps its per-spec copy (a `NO_ACTIVITY` mock) and files the harness
+  change; never remove or skip a per-spec poller mock until the harness installs it**, or
+  the unmocked poller fires under the gate and fails the cell or makes the baseline
+  nondeterministic. A cell whose subject is the poller overrides the default with its own
+  mock. A poller whose badge must stay out of the baseline, not just quiet, goes in the
+  volatile-region list below, and so does one fetched on the server, which `page.route`
+  cannot reach.
 - Volatile regions (a ticking timer panel, an auto-dismissing toaster) are removed from
   the DOM for the evidence pass, and a version string in the chrome is masked. Both exist
   because they otherwise decide whether a run is green. **A mask is painted in the

@@ -231,25 +231,80 @@ git -C "$PR" branch b3 main
 [[ "$(git -C "$PR" rev-parse b3)" == "$local_main" ]] || fail "base: refused --base must leave b3 unchanged"
 [[ ! -e "$TMP/bproj-wt-s3" ]] || fail "base: refused --base must create nothing"
 
-# A root checkout's bookkeeping excludes land in the MAIN repo's shared info/exclude
-# (info/ is a common-dir path), and every create appended them again: after two
-# root-participant creates, each line must appear once.
+# BL-771: a root checkout's bookkeeping excludes are scoped to THAT checkout. info/ is a
+# common-dir path, so lines written to info/exclude also hid the MAIN tree's own .env,
+# .wt-* and /<participant>/ from its git status, and nothing ever removed them. The
+# checkout still hides them, and a per-worktree core.excludesFile must not drop the
+# user's global excludes (it replaces them in that checkout). Two creates: the second
+# meets the extension already on.
 PX="$TMP/xproj"
+GX="$TMP/xproj.gitconfig"
+printf '*.glob\n' > "$TMP/xproj.gignore"
+printf '[core]\n\texcludesFile = %s\n' "$TMP/xproj.gignore" > "$GX"
 mkdir -p "$PX" && git -C "$PX" init -q -b main
 git -C "$PX" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
+mkdir -p "$PX/sub" && git -C "$PX/sub" init -q -b main
+git -C "$PX/sub" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
 for s in x1 x2; do
-  ( cd "$PX" && AIDEX_WT_INTERNAL=1 bash "$SCRIPT" create --slug "$s" --branch "b$s" --repo . --dest "$TMP/xproj-wt-$s" >/dev/null 2>&1 ) \
+  [[ "$s" == x2 ]] && cfg_ino="$(ls -i "$PX/.git/config" | awk '{print $1}')"
+  ( cd "$PX" && GIT_CONFIG_GLOBAL="$GX" AIDEX_WT_INTERNAL=1 bash "$SCRIPT" create --slug "$s" --branch "b$s" --repo . --repo sub --dest "$TMP/xproj-wt-$s" >/dev/null 2>&1 ) \
     || fail "exclude: root create $s failed"
+  touch "$TMP/xproj-wt-$s/.wt-slot" "$TMP/xproj-wt-$s/.wt-branch" "$TMP/xproj-wt-$s/.env" "$TMP/xproj-wt-$s/a.glob"
 done
-n_ex="$(grep -cx '\.wt-slot' "$PX/.git/info/exclude" 2>/dev/null)"
-[[ "$n_ex" == 1 ]] || fail "exclude: .wt-slot appears $n_ex times in the shared info/exclude, want 1"
+# The extension is already on for x2: rewriting .git/config anyway takes its lock on
+# every create, and a concurrent `git config` in the main tree then fails one of them.
+[[ "$(ls -i "$PX/.git/config" | awk '{print $1}')" == "$cfg_ino" ]] \
+  || fail "exclude: a create with extensions.worktreeConfig already on rewrote the shared .git/config"
+touch "$PX/.wt-slot" "$PX/.wt-branch" "$PX/.env"
+main_st="$(GIT_CONFIG_GLOBAL="$GX" git -C "$PX" status --porcelain)"
+for want in '?? .wt-slot' '?? .wt-branch' '?? .env' '?? sub/'; do
+  grep -qxF -- "$want" <<<"$main_st" || fail "exclude: the main tree's git status hides '${want#?? }' (got: $(tr '\n' '|' <<<"$main_st"))"
+done
+for s in x1 x2; do
+  wt_st="$(GIT_CONFIG_GLOBAL="$GX" git -C "$TMP/xproj-wt-$s" status --porcelain)"
+  [[ -z "$wt_st" ]] || fail "exclude: root checkout $s must hide its bookkeeping and keep the global excludes, got: $(tr '\n' '|' <<<"$wt_st")"
+done
+! grep -qxF '# aidex worktree bookkeeping (worktree.sh)' "$PX/.git/info/exclude" 2>/dev/null \
+  || fail "exclude: the bookkeeping block was written to the main repo's shared info/exclude"
 
-# Old runs left a bare `.env` and one bookkeeping block per create in the shared
-# info/exclude (dashboard_template_ws has 13). The next create migrates them, but ONLY
-# inside those blocks (BL-770). Golden file, written by hand: block 1 absorbs the other
-# blocks (`/sub/` from block 2), every user line stays in place and in order (a `.env`
-# that is the SECOND in its block, `!keep.log` before `*.log`), a user section with no
-# blank line before the next block is not swallowed, and the block ends with a blank.
+# With no core.excludesFile, git reads ${XDG_CONFIG_HOME:-~/.config}/git/ignore: that
+# file is the global excludes too, and the per-worktree value must not drop it.
+PXG="$TMP/xgproj"
+mkdir -p "$TMP/xdg/git" && printf '*.glob\n' > "$TMP/xdg/git/ignore" && : > "$TMP/empty.gitconfig"
+mkdir -p "$PXG" && git -C "$PXG" init -q -b main
+git -C "$PXG" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
+( cd "$PXG" && GIT_CONFIG_GLOBAL="$TMP/empty.gitconfig" XDG_CONFIG_HOME="$TMP/xdg" AIDEX_WT_INTERNAL=1 bash "$SCRIPT" create --slug g1 --branch bg1 --repo . --dest "$TMP/xgproj-wt-g1" >/dev/null 2>&1 ) \
+  || fail "exclude-xdg: root create g1 failed"
+touch "$TMP/xgproj-wt-g1/.wt-slot" "$TMP/xgproj-wt-g1/a.glob"
+xg_st="$(GIT_CONFIG_GLOBAL="$TMP/empty.gitconfig" XDG_CONFIG_HOME="$TMP/xdg" git -C "$TMP/xgproj-wt-g1" status --porcelain)"
+[[ -z "$xg_st" ]] || fail "exclude-xdg: root checkout g1 dropped the XDG global excludes, got: $(tr '\n' '|' <<<"$xg_st")"
+
+# Under extensions.worktreeConfig a core.worktree in the shared config applies to every
+# worktree (the new checkout's toplevel would be the main tree), so a root create
+# refuses first, before anything exists: with the extension off (turning it on would
+# break the checkout) and with it already on.
+for cw in off on; do
+  PW="$TMP/cwproj-$cw"
+  mkdir -p "$PW" && git -C "$PW" init -q -b main
+  git -C "$PW" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
+  [[ "$cw" == on ]] && git -C "$PW" config extensions.worktreeConfig true
+  git -C "$PW" config core.worktree "$PW"
+  cw_err="$( cd "$PW" && AIDEX_WT_INTERNAL=1 bash "$SCRIPT" create --slug c1 --branch bc1 --repo . --dest "$PW-wt-c1" 2>&1 >/dev/null )"; cw_rc=$?
+  [[ "$cw_rc" == 2 ]] || fail "core.worktree ($cw): root create must refuse with rc 2, got rc $cw_rc"
+  grep -q 'core.worktree' <<<"$cw_err" || fail "core.worktree ($cw): the refusal must name core.worktree, got: $cw_err"
+  [[ ! -e "$PW-wt-c1" ]] || fail "core.worktree ($cw): the refused create left a destination"
+  ! git -C "$PW" show-ref --verify --quiet refs/heads/bc1 || fail "core.worktree ($cw): the refused create made branch bc1"
+  [[ "$cw" == on || -z "$(git -C "$PW" config --get extensions.worktreeConfig)" ]] \
+    || fail "core.worktree ($cw): the refused create turned extensions.worktreeConfig on"
+done
+
+# Old runs left one bookkeeping block per create in the shared info/exclude
+# (dashboard_template_ws has 13), and those lines hid the main tree's own files. The
+# next create STRIPS them (BL-771), but ONLY inside those blocks (BL-770's block rule).
+# Golden file, written by hand: each block's header, its member lines and the one blank
+# that closes it go; every user line stays in place and in order (a `.env` that is the
+# SECOND in its block, `!keep.log` before `*.log`, a user section with no blank line
+# after a block).
 PM="$TMP/mproj"
 mkdir -p "$PM" && git -C "$PM" init -q -b main
 git -C "$PM" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
@@ -298,23 +353,27 @@ cat > "$TMP/mproj.golden" <<EOT
 .env
 *.log
 
-$H
-.wt-slot
-.wt-branch
-/.env
-/sub/
-
 # my own
 keep-me
 # case A
 *.o
 .env
 secrets.txt
+
 !keep.log
 *.log
 EOT
+# A root checkout made before BL-771 relies on the shared block alone: stripping it must
+# hand that checkout its own excludes, or its bookkeeping turns up and `down` refuses.
+git -C "$PM" worktree add -q -b bold "$TMP/mproj-wt-old"
+touch "$TMP/mproj-wt-old/.wt-slot" "$TMP/mproj-wt-old/.wt-branch" "$TMP/mproj-wt-old/.env"
+# It holds a nested participant (`/sub/` in the old block) that the NEXT create does not
+# list (m1 is `--repo .`): its own `/sub/` must come from the stripped block, not from m1.
+mkdir -p "$TMP/mproj-wt-old/sub" && git -C "$TMP/mproj-wt-old/sub" init -q
 ( cd "$PM" && AIDEX_WT_INTERNAL=1 bash "$SCRIPT" create --slug m1 --branch bm1 --repo . --dest "$TMP/mproj-wt-m1" >/dev/null 2>&1 ) \
   || fail "migrate: root create m1 failed"
+old_st="$(git -C "$TMP/mproj-wt-old" status --porcelain)"
+[[ -z "$old_st" ]] || fail "migrate: a pre-BL-771 root checkout lost its excludes with the strip: $(tr '\n' '|' <<<"$old_st")"
 diff -u "$TMP/mproj.golden" "$EXM" >"$TMP/mproj.diff" 2>&1 \
   || fail "migrate: exclude differs from the golden file: $(tr '\n' '|' < "$TMP/mproj.diff")"
 sum1="$(cksum < "$EXM")"
@@ -323,8 +382,7 @@ sum1="$(cksum < "$EXM")"
 [[ "$(cksum < "$EXM")" == "$sum1" ]] || fail "migrate: a second create must leave the exclude file byte-identical"
 [[ -z "$(ls "$PM/.git/info" | grep -v '^exclude$')" ]] || fail "migrate: a temp file was left in info/"
 
-# A block that lacks a wanted line gets it INSIDE the block, not appended after the
-# user's rules that follow it (BL-770): `.wt-branch` must land before the blank line.
+# A block that ends at a user rule with no blank line: the rule is kept (BL-770, BL-771).
 PN="$TMP/wproj"
 mkdir -p "$PN" && git -C "$PN" init -q -b main
 git -C "$PN" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
@@ -335,11 +393,6 @@ $H
 *.log
 EOT
 cat > "$TMP/wproj.golden" <<EOT
-$H
-.wt-slot
-/.env
-.wt-branch
-
 *.log
 EOT
 ( cd "$PN" && AIDEX_WT_INTERNAL=1 bash "$SCRIPT" create --slug w1 --branch bw1 --repo . --dest "$TMP/wproj-wt-w1" >/dev/null 2>&1 ) \
@@ -460,8 +513,10 @@ git -C "$PM" -c user.email=t@t -c user.name=t commit -q -m init
 for m in k1 k2; do
   out="$( cd "$PM" && bash "$WT_SH" new $m --branch b$m --no-infra 2>&1 )" || fail "marker: new $m failed -- $out"
 done
-_ex="$(git -C "$TMP/mkproj-wt-k1" rev-parse --git-path info/exclude)"
-grep -vxF '/.env' "$_ex" > "$TMP/mex" || true; cat "$TMP/mex" > "$_ex"
+for m in k1 k2; do
+  _ex="$(git -C "$TMP/mkproj-wt-$m" config --worktree --get core.excludesFile)"
+  grep -vxF '/.env' "$_ex" > "$TMP/mex" || true; cat "$TMP/mex" > "$_ex"
+done
 printf '%s\nK=1\n' "$WT_ENV_MARKER" > "$TMP/mkproj-wt-k1/.env"
 printf 'K=2\n' > "$TMP/mkproj-wt-k2/.env"
 out="$( cd "$PM" && bash "$WT_SH" down k1 2>&1 )" \

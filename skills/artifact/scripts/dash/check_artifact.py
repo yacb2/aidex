@@ -76,6 +76,10 @@ namespace would let one waiver silence a real failure on the same file. They
 run at authoring time only (a direct check of named files), never in `--census`:
 a census warning on a page nobody is editing is noise no one can clear.
 
+  cross-number-chart a kit chart value that no same-kind (`%` or plain) cell of the
+               table row with the same label carries; table-header-unit a column of
+               bare numbers under a time or money header with no unit. Rubric
+               line 7 measured; the rules live in cross_numbers.py (BL-852)
   consult-opts marks outside `.opts` — the kit styles option groups only there,
                so any other wrapper renders them unstyled (BL-244)
   consult-rec  "(recommended)" typed into `data-label` — the marker then travels
@@ -129,6 +133,7 @@ import re
 import time
 import sys
 import contract_defects                             # same directory
+import cross_numbers                                # same directory
 import unicodedata
 
 # --- § 8 detection patterns --------------------------------------------------
@@ -4409,6 +4414,18 @@ def check_round_eyebrow(path):
              f"consult-round {rnd}, which the rail stamp shows{fix}")]
 
 
+def check_cross_numbers(path):
+    """WARNs for BL-852 (rubric line 7): a chart value and its table row must
+    agree, and a time or money column of bare numbers carries a unit in its
+    header. Heuristics, so a warning and never a FAIL; rules in cross_numbers.py."""
+    if not os.path.isfile(path):
+        return []
+    text = open(path, encoding="utf-8", errors="replace").read()
+    markup = strip_html_comments(strip_script_style(text))
+    name = os.path.basename(path)
+    return [(slug, name, msg) for slug, msg in cross_numbers.findings(markup)]
+
+
 def _picked_only(reply_text, ident, ids):
     """The option lines of the LAST `##`/`###`-headed reply block for `ident`
     (reply_blocks) when the reader only PICKED: every non-blank line is a
@@ -5005,6 +5022,7 @@ def main(argv):
         failures.extend(check_decided_trace(f))
         failures.extend(check_round_pick_open(f, strict=new_round))
         failures.extend(check_round_eyebrow(f))
+        warnings.extend(check_cross_numbers(f))
 
     for check, name, msg in failures:
         print(f"  FAIL [{check}] {name}: {msg}")

@@ -71,7 +71,9 @@ round, including a delegated `--building` build's, omit it): it fails, naming
 `--new-round --no-reply`, on its FIRST build only, like `--new-round`; check-artifact FAILS a masthead eyebrow whose round differs from the page's (BL-824). On the spec route, edit the spec for every
 duty FIRST, then run the verbs: any rebuild after `save-reply.sh` opens the round,
 a verb's included, so when a verb (`decide`, `new-round`) is the first rebuild, no
-`--new-round` follows it (it would refuse: the round is already open). A `[show-me]` duty is
+`--new-round` follows it (it would refuse: the round is already open). A verb that opens the round
+expires the proposals the reply accepted untouched; a `spec_build.py` rebuild that would open it
+over one (with or without `--new-round`) refuses and names `spec_verbs.py new-round` (BL-840). A `[show-me]` duty is
 fulfilled by a `diagram` block (`tree`, `compare`) in the page brief, or, where the install has those agents (they are the owner's, not shipped in this plugin's `agents/`), by launching
 `aidex:figure-sonnet` (wireframes only) or `aidex:verify-browser-opus` BEFORE the page brief, never by writing more prose. `check-artifact --prev` then FAILS a wrap
 that does not carry out a printed duty — no bypass
@@ -132,7 +134,7 @@ Edits to a page on this route go through the verbs
 (`scripts/spec_verbs.py add-item | decide | new-round`), which rewrite the spec and
 rebuild the page. The built HTML is an output; it is regenerated, never hand-edited:
 a rebuild over a page that differs from the last build REFUSES, naming the edit; move the change
-into the spec, or pass `--discard-hand-edit` to `spec_build.py` to overwrite it on purpose.
+into the spec, or pass `--discard-hand-edit` to `spec_build.py` (or to a verb) to overwrite it on purpose.
 
 Refusals a first spec usually meets (`references/02-local-first-artifacts.md`
 § Worked example):

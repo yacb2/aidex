@@ -395,11 +395,22 @@ def _table(rows):
         # simply not a num column.
         return ' class="num"' if n < len(nums) and nums[n] else ""
 
+    heads = _cells(head)
+    # BL-853: from four columns on (the width at which the phone layout stops fitting
+    # the table, components.css) each td carries its header's text, so the stylesheet
+    # can stack the row as label: value pairs. The text is already escaped, and the
+    # tags _inline wrapped around it are dropped: an attribute holds plain text.
+    labels = ([re.sub(r"<[^>]*>", "", _inline(c)) for c in heads]
+              if len(heads) >= 4 else [])
+
+    def lab(n):
+        return f' data-label="{labels[n]}"' if n < len(labels) and labels[n] else ""
+
     out = ['<div class="tw"><table>', "<thead><tr>"]
-    out += [f"<th{cls(n)}>{_inline(c)}</th>" for n, c in enumerate(_cells(head))]
+    out += [f"<th{cls(n)}>{_inline(c)}</th>" for n, c in enumerate(heads)]
     out.append("</tr></thead><tbody>")
     for r in body:
-        out.append("<tr>" + "".join(f"<td{cls(n)}>{_inline(c)}</td>"
+        out.append("<tr>" + "".join(f"<td{cls(n)}{lab(n)}>{_inline(c)}</td>"
                                     for n, c in enumerate(_cells(r))) + "</tr>")
     out.append("</tbody></table></div>")
     return "".join(out)

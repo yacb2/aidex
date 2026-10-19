@@ -22,6 +22,9 @@ paragraph:
 
 - **"Files to read first"**, as the brief's own first step. The same sentence buried in a
   lead paragraph is not acted on; as a named first step the canon actually gets read.
+  Name any file over about 25 KB as a Read-tool target: a Bash result over about 30000
+  characters reaches the agent only as a ~2 KB preview, so `cat`, `sed` or `head` of it reads
+  almost nothing (measured on aidex:artifact-sonnet runs).
 - **"what you deliberately left alone"**, inside what to return: every defect or edge the
   delegate saw and did not touch, one line each, no fix. A delegate is fresh by
   construction, and a fresh context is the one that lacks the caution a long session builds
@@ -67,7 +70,10 @@ unit writes; if anything, it waits for that hand-back.
 
 - Writers get one worktree each; this session integrates them in order. Never let a
   delegate commit.
-- Read-only or measurement units have no count cap.
+- Read-only or measurement units have no cap of their own, but the harness runs at most
+  `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` subagents at once (default 20, configurable):
+  a launch past that value errors, it is not queued. Batch a larger fan-out at that value, keep the
+  rest in a scratchpad queue, and refill on each hand-back.
 - ONE browser unit at a time: the shared browser page is global state.
 - Writers in worktrees: soft cap of three, because this session reviews and integrates
   them serially.

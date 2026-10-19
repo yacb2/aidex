@@ -378,6 +378,24 @@ out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
 [[ "$rc" -ne 0 ]] || fail "linkodd: quotes/spaces in other file names must not hide dev.sh, got: $out"
 grep -q 'scripts/dev.sh' <<<"$out" || fail "linkodd: must name dev.sh, got: $out"
 
+# --- 13. a linked worktree whose config.env is untracked in main (BL-814) ----
+# `.context/` tracked, config.env not: the check read only the worktree's own
+# config path and exited 2 "nothing was checked". The config is the main tree's;
+# the scripts examined are the worktree's (the pin below exists only there).
+p="$(mk_project wtmain dev.sh)"
+printf '#!/usr/bin/env bash\nFRONTEND_PORT=${FRONTEND_PORT:-3700}\n' > "$p/dev.sh"
+( cd "$p" && /usr/bin/git init -q -b main . && printf 'config.env\n' > .context/worktrees/.gitignore \
+  && /usr/bin/git add -A && /usr/bin/git -c user.email=t@e.com -c user.name=t commit -qm i \
+  && /usr/bin/git worktree add -q "$TMP/wtmain-wt" ) >/dev/null 2>&1
+w="$TMP/wtmain-wt"
+[[ -d "$w/.context" && ! -f "$w/.context/worktrees/config.env" ]] || fail "wtmain: fixture must reproduce the untracked-config worktree"
+out="$(bash "$CHECK" "$w" 2>&1)"; rc=$?
+[[ "$rc" -eq 0 ]] || fail "wtmain: a clean worktree must get the clean verdict, got $rc: $out"
+printf '#!/usr/bin/env bash\nFRONTEND_PORT=3700\nfree_port $FRONTEND_PORT\n' > "$w/dev.sh"
+out="$(bash "$CHECK" "$w" 2>&1)"; rc=$?
+[[ "$rc" -eq 1 ]] || fail "wtmain: the worktree's pinned port must be a finding (exit 1), got $rc: $out"
+grep -q 'FRONTEND_PORT=3700' <<<"$out" || fail "wtmain: must name the worktree's pin, got: $out"
+
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"
   exit 1

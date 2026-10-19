@@ -151,6 +151,23 @@ out="$(PATH="$TMP/bin:$PATH" FAKE_NOINTERP_FAIL=1 bash "$CHECK" "$p" 2>&1)"; rc=
 [[ "$rc" -ne 0 ]] || fail "nointerp: a failed --no-interpolate render must not pass, got: $out"
 grep -q 'no-interpolate' <<<"$out" || fail "nointerp: must name the failed render, got: $out"
 
+# --- 4. a linked worktree whose config.env is untracked in main (BL-814) ----
+# `.context/` tracked, config.env not: both sub-checks saw no config at the
+# worktree root and the umbrella reported "nothing was checked". Run from inside
+# the worktree with no argument, as an agent working there does.
+p="$TMP/wtmain"; mkdir -p "$p/.context/worktrees" "$p/backend"
+printf 'WT_PARTICIPANTS="backend"\nWT_LINKS="dev.sh"\nWT_PORT_VARS="BACKEND_PORT=8401"\n' > "$p/.context/worktrees/config.env"
+printf '#!/usr/bin/env bash\nBACKEND_PORT=${BACKEND_PORT:-8400}\n' > "$p/dev.sh"
+: > "$p/backend/.keep"
+( cd "$p" && /usr/bin/git init -q -b main . && printf 'config.env\n' > .context/worktrees/.gitignore \
+  && /usr/bin/git add -A && /usr/bin/git -c user.email=t@e.com -c user.name=t commit -qm i \
+  && /usr/bin/git worktree add -q "$TMP/wtmain-wt" ) >/dev/null 2>&1
+w="$TMP/wtmain-wt"
+[[ -d "$w/.context" && ! -f "$w/.context/worktrees/config.env" ]] || fail "wtmain: fixture must reproduce the untracked-config worktree"
+out="$(cd "$w" && bash "$CHECK" 2>&1)"; rc=$?
+grep -qi 'nothing was checked' <<<"$out" && fail "wtmain: must read the main tree's config, got: $out"
+[[ "$rc" -eq 0 ]] || fail "wtmain: a clean worktree must get the clean verdict, got $rc: $out"
+grep -q 'worktree isolation OK: wtmain-wt' <<<"$out" || fail "wtmain: the verdict must name the worktree, got: $out"
 
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"

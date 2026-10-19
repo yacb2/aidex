@@ -291,6 +291,14 @@ A row with no ` — ` is a row with no KEY and ships as a `.v` cell alone (`.led
 short mono accent meant for an id; a sentence there would restyle it and hand
 `ledger_ids` a key to harvest item ids from).
 
+The row `new-round` files for an item still on the page that the composer folds (decided,
+not `proposal=yes`), exactly `key — title` or `key — title (verdict)`, stays in the spec but
+is not rendered: the fold already shows that outcome (BL-841). Any other row renders,
+whatever its key. A ledger left with no rendered row is not drawn, nor is a `section` left
+with only its head, except `#sec-ledger` on a page with no masthead, where it is the
+Decided section's only anchor. Either way a `ledger-rows-hidden` build warning names the
+section and the hidden rows, since its heading and eyebrow are the author's text.
+
 ### `verdict`
 
 ```

@@ -13,7 +13,8 @@ Help the user **design and specify** an agentic loop before running it, capture 
 as a `.context/loops/` **loop-spec**, then **hand off execution** to an existing
 engine. This skill does **not** implement a loop runner — three mature engines
 already exist (`/goal`, `/loop`, the `ralph-loop` plugin) plus headless
-`claude -p`. The value here is the decision, the spec, and the guardrails.
+`claude -p`. The value here is the decision, the spec, and the guardrails. It is a designer that
+hands execution to the engine the spec names (see `run`), never an execution motor of its own.
 
 See [references/01-loop-engines.md](references/01-loop-engines.md) for the engine
 matrix and guardrails, and [references/02-loop-spec-conventions.md](references/02-loop-spec-conventions.md)

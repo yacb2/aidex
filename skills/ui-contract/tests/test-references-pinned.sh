@@ -46,5 +46,16 @@ grep -qF 'a budget of 2 rounds' "$SKILL" || fail "skeleton round budget left SKI
 grep -qF 'Light and dark are the only two modes this contract renders' "$HARNESS" || fail "light/dark rule missing from harness contract"
 grep -qF 'harness contract § 3' "$SKILL" || fail "SKILL.md lost its pointer to harness contract § 3"
 
+# 5. BL-818: the harness mocks background pollers (activity badge) by default, so a gallery
+#    spec carries no per-spec copy; the contract states it as a property of the harness.
+grep -qF 'Background pollers are mocked by the harness by default' "$HARNESS" \
+  || fail "harness contract lost the default poller-mock rule (BL-818)"
+grep -qF 'keeps its per-spec copy' "$HARNESS" \
+  || fail "harness contract lost the keep-the-copy-until-installed condition (BL-818)"
+grep -qF 'overrides the default with its own' "$HARNESS" \
+  || fail "harness contract lost the poller override clause (BL-818)"
+grep -qF 'cannot reach' "$HARNESS" \
+  || fail "harness contract lost the server-fetched poller volatile-region clause (BL-818)"
+
 if [ "$FAILURES" -eq 0 ]; then echo "PASS: ui-contract references pinned"; exit 0; fi
 echo "FAIL: $FAILURES cell(s)"; exit 1

@@ -64,6 +64,11 @@ if [[ -d "$D" ]]; then
   got="$( cd "$D" && bash -c "source '$LIB'; find_project_root" 2>/dev/null )"
   [[ "$got" == "$(cd "$D" && pwd -P)" ]] && ok "find_project_root resolves to \$DEST, not the main tree" \
     || fail "find_project_root returned '$got', wanted '$(cd "$D" 2>/dev/null && pwd -P)'"
+  # From a participant subdir too: backend is a linked worktree of a sub-repo whose
+  # main tree is outside $DEST, so $DEST's .context/ still owns it (BL-769 review).
+  got="$( cd "$D/backend" && bash -c "source '$LIB'; find_project_root" 2>/dev/null )"
+  [[ "$got" == "$(cd "$D" && pwd -P)" ]] && ok "find_project_root from \$DEST/backend resolves to \$DEST" \
+    || fail "from \$DEST/backend find_project_root returned '$got', wanted '$(cd "$D" 2>/dev/null && pwd -P)'"
 
   # And a real artifact write must land in the worktree's own backlog.
   mkdir -p "$D/.context/backlog"
@@ -171,7 +176,7 @@ fi
 ( cd "$p4" && bash "$WT" down cp --force ) >/dev/null 2>&1
 
 # --- case 5: the bookkeeping exclude must not hide the user's own .env (BL-770) ----
-# `create` writes its bookkeeping lines into the main repo's SHARED info/exclude. A bare
+# `create` writes its bookkeeping lines into the checkout's excludes (BL-771). A bare
 # `.env` there matched a .env at any depth, so a user's untracked config/.env in the
 # root checkout was invisible to git status and the dirty check, and the plain `down`
 # deleted it with the checkout. Only the generated root /.env is aidex's.

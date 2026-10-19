@@ -129,8 +129,11 @@ def model(items, rnd=2, **kw):
     m.update(kw)
     return m
 
-def page(items, rnd=2, ledger=None):
-    return {"round": rnd, "items": items, "ledger": ledger or {}}
+def page(items, rnd=2, ledger=None, rendered=None):
+    p = {"round": rnd, "items": items, "ledger": ledger or {}}
+    if rendered is not None:
+        p["rendered"] = rendered
+    return p
 
 def names(found):
     return sorted({f[0] for f in found})
@@ -158,6 +161,20 @@ cases = [
     ("a ledger row missing after a sync", model(m["items"], ledger_expect={"Q1": 1}, stamps={"Q1": 2}), good, {"Q1"}, ["ledger-rows"]),
     ("a ledger row whose text changed", model(m["items"], ledger_seen={"Q1": "T Q1 (A)"}, stamps={"Q1": 2}),
      page(good["items"], ledger={"Q1": "T Q1 (B)"}), {"Q1"}, ["ledger-row-changed"]),
+    # BL-841: the page renders the spec's rows minus the row new-round filed
+    # for an item it folds (decided, not a proposal); any other row renders.
+    ("a rendered ledger that hides the filed row of a folded item", m,
+     page(good["items"], ledger={"Q1": "T Q1 (A)", "X9": "carried"}, rendered={"X9": "carried"}),
+     {"Q1"}, []),
+    ("a folded item's filed row rendered again", m,
+     page(good["items"], ledger={"Q1": "T Q1 (A)"}, rendered={"Q1": "T Q1 (A)"}), {"Q1"}, ["ledger-rendered"]),
+    ("a carried-in row hidden from the page", m,
+     page(good["items"], ledger={"X9": "carried"}, rendered={}), {"Q1"}, ["ledger-rendered"]),
+    ("a rewritten row of a folded item hidden", m,
+     page(good["items"], ledger={"Q1": "T Q1 (A), solo si"}, rendered={}), {"Q1"}, ["ledger-rendered"]),
+    ("a proposal's row hidden", model([item("Q1", "A", proposal=True), item("Q2"), item("Q3")], stamps={"Q1": 2}),
+     page([("Q1", "A", True, 2), ("Q2", None, False, None), ("Q3", None, False, None)],
+          ledger={"Q1": "T Q1 (A)"}, rendered={}), {"Q1"}, ["ledger-rendered"]),
 ]
 bad = 0
 for what, mod, pg, ans, want in cases:

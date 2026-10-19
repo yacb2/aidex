@@ -54,7 +54,8 @@ run_all_for() {  # run_all_for <project-root> -> 0 clean, 1 findings
   #    `docker-compose.yml` meant a project on `compose.yaml` had this surface
   #    silently skipped while the verdict line below still named it.
   COMPOSE_RAN=false
-  local cf cfg="$root/.context/worktrees/config.env" suffix_args=()
+  local cf cfg suffix_args=()
+  cfg="$(wt_cfg_path "$root")"
   # The project's own suffix variable, when its config names one.
   if [[ -f "$cfg" ]] && grep -qE '^[[:space:]]*WT_SUFFIX_VAR=' "$cfg"; then
     suffix_args=(--suffix-var "$(wt_cfg_field "$cfg" WT_SUFFIX_VAR)")

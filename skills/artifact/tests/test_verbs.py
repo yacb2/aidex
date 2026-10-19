@@ -40,6 +40,7 @@ import ast
 import difflib
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -839,9 +840,13 @@ try:
     check("new-round exits 0", r.returncode == 0, r.stdout + r.stderr)
     check("...the SPEC grew a ledger", "::: ledger" in read(spec))
     built = read(page)
-    check("...and the PAGE carries the ledger row as a `.k`/`.v` pair",
-          '<span class="k">Q2</span><span class="v">Marcador de columna</span>'
-          in built, built[:2000])
+    # BL-841: Q2 is still on the page, decided, so the composer folds it from
+    # its data-decided; the ledger row stays in the spec but is not rendered,
+    # or the outcome would print twice (test_build.py owns the row table).
+    check("...and the PAGE does not render the row of an item it folds",
+          '<span class="k">Q2</span>' not in built
+          and re.search(r'data-id="Q2"[^>]*\sdata-decided\b', built) is not None,
+          built[:2000])
 
     # --- the round trip the phase names -------------------------------------
     print()
@@ -1094,8 +1099,9 @@ try:
           "the ones a caller may",
           touched == ["HINT_SEP", "LANGS", "PLAIN", "PROVISIONAL", "build",
                      "chosen_labels", "clean_item_title", "hand_edit_defect",
-                     "has_options", "main", "option_labels", "page_title",
-                     "provisional_labels", "refuse_missing_visual", "resolve_lang"],
+                     "has_options", "ledger_row_value", "main", "option_labels",
+                     "page_title", "provisional_labels", "refuse_missing_visual",
+                     "resolve_lang"],
           str(touched))
     writes = re.findall(r'open\(([^,]+), "w"', source)
     check("...and the only file it opens for writing is the spec's own temp",
@@ -1699,6 +1705,127 @@ Contexto dos.
           r.returncode == 0 and r2.returncode == 0
           and read(pr).count("- Q2 \u2014") == 1
           and not re.search(r"#Q2[^}]*proposal", read(pr)), r.stderr + r2.stderr + read(pr)[-900:])
+    # BL-840: a round opened by any rebuild other than the verb must agree with it. The wrap
+    # opens the round from file state (a saved reply for the open round), not from a flag, so
+    # `spec_build.py` with or without --new-round refuses (page untouched) where `new-round`
+    # would expire an accepted proposal, and names the verb; a verb that is the first rebuild
+    # (decide, add-item) folds it itself. (A bare pick is already refused on spec_build
+    # --new-round by the contract's strict consult-round-pick.)
+    # Layer: the two CLIs on files, the boundary the builder runs.
+    acc_spec = PAGE.replace(" decided=yes", " decided=yes proposal=yes")
+    acc = "## Decidido sin corrección\n\n- Q2 · Marcador de columna: Sí\n"
+    rnd = lambda path: re.search(r'name="consult-round" content="(\d+)"', read(path)).group(1)
+    q2_live = lambda path: bool(re.search(r'<section[^>]*data-id="Q2"[^>]*data-proposal',
+                                          read(path)))
+    for flag in (["--new-round"], []):
+        bp = nr("nr-build-acc" + "".join(flag).replace("-", ""), acc, acc_spec)
+        page_before = read(pg(bp), "rb")
+        r = subprocess.run([sys.executable, BUILD, bp, "-o", pg(bp)] + flag,
+                           capture_output=True, text=True)
+        check("BL-840 spec_build %s over an accepted proposal exits 1 naming "
+              "'spec_verbs.py new-round', page byte-identical (round 1)" % (flag or "(no flag)"),
+              r.returncode == 1 and "spec_verbs.py new-round" in r.stderr
+              and read(pg(bp), "rb") == page_before and rnd(pg(bp)) == "1",
+              r.stdout + r.stderr)
+    r = run("new-round", bp)
+    check("BL-840 ...and the verb it names folds the accepted proposal and opens round 2",
+          r.returncode == 0 and "proposal=yes" not in read(bp) and rnd(pg(bp)) == "2"
+          and not q2_live(pg(bp)), r.stdout + r.stderr)
+    # Over-refusal guard: a proposal answered with a note is not accepted, so the build opens
+    # the round and the verb keeps the proposal.
+    bp = nr("nr-build-note", "### Q2 · Marcador de columna\n\nprefiero verlo otra vez\n", acc_spec)
+    r = subprocess.run([sys.executable, BUILD, bp, "-o", pg(bp), "--new-round"],
+                       capture_output=True, text=True)
+    r2 = run("new-round", bp)
+    check("BL-840 spec_build --new-round over a proposal answered with a note opens round 2, "
+          "and new-round keeps proposal=yes",
+          r.returncode == 0 and rnd(pg(bp)) == "2" and r2.returncode == 0
+          and "proposal=yes" in read(bp), r.stdout + r.stderr + r2.stderr)
+    # Mixed reply: new-round refuses the bare pick and says decide first, so decide is the
+    # first rebuild and opens the round; it must not show the accepted proposal live again.
+    bp = nr("nr-build-mixed", "Q1: yaml anidado\n\n" + acc, acc_spec)
+    r = run("decide", bp, "--id", "Q1", "--verdict", "YAML anidado")
+    check("BL-840 decide as the first rebuild over an accepted proposal folds it (round 2, "
+          "Q2 not data-proposal, proposal= dropped)",
+          r.returncode == 0 and rnd(pg(bp)) == "2" and not q2_live(pg(bp))
+          and "proposal=yes" not in read(bp), r.stdout + r.stderr)
+
+    # The refusal's command, pasted as printed, must get through: shlex-split the backticked
+    # line from stderr and run it (python3 -> this interpreter).
+    def run_named(stderr):
+        m = re.search(r"`(python3 [^`]*spec_verbs\.py new-round[^`]*)`", stderr)
+        if not m:
+            return None
+        argv = shlex.split(m.group(1))
+        return subprocess.run([sys.executable] + argv[1:], capture_output=True, text=True)
+    # A hand-edited page: --discard-hand-edit discards the edit but not the accepted proposal,
+    # so the guard still refuses, and the command it names must get past the hand edit too.
+    bp = nr("nr-build-acc-handedit", acc, acc_spec)
+    with open(pg(bp), "r+b") as fh:
+        raw = fh.read().replace(b"Marcador de columna", b"Marcador de columnA", 1)
+        fh.seek(0)
+        fh.write(raw)
+    r = subprocess.run([sys.executable, BUILD, bp, "-o", pg(bp), "--discard-hand-edit"],
+                       capture_output=True, text=True)
+    r2 = run_named(r.stderr)
+    check("BL-840 spec_build --discard-hand-edit over an accepted proposal on a hand-edited "
+          "page refuses, and the command it names opens round 2 with the proposal folded",
+          r.returncode == 1 and r2 is not None and r2.returncode == 0 and rnd(pg(bp)) == "2"
+          and not q2_live(pg(bp)) and "proposal=yes" not in read(bp),
+          r.stderr + (r2.stdout + r2.stderr if r2 else "(no command named)"))
+    # Mixed reply on a hand-edited page: the named new-round refuses the bare pick, and the
+    # decide it names must carry the flag too, or every named command refuses.
+    bp = nr("nr-build-mixed-handedit", "Q1: yaml anidado\n\n" + acc, acc_spec)
+    with open(pg(bp), "r+b") as fh:
+        raw = fh.read().replace(b"Marcador de columna", b"Marcador de columnA", 1)
+        fh.seek(0)
+        fh.write(raw)
+    r = subprocess.run([sys.executable, BUILD, bp, "-o", pg(bp), "--discard-hand-edit"],
+                       capture_output=True, text=True)
+    r2 = run_named(r.stderr)
+    r3 = run("decide", bp, "--id", "Q1", "--verdict", "YAML anidado", "--discard-hand-edit")
+    check("BL-840 mixed reply on a hand-edited page: the named new-round names decide with "
+          "--discard-hand-edit, which opens round 2 with the proposal folded",
+          r2 is not None and r2.returncode == 1
+          and re.search(r'decide --id Q1 --verdict "YAML anidado" --discard-hand-edit', r2.stderr)
+          and r3.returncode == 0 and rnd(pg(bp)) == "2" and not q2_live(pg(bp)),
+          r.stderr + (r2.stderr if r2 else "(no command named)") + r3.stderr)
+    # A path with a space: the named command must survive the paste.
+    bp = nr("nr build acc space", acc, acc_spec)
+    r = subprocess.run([sys.executable, BUILD, bp, "-o", pg(bp)], capture_output=True, text=True)
+    r2 = run_named(r.stderr)
+    check("BL-840 the refusal's command, pasted, works on a path with a space (round 2)",
+          r.returncode == 1 and r2 is not None and r2.returncode == 0 and rnd(pg(bp)) == "2",
+          r.stderr + (r2.stdout + r2.stderr if r2 else "(no command named)"))
+    # Gallery: the refusal must come before build(), which refreshes `<stem>-assets/`.
+    gacc = fresh("nr-build-acc-gallery", build=False, text=acc_spec.replace(
+        '::: notes {title="Notas generales"}',
+        '::: gallery {#E title="Galería" rows="rows.json" root="caps"}\n:::\n\n'
+        '::: notes {title="Notas generales"}', 1))
+    gd = os.path.dirname(gacc)
+    os.makedirs(os.path.join(gd, "caps", "shots", "ld"))
+    cap = os.path.join(gd, "caps", "shots", "ld", "audit-with-data.png")
+    subprocess.run([sys.executable, os.path.join(HERE, "png_fixture.py"), cap, "16", "9"],
+                   check=True)
+    with open(os.path.join(gd, "rows.json"), "w", encoding="utf-8") as fh:
+        fh.write('{"gallery": "audit", "variants": ["light-desktop"], "rows": '
+                 '[{"cell": "with-data", "variant": "light-desktop", "kind": "review", '
+                 '"look": "the table", "after": "shots/ld/audit-with-data.png"}]}')
+    first_build(gacc, reply=acc.encode("utf-8"))
+    # A re-captured source, so a refresh of the copies would change their bytes.
+    subprocess.run([sys.executable, os.path.join(HERE, "png_fixture.py"), cap, "16", "10"],
+                   check=True)
+
+    def tree(root):
+        return sorted((os.path.relpath(os.path.join(d, f), root), read(os.path.join(d, f), "rb"))
+                      for d, _, fs in os.walk(root) for f in fs)
+    assets = os.path.join(gd, "page-assets")
+    before = tree(assets)
+    r = subprocess.run([sys.executable, BUILD, gacc, "-o", pg(gacc)],
+                       capture_output=True, text=True)
+    check("BL-840 the refusal on a gallery spec leaves page-assets/ byte-identical",
+          r.returncode == 1 and "spec_verbs.py new-round" in r.stderr and before
+          and tree(assets) == before, r.stdout + r.stderr)
     for label, reply in (
             ("an Other answer", OTHER_REPLY),
             ("an option + a note", NOTE_REPLY),

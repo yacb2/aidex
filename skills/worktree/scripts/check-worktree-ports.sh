@@ -130,7 +130,8 @@ expand_links() {  # expand_links <root> <links>
 # clean. Always exits 0: under `set -e` a non-zero return here aborted the
 # caller's `out=$(scan_project ...)` assignment before it could report anything.
 scan_project() {
-  local root="$1" cfg="$1/.context/worktrees/config.env"
+  local root="$1" cfg
+  cfg="$(wt_cfg_path "$root")"
   local port_vars="" links="" pair var f rel line lit
 
   [[ -f "$cfg" ]] || return 0
@@ -235,7 +236,7 @@ ROOT="${TARGET:-$(find_project_root)}"
 # look at -- and the verdict below cannot tell the two apart. Without this
 # guard a project with no worktree setup was handed a positive isolation
 # guarantee.
-PORTS_CFG="$ROOT/.context/worktrees/config.env"
+PORTS_CFG="$(wt_cfg_path "$ROOT")"
 if [[ ! -f "$PORTS_CFG" ]]; then
   err "no worktree config at $PORTS_CFG — nothing was checked."
   exit 2

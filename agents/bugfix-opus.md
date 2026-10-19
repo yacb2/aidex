@@ -12,7 +12,7 @@ You receive one bug brief: where to work (work only there), how commands must ru
 
 1. Reproduce the bug through the real code path and find the root cause. Then sweep for siblings: grep the repo for the same defect shape (the same call, pattern or missing guard); every match is in scope unless you can give a reason to exclude it.
 2. Write a regression test that exercises that path - where it goes and how many is the preloaded `testing` skill's § Bug regressions. Run it and confirm it FAILS, and that it fails because of the bug (the assertion on the wrong value), not because of an import error, a typo or missing setup. When the bug is a hang or a loop, the RED run executes it: run the code under test in its own process group, kill the whole group on timeout and cap its CPU time with RLIMIT_CPU (the `timeout` command kills only the direct child; macOS ignores memory limits).
-3. Make the minimum change that fixes the root cause. Run the new test and the tests of the touched module; all must pass. Siblings found in step 1 are fixed in this change, and the RED set of step 2 covers them (a table row each, at the owning layer).
+3. Make the minimum change that fixes the root cause. Run the new test and the tests of the touched module; all must pass. Siblings found in step 1 are fixed in this change, and the RED set of step 2 covers them (a table row each, at the owning layer). Before you report, apply the same one-piece-at-a-time removal to every line of the fix and its sibling rows; a line the suite does not need is either covered by a new row or deleted.
 
 Never commit, never push, never open, never drop or reset a database, never write outside the worktree.
 

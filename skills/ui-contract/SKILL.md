@@ -1,6 +1,6 @@
 ---
 name: ui-contract
-description: 'Use when work touches what a screen looks like: a new screen, a redesign of an existing screen, a visual defect to fix and show fixed, or a "looks right" claim with no image behind it. Fires on "what should this screen look like", "show me every state of this list", "check it in light and dark", "prove the layout is fixed", "I need a mockup of this screen", "redesign the existing home page", "the form overflows on mobile, fix it", "dark mode is wrong on this page". A visual defect (misaligned, overflowing, spacing off) owes a before/after image, so this fires even when /aidex:bugfix also applies. Not for: usability or accessibility audits with findings (/aidex:audit); choosing a test layer (/aidex:coverage); any `.context/` page or board, even a visual defect on one (/aidex:artifact); writing the implementation plan (/aidex:plan).'
+description: 'Use when work touches what a screen looks like: a new screen, a redesign of an existing screen, a visual defect to fix and show fixed, or a "looks right" claim with no image behind it. Fires on "what should this screen look like", "show me every state of this list", "check it in light and dark", "prove the layout is fixed", "I need a mockup of this screen", "redesign the existing home page", "the form overflows on mobile, fix it", "dark mode is wrong on this page". A visual defect (misaligned, overflowing, spacing off) owes a before/after image, so this fires even when a bug fix also applies. Not for: usability or accessibility audits with findings (/aidex:audit); choosing a test layer (/aidex:coverage); any `.context/` page or board, even a visual defect on one (/aidex:artifact); writing the implementation plan (/aidex:plan).'
 disable-model-invocation: false
 allowed-tools: Bash Read Write Edit Grep Glob Agent
 model-policy: per-stage
@@ -95,6 +95,7 @@ before that approval is a sketch round:
 - **First build:** a screen with no gallery spec gets `aidex:gallery-builder` once, in the
   first sketch round, never throwaway capture scripts; every later round re-captures. For an
   extraction, capture the BEFORE from main's code before the branch moves it.
+  Also launch `aidex:gallery-builder-shadow` (trial BL-820): Read `references/05-gallery-builder-shadow.md`.
 - **On the hand-back:** the next consultation page. No `aidex:review-diff-opus`, no E2E, no commit.
   The capturing agent gets the screen's `gallery-kit.md` and the project's
   `.context/profiles/ui-contract.md` (template `assets/templates/project-ui-contract.md`),

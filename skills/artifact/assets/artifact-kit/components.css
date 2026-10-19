@@ -663,6 +663,27 @@ dialog.kit-mark-note::backdrop { background: rgba(0, 0, 0, 0.3); }
      above pushed the answer column out of sight in every 2-column table), so a
      long header may wrap here rather than hold a column open. */
   .tw > table:where(:not(svg *)):not(:has(> thead > tr > :nth-child(4), > tbody > tr > :nth-child(4), > tr > :nth-child(4))) th { white-space: normal; }
+  /* BL-853: a table of four or more columns inside a consultation item (the builder
+     gives its cells data-label) stacks each row as label: value pairs instead of
+     scrolling, so the deciding columns are all in sight. Tables that fit, and tables
+     outside an item, are unchanged. The header row stays for a screen reader, clipped. */
+  /* A stacked table cannot scroll, so the fade and the "desliza" cue are off for it, and a word
+     with no break point (a hash, a URL) wraps inside its cell instead of widening every row. */
+  .consult-item .tw:has(> table > tbody > tr > td[data-label]) { overflow-x: visible; -webkit-mask-image: none; mask-image: none; }
+  .consult-item .tw:has(> table > tbody > tr > td[data-label]) + .tw-cue:where(:not(svg *)) { display: none; }
+  .consult-item .tw > table:has(> tbody > tr > td[data-label]) { min-width: 0; }
+  .consult-item .tw > table:has(> tbody > tr > td[data-label]) > thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .consult-item .tw > table:has(> tbody > tr > td[data-label]) :is(tbody, tr, td) { display: block; }
+  .consult-item .tw > table:has(> tbody > tr > td[data-label]) tr { border-bottom: 1px solid var(--rule); padding: 0.3rem 0; }
+  .consult-item .tw > table:has(> tbody > tr > td[data-label]) tr:last-child { border-bottom: none; }
+  .consult-item .tw > table:has(> tbody > tr > td[data-label]) td { border-bottom: none; padding-block: 0.25rem; white-space: normal;
+    text-align: left; min-width: 0; overflow-wrap: anywhere; }
+  /* A pill or chip is nowrap by default; in a stacked cell a long one wraps like prose. */
+  .consult-item .tw > table:has(> tbody > tr > td[data-label]) td :is(.pill, .chip) { white-space: normal; }
+  /* The label is its own block, so bold, code and links in the value stay in one line box. */
+  .consult-item .tw > table:has(> tbody > tr > td[data-label]) td::before { content: attr(data-label); display: block;
+    font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.11em; color: var(--muted); font-weight: 600; }
   .kit-ask { gap: 0.25rem 0.5rem; }
   .kit-ask-lead { flex-basis: 100%; }
   .kit-ask label { padding: 0.25rem 0.3rem; }
