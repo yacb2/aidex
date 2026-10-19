@@ -8,6 +8,8 @@
 #   plan-exec-c06  fan-out: depends_on matches ids by string (1 vs '1'), a scalar depends_on is a one-item list
 #   plan-exec-c10  pipeline: phases skipped by a halt are in `blocked`; no phases at all throws, never an empty success
 #   plan-exec-c16  fan-out and pipeline: an arbiter ASK after retry exhaustion reaches `batchedAsks`
+#   plan-exec-c11  fan-out and pipeline: a bad maxRetries (BL-856) is refused at launch, naming
+#                  maxRetries, before any agent runs (fan-out's parallel() would turn it into null rows)
 # Each scenario runs the whole script with stubbed workflow globals (same harness idea as
 # test-out-of-scope-bugs-survive.sh). Layer: unit over the script's return value.
 #
@@ -25,7 +27,9 @@ import fs from 'fs'
 const [file, scenario] = process.argv.slice(2)
 const src = fs.readFileSync(file, 'utf8').replace(/^export const meta/m, 'const meta')
 const gateFails = scenario === 'ask-after-exhaustion' || scenario === 'halt'
+let agentCalls = 0
 const agent = async (prompt, opts) => {
+  agentCalls++
   const label = opts.label
   if (label.startsWith('verify:')) return { passed: !gateFails, exit_code: gateFails ? 1 : 0, evidence: 'e' }
   if (label === 'arbiter' && scenario === 'arbiter-down') return null
@@ -45,15 +49,17 @@ const phases = {
             { id: '4', spec: 's', gateCmd: 'true' }, { id: '5', spec: 's', gateCmd: 'true', depends_on: [4] },
             { id: 'b', spec: 's', gateCmd: 'true', depends_on: '' }],
   pass: [{ id: 'a', spec: 's', gateCmd: 'true' }],
+  'bad-retries': [{ id: 'a', spec: 's', gateCmd: 'true' }, { id: 'b', spec: 's', gateCmd: 'true' }],
   halt: [{ id: 'a', spec: 's', gateCmd: 'false' }, { id: 'b', spec: 's', gateCmd: 'true' }],
   'ask-after-exhaustion': [{ id: 'a', spec: 's', gateCmd: 'false' }],
   'blocked-ask': [{ id: 'a', spec: 's', gateCmd: 'true' }],
   'arbiter-down': [{ id: 'a', spec: 's', gateCmd: 'true' }],
 }[scenario] || []
-const cfg = { planPath: 'p', phases, maxRetries: 0, diffCmd: 'git diff', successCriteria: 'c' }
+const maxRetries = scenario === 'bad-retries' ? 'three' : 0
+const cfg = { planPath: 'p', phases, maxRetries, diffCmd: 'git diff', successCriteria: 'c' }
 const run = new Function('args', 'agent', 'parallel', 'phase', 'log', `return (async () => {\n${src}\n})()`)
 try { console.log(JSON.stringify(await run(JSON.stringify(cfg), agent, parallel, () => {}, () => {}))) }
-catch (e) { console.log(JSON.stringify({ threw: String(e) })) }
+catch (e) { console.log(JSON.stringify({ threw: String(e), agentCalls })) }
 PROBE
 
 fail=0
@@ -92,5 +98,9 @@ check "c16 fan-out: a live arbiter ASK on a blocked implementer is batched" $FAN
   "o.batchedAsks.includes('Provide the API key?')"
 check "c16 pipeline: a live arbiter ASK on a blocked implementer is batched" pipeline-with-gate.workflow.js blocked-ask \
   "o.batchedAsks.includes('Provide the API key?')"
+check "c11 fan-out: a bad maxRetries is refused at launch, before any agent" $FAN bad-retries \
+  "/maxRetries must be a non-negative integer/.test(o.threw) && o.agentCalls === 0"
+check "c11 pipeline: a bad maxRetries is refused at launch, before any agent" pipeline-with-gate.workflow.js bad-retries \
+  "/maxRetries must be a non-negative integer/.test(o.threw) && o.agentCalls === 0"
 
 [ "$fail" -eq 0 ] && echo "PASS: unrunnable, crashed and exhausted-ASK outcomes all reach the return value" || exit 1

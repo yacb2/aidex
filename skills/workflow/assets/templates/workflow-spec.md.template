@@ -95,7 +95,7 @@ updated: {{DATE}}
 - [ ] isolation: 'worktree' per agent if agents WRITE files in parallel (review/migrate
       that mutates); none for read-only fan-outs: ____
 - [ ] per-agent / total token budget cap: ____
-- [ ] maxRetries before the conditional arbiter fires (default 2): ____
+- [ ] maxRetries before the conditional arbiter fires (default 2; a non-negative integer, anything else is refused): ____
 - [ ] deterministic completion marker / structured output schema: ____
 - [ ] human approval gate before anything irreversible (push/deploy/release): ____
 - [ ] security: gate includes SAST/secret-scan if it ships code: ____

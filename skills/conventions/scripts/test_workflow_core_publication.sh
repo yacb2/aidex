@@ -302,6 +302,25 @@ async function main() {
     return { passed: r.passed, verdict: r.escalated && r.escalated.verdict, asks: r.asks.length }
   })()
 
+  // --- plan-exec-c11 (BL-856): maxRetries is a retry COUNT, K retries = K + 1 attempts ---
+  // A string "3" once made K + 1 = "31" and ran 31 attempts. Each row counts implement calls;
+  // a refused value must throw naming maxRetries, before any attempt runs.
+  scenario = null
+  const retryRun = async (maxRetries) => {
+    let n = 0
+    try {
+      await runPhase({ id: 'p-k', gateCmd: 'true',
+        implement: async () => { n++; return { done: false, summary: 'x' } } }, { ...ctx, maxRetries })
+      return String(n)
+    } catch (e) { return /maxRetries/.test(String(e)) && n === 0 ? 'refused' : String(e) }
+  }
+  out.retries = {}
+  for (const [k, v] of [['str3', '3'], ['num3', 3], ['num0', 0], ['str0', '0'], ['undef', undefined],
+    ['nul', null], ['empty', ''], ['neg', -1], ['strneg', '-1'], ['frac', 1.5], ['word', 'three'],
+    ['bool', true], ['space', ' 3']]) {
+    out.retries[k] = await retryRun(v)
+  }
+
   console.log(JSON.stringify(out))
 }
 main().catch((e) => { console.error(String(e)); process.exit(2) })
@@ -387,6 +406,21 @@ check "the send-back feedback quotes the owed action verbatim" "$(jqf fbQuotes)"
 check "asks survive the blocked-implementer STOP" "$(jqf blockedAsks.verdict)/$(jqf blockedAsks.asks)" "STOP/1"
 
 check "null verdict on a publication-only action is not owed" "$(jqf nullPub.passed)/$(jqf nullPub.attempts)" "true/2"
+
+echo "maxRetries is a count of retries, K + 1 attempts (plan-exec-c11, BL-856):"
+check "string \"3\" is coerced: 4 attempts, not 31" "$(jqf retries.str3)" "4"
+check "number 3: 4 attempts"                   "$(jqf retries.num3)"   "4"
+check "number 0: 1 attempt"                    "$(jqf retries.num0)"   "1"
+check "string \"0\": 1 attempt"                "$(jqf retries.str0)"   "1"
+check "absent: the default 2, 3 attempts"      "$(jqf retries.undef)"  "3"
+check "null: the default 2, 3 attempts"        "$(jqf retries.nul)"    "3"
+check "empty string is refused"                "$(jqf retries.empty)"  "refused"
+check "negative number is refused"             "$(jqf retries.neg)"    "refused"
+check "negative string is refused"             "$(jqf retries.strneg)" "refused"
+check "fraction is refused"                    "$(jqf retries.frac)"   "refused"
+check "non-numeric string is refused"          "$(jqf retries.word)"   "refused"
+check "boolean true is refused"                "$(jqf retries.bool)"   "refused"
+check "padded string \" 3\" is refused"         "$(jqf retries.space)"  "refused"
 
 echo ""
 echo "workflow-core publication: $PASS passed, $FAIL failed"
