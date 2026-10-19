@@ -151,7 +151,10 @@ neither is "should work" or "looks correct".
   --check` prints nothing when migrations are pending — its whole verdict is the exit
   code, and a pipeline reports the last stage's status instead. Capture to a file and
   check `$?` before filtering.
-- Prove a RED is genuine before you believe it: `git stash push -- <only the fix files>`,
-  run the test, confirm it fails **for the right reason**, then pop. A security test can
-  pass without the fix because the framework already rejected the case one layer down.
+- Prove a RED is genuine before you believe it: run the new test against HEAD in a
+  throwaway worktree (`git worktree add --detach <tmp> HEAD`, copy only the test files in
+  keeping their paths, run them there, `git worktree remove --force <tmp>`) and confirm it
+  fails **for the right reason**. Your own tree is never touched. A security test can pass
+  without the fix because the framework already rejected the case one layer down. The
+  literal steps are in `agents/impl-sonnet.md`.
 - For commands that can succeed partially (migrations, batch jobs, bulk imports, data backfills): exit code 0 is not enough. Verify counts/state before vs after, or check for skipped/failed records in logs. A "completed successfully" message that hides 14% skipped rows is a silent failure.
