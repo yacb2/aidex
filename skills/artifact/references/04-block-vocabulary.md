@@ -131,6 +131,22 @@ refuses it otherwise); a `select=one` item takes at most one, a `select=many` it
 several; `decided=yes` then needs no `{recommended}`. `spec_verbs.py decide` refuses a
 verdict that differs from the `{chosen}` label: move the marker first.
 
+**`{provisional}`: the reader's provisional pick, preselected (BL-822).** An option the
+reader ticked beside an ask is not a decision (`consultation.md` § What a chosen option
+MEANS), so the next round keeps the item open with that option marked `{provisional}`: it
+is drawn checked, the item stays undecided, and the composer adds a line on the item saying
+so (`.kit-provisional-prev`). Same placement and backtick rule; at most one on a
+`select=one` item; refused on a decided or a dropped item. The reader's own state replaces
+the preselection within the round: a stored pick, a cleared item or `[not-now]` comes back
+as the reader left it, while an untouched preselection stores nothing. Left untouched, the
+reader's paste carries it as a plain pick, which confirms it: the round after records it
+with `decide`, which drops the marker. The marker lasts one reply: `spec_verbs.py new-round`
+removes it from each option the answered page drew checked on an open item when the saved
+reply's last block for that item does not carry that label (`[not-now]`, an ask alone,
+another pick, a page defect only, or no block); on `select=many` each option is judged on
+its own. A marker the answered page did not draw checked (written this round) stays, and
+with no saved reply nothing expires.
+
 **One choice or a set: `select=`.** Options are radios by default (`select=one`). A
 question whose answer is a SET writes `select=many`: checkboxes, the reply lists every
 ticked option in page order, the item is unanswered while none is ticked, and more than one

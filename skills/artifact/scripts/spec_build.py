@@ -124,8 +124,11 @@ RECOMMENDED = "{recommended}"
 YES_VALUES = ("yes", "true")
 NO_WORDS = ("no", "false", "0")
 CHOSEN = "{chosen}"       # BL-496: a decided item's winning option, checked, not recommended
+# BL-822: an OPEN item's option the reader picked beside an ask last round:
+# preselected (checked) on the next round, the item still asked.
+PROVISIONAL = "{provisional}"
 REC_MARK = re.compile(r"\s*(?:" + re.escape(RECOMMENDED) + "|" + re.escape(CHOSEN)
-                      + r")\s*")
+                      + "|" + re.escape(PROVISIONAL) + r")\s*")
 # The plain form of a label or verdict: one definition, in md_body (BL-545).
 PLAIN = md_body.PLAIN
 
@@ -630,8 +633,16 @@ def chosen_labels(node):
             if _option(t)[3]]
 
 
+def provisional_labels(node):
+    """The labels of an `item`'s `{provisional}` options (for `spec_verbs.new_round`,
+    which expires the marker once the reader's reply stops carrying that pick)."""
+    return [_option(t)[0] for c in node.children if c.block_type == "prose"
+            for t in _split_options(list(c.raw_body), node.line)[1]
+            if _option(t)[4]]
+
+
 def option_labels(node):
-    """The labels of an `item`'s options, `{recommended}`/`{chosen}` stripped
+    """The labels of an `item`'s options, `{recommended}`/`{chosen}`/`{provisional}` stripped
     (for `spec_verbs.decide`, which refuses a verdict that is none of them)."""
     return [_option(t)[0] for c in node.children if c.block_type == "prose"
             for t in _split_options(list(c.raw_body), node.line)[1]]
@@ -693,7 +704,7 @@ def _refuse_second_list(node):
 
 
 def _option(text):
-    """`(label, hint, recommended, chosen)` from one option line."""
+    """`(label, hint, recommended, chosen, provisional)` from one option line."""
     # The marker is honoured wherever it sits on the option, not only at the
     # end: `label {recommended} — hint`, or on a wrapped option's first line,
     # used to ship it as text with no data-recommended (BL-481).
@@ -702,10 +713,11 @@ def _option(text):
     parts = re.split(r"((?<!\\)`[^`]+`)", text)
     rec = any(RECOMMENDED in p for p in parts[::2])
     chosen = any(CHOSEN in p for p in parts[::2])
+    prov = any(PROVISIONAL in p for p in parts[::2])
     text = "".join(p if i % 2 else REC_MARK.sub(" ", p)
                    for i, p in enumerate(parts)).strip()
     label, _, hint = text.partition(HINT_SEP)
-    return label.strip(), hint.strip(), rec, chosen
+    return label.strip(), hint.strip(), rec, chosen, prov
 
 
 # A hyphen or double hyphen set apart by spaces, in an option with no ` — `:
@@ -1015,6 +1027,22 @@ def emit_item(node, ctx):
             node.line, "`item` marks an option {chosen} but is not decided: "
             "{chosen} is the winner of a decided item (decided=yes), so add "
             "decided or drop the marker")
+    prov_n = sum(1 for t in opts if _option(t)[4])
+    if prov_n and "dropped" in a:
+        raise SpecBuildError(
+            node.line, "`item` marks an option {provisional} but is dropped: "
+            "a dropped item is asked of no one, so nothing is preselected; "
+            "drop the marker")
+    if prov_n and decided:
+        raise SpecBuildError(
+            node.line, "`item` marks an option {provisional} but is decided: "
+            "{provisional} preselects the reader's provisional pick on an OPEN "
+            "item; a decided one marks its winner {chosen} (spec_verbs decide "
+            "drops the marker)")
+    if prov_n > 1 and select == "one":
+        raise SpecBuildError(
+            node.line, "`item` marks more than one option {provisional} on a "
+            "select=one item: the reader picked one; keep the marker on it")
     # Read in the plain form the fold shows (BL-545): `**yes**` folds to "yes".
     plain = PLAIN.sub("", decided).strip()
     if (opts and plain.lower() in NO_WORDS
@@ -1097,12 +1125,14 @@ def emit_item(node, ctx):
         many = select == "many"
         out.append('  <div class="opts">' if many else '  <div class="opts one">')
         for text in opts:
-            label, hint, rec, chosen = _option(text)
+            label, hint, rec, chosen, prov = _option(text)
             if not label:
                 raise SpecBuildError(node.line, "an option with no label")
-            if RECOMMENDED in label or CHOSEN in label:   # only a quoted one survives
+            if RECOMMENDED in label or CHOSEN in label or PROVISIONAL in label:
+                # only a quoted one survives
                 raise SpecBuildError(
-                    node.line, "option %r quotes `{recommended}` or `{chosen}` in its label, "
+                    node.line, "option %r quotes `{recommended}`, `{chosen}` or "
+                    "`{provisional}` in its label, "
                     "and the label is data-label, which the reply copies: put "
                     "the quote in the hint (after ` — `) or the item body"
                     % label)
@@ -1114,8 +1144,9 @@ def emit_item(node, ctx):
                        % ("checkbox" if many else "radio",
                           esc(node.id), esc(PLAIN.sub("", label)),
                           " data-recommended" if rec else "",
-                          " checked" if (chosen if chosen_n
-                                         else rec and check_recommended) else "",
+                          " checked" if (prov or (chosen if chosen_n
+                                                 else rec and check_recommended))
+                          else "",
                           span))
         out.append("  </div>")
     out.extend("  " + p for p in render(tail))

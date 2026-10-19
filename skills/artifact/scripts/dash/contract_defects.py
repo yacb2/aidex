@@ -305,7 +305,7 @@ def _is_item(n):
 
 OPTION_INPUT = ("radio", "checkbox")
 RECOMMENDED = "{recommended}"
-MARKERS = (RECOMMENDED, "{chosen}")      # both are builder-read option marks (BL-496)
+MARKERS = (RECOMMENDED, "{chosen}", "{provisional}")   # builder-read option marks (BL-496, BL-822)
 
 
 OPTIONS_MIN = 2          # one option is not a choice

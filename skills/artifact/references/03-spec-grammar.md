@@ -767,7 +767,10 @@ number an explanation list (`1.`) or move it into a `note`. One option per `- ` 
 label from its hint; `{recommended}` anywhere on the line marks it, except inside a
 backtick span (there it is the syntax quoted, and stays literal). `{chosen}` is the same
 marker for a decided item's winning option: checked, not recommended, at most one on a
-`select=one` item (several on `select=many`), refused on an undecided item (`04-block-vocabulary.md` § item). The keyed attr
+`select=one` item (several on `select=many`), refused on an undecided item (`04-block-vocabulary.md` § item).
+`{provisional}` is its mirror on an OPEN item: the option the reader picked beside an ask
+last round, drawn checked while the item stays asked; refused on a decided or dropped item
+and twice on a `select=one` item. The keyed attr
 `select=` decides what kind of list it is:
 
 | `select=` | Renders | Reply | Use it for |

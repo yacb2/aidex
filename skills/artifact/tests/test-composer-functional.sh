@@ -5568,5 +5568,118 @@ cgap="$(sed -nE 's/.*\|GAP=(-?[0-9]+)\|.*/\1/p' <<<"$t2")"
 [[ -n "$cgap" && "$cgap" -ge 0 && "$cgap" -le 6 ]] \
   || fail "table cue spacing: the notice is ${cgap:-?} px under its table in a consult item (want 0-6): $t2"
 
+# ---- BL-822: a {provisional} option ships checked on an OPEN item; the reader's own state wins ----
+# The build preselects the reader's provisional pick from last round (`checked`, no data-decided).
+# Until then the composer only replaced a shipped `checked` on a proposal, so on an open item the
+# HTML default came back on every fresh open: a stored deselection, a stored [not-now] and a Clear
+# were all undone. Layer: browser, because restore/clear/paste are the composer's calls. Built from
+# a spec, the route an author takes. The item also says the option is last round's provisional pick.
+PV="$TMP/pv822"; mkdir -p "$PV"
+cat > "$PV/p.spec.md" <<'SPEC'
+::: masthead {eyebrow="PROBE" visual="none: a preselect probe, nothing to draw"}
+# Provisional probe
+
+Two open items with a provisional pick and one plain item.
+:::
+
+::: group {#G1 title="Rondas"}
+Dos preguntas abiertas.
+
+::: item {#Q1 title="Conjunto" select=many}
+¿Cuáles van?
+
+- Uno
+- Dos {provisional}
+- Tres
+:::
+
+::: item {#Q2 title="Una" select=one}
+¿Cuál va?
+
+- Uno
+- Dos {provisional}
+- Tres
+:::
+
+::: item {#Q3 title="Plana" select=one}
+¿Va?
+
+- Sí
+- No
+:::
+:::
+
+::: notes {title="Notas"}
+:::
+SPEC
+python3 "$SKILL/scripts/spec_build.py" "$PV/p.spec.md" > "$PV/body.html" 2> "$PV/build.log" \
+  || fail "BL-822: the {provisional} spec did not build: $(head -3 "$PV/build.log")"
+cat > "$PV/pre.html" <<'HTML'
+<script>/* Runs BEFORE the composer: seeds what an earlier visit of THIS round stored. */
+(function () {
+  var q = location.search, k = "aidex-kit-answers:" + location.pathname;
+  if (q.indexOf("phase=seedtres") > -1) localStorage.setItem(k, JSON.stringify({ Q1: { m: ["Tres"], p: 1 } }));
+  if (q.indexOf("phase=seednotnow") > -1) localStorage.setItem(k, JSON.stringify({ Q1: { m: ["[not-now]"], p: 1 } }));
+})();</script>
+HTML
+cat "$PV/pre.html" "$PV/body.html" > "$PV/body2.html"
+cat >> "$PV/body2.html" <<'HTML'
+<script>
+window.addEventListener('load', function () {
+  var on = function (id) { return [].map.call(document.querySelectorAll('[data-id="' + id + '"] .opts input:checked'),
+    function (i) { return i.getAttribute('data-label'); }).join('+') || '-'; };
+  var copy = function () {
+    var cap = '';
+    Object.defineProperty(navigator, 'clipboard', { configurable: true,
+      value: { writeText: function (x) { cap = x; return Promise.resolve(); } } });
+    document.getElementById('consult-copy').click();
+    return cap.replace(/[|<>\n]/g, ' ');
+  };
+  var line = function (id) { var n = document.querySelector('[data-id="' + id + '"] .kit-provisional-prev'); return n ? n.textContent.slice(0, 40) : 'none'; };
+  if (location.search.indexOf("phase=clear") > -1) document.querySelector('[data-id="Q2"] .consult-clear').click();
+  if (location.search.indexOf("phase=touchq3") > -1) document.querySelector('[data-id="Q3"] input[data-label="Sí"]').click();
+  var keys = Object.keys(JSON.parse(localStorage.getItem("aidex-kit-answers:" + location.pathname) || '{}')).sort().join(',') || '-';
+  var banner = document.getElementById('consult-restored');
+  document.title = 'PV|Q1=' + on('Q1') + '|Q2=' + on('Q2') + '|LINE1=' + line('Q1') + '|LINE2=' + line('Q2')
+    + '|KEYS=' + keys + '|BANNER=' + (banner ? banner.textContent.slice(0, 12) : 'none') + '|REPLY=' + copy() + '|';
+});
+</script>
+HTML
+PVPAGE="$TMP/reports/pv822.html"
+bash "$WRAP" --title "pv822" --lang es --out "$PVPAGE" < "$PV/body2.html" > "$PV/wrap.log" 2>&1 \
+  || fail "BL-822: the provisional probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$PV/wrap.log" | sed -n 1,4p)"
+pv() { CHROME_WINDOW=1280,900 chrome_dump "$PV/$1.html" "file://$PVPAGE?phase=$1" 45 || true
+       grep -oE '<title>[^<]*</title>' "$PV/$1.html" | sed -n 1p; }
+rm -rf "$TMP/profile"
+tp0="$(pv fresh)"
+[[ "$tp0" == *"|Q1=Dos|Q2=Dos|"* && "$tp0" == *"|LINE1=Provisional de la ronda anterior"* && "$tp0" == *"|REPLY="*"### Q1"*"- Dos"* ]] \
+  || fail "BL-822: an untouched {provisional} option must ship checked, carry the 'Provisional de la ronda anterior' line, and paste as a plain pick: $tp0"
+rm -rf "$TMP/profile"
+tp1="$(pv seedtres)"
+[[ "$tp1" == *"|Q1=Tres|"* ]] \
+  || fail "BL-822: a stored selection on a {provisional} select=many item must REPLACE the preselected Dos (want Q1=Tres only): $tp1"
+tp1r="${tp1#*|REPLY=}"; tp1r="${tp1r%%### Q2*}"
+[[ "$tp1r" == *"- Tres"* && "$tp1r" != *"- Dos"* ]] \
+  || fail "BL-822: the reply for Q1 must carry Tres and not the deselected Dos: $tp1r"
+rm -rf "$TMP/profile"
+tp2="$(pv seednotnow)"
+[[ "$tp2" == *"|Q1=[not-now]|"* ]] \
+  || fail "BL-822: a stored [not-now] on a {provisional} item must not come back beside the preselected Dos (want Q1=[not-now] only): $tp2"
+rm -rf "$TMP/profile"
+tp3="$(pv clear)"
+[[ "$tp3" == *"|Q2=-|"* ]] || fail "BL-822: Clear on a {provisional} select=one item must untick the preselected option: $tp3"
+tp4="$(pv reload)"
+[[ "$tp4" == *"|Q2=-|"* ]] \
+  || fail "BL-822: a cleared {provisional} item must stay cleared on the next open (want Q2=-, not the preselected Dos back): $tp4"
+# An untouched preselection is the page's default, not the reader's answer: answering only Q3
+# stores Q3 alone, and the next open counts one restored answer, not three.
+rm -rf "$TMP/profile"
+tp5="$(pv touchq3)"
+[[ "$tp5" == *"|KEYS=Q3|"* ]] \
+  || fail "BL-822: answering only the plain Q3 must store Q3 alone, not the untouched preselected Q1/Q2 (want KEYS=Q3): $tp5"
+tp6="$(pv reload)"
+[[ "$tp6" == *"|Q1=Dos|Q2=Dos|"* && "$tp6" == *"|BANNER=1 respuesta"* ]] \
+  || fail "BL-822: the next open must keep the preselections and count 1 restored answer (want BANNER=1 respuesta): $tp6"
+
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other, the not-now choice, the multi-select item built from a spec, the ask row and the provisional state, the explicit theme, v4 answer sets, the all-decided page, the half-answered block, the gallery zoom dialog with its keyboard walk, the block filters that never reach the paste, the light/dark compare with its slider kept out of the paste, and the localised chrome included"

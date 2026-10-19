@@ -4250,6 +4250,25 @@ def proposal_ids(text):
     return _flagged_ids(text, "proposal")
 
 
+def checked_labels(text):
+    """`{data-id: {data-label}}` of the options an OPEN item ships `checked` (a
+    spec `{provisional}`, BL-822): what the reader saw ticked on that page. A
+    decided item's checked option is its verdict, so it is not listed."""
+    text = strip_item_markup(text)   # a commented-out item is not one
+    out = {}
+    for m in ITEM_OPEN.finditer(text):
+        if GROUP_CLASS.search(m.group(0)) or ITEM_DECIDED.search(m.group(0)):
+            continue
+        ident = next(g for g in m.groups()[1:] if g is not None)
+        for tag in INPUT_TAG.findall(_subtree(text, m.group(1), m.end())):
+            label = DATA_LABEL.search(tag)
+            bare = re.sub(r'"[^"]*"|\x27[^\x27]*\x27', '""', tag)  # no value says checked
+            if label and re.search(r'\schecked(?=[\s/>=])', bare, re.I):
+                out.setdefault(ident, set()).add(
+                    _html.unescape(next(g for g in label.groups() if g is not None)))
+    return out
+
+
 _SAVE_SEP = re.compile(r"^<!-- reply saved .*-->[ \t]*$", re.M)
 # A composer paste: a group heading, the general-notes block (it sits
 # outside every group, so a notes-only paste carries no `##` line), or the

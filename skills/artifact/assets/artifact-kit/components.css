@@ -692,7 +692,8 @@ dialog.kit-mark-note::backdrop { background: rgba(0, 0, 0, 0.3); }
 /* The provisional line (kit v19): shown on an item that has BOTH a chosen
    option and an ask, which is not a decision. Quiet, one line, under the ask
    row it belongs to — it reports a state the reader created, it does not warn. */
-.kit-provisional:where(:not(svg *)) { margin: 0.45rem 0 0; font-family: var(--sans); font-size: 0.78rem;
+/* Its sibling on the NEXT round (BL-822): the pick came back ticked, and leaving it confirms it. */
+.kit-provisional:where(:not(svg *)), .kit-provisional-prev:where(:not(svg *)) { margin: 0.45rem 0 0; font-family: var(--sans); font-size: 0.78rem;
                    line-height: 1.5; color: var(--ink-soft);
                    border-left: 2px solid var(--accent-dim); padding-left: 0.6rem; }
 

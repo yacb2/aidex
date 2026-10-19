@@ -398,8 +398,16 @@ unwritten and drifting, and the page gave the reader no signal either way.
 The rule, and it is the precedence rule for the three states an answer can be in:
 
 - **An answer with an ask beside it is PROVISIONAL. A provisional answer is not a
-  decision.** The next round answers the ask and keeps the item OPEN, with that answer
-  preselected. It does not move to the ledger, it is not recorded as settled, and it is not
+  decision.** The next round answers the ask and keeps the item OPEN. A provisional
+  OPTION comes back preselected (a spec marks it `{provisional}`, `04-block-vocabulary.md`
+  § item; the item says it is last round's provisional pick); a provisional `select`,
+  short-text or Other value is not preselected unless the author adds it as an option
+  marked `{provisional}`. Leaving that option ticked with no ask beside it confirms it,
+  and the round after records the decision; a reply that drops it (`[not-now]`, an ask
+  alone, another pick, a page defect only, no block) withdraws it, and `new-round` removes
+  the marker from each option the answered page showed checked (a marker written this round
+  stays, in any order of the verbs). Until then it
+  does not move to the ledger, it is not recorded as settled, and it is not
   implemented. The page says so while both are set (`.kit-provisional`, a line on the item)
   and the copied reply says so too: the answer gains a `[provisional]` marker —
   `- Option A (recomendada) [provisional]`, `Alpha [provisional]`, `2026-10-01 [provisional]`.

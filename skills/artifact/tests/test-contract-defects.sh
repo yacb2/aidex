@@ -104,6 +104,8 @@ page c1-chosen-attr es '<section class="consult-item" data-id="Q1"><div class="o
 fails $C c1-chosen-attr "a literal {chosen} in data-label fails"
 page c1-chosen-code es '<p>El marcador <code>{chosen}</code> va al final.</p><pre>- Sí {chosen}</pre>'
 passes $C c1-chosen-code "{chosen} inside code or pre is a page about the marker"
+page c1-prov es '<ul><li>Me sirve así {provisional}</li><li>No</li></ul>'
+fails $C c1-prov "a literal {provisional} in page text fails (BL-822)"
 
 echo "== decision-page-not-interactive =="
 C=decision-page-not-interactive
