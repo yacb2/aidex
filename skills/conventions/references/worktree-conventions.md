@@ -137,6 +137,12 @@ worktree_down: bash ${CLAUDE_PLUGIN_ROOT}/skills/worktree/scripts/worktree.sh do
 `worktree.sh down` runs `docker compose -p <project>-wt-<slug> down -v --rmi local --remove-orphans`,
 releases the slot claim and removes the directory; never record the raw compose command in its place.
 
+An ad-hoc `COMPOSE_PROJECT_NAME` outside this contract (a one-off `compose run` under
+another name) is allowed only with its teardown in the same step
+(`docker compose -p <name> down --rmi local --remove-orphans` once the run ends): no
+workspace sweep can attribute it, and `orphan-sweep.sh --all` sees it only while its
+containers exist; the images and volumes they leave behind are never listed.
+
 `<project>` is the main repo's basename. `--rmi local` removes exactly the
 compose-built default-tagged images (`<project>-backend` etc.) while custom-tagged dev
 images survive structurally. The `-wt-` infix is load-bearing, not cosmetic: without it

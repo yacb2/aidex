@@ -1,5 +1,5 @@
 {
-  "description": "aidex plugin hooks \u2014 memory hygiene nudge/gate, references-root gate, generated-html edit gate, first-test-write gate, artifact open-once (+ wrap-without-open Stop check), context-depth nudge, subagent poll guard",
+  "description": "aidex plugin hooks \u2014 memory hygiene nudge/gate, docker orphan nudge, references-root gate, generated-html edit gate, first-test-write gate, artifact open-once (+ wrap-without-open Stop check), context-depth nudge, subagent poll guard",
   "hooks": {
     "SessionStart": [
       {
@@ -7,6 +7,15 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/memory-audit-nudge.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/docker-orphan-nudge.sh\""
           }
         ]
       }

@@ -22,6 +22,10 @@
 #                              # orphan or not; exit 1 if any resource exists.
 #                              # This is the attribution pre-flight a teardown
 #                              # runs before removing anything.
+#   orphan-sweep.sh --all [--write-summary]
+#                              # machine-wide listing judged by compose labels and
+#                              # the filesystem, not by this workspace's prefix; see
+#                              # orphan-sweep-all.sh. Always exit 0.
 #
 # Degrades gracefully when docker is not on PATH or the daemon is
 # unreachable: prints a note and exits 0 (a --check gate cannot fail on an
@@ -35,6 +39,10 @@ set -uo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../conventions/scripts" && pwd -P)/_lib.sh"
 
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/wt-common.sh"
+
+# --all (first argument only): the machine-wide, label-judged listing lives in its
+# own script so nothing it decides can reach --slug / --check (BL-810, BL-811).
+[[ "${1:-}" == --all ]] && exec bash "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/orphan-sweep-all.sh" "${@:2}"
 
 CHECK=false
 SLUG=""

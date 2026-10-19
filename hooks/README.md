@@ -221,3 +221,38 @@ and reads as a hung run.
 `bash -c` form and a backgrounded poll; allow cells for poll shapes inside arguments, quotes,
 comments and commit messages, and a `done` right after `}` or `fi`), 4 on the `REASON` text
 and 3 timing rows (each long input under 1 s).
+
+## docker-orphan-nudge.sh — compose projects whose working directory is gone (SessionStart, startup)
+
+At most once a day across the machine, one `systemMessage` line when the last complete
+`orphan-sweep.sh --all` scan found a candidate orphan (BL-810, BL-811): a compose project
+with containers, every one labelled with `com.docker.compose.project.working_dir`, none of
+those directories existing (under `$HOME`, parent listable without it). Names are never
+parsed. The line names the count and projects, says nothing was deleted and to verify by
+hand before removing anything, and points only to the read-only listing
+`bash "<plugin>/skills/worktree/scripts/orphan-sweep.sh" --all`; neither carries a removal
+command. It never points to `/aidex:worktree status`: that runs the default,
+workspace-scoped sweep, which prints `down -v` and `volume rm` for any `-wt-` project not
+at `$WS_PARENT/$WS_NAME-wt-*`, so a live worktree that was moved or lives elsewhere would
+be handed a removal command.
+
+**Zero docker calls on the start path.** It reads `~/.claude/tmp/docker-orphans/summary`
+and, when that is missing or older than 20 h, launches the scan detached (own process
+group, no inherited stdio, `mkdir` lock) with `/usr/local/bin:/opt/homebrew/bin` prefixed
+to PATH, because a hook's PATH on macOS lacks docker. With no summary yet the session is
+silent; a stale one is still read while the refresh runs. A failed or docker-less scan
+writes nothing, so the last complete scan is what is reported; it never starts Docker
+Desktop. Test: `python3 hooks/test-docker-orphan-nudge.py`.
+
+Limits, by design of the one rule:
+
+- A live worktree moved with a plain `mv` keeps its old `working_dir` on its containers
+  until the stack is recreated, so it reads as a candidate. That is acceptable only
+  because the directory named really no longer exists; it is why the message says to
+  verify by hand.
+- A project with no container left (only images, volumes or networks) is never judged
+  nor mentioned, nor is a container without the label or a `working_dir` outside
+  `$HOME` (an unmounted disk, a devcontainer path). Images are not listed; `docker images`
+  shows them by hand.
+- Absence needs a listable parent: when the parent directory is gone too (a whole
+  folder of projects deleted), its projects are not judged and stay silent.
