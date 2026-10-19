@@ -98,4 +98,3 @@ session's). Measurement behind the verifier model: `01-review-angles.md` § Cost
    multi-agent fan-out, so nobody is misled about what actually ran. This is the same
    rule as fell-vs-dropped one level up, and the built-in `/code-review` states it for
    itself in the same words (checked against 2.1.226; not re-checked on the current build).
-

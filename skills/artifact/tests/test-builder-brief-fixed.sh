@@ -31,20 +31,20 @@ section="$(awk '/^## The builder brief/ { on=1; next } on && /^## / { exit } on'
 form="$(printf '%s\n' "$section" | awk '/^```/ { n++; next } n == 1')"
 [[ -n "$form" ]] || fail "the builder brief section has no fenced form"
 for field in 'Files to read first:' 'Request:' 'Skill directory:' 'Output:' 'Language:' 'Shots:'; do
-  printf '%s\n' "$form" | grep -qF -- "$field" || fail "the fixed brief form lacks '$field'"
+  printf '%s\n' "$form" | grep >/dev/null -F -- "$field" || fail "the fixed brief form lacks '$field'"
 done
-printf '%s\n' "$form" | grep -qi 'deliberately left alone' || fail "the fixed brief form does not ask for what was left alone"
+printf '%s\n' "$form" | grep >/dev/null -i 'deliberately left alone' || fail "the fixed brief form does not ask for what was left alone"
 
 # 2. The agent's handoff line names the fixed brief, not the long shape.
 desc="$(grep -m1 '^description:' "$AGENT")"
-printf '%s\n' "$desc" | grep -q 'fixed brief' || fail "agent description does not name the fixed brief"
-printf '%s\n' "$desc" | grep -q 'pinned figures, consult items' && fail "agent description still prescribes the long brief shape"
+printf '%s\n' "$desc" | grep >/dev/null 'fixed brief' || fail "agent description does not name the fixed brief"
+printf '%s\n' "$desc" | grep >/dev/null 'pinned figures, consult items' && fail "agent description still prescribes the long brief shape"
 
 # 3. D14: step 1 of the quality loop takes a delegate's probe from the manifest.
 step1="$(awk '/^### The quality loop/ { on=1 } on && /^2\. / { exit } on' "$SKILL_MD")"
-printf '%s\n' "$step1" | grep -q 'newer than' || fail "quality-loop step 1 does not compare the manifest with the page's build"
-printf '%s\n' "$step1" | grep -q '`written`' || fail "quality-loop step 1 does not take the manifest's written list"
-printf '%s\n' "$step1" | grep -q 'carries the manifest path, the `SHOT` lines' && fail "quality-loop step 1 still makes the skip hang on pasted SHOT lines"
+printf '%s\n' "$step1" | grep >/dev/null 'newer than' || fail "quality-loop step 1 does not compare the manifest with the page's build"
+printf '%s\n' "$step1" | grep >/dev/null '`written`' || fail "quality-loop step 1 does not take the manifest's written list"
+printf '%s\n' "$step1" | grep >/dev/null 'carries the manifest path, the `SHOT` lines' && fail "quality-loop step 1 still makes the skip hang on pasted SHOT lines"
 
 if (( failures )); then
   printf '%d failure(s)\n' "$failures"; exit 1
