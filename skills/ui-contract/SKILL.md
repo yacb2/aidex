@@ -95,6 +95,7 @@ before that approval is a sketch round:
 - **First build:** a screen with no gallery spec gets `aidex:gallery-builder` once, in the
   first sketch round, never throwaway capture scripts; every later round re-captures. For an
   extraction, capture the BEFORE from main's code before the branch moves it.
+  Also launch `aidex:gallery-builder-shadow` (trial BL-820): Read `references/05-gallery-builder-shadow.md`.
 - **On the hand-back:** the next consultation page. No `aidex:review-diff-opus`, no E2E, no commit.
   The capturing agent gets the screen's `gallery-kit.md` and the project's
   `.context/profiles/ui-contract.md` (template `assets/templates/project-ui-contract.md`),
