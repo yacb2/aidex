@@ -40,6 +40,15 @@ a crash exits 4 without it). It adds one check the default run leaves out:
 owner rules whether an author's font override inside a figure is allowed; until then,
 line 3 below is where a figure in a foreign font loses its point.
 
+`check-artifact` also warns (never fails) on two line-7 defects before the grader runs:
+`cross-number-chart` (a chart value that no same-kind cell of its table row carries) and
+`table-header-unit` (a column of bare numbers under a time or money header with no unit). So
+for line 7 the grader no longer compares chart marks with table cells or looks for a missing
+unit on time and money columns; it still judges a figure that the prose gives differently from
+a table or chart, a unit missing anywhere else (sizes, rates), and a missing sample size. The check
+is blind to a percent chart beside bare cells under a `Share (%)` header (the unit is in the
+header, the cells carry no `%`), so the grader still compares those.
+
 ## The ten points
 
 | # | Line | pts | What costs points |
