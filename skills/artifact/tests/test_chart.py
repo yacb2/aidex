@@ -523,9 +523,19 @@ try:
     F_VALUES = (-0.08, -0.45, -1.69, 4.23, -36.23, -2.82, 38.06, -11.81,
                 -26.67, 272.87, 25.87, -12.16)
     lo_d, hi_d, ticks = chart_svg._scale(-36.23, 272.87)
-    check("the F data ticks at -50 / 0 / 100 / 200 / 300",
-          ticks == [-50, 0, 100, 200, 300] and (lo_d, hi_d) == (-50, 300),
+    check("the F data ticks at -100 / 0 / 100 / 200 / 300",
+          ticks == [-100, 0, 100, 200, 300] and (lo_d, hi_d) == (-100, 300),
           "%r %r %r" % (lo_d, hi_d, ticks))
+    # BL-821 (owner q7, 2026-10-18): the top tick is a whole step above the
+    # one before it. Half-step rounding drew 9000 after 8000 (step 2000), 1750
+    # after 1500 (step 500) and 350 after 300 (step 100); the full-rubric grader
+    # deducted line 2 for each.
+    for lo, hi in ((0, 8100), (0, 1600), (0, 310), (-36.23, 272.87)):
+        _d_lo, _d_hi, tk = chart_svg._scale(lo, hi)
+        gaps = [round(b - a, 9) for a, b in zip(tk, tk[1:])]
+        check("domain (%s, %s): every gap between ticks is the same step, "
+              "the top one included" % (lo, hi),
+              len(set(gaps)) == 1, "%r %r" % (tk, gaps))
 
     def nice(x):
         """x is 1, 2 or 5 times a power of ten."""
@@ -556,7 +566,7 @@ try:
         s)
     check("...its tick labels are the round values, 0 among them, signed",
           [t for _x, t in tick_text]
-          == ["−50 USD", "0 USD", "+100 USD", "+200 USD", "+300 USD"],
+          == ["−100 USD", "0 USD", "+100 USD", "+200 USD", "+300 USD"],
           str(tick_text))
     widest = max(chart_svg._text_width(t, chart_svg.TICK_SIZE)
                  for _x, t in tick_text)
@@ -728,8 +738,10 @@ try:
     nticks = re.findall(r'text-anchor="middle" font-size="12" '
                         r'fill-opacity="0.7" fill="currentColor">([^<]*)<',
                         narrow.group(0))
-    check("...its value axis keeps all five ticks, the unit on the last one",
-          sorted(nticks) == sorted(["\u221250", "0", "+100", "+200",
+    # Five gridlines, four labels: "+200" touches "+300 USD" at this width, so
+    # the overlap rule drops it (the gridline stays).
+    check("...its value axis labels the ticks that fit, the unit on the last",
+          sorted(nticks) == sorted(["\u2212100", "0", "+100",
                                     "+300 USD"]), str(nticks))
     check("...none overlapping and all inside its viewBox",
           not overlaps(nb) and all(0 <= b[0] and b[2] <= nw for b in nb),
