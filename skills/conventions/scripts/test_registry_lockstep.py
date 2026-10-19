@@ -44,7 +44,9 @@ SCOPE — every skills/* walk below goes through _owned_skills(), never the raw 
      (BL-153). Each trigger carries its own good/bad probes — a trigger with no probe is
      the omission this guard exists to catch.
 
-  8. skill-NAME lockstep + 8b. the `description` surface budget (<900 chars).
+  8. skill-NAME lockstep + 8b. the `description` surface budget (<900 chars)
+     + 8c. a model-invocable description names no sibling `/aidex:<name>` before
+     `Not for:` (skill-conventions.md description rule 5).
   9. every owned skill directory is inside the `aidex` namespace — the `aidex-`
      prefix, or the bare orchestrator `aidex` itself. FAILS. Two bundled skills
      lost the prefix once (a9da52b) and it was restored by hand, by the user
@@ -168,6 +170,14 @@ def _name_prefix_failures(pairs: list[tuple[str, str]]) -> list[str]:
             out.append(f"skills/{d}/SKILL.md declares name '{name}' — a plugin skill's "
                        f"invocation segment is its directory, so `name:` is '{d}'")
     return out
+
+
+def _sibling_before_not_for(me: str, desc: str) -> list[str]:
+    """Guard 8c. A sibling's `/aidex:<name>` in the triggering half of a description
+    (before `Not for:`) puts its trigger words in this skill's matcher text."""
+    head = desc.split("Not for:")[0]
+    return [f"skills/{me}/SKILL.md names /aidex:{s} before 'Not for:'"
+            for s in re.findall(r"/aidex:([a-z0-9-]+)", head) if s != me]
 
 
 # Agents allowed to declare no effort, each with its reason (guard 7).
@@ -588,6 +598,21 @@ def main() -> int:
         if n >= 900:
             failures.append(f"{skill_md.relative_to(SKILLS_DIR)} description is {n} "
                             f"chars — the canon budget is <900 (hard cap 1,024)")
+
+    # 8c. No sibling before `Not for:` (skill-conventions.md rule 5). Skills with
+    #     disable-model-invocation: true are never matched, so they are skipped.
+    for skill_md in owned_skill_mds:
+        fm = re.match(r"^---\n(.*?)\n---\n", skill_md.read_text(encoding="utf-8"), re.S)
+        if not fm or re.search(r"^disable-model-invocation:\s*true", fm.group(1), re.M):
+            continue
+        d = desc_re.search(fm.group(1))
+        if d:
+            failures.extend(_sibling_before_not_for(skill_md.parent.name,
+                                                    _unquote(d.group(2))))
+    if not _sibling_before_not_for("loop", "Use when x, like /aidex:plan-exec. Not for: y"):
+        failures.append("guard 8c passed a sibling named before 'Not for:'")
+    if _sibling_before_not_for("loop", "Use when /aidex:loop. Not for: y (/aidex:plan-exec)"):
+        failures.append("guard 8c rejects a sibling after 'Not for:' or the skill's own name")
 
     # (retired) `docs/retired/hooks/aidex-router.sh` was checked here for emitting a skill that
     # exists. The hook is unwired and no longer installed (its replay came out

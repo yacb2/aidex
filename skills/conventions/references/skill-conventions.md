@@ -136,13 +136,14 @@ description: Use when the user wants to audit, organize, clean up, or health-che
 
 **`when_to_use` field:** Claude Code supports a separate `when_to_use` field (concatenated into the listing, 1,536-char combined cap). It is optional. Superpowers folds everything into a single trigger-first `description` for cross-tool portability (the agentskills.io standard has only `name` + `description`). Prefer the single-field form; use `when_to_use` only if `description` would otherwise exceed ~900 chars.
 
-### Rules (each empirically tested on the aidex ecosystem, 2026-05-15/16)
+### Rules (1-4 and 6 empirically tested on the aidex ecosystem, 2026-05-15/16; 5 added later from session experience, not part of that eval)
 
 1. **Start with "Use when…". Describe triggers, not capability.** Leading with "Audits and fixes…", "Captures…", "Registers…" is the dominant mistake — it cost the aidex ecosystem 3 wasted rewrite iterations that all plateaued at the same recall because they shared this anti-pattern.
 2. **Keyword coverage, English-only.** Include the words a user would actually type: symptoms ("flaky", "messy", "stale"), error strings, synonyms, tool/file names. **Write the `description` in English even when the user speaks another language.** Anthropic's skill-authoring guidance is not to mix languages, and the matcher does cross-lingual semantic bridging — an English description still fires on Spanish (or other-language) queries. The one aidex measurement behind this — the 2026-05-18 multilingual A/B stripping Spanish from `decision` — found **no measurable recall difference**, on **30 paired observations per arm** at a ~13% baseline, i.e. roughly 4 fires per arm differing by one (`skill-trigger-eval-methodology.md` §7). At that size the finding is **directional only** (§10): it excludes a large recall effect and cannot exclude a small one, and it covers one sibling in one regime — so the rule rests on Anthropic's guidance and on D-04 consistency, with the A/B as corroboration that native-language phrasings buy no *large* recall while consuming description budget. Keep native-language queries in the **eval query set**, not the description. **Match keyword abstraction to skill scope** (Superpowers `writing-skills`): a broad skill over-anchored on narrow tokens under-fires on the general problem; a technology- or environment-specific skill should name that anchor explicitly. (The aidex skills are Claude-Code-ecosystem-specific, so their concrete `.context/`/`MEMORY.md`/symlink tokens are correctly placed.)
 3. **No "pushy trigger" phrases** ("ALWAYS use this skill", "Make sure to use this skill whenever"). Verified to not improve recall; just consumes budget.
 4. **One sub-domain per skill.** A description that must enumerate 5+ unrelated sub-types is a mega-skill — Anthropic and Superpowers both name this anti-pattern. Split it. (In the aidex eval, the 5-sub-type `conventions` never cleared 2/10 across four iterations; the single-purpose `backlog` reached 7/10.)
-5. **Third person, concise.** The description is injected into the system prompt. <500 chars ideal, <900 before reaching for `when_to_use`, 1,024 hard target.
+5. **Never anchor the triggering half on a sibling's name.** A sibling's `/aidex:<name>` (`/aidex:plan-exec`) before the `Not for:` marker puts its trigger words in this skill's matcher text. A sibling may be named after `Not for:`, as the disambiguator (see Canonical structure). Enforced by `test_registry_lockstep.py` check 8c.
+6. **Third person, concise.** The description is injected into the system prompt. <500 chars ideal, <900 before reaching for `when_to_use`, 1,024 hard target.
 
 ### The recall ceiling (critical expectation-setting)
 
@@ -346,6 +347,10 @@ by Claude Code, so its `model`/`effort`/`tools` would be ignored when pasted as 
 - **Routed**: the main session picks it from its description, so the description starts
   "Use ..." and states when to use it and when not to; it never claims to be skill-launched.
   An agent not in `ROUTED_AGENTS` is held to the skill-launched rule.
+
+A big file an agent must read (over about 25 KB) is named in its body as a Read-tool target, never a
+`cat`/`sed`/`head` of the whole file: a Bash result over about 30000 characters reaches the agent only as a
+~2 KB preview (measured on aidex:artifact-sonnet runs).
 
 Every agent declares `effort:`, `haiku` included (Haiku 5.5 honours it; the Haiku 4.5 loader dropped it).
 

@@ -123,6 +123,9 @@ Pick one the intervention cannot reach — for the readout above, the unconditio
 all-session depth distribution, which the cue does not select on — and freeze its baseline
 in the same document, at the same time, from the same script.
 
+Short form: a control the intervention drains is not a control. Check that the control is
+exogenous at design time, next to the power calculation, not after the readout.
+
 **Corollary, and it is the cheaper half.** A criterion written before the mechanism ships
 is written against an imagined mechanism. Re-read it once the mechanism exists and before
 the window opens: two of this one's three clauses were already dead on arrival, and both
