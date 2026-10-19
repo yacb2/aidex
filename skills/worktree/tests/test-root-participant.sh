@@ -171,7 +171,7 @@ fi
 ( cd "$p4" && bash "$WT" down cp --force ) >/dev/null 2>&1
 
 # --- case 5: the bookkeeping exclude must not hide the user's own .env (BL-770) ----
-# `create` writes its bookkeeping lines into the main repo's SHARED info/exclude. A bare
+# `create` writes its bookkeeping lines into the checkout's excludes (BL-771). A bare
 # `.env` there matched a .env at any depth, so a user's untracked config/.env in the
 # root checkout was invisible to git status and the dirty check, and the plain `down`
 # deleted it with the checkout. Only the generated root /.env is aidex's.
