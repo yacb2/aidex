@@ -160,6 +160,60 @@ else
   echo "skip: git not on PATH — case 10 not exercised"
 fi
 
+# --- case 11: a worktree created INSIDE the workspace resolves to itself (BL-769) ---
+# Same split-workspace shape as case 10, but the worktree lives under the workspace
+# (aidex_ws/_tmp/wt/<x>). Pass 1 found the WORKSPACE .context/ before the hop ran,
+# so every script wrote into the owner's live artifacts. Owner decision 2026-10-18
+# (q16): a nested worktree's root is the worktree itself. The workspace's own
+# worktrees and a project's worktrees under its own tree keep resolving to the main
+# tree (rows b and c), and a worktree outside stays on case 10's main tree.
+if command -v git >/dev/null 2>&1 && [[ -d "$NESTED/.git" ]]; then
+  IWT="$WS/_tmp/wt/inside"
+  mkdir -p "$WS/_tmp/wt"
+  ( cd "$NESTED" && git worktree add -q "$IWT" -b inside ) >/dev/null 2>&1
+  if [[ -d "$IWT" ]]; then
+    mkdir -p "$IWT/sub"
+    for c in "$IWT" "$IWT/sub"; do
+      got="$(run "$c" "$FAKEHOME")"
+      [[ "$got" == "$IWT" ]] || fail "from '$c' (a worktree inside the workspace), expected the worktree root '$IWT', got '$got' — a script would write into the workspace's live .context/"
+    done
+    # (b) the nested repo's main checkout still resolves to the workspace.
+    got="$(run "$NESTED" "$FAKEHOME")"
+    [[ "$got" == "$WS" ]] || fail "the nested repo's main checkout must still resolve to the workspace '$WS', got '$got'"
+  else
+    echo "skip: git worktree add unavailable — case 11 not exercised"
+  fi
+  # (c) a project whose main tree HAS .context/ keeps owning a worktree made under it.
+  CWT="$WMAIN/_tmp/wt/under"
+  mkdir -p "$WMAIN/_tmp/wt"
+  ( cd "$WMAIN" && git worktree add -q "$CWT" -b under ) >/dev/null 2>&1
+  if [[ -d "$CWT" ]]; then
+    got="$(run "$CWT" "$FAKEHOME")"
+    [[ "$got" == "$WMAIN" ]] || fail "a worktree under its own main tree must resolve to the main tree '$WMAIN', got '$got'"
+  else
+    echo "skip: git worktree add unavailable — case 11 row c not exercised"
+  fi
+  # (d) a worktree DEST container that carries .context/ on purpose (a WT_LINKS
+  # symlink to the workspace's .context/, or a root-participant checkout's own) owns
+  # the participant worktrees inside it: the participant's main tree lies OUTSIDE the
+  # container, so this is not the nested-workspace shape and must not resolve to the
+  # sub-repo checkout. Both variants: a real .context/ dir and a symlink.
+  for variant in dir link; do
+    C="$FAKEHOME/projects/ws-wt-$variant"
+    mkdir -p "$C"
+    if [[ "$variant" == dir ]]; then mkdir -p "$C/.context"; else ln -s "$WS/.context" "$C/.context"; fi
+    ( cd "$NESTED" && git worktree add -q "$C/proj" -b "rowd-$variant" ) >/dev/null 2>&1
+    if [[ -d "$C/proj" ]]; then
+      got="$(run "$C/proj" "$FAKEHOME")"
+      [[ "$got" == "$C" ]] || fail "from a participant worktree '$C/proj' inside a container whose .context/ is a $variant, expected the container '$C', got '$got'"
+    else
+      echo "skip: git worktree add unavailable — case 11 row d ($variant) not exercised"
+    fi
+  done
+else
+  echo "skip: git not on PATH — case 11 not exercised"
+fi
+
 # --- case 9: there is exactly ONE definition of this function in the suite ------
 # Nineteen scripts carried a private copy. All of them were three fixes behind:
 # no $HOME boundary (2026-07-25), no project-marker fallback, no linked-worktree
