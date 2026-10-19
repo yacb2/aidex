@@ -613,9 +613,7 @@ def _ledger_row(item_id, title, verdict):
     the plain "this is settled" mark and says nothing a row should repeat; any
     other value is the verdict TEXT the author wrote and belongs in the row
     beside the title. `_update_ledger_row` rebuilds the same row to find it."""
-    v = spec_build.PLAIN.sub("", verdict).strip().lower()   # the builder's own reading
-    return "- %s%s%s" % (item_id, SEP, title if v in contract_defects.NOT_A_VERDICT + ("",)
-                         else "%s (%s)" % (title, verdict.strip()))
+    return "- %s%s%s" % (item_id, SEP, spec_build.ledger_row_value(title, verdict))
 
 
 def _update_ledger_row(lines, tree, node, old_verdict, verdict):

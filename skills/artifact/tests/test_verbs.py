@@ -741,9 +741,13 @@ try:
     check("new-round exits 0", r.returncode == 0, r.stdout + r.stderr)
     check("...the SPEC grew a ledger", "::: ledger" in read(spec))
     built = read(page)
-    check("...and the PAGE carries the ledger row as a `.k`/`.v` pair",
-          '<span class="k">Q2</span><span class="v">Marcador de columna</span>'
-          in built, built[:2000])
+    # BL-841: Q2 is still on the page, decided, so the composer folds it from
+    # its data-decided; the ledger row stays in the spec but is not rendered,
+    # or the outcome would print twice (test_build.py owns the row table).
+    check("...and the PAGE does not render the row of an item it folds",
+          '<span class="k">Q2</span>' not in built
+          and re.search(r'data-id="Q2"[^>]*\sdata-decided\b', built) is not None,
+          built[:2000])
 
     # --- the round trip the phase names -------------------------------------
     print()
@@ -996,6 +1000,7 @@ try:
           "the ones a caller may",
           touched == ["HINT_SEP", "LANGS", "PLAIN", "build", "chosen_labels",
                      "clean_item_title", "hand_edit_defect", "has_options",
+                     "ledger_row_value",
                      "main", "option_labels", "page_title",
                      "refuse_missing_visual", "resolve_lang"],
           str(touched))

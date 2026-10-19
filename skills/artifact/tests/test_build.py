@@ -806,6 +806,96 @@ try:
     check("...and the key-less row carries no `.k`, so `ledger_ids` harvests "
           "no item id out of a row that names no decision",
           h.count('class="k"') == 1, h)
+    # BL-841: `spec_verbs new-round` files every decided item in the ledger
+    # while the item stays on the page, and the composer folds that item into
+    # "N preguntas ya resueltas" from its `data-decided`. The ledger row was a
+    # second, unfolded copy of the same outcome right beside the fold. A row is
+    # not rendered only when it is the row new-round files for an item the
+    # composer folds (`id — title` or `id — title (verdict)`); any other row is
+    # a record the fold does not carry and stays on the page.
+    h = holds("ledger: a settled item on this page is not rendered twice (BL-841)",
+              LM + "::: ledger\n"
+              "- Q5 — Limpiar (Veredicto alfa único)\n"
+              "- D1 — Mantener Haiku fuera\n"
+              "- Q7 — Descartada\n"
+              "- P1 — Propuesta\n"
+              "- X9 — Traída de un hilo anterior\n"
+              "- Q9 — Abierta\n"
+              "- Q1 — Hilo anterior: usar Postgres\n"
+              "- D2 — Opción A, solo si el equipo de datos lo aprueba antes del viernes\n:::\n\n"
+              '::: group {#G1 title="Abierta"}\n::: item {#Q9 title="Abierta"}\n'
+              "¿Cuál?\n\n- A\n- B\n:::\n:::\n\n"
+              '::: group {#G2 title="Cerradas"}\n'
+              '::: item {#Q5 title="Limpiar" decided="Veredicto alfa único"}\nAplicado.\n:::\n\n'
+              '::: item {#D1 title="Mantener Haiku fuera" decided=yes}\n'
+              "Sigue fuera.\n\n- Mantener {recommended}\n- Reabrir\n:::\n\n"
+              '::: item {#Q1 title="Color" decided="Azul"}\nAplicado.\n:::\n\n'
+              '::: item {#D2 title="Formato" decided=yes}\nAplicado.\n\n- Opción A {chosen}\n- Opción B\n:::\n\n'
+              '::: item {#Q7 title="Descartada" dropped="Absorbida por Q5"}\nYa no.\n:::\n:::\n\n'
+              '::: group {#G3 title="Propuestas"}\n'
+              '::: item {#P1 title="Propuesta" decided=yes proposal=yes}\n'
+              "Corrígeme.\n\n- Así {recommended}\n- Reabrir\n:::\n:::\n")
+    for key, rendered, why in (
+            ("Q5", False, "new-round's row for a verdict the fold shows"),
+            ("D1", False, "new-round's row for a decided=yes item the fold shows"),
+            ("Q7", True, "a dropped item is never folded as decided, even in the filed shape"),
+            ("P1", True, "a proposal stays unfolded, so its row is its record, even in the filed shape"),
+            ("Q9", True, "an open item is not folded, so its row in the filed shape stays"),
+            ("X9", True, "carried in from an earlier page: no item to fold"),
+            ("Q1", True, "a carried-in record whose key collides with a decided id"),
+            ("D2", True, "a rewritten row: its condition is on no other part of the page")):
+        check("...ledger row %s %s (%s)" % (key, "kept" if rendered else "dropped", why),
+              ('<span class="k">%s</span>' % key in h) == rendered,
+              h[h.find('<div class="ledger">'):h.find("\n</div>", h.find('<div class="ledger">'))])
+    check("...the verdict occurs once, as the data-decided the composer folds",
+          h.count("Veredicto alfa único") == 1
+          and 'data-decided="Veredicto alfa único"' in h,
+          "it occurs %d times" % h.count("Veredicto alfa único"))
+    h = holds("...and a ledger whose every row is folded is not drawn at all",
+              LM + "::: ledger\n- Q5 — Limpiar (Veredicto alfa único)\n:::\n\n"
+              '::: group {#G2 title="Cerradas"}\n'
+              '::: item {#Q5 title="Limpiar" decided="Veredicto alfa único"}\nAplicado.\n:::\n:::\n')
+    check("...no empty .ledger grid is left behind", 'class="ledger' not in h, h)
+    # The documented wrapped form (03-spec-grammar.md § section): a section left
+    # with only its head is "a heading over nothing", the shape `section` already
+    # refuses in a spec, so it is not drawn. When some rows stay, its heading and
+    # eyebrow are the author's text and may count the hidden rows: a warning
+    # names them instead of the builder rewriting that text.
+    SECLED = (LM + '::: section {#sec-ledger eyebrow="Lo ya decidido · 2" heading="Dónde quedó"}\n'
+              "::: ledger\n- Q5 — Limpiar (Veredicto alfa único)\n%s:::\n:::\n\n"
+              '::: group {#G2 title="Cerradas"}\n'
+              '::: item {#Q5 title="Limpiar" decided="Veredicto alfa único"}\nAplicado.\n:::\n:::\n')
+    warned = []
+    h = holds("...and a section#sec-ledger left with no row is not drawn", SECLED % "",
+              warnings=warned)
+    check("...no heading over nothing, no stale count, no rail anchor",
+          'id="sec-ledger"' not in h and "Lo ya decidido" not in h, h)
+    check("...and the build says it dropped it, naming the section and the rows",
+          any(w[0] == "ledger-rows-hidden" and "sec-ledger" in w[2] and "Q5" in w[2]
+              for w in warned), repr(warned))
+    # With no masthead there is no <header>, and #sec-ledger is the only anchor
+    # the composer's Decided section has (check-artifact decided-section-anchor):
+    # the section stays there, warned, so the page still passes the contract.
+    nspec = os.path.join(tmp, "secledger-nomast.spec.md")
+    with open(nspec, "w", encoding="utf-8") as fh:
+        fh.write(SECLED[len(LM):] % "" + '\n::: chart {#c1 type=bar title="Tamaño" unit="%"}\n'
+                 "| Página | % |\n|---|---|\n| página A | 58 |\n| página B | 37 |\n:::\n"
+                 '\n::: group {#G1 title="Abierta"}\n'
+                 '::: item {#Q9 title="Abierta"}\nHoy pasa algo. ¿Cuál?\n\n- A\n- B\n:::\n:::\n')
+    nout = os.path.join(tmp, "secledger-nomast.html")
+    r = subprocess.run([sys.executable, BUILD, nspec, "-o", nout, "--title", "Prueba", "--check"],
+                       capture_output=True, text=True)
+    check("...and with no masthead the emptied section stays the Decided anchor: the "
+          "page passes check-artifact (no decided-section-anchor) and says why",
+          r.returncode == 0 and "decided-section-anchor" not in r.stdout + r.stderr
+          and "ledger-rows-hidden" in r.stdout + r.stderr, r.stdout + r.stderr)
+    warned = []
+    h = holds("...and one left with some rows stays, with its rows",
+              SECLED % "- X9 — Traída de un hilo anterior\n", warnings=warned)
+    check("......and a build warning names the hidden row the author's count may include",
+          'id="sec-ledger"' in h and '<span class="k">X9</span>' in h
+          and any(w[0] == "ledger-rows-hidden" and "Q5" in w[2] for w in warned),
+          repr(warned))
     holds("verdict: win= flags the winning cell, by its label",
           '::: verdict {win="Ruta A"}\n| n | ruta | detalle |\n|---|---|---|\n'
           "| 3 | Ruta A | 140k |\n| 5 | Ruta B | 300k |\n:::",

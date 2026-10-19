@@ -15,14 +15,15 @@ One sequence = what an agent following SKILL.md does with a consultation:
   save-reply.sh -> either the VERBS (decide, add-item, new-round: they rebuild) or a hand edit of
   the spec plus ONE `spec_build.py --new-round` ] x 2..4 rounds.
 It PASSES when every step succeeds (a refused step also must write nothing), the model agrees with the page after each step (ids, order, decided set and verdicts,
-proposals, consult-round, ledger rows, decided-round stamps), and every built page has zero
+proposals, consult-round, ledger rows read from the spec's record and the rows the page renders
+from it, decided-round stamps), and every built page has zero
 violations under `render-probe.sh --invariants` (probed in batches, one browser call each).
 Every step the generator makes is legitimate, so ANY refusal (rc != 0) fails the sequence
 (`step-refused`); a sequence also needs at least one successful save-reply (`no-save-reply`).
 
 Model checks (named in --verbose): answered-id-lost, id-renumbered, id-lost, id-appeared,
 id-reordered, never-answered-decided, decision-lost, proposal-state, round-number,
-ledger-rows, ledger-row-changed, decided-round-stamp, rail-round, save-files, refusal-wrote, traceback, crash,
+ledger-rows, ledger-row-changed, ledger-rendered, decided-round-stamp, rail-round, save-files, refusal-wrote, traceback, crash,
 step-refused, no-save-reply, invariant:<ID>, probe-no-verdict.
 
 Seams (the gate's own test drives them): AIDEX_RENDER_PROBE replaces render-probe.sh;
@@ -86,7 +87,8 @@ ROW_RE = re.compile(r'<span class="k">(.*?)</span><span class="v">(.*?)</span>',
 
 
 def parse_page(text):
-    """{'round': int|None, 'items': [(id, verdict|None, proposal, stamp|None)], 'ledger': {id: v}}"""
+    """{'round': int|None, 'items': [(id, verdict|None, proposal, stamp|None)], 'rendered': {id: v}}
+    `rendered` is the ledger as the page draws it; the record (`ledger`) is the spec's."""
     m = META_RE.search(text)
     items = []
     for im in ITEM_RE.finditer(text):
@@ -104,8 +106,23 @@ def parse_page(text):
         for k, v in ROW_RE.findall(lm.group(1)):
             ledger[html.unescape(re.sub(r"<[^>]+>", "", k)).strip()] = html.unescape(re.sub(r"<[^>]+>", "", v)).strip()
     sh = SHOWN_RE.search(text)
-    return {"round": int(m.group(1)) if m else None, "items": items, "ledger": ledger,
+    return {"round": int(m.group(1)) if m else None, "items": items, "rendered": ledger,
             "shown": int(sh.group(1)) if sh else None}
+
+
+SPEC_LEDGER_RE = re.compile(r"^::: ledger[ \t]*\n(.*?)^:::[ \t]*$", re.S | re.M)
+
+
+def spec_ledger(text):
+    """{id: row} of the SPEC's ledger: the record `new-round` writes. The page no longer
+    renders the row of an item it folds (BL-841), so the record is read where it lives."""
+    lm = SPEC_LEDGER_RE.search(text)
+    rows = {}
+    for ln in (lm.group(1).splitlines() if lm else []):
+        k, sep, v = ln[2:].partition(" \u2014 ") if ln.startswith("- ") else ("", "", "")
+        if sep:
+            rows[k.strip()] = v.strip()
+    return rows
 
 
 # --- the model checks (pure: no files, no tools) -------------------------------
@@ -161,6 +178,15 @@ def check_model(model, page, answered):
     led, exp = page["ledger"], model["ledger_expect"]
     if exp is not None and set(led) != set(exp):
         out.append(("ledger-rows", "ledger ids %s" % sorted(exp), "ledger ids %s" % sorted(led)))
+    if "rendered" in page:
+        # BL-841: the page draws every spec row except the one new-round filed
+        # for an item it folds (`title` or `title (verdict)`), which the fold shows.
+        filed = {i.id: (i.title, "%s (%s)" % (i.title, i.decided)) for i in model["items"]
+                 if i.decided is not None and not i.proposal}
+        want_keys = {k for k, v in led.items() if v not in filed.get(k, ())}
+        if set(page["rendered"]) != want_keys:
+            out.append(("ledger-rendered", "rendered ledger ids %s" % sorted(want_keys),
+                        "rendered ledger ids %s" % sorted(page["rendered"])))
     for k, v in model["ledger_seen"].items():
         if k in led and led[k] != v:
             out.append(("ledger-row-changed", "#%s row %r" % (k, v), "#%s row %r" % (k, led[k])))
@@ -318,6 +344,7 @@ class Sequence:
             self.round, self.pending = self.round + 1, False
         raw = self.read(self.page)
         page = parse_page(raw.decode("utf-8", "replace") if raw else "")
+        page["ledger"] = spec_ledger((self.read(self.spec) or b"").decode("utf-8", "replace"))
         for it in page["items"]:                                 # a stamp is set once, on first sight
             if it[1] is not None and it[0] not in self.stamps:
                 self.stamps[it[0]] = self.round
@@ -547,7 +574,7 @@ class Sequence:
 
     def check_ledger_rows(self):
         """Row text of a freshly synced ledger: `<title> (<verdict>)` for every settled item."""
-        page = parse_page((self.read(self.page) or b"").decode("utf-8", "replace"))
+        page = {"ledger": spec_ledger((self.read(self.spec) or b"").decode("utf-8", "replace"))}
         for it in self.items:
             if it.decided is not None and not it.proposal and not it.expired and it.id in page["ledger"]:
                 want = "%s (%s)" % (it.title, it.decided)
