@@ -43,7 +43,7 @@ directory, and the result is not this gallery's evidence.
    "Limits the gate is known NOT to cover") and repeat the ones that apply in your report.
    A pass reported without them overstates what was checked.
 6. **Refuse a deferred cell.** Grep the gallery specs the gate ran for a not-applicable
-   reason starting `deferred:`. Each hit is a staged decision never made
+   reason that starts, ignoring case and leading spaces, with `deferred:`. Each hit is a staged decision never made
    (`skills/ui-contract/references/02-sketch-round-kit.md` § Staged rounds), not a state
    the screen lacks: counted in `<f>` and listed under point 4 with its spec line.
 
@@ -57,10 +57,13 @@ directory, and the result is not this gallery's evidence.
    ` meta=<k>/<m>` when the run printed a meta-suite count. `<N>` is the phase you were
    given (drop `phase <N> · ` for a visual bugfix), `<n>` the passed total across every
    runner project, `<f>` the failed, flaky, errored, timed-out and did-not-run cells
-   added together. A skip is none of those only when the spec itself declares it for that
-   runner project (a `test.skip` whose condition names the project, e.g. a mobile-only
-   cell on desktop): leave it out of `<f>` and list each one, with the spec line that
-   declares it, under point 1. Any other skip counts in `<f>`. Print the real numbers even when they fail: the grammar and every
+   added together. A skip is none of those in two cases, both left out of `<f>` and listed
+   under point 1: a skip the spec declares for that runner project (a `test.skip` whose
+   condition names the project, e.g. a mobile-only cell on desktop), with the spec line
+   that declares it; and a skip titled `<state> — not applicable: <reason>` (a cell the
+   spec declares absent), with its reason, unless that reason, ignoring case and leading
+   spaces, starts with `deferred:` (counted once, by step 6, not again per runner project).
+   Any other skip counts in `<f>`. Print the real numbers even when they fail: the grammar and every
    other rule of that line live in `skills/plan-exec/scripts/check-ui-evidence.sh`'s
    header, and a failing line is refused there, not rounded here.
 3. **The contact-sheet path(s)**, exactly as the composer printed them. They are for the caller; never open one, and never build an HTML page from them for the owner.

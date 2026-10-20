@@ -64,5 +64,23 @@ grep -qF "reason: 'deferred:" "$SKILL_DIR/references/02-sketch-round-kit.md" || 
 grep -qF 'deferred:' "$VERIFY_UI" && grep -qF 'counted in `<f>`' "$VERIFY_UI" \
   || fail "verify-ui does not count a deferred: cell as failed"
 
+# 7. A declared not-applicable skip ("<state> — not applicable: <reason>", an unconditional
+#    test.skip in the gallery) is not a failure: counting it in <f> would fail every gallery
+#    that declares an absent cell. A deferred: reason is the exception (cell 6); any other skip counts.
+#    Read whitespace-normalised, like cell 3, and with the exemption tied to the title shape in
+#    one span: a reversed sentence ("both counted in") must fail, not only a deleted one.
+python3 - "$VERIFY_UI" <<'PY' || fail "verify-ui does not leave a declared not-applicable skip out of <f>, count a deferred: one once whatever its case, and every other skip"
+import re, sys
+t = ' '.join(open(sys.argv[1], encoding='utf-8').read().split())
+need = [
+    r'A skip is none of those in two cases, both left out of `<f>`.{0,400}?`<state> — not applicable: <reason>`',
+    r'not applicable: <reason>`.{0,200}?unless that reason, ignoring case and leading spaces, starts with `deferred:`',
+    r'counted once, by step 6',
+    r'Any other skip counts in `<f>`',
+    r'reason that starts, ignoring case and leading spaces, with `deferred:`',
+]
+sys.exit(0 if all(re.search(n, t) for n in need) else 1)
+PY
+
 if [ "$FAILURES" -eq 0 ]; then echo "PASS: ui-contract references pinned"; exit 0; fi
 echo "FAIL: $FAILURES cell(s)"; exit 1
