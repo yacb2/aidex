@@ -1242,6 +1242,89 @@ tr="$(rows_title en 0)"
 [[ "$tr" == *"EYEBROW=6 rows already settled|"* ]] \
   || fail "BL-608: on an English page the Decidido eyebrow must read '6 rows already settled': $tr"
 
+# ---- BL-608 / BL-858: the Decidido and Descartadas eyebrows count what their section HOLDS ----
+# The BL-532/BL-608 pages above have no block still open, so no item folds in place (BL-380) and
+# "what the section holds" and "every settled item on the page" are the same number there. These
+# pages split them: a settled sibling of a live proposal folds IN PLACE, outside #sec-decided, and
+# is not one of the entries the eyebrow heads. A page-wide count (the first BL-858 fix, rejected)
+# read "31 elementos" over a Decidido holding 6 on the echo_lab page. Layer: browser, because which items fold where, and
+# what the eyebrow says, are the composer's runtime calls.
+#   main     GA: D1-D5 decided (folds whole into #sec-decided); GB: live proposal N1 beside S1-S6
+#            decided and X1 dropped (all seven fold in place); GC: Y1 dropped (#sec-dropped).
+#   word     GA: two decided questions; GB: live N1 beside two decided GALLERY rows (in place):
+#            the word comes from what the section holds, so "preguntas", not "elementos".
+#   inplace  GB alone: every settled item folds in place, no unit, so no Decidido and no eyebrow.
+item858() {  # item858 <id> <attrs> [gallery]
+  if [[ -n "${3:-}" ]]; then
+    printf '<section class="consult-item consult-gallery" data-id="%s" data-title="T %s" data-heading="Fila %s" %s><h3>Fila %s</h3><p class="gal-na">no aplica</p><textarea></textarea></section>\n' "$1" "$1" "$1" "$2" "$1"
+    return
+  fi
+  printf '<section class="consult-item" data-id="%s" data-title="T %s" %s><h3><span class="consult-id">%s</span>T %s?</h3><div class="opts one"><label><input type="radio" name="%s" data-label="Si" checked><span>Si</span></label><label><input type="radio" name="%s" data-label="No"><span>No</span></label></div><textarea></textarea></section>\n' "$1" "$1" "$2" "$1" "$1" "$1" "$1"
+}
+k858_body() {  # k858_body <main|word|inplace>
+  local v="$1" i
+  printf '%s\n' '<meta name="consult-visual" content="none: a layout probe, nothing to draw">' \
+    '<div class="page"><main class="main"><header><p class="eyebrow">PROBE</p><h1>Ronda 2</h1></header>' \
+    '<section id="sec-ask"><div class="sec-head"><h2>Questions</h2></div>'
+  if [[ "$v" == main ]]; then
+    printf '<section class="consult-group" data-id="GA" data-title="Decididas"><p>Contexto</p>\n'
+    for i in D1 D2 D3 D4 D5; do item858 "$i" 'data-decided="Si"'; done
+    printf '</section>\n'
+  elif [[ "$v" == word ]]; then
+    printf '<section class="consult-group" data-id="GA" data-title="Decididas"><p>Contexto</p>\n'
+    for i in D1 D2; do item858 "$i" 'data-decided="Si"'; done
+    printf '</section>\n'
+  fi
+  if [[ "$v" == word ]]; then
+    printf '<section class="consult-group" data-id="GB" data-title="Propuestas" data-tiles="after"><p>Contexto</p>\n'
+  else
+    printf '<section class="consult-group" data-id="GB" data-title="Propuestas"><p>Contexto</p>\n'
+  fi
+  item858 N1 'data-decided="Si" data-proposal'
+  if [[ "$v" == word ]]; then
+    for i in 1 2; do item858 "gb-row$i-after" 'data-decided="Aprobada"' gallery; done
+  else
+    for i in S1 S2 S3 S4 S5 S6; do item858 "$i" 'data-decided="Si"'; done
+  fi
+  [[ "$v" == main ]] && item858 X1 'data-dropped="ya no aplica" data-decided="Descartada: ya no aplica"'
+  printf '</section>\n'
+  if [[ "$v" == main ]]; then
+    printf '<section class="consult-group" data-id="GC" data-title="Fuera"><p>Contexto</p>\n'
+    item858 Y1 'data-dropped="otra" data-decided="Descartada: otra"'
+    printf '</section>\n'
+  fi
+  printf '%s\n' '<div class="endbar"><button type="button" id="consult-copy-end">Copy</button><span class="consult-status" id="consult-status-end"></span></div>' \
+    '<section class="consult-item consult-notes" data-id="notes" data-title="Notas generales"><h3>Notas generales</h3><textarea></textarea></section>' \
+    '</section></main><aside class="rail"><p class="railhead">Contenido</p><nav class="raillist" id="raillist"></nav>' \
+    '<div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div></aside></div>' \
+    '<script>window.addEventListener("load", function () {' \
+    ' var t = function (q) { return ((document.querySelector(q) || {}).textContent || "").replace(/[|]/g, "/"); };' \
+    ' var n = function (q) { return document.querySelectorAll(q).length; };' \
+    ' document.title = "K858|DEC=" + n("#sec-decided") + "|EYEBROW=" + t("#sec-decided .eyebrow") + "|ENTRIES=" + n("#sec-decided .consult-item:not([data-dropped])")' \
+    '   + "|INPLACE=" + n("details.decided-unit.inplace") + "|DROP=" + t("#sec-dropped .eyebrow") + "|DRPN=" + n("#sec-dropped .consult-item") + "|";' \
+    '});</script>'
+}
+k858_title() {  # k858_title <variant> -> the probe's <title>
+  k858_body "$1" > "$TMP/k858body.html"
+  bash "$WRAP" --title "kicker" --lang es --out "$TMP/reports/k858-$1.html" < "$TMP/k858body.html" > "$TMP/k858wrap.log" 2>&1 \
+    || fail "BL-858: the $1 eyebrow probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/k858wrap.log" | sed -n 1,4p)"
+  CHROME_WINDOW=1280,900 chrome_dump "$TMP/k858dom.html" "file://$TMP/reports/k858-$1.html" 45 || true
+  grep -oE '<title>[^<]*</title>' "$TMP/k858dom.html" | sed -n 1p
+}
+tk="$(k858_title main)"
+[[ "$tk" == *"|INPLACE=7|"* ]] \
+  || fail "BL-858: the probe did not fold S1-S6 and X1 in place beside the live proposal, so it proves nothing: $tk"
+[[ "$tk" == *"|EYEBROW=5 preguntas ya resueltas|ENTRIES=5|"* ]] \
+  || fail "BL-608/BL-858: the Decidido eyebrow must count the 5 entries #sec-decided holds (D1-D5), never the 6 settled items folded in place outside it: $tk"
+[[ "$tk" == *"|DROP=1 pregunta descartada, sin responder|DRPN=1|"* ]] \
+  || fail "BL-608/BL-858: the Descartadas eyebrow must count the 1 entry #sec-dropped holds (Y1), never X1 folded in place in its open block: $tk"
+tk="$(k858_title word)"
+[[ "$tk" == *"|EYEBROW=2 preguntas ya resueltas|ENTRIES=2|INPLACE=2|"* ]] \
+  || fail "BL-608/BL-858: a Decidido holding two questions must say '2 preguntas', whatever gallery rows fold in place elsewhere on the page: $tk"
+tk="$(k858_title inplace)"
+[[ "$tk" == *"K858|DEC=0|EYEBROW=|ENTRIES=0|INPLACE=6|"* ]] \
+  || fail "BL-380/BL-858: a page whose settled items all fold in place has no Decidido section and no eyebrow: $tk"
+
 # ---- BL-629: a decided row carries the answer to the owner's note, visible while folded ----
 # The owner approved a row and attached a worry; the next round's decided row folds, so the
 # reply was hidden. `answer` on a decided row must show inside the folded summary, the row
