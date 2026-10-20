@@ -940,7 +940,8 @@ def emit_item(node, ctx):
                 out.append('<div class="gal shots" data-cols="%d">\n%s\n</div>'
                            % (min(len(shots), 4), "\n".join(shots)))
             else:
-                out.extend(f.replace("<figure", "<figure data-viewer", 1)
+                out.extend(f if f.startswith("<figure data-viewer")
+                           else f.replace("<figure", "<figure data-viewer", 1)
                            for f in shots)
             del shots[:]
 
@@ -1676,8 +1677,13 @@ def emit_figure(node, ctx):
     never repaired: a builder that rewrote a colour would ship a drawing its
     author never saw.
     """
-    a = _attrs(node, {"src", "title", "alt", "highlight"}, required=("src",))
+    a = _attrs(node, {"src", "title", "alt", "highlight", "zoom"},
+               required=("src",))
     _no_children(node)
+    if a.get("zoom", "yes").strip() not in YES_VALUES:
+        raise SpecBuildError(
+            node.line, "`figure` zoom=%r is not a value (it takes: %s)"
+            % (a["zoom"], ", ".join(YES_VALUES)))
     src = a["src"].strip()
     ext, path = _local_file(node, ctx, "src", src, FIGURE_TYPES,
                             "a figure embeds")
@@ -1742,7 +1748,10 @@ def emit_figure(node, ctx):
             FIGURE_RASTER[ext], data, esc(alt))
         if "highlight" in a:
             drawing = _highlighted(drawing, path, src, a["highlight"], node)
-    head = "<figure"
+    # BL-859: zoom=yes marks the figure for the kit's "Ampliar" viewer, which
+    # opens it at full size wherever it sits (an item's lone figure gets the
+    # mark from the item anyway); render-probe's raster-shrunk honours it.
+    head = "<figure data-viewer" if "zoom" in a else "<figure"
     if node.id:
         head += ' id="%s"' % esc(node.id)
     if node.classes:

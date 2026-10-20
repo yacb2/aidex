@@ -321,6 +321,10 @@ the page here, still on the spec route. It has **no body** — the drawing is th
 - `highlight="x,y,w,h"` (BL-619, `.png`/`.jpg` only) outlines one region in the **image's
   own pixels** (x, y from the top-left): four plain numbers, inside the image (touching
   the far edge is allowed), refused otherwise and on an `.svg`.
+- `zoom=yes` (BL-859) marks the figure `data-viewer`: the kit opens it in the "Ampliar" viewer at
+  full size, wherever it sits (inside an `item` every lone figure already does; the option is for a
+  figure in a `group` or at page level). A wide capture drawn small at 390 px is then a zoomable
+  figure, and render-probe does not raise `raster-shrunk` for it. Only `yes`/`true` are values.
 - An `.svg` is never shown wider than its viewBox: author at display size, text at about
   12-14 units. check-artifact WARNs (`figure-tall`) on a viewBox over 500 units tall.
 

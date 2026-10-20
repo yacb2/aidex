@@ -63,6 +63,7 @@ async function run(width) {
   o.markers = await page.evaluate(() => ({
     lonePng: document.querySelector('[data-id="Q2"] figure').getAttribute('role'),
     loneSvg: document.querySelector('[data-id="Q3"] figure').getAttribute('role'),
+    pageZoom: document.querySelector('#Zp').getAttribute('role'),
     label: getComputedStyle(document.querySelector('[data-id="Q3"] figure'), '::after').content,
     pair: [...document.querySelectorAll('[data-id="Q4"] figure')].map((f) => f.getAttribute('role')),
     // what the reader sees in the page itself at this width
@@ -78,6 +79,10 @@ async function run(width) {
   // a lone png
   await click('[data-id="Q2"] figure');
   o.lonePng = await dlgState();
+  await closeDlg();
+  // BL-859: a zoom=yes figure OUTSIDE any item opens the same viewer, with no row behind it
+  await click('#Zp');
+  o.pageZoom = await dlgState();
   await closeDlg();
   // a lone svg, opened with the keyboard (Enter on the focused figure)
   await page.focus('[data-id="Q3"] figure').catch(() => {});

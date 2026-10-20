@@ -31,7 +31,7 @@ with `::: figure {src="…" title="…"}`. Nobody inlines SVG in a spec.
 |---|---|---|
 | one field, control, component or section | the crop of that thing | the crop itself is the focus |
 | context: a whole 404, a page inside the app shell, a whole form | the full uncropped capture | outline it on the full image (`highlight` with a `.regions.json`, `04-block-vocabulary.md` § gallery rows), never crop |
-| a wide capture drawn small at 390 px (`raster-shrunk`) | the full capture in a zoomable figure | crop only if it is a single-element shot |
+| a wide capture drawn small at 390 px (`raster-shrunk`) | the full capture in a zoomable figure (`::: figure {… zoom=yes}`; automatic inside an `item`, the option is for one in a `group` or at page level) | crop only if it is a single-element shot |
 
 **A consult figure that shows a structure or compares options is a `diagram`**:
 `shape=tree` for one structure, `shape=compare` for option A vs B (each panel a tree
