@@ -43,6 +43,9 @@ refuses a full-page changed row without one (BL-688; format in
 - **Fixtures** the cells drive from, and route mocks per cell.
 - **One declared cell per matrix state.** A state this screen genuinely does not have is
   declared not-applicable **with a reason in words** — never omitted, never blank.
+  **Drive only the cells your brief's stage names** (`skills/ui-contract/references/02-sketch-round-kit.md`
+  § Staged rounds): every other cell is declared `{ notApplicable: true, reason: 'deferred: stage <n>' }`,
+  and nothing is built for it.
 - **A spec** calling the harness's gallery entry point with the route and the cells.
 - **On a first build** (the screen has no gallery spec; `skills/ui-contract/references/02-sketch-round-kit.md`
   names these outputs, `skills/ui-contract/SKILL.md` § First build): the spec, the fixtures, the

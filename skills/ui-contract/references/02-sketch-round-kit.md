@@ -7,6 +7,8 @@ from 11.1 / $1.53 to 8.9 / $1.39. Gate checks stayed green on every variant.
 
 ## Contents
 
+- [Staged rounds](#staged-rounds)
+- [Round log](#round-log)
 - [Who does what](#who-does-what)
 - [One capture run per round](#one-capture-run-per-round)
 - [The kit: `gallery-kit.md` in the consultation folder](#the-kit-gallery-kitmd-in-the-consultation-folder)
@@ -17,6 +19,43 @@ from 11.1 / $1.53 to 8.9 / $1.39. Gate checks stayed green on every variant.
 - [First build: never throwaway capture scripts](#first-build-never-throwaway-capture-scripts)
 - [Why the target-form figure never covers an extraction](#why-the-target-form-figure-never-covers-an-extraction)
 - [Merging a dev-only mock](#merging-a-dev-only-mock)
+
+## Staged rounds
+
+Owner 2026-10-20: rounds that showed a new layout and its states together made every
+layout correction redraw every state. A screen's sketch rounds now go in three stages, and
+the owner's approval of one is what starts the next:
+
+| Stage | Cells driven and shown | Decided |
+|---|---|---|
+| 1 Layout | the main screen's happy-path cell (`with data`, `initial`, `open`) | structure, form, big changes; alternatives allowed |
+| 2 Happy path | the happy cell of every screen on the user's path through the inventory | details and flow, on the frozen layout |
+| 3 Unhappy states | every remaining matrix cell, then the variants (SKILL.md Step 2) | each state, one decision per cell |
+
+- **Deferred, not omitted.** The harness refuses a missing cell, so a cell that waits for
+  a later stage is declared `{ notApplicable: true, reason: 'deferred: stage 3' }`. It is
+  skipped, gets no baseline and no row. Stage 3's first round goes back to
+  `aidex:gallery-builder` for those cells (driving each state distinctly is the work it
+  exists for); later stage-3 rounds re-capture. Hardening refuses a gallery with a `deferred:`
+  reason left: it is a pending decision, not a state the screen lacks.
+- **A layout change asked in stage 2 or 3 reopens stage 1.** The later stages' captures
+  are dropped until the layout is approved again; they are re-driven once, not per
+  correction. A change that leaves the layout alone stays in its stage.
+- **Alternatives in stage 1 show the happy cell only.** The BL-691 pair (`with-data` and
+  `empty` per option, § Unrequested rows) applies only when the options differ in what
+  they show empty; then the empty capture is part of the layout question, not stage 3.
+- **The matrix in words is not staged.** Step 0 and the contract still list every cell
+  with its reason; only rendering and owner review wait.
+- **The owner may merge stages** ("show me everything now"): say what it costs in one
+  line and do it.
+
+## Round log
+
+Right after opening each next consultation page, the main session appends a line to
+`<consultation dir>/rounds.tsv`, header `round`, `owner_answer_utc`, `page_open_utc` (ISO
+times with `Z`; the answer time is the owner's own message time from the session that
+received it, not a relay). Round 0 (inventory, no components) is logged as `0` and left out
+of latency comparisons.
 
 ## Who does what
 

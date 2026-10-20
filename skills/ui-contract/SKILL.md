@@ -44,7 +44,7 @@ from the running app and the contract in words, and no drawing stands in for the
 
 **The design discussion is a ui-contract step, not a free chat.** When the screen is not
 decided yet, hold it as a consultation (`/aidex:artifact`) in this skill's vocabulary:
-level (Step 1), reference screen, components reused and new, state matrix (Step 2). The
+level (Step 1), reference screen, components reused and new, state matrix (Step 2, in words; rendered at stage 3). The
 decided items are written to a standalone `ui-contract.md` beside the consultation, in the
 five-item shape of Step 3. A plan written later folds that file in (`/aidex:plan` Step 0
 takes it as ratification); a plan is not required for the contract to exist. A screen
@@ -83,6 +83,9 @@ proposal.
 `research/2026-10-04-ui-contract-sketch-mode-readout.md`). Every round
 before that approval is a sketch round:
 
+- **Three stages, each built only after the owner approves the last** (kit § Staged rounds):
+  1 layout (the main happy cell), 2 happy path (the user's path, happy cells), 3 unhappy
+  states and variants. A later layout change reopens stage 1.
 - **Where:** a throwaway branch in its own worktree (`sketch/<screen>`), named in the
   impl brief's worktree section. Nothing from it reaches main before the hardening round;
   a rejected direction is dropped with the branch. The worktree has what the capture needs
@@ -93,7 +96,7 @@ before that approval is a sketch round:
   in "tests that must pass"). With a gallery spec in place, the same agent edits the spec and
   does the round's ONE capture, so a broken cell reaches it, not the page.
 - **First build:** a screen with no gallery spec gets `aidex:gallery-builder` once, in the
-  first sketch round, never throwaway capture scripts; every later round re-captures. For an
+  first sketch round, for stage 1's cells only, never throwaway capture scripts; every later round re-captures. For an
   extraction, capture the BEFORE from main's code before the branch moves it.
   Also launch `aidex:gallery-builder-shadow` (trial BL-820): Read `references/05-gallery-builder-shadow.md`.
 - **On the hand-back:** the next consultation page. No `aidex:review-diff-opus`, no E2E, no commit.
@@ -111,18 +114,14 @@ briefing the capturing agent.
 is what gets hardened, not rebuilt. Launch together, in one message: `aidex:review-diff-opus` on
 the branch's whole diff (its review-yield row carries `hardening` in the phrase), the E2E
 specs the screen touches on `aidex:gate-runner`, and the gallery with the gate and a bare
-`meta: N/N` (Step 4, "verified" part 2). A DO NOT SHIP goes back to the same impl agent
+`meta: N/N` (Step 4, "verified" part 2), no `deferred:` cell left. A DO NOT SHIP goes back to the same impl agent
 through `SendMessage`; only what that fix touches re-runs. Then the commit to main, and
 the branch is deleted. A conditional approval ("approved, and add Edit") hardens the
 approved screen only; the added work is a follow-up on main. A dev-only mock merges as the
 kit's "Merging a dev-only mock" says. Wiring the API (Step 3b.5) comes after, on main,
 through the normal impl loop with its own review: hardening covers the screen, not the feature.
 
-**Round log:** right after opening each next consultation page, the main session appends a
-line to `<consultation dir>/rounds.tsv`, header `round`, `owner_answer_utc`, `page_open_utc`
-(ISO times with `Z`; the answer time is the owner's own message time from the session that
-received it, not a relay). Round 0 (inventory, no components) is logged as `0` and left out of
-latency comparisons. A behaviour defect that escapes hardening to the owner reverts sketch mode.
+**Round log:** one `rounds.tsv` line per page opened (kit § Round log). A behaviour defect that escapes hardening to the owner reverts sketch mode.
 
 
 ## Step 1 — Propose the level
@@ -155,7 +154,7 @@ blank cell is a state nobody decided about.
 
 Cross each state with light/dark and desktop/mobile wherever the screen is responsive.
 
-**Variants are asked at the first gallery review, not here:** asked before a gallery
+**Variants are asked at the first stage-3 review, not here:** asked before a gallery
 exists, the question is abstract and gets re-asked. Default: **one colour mode** (light-desktop), reviewed. Each other variant takes
 one of three explicit values, and each lands in one place: reviewed goes to the board's
 `--variants` list, out of scope means the run is not made for that variant (the reason stays in the plan), and
@@ -191,7 +190,7 @@ open question it is.
    A duplicate is a finding.
 4. **State matrix** — the pattern's full table from Step 2 for **each inventoried screen**, every cell filled. Add a
    "proved by" column (pixel, assertion or unit test id; harness contract § 1).
-5. **Review variants** — the value (Step 2's three) per variant, set at the first gallery
+5. **Review variants** — the value (Step 2's three) per variant, set at the first stage-3
    review, and the cells this change declares. At review time they go to the rows emitter as `--variants`, `--changed` and
    `--actual-dir` (the run's output directory); harness contract § 6.
 
