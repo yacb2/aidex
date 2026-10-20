@@ -25,7 +25,11 @@ BASE = "2d3feed0"
 # Route S heading to the next top-level heading. A file Phase D makes that agent
 # read joins this list in the same commit, or T1 under-counts.
 READING_WHOLE = ("skills/artifact/references/03-spec-grammar.md",
-                 "skills/artifact/references/04-block-vocabulary.md")
+                 "skills/artifact/references/04-block-vocabulary.md",
+                 "skills/artifact/references/06-block-bodies.md")
+# Files split out after BASE: absent at a ref, they count 0 (their bytes were still in
+# the file they came from). Any other missing file still makes the count unknown.
+READING_BORN = {"skills/artifact/references/06-block-bodies.md"}
 READING_SLICE = ("skills/artifact/references/02-local-first-artifacts.md", "## Route S")
 SOURCE_PREFIXES = ("skills/artifact/", "skills/ui-contract/", "agents/")
 BUDGET = "skills/conventions/scripts/test_skill_budget.sh"
@@ -71,6 +75,8 @@ def reading_tokens(repo: Path, ref: str) -> int | None:
     total = 0
     for path in READING_WHOLE:
         text = show(path)
+        if text is None and path in READING_BORN:
+            continue
         if text is None:
             return None
         total += len(text.encode())

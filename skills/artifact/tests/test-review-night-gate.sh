@@ -23,6 +23,9 @@ echo t > "$R/skills/artifact/tests/t.sh"; echo 'a' > "$R/skills/artifact/x.py"
 git -C "$R" add -A; git -C "$R" commit -qm fix; FIX=$(git -C "$R" rev-parse --short HEAD)
 printf 'a\nb\nc\n' > "$R/skills/artifact/x.py"; git -C "$R" commit -qam simplify; SIMP=$(git -C "$R" rev-parse --short HEAD)
 big 3000 > "$R/skills/artifact/references/04-block-vocabulary.md"; git -C "$R" commit -qam trim
+# A split after BASE: 06 is born from 03 with the same bytes, so T moves only by the trim.
+big 3600 > "$R/skills/artifact/references/03-spec-grammar.md"; big 399 > "$R/skills/artifact/references/06-block-bodies.md"
+git -C "$R" add -A; git -C "$R" commit -qm split
 echo 'exit 0' > "$R/skills/ui-contract/tests/test-gallery-rules-owner.sh"; git -C "$R" add -A; git -C "$R" commit -qm owner
 git -C "$R" checkout -qb side; echo s > "$R/skills/artifact/tests/s.sh"; git -C "$R" add -A; git -C "$R" commit -qm side
 SIDE=$(git -C "$R" rev-parse --short HEAD); git -C "$R" checkout -q -
@@ -51,6 +54,8 @@ has "bl-710: done (ui-contract SKILL.md ~4800 tokens)" good
 grep -q '^canon-load: [0-9]* -> [0-9]*$' <<<"$out" || err "canon-load line shape"
 read -r t0 t1 < <(sed -n 's/^canon-load: \([0-9]*\) -> \([0-9]*\)$/\1 \2/p' <<<"$out")
 [ "$t0" -gt "$t1" ] || err "fixture trim did not lower T ($t0 -> $t1)"
+# Exactly the trim's 1000 bytes: 06 counted at HEAD and counted as 0 at a BASE without it.
+[ $((t0 - t1)) -eq 250 ] || err "split moved T: $t0 -> $t1, expected a drop of 250 (06 not counted, or counted twice)"
 # 12k bytes of the three files plus the Route S body: ~3000. Less means a fenced
 # `## ` line cut the slice short; more means it ran past `## The quality loop`.
 [ "$t0" -ge 3000 ] && [ "$t0" -lt 4000 ] || err "T0 slice wrong: $t0, expected 3000..3999"
