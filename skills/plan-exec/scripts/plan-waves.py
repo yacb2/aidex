@@ -7,8 +7,8 @@ disjoint (a slashless name in parentheses only clashes with another phase's real
 at most three per wave; a phase with no **Files:** paths or phase-type hitl-* runs alone.
 Later waves assume every earlier wave completed. Checkpoint boxes are those under every
 heading naming Checkpoint; a phase without one is judged on every box in the file.
-A phase file is NN-<phase>.md (1-3 digits, not 00-); other digit-led names are skipped and
-named on stderr.
+A phase file is NN-<phase>.md (1-3 digits; 00-index.md is not a phase, 00-ui-contract.md is
+phase 0); other digit-led names are skipped and named on stderr.
 With a second argument `--fanout`, nothing is printed; exit 1 and a stderr line naming the
 phases and the file when a fan-out run (every dependency-ready phase launched together) would
 put two phases with a shared path, or one with no **Files:** paths, in one wave.
@@ -257,7 +257,7 @@ def main():
     plan = Path(sys.argv[1])
     if not plan.is_dir():
         die(f"{plan} is not a directory")
-    named = [f for f in sorted(plan.glob("[0-9]*.md")) if not f.name.startswith("00-")]
+    named = [f for f in sorted(plan.glob("[0-9]*.md")) if f.name != "00-index.md"]
     skipped = [f.name for f in named if not re.match(r"\d{1,3}-", f.name)]
     if skipped:
         print("plan-waves: skipped, not NN-<phase>.md: " + ", ".join(skipped), file=sys.stderr)
