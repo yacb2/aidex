@@ -57,5 +57,12 @@ grep -qF 'overrides the default with its own' "$HARNESS" \
 grep -qF 'cannot reach' "$HARNESS" \
   || fail "harness contract lost the server-fetched poller volatile-region clause (BL-818)"
 
+# 6. Staged rounds (2026-10-20): a cell left `deferred:` is a decision never made. The kit
+#    says hardening refuses it; verify-ui is what runs at hardening, so it must count it failed.
+VERIFY_UI="$SKILL_DIR/../../agents/verify-ui.md"
+grep -qF "reason: 'deferred:" "$SKILL_DIR/references/02-sketch-round-kit.md" || fail "kit lost the deferred-cell declaration"
+grep -qF 'deferred:' "$VERIFY_UI" && grep -qF 'counted in `<f>`' "$VERIFY_UI" \
+  || fail "verify-ui does not count a deferred: cell as failed"
+
 if [ "$FAILURES" -eq 0 ]; then echo "PASS: ui-contract references pinned"; exit 0; fi
 echo "FAIL: $FAILURES cell(s)"; exit 1

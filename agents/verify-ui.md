@@ -42,6 +42,10 @@ directory, and the result is not this gallery's evidence.
    (`${CLAUDE_PLUGIN_ROOT}/skills/ui-contract/references/01-harness-contract.md`, section
    "Limits the gate is known NOT to cover") and repeat the ones that apply in your report.
    A pass reported without them overstates what was checked.
+6. **Refuse a deferred cell.** Grep the gallery specs the gate ran for a not-applicable
+   reason starting `deferred:`. Each hit is a staged decision never made
+   (`skills/ui-contract/references/02-sketch-round-kit.md` § Staged rounds), not a state
+   the screen lacks: counted in `<f>` and listed under point 4 with its spec line.
 
 ## What you return
 
