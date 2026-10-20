@@ -10,6 +10,8 @@ AI coding assistants reload their context every session. As your setup grows, sk
 
 Built for [Claude Code](https://docs.anthropic.com/en/docs/claude-code), but the architecture is tool-agnostic.
 
+![Demo: /aidex:artifact turns a discussion about a database migration into a consultation page that opens locally; options are picked and the answers are copied](docs/assets/demo/aidex-artifact-demo.gif)
+
 ## Quick start
 
 ```
