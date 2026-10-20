@@ -6,5 +6,13 @@
     "name": "YACB2"
   },
   "license": "MIT",
-  "repository": "https://github.com/yacb2/aidex"
+  "repository": "https://github.com/yacb2/aidex",
+  "userConfig": {
+    "delegation_rule_core": {
+      "type": "boolean",
+      "title": "Delegation rule core",
+      "description": "At session start, print the delegation rule core (route each prompt to a routed aidex agent). Off by default.",
+      "default": false
+    }
+  }
 }
