@@ -2217,7 +2217,7 @@ try:
             "which no line declares")
 
     # F1: an outcome word wider than the panel's content widens the panel.
-    LONGW = "skills/artifact/references/03-spec-grammar.md#compare-shape"
+    LONGW = "skills/artifact/references/06-block-bodies.md#compare-shape"
     hl = holds("an outcome with one long word builds and passes the checker",
                cmp_("panel row A", "x: Uno", "outcome ver " + LONGW,
                     "panel row B", "y: Dos", "outcome ok"))

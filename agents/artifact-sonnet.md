@@ -28,7 +28,7 @@ names the artifact skill's directory; export it once, first thing:
 
 ```bash
 SKILL=<the path the brief names>     # the artifact skill's directory in the installed plugin
-ls "$SKILL/scripts/spec_build.py" "$SKILL/references/03-spec-grammar.md"
+ls "$SKILL/scripts/spec_build.py" "$SKILL/references/03-spec-grammar.md" "$SKILL/references/06-block-bodies.md"
 ```
 
 If that `ls` fails, stop and report it. Never fall back to a copy from the installed plugin
@@ -38,10 +38,11 @@ cache — it is a stale release without the current kit.
 
 Use the Read tool, whole, for each file. Never print one through Bash (`cat`, `sed`,
 `head`): a Bash result over about 30000 characters is saved to a file and only its first
-lines are shown, and `03-spec-grammar.md` and `04-block-vocabulary.md` are both over that.
+lines are shown, and `04-block-vocabulary.md` is over that.
 
 1. `$SKILL/references/03-spec-grammar.md` — the syntax: `:::` fences, `{…}` attrs, nesting.
 2. `$SKILL/references/04-block-vocabulary.md` — the closed set of block types and their attrs.
+   Then `$SKILL/references/06-block-bodies.md` — the body rules of `chart`, `diagram`, `figure`, `video`, `graph`.
 3. `$SKILL/references/02-local-first-artifacts.md` § Route S (Read with `offset`/`limit`, or the
    whole file) — the how-to, a whole worked page you can copy, the verb signatures. Read
    § Route S in full.

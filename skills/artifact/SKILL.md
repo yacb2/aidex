@@ -175,8 +175,9 @@ is for wireframes only. The table with one example per rung is
 When the request asks to show a flow, a sequence or a structure ("muéstrame el flujo", "show me how X goes"), the page carries a diagram drawn by that ladder, not only a table or prose.
 
 The how-to, with worked examples, is `references/02-local-first-artifacts.md`
-§ Route S; the syntax is `references/03-spec-grammar.md` and the closed set of
-block types is `references/04-block-vocabulary.md`.
+§ Route S; the syntax is `references/03-spec-grammar.md` (block bodies:
+`references/06-block-bodies.md`) and the closed set of block types is
+`references/04-block-vocabulary.md`.
 
 ### The quality loop: no page is handed over before it
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # test-builder-reads-fit.sh — the builder must never print a big reference through Bash.
 # A Bash result over about 30000 characters is saved to a file and only its first lines are
-# shown, so a `cat` of 03-spec-grammar.md (47 KB) or 04-block-vocabulary.md (39 KB) left the
+# shown, so a `cat` of 03-spec-grammar.md (47 KB before the 06 split) or 04-block-vocabulary.md (39 KB) left the
 # builder without the rules it was told to read (LOOP-014: 43 of 54 real runs, 10 of 10 bench
 # builders). The Read tool shows those files whole.
 #

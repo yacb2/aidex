@@ -300,7 +300,7 @@ deleted `spec-verbs-trial-…` directory. A failed run ends with `spec-verbs <ve
 
 ### The `chart` block
 
-Body, forms and refusals: `03-spec-grammar.md` § The `chart` body.
+Body, forms and refusals: `06-block-bodies.md` § The `chart` body.
 `type` is required and is `bar`, `line` or `stacked`; at most 8 series (`--s1..--s8`).
 
 ### What the spec route does NOT change

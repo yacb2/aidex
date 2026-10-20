@@ -1,7 +1,7 @@
 ::: masthead {eyebrow="render-probe · tree" byline="aidex"}
 # Un badge cruza el borde de su caja
 
-El ejemplo del canon de la forma `tree` (03-spec-grammar.md): el badge se dibuja a
+El ejemplo del canon de la forma `tree` (06-block-bodies.md): el badge se dibuja a
 propósito sobre el borde superior de su caja, encima de un relleno del color de la página.
 :::
 

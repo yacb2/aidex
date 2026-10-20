@@ -1055,7 +1055,7 @@ try:
                  encoding="utf-8").read()
     row = next((ln for ln in vocab.splitlines() if ln.startswith("| `chart` |")),
                "")
-    grammar = open(os.path.join(refs, "03-spec-grammar.md"),
+    bodies = open(os.path.join(refs, "06-block-bodies.md"),
                    encoding="utf-8").read()
     local = open(os.path.join(refs, "02-local-first-artifacts.md"),
                  encoding="utf-8").read()
@@ -1066,8 +1066,8 @@ try:
         check("...and in 02-local-first-artifacts.md's `type` sentence",
               said is not None and "`%s`" % kind in said.group(1),
               said.group(0) if said else "no `type` sentence")
-        check("...and in 03-spec-grammar.md § The `chart` body",
-              "type=%s" % kind in grammar, kind)
+        check("...and in 06-block-bodies.md § The `chart` body",
+              "type=%s" % kind in bodies, kind)
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

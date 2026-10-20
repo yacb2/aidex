@@ -65,7 +65,7 @@ mk nothemes.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\"
 mk extcss.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><link rel=\"stylesheet\" href=\"https://cdn.example/x.css\"><style>@media (prefers-color-scheme: dark){}</style>"
 mk extjs.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><script src=\"https://cdn.example/x.js\"></script><style>@media (prefers-color-scheme: dark){}</style>"
 mk extimg.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><img src=\"https://example.com/x.png\">"
-# A <video> counts as the page's visual like an <img> (03-spec-grammar.md § The
+# A <video> counts as the page's visual like an <img> (06-block-bodies.md § The
 # `video` block), so a remote one breaks the file the same way, by its own src
 # or by a <source> child.
 mk extvideo.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><video src=\"https://cdn.example.com/r1.mp4\"></video>"

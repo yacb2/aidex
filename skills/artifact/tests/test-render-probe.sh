@@ -454,7 +454,7 @@ hit="$(grep -E '^DEFECT outline-over-text\.html .*(outclear|card|librefix|cardfi
 [[ -z "$hit" ]] && ok "an outline around a label with clearance, and a filled card, are not outline-over-text" || bad "$hit"
 
 # The diagram engine's tree badge straddles its box's top edge on purpose, over a page-ground
-# fill (diagram_layout.py:181-184, 03-spec-grammar.md:613): an unfilled stroked rect with a
+# fill (diagram_layout.py:181-184, 06-block-bodies.md, § The `tree` shape): an unfilled stroked rect with a
 # text crossing it, but the text sits on a filled pill drawn after the box.
 ( cd "$TMP" && python3 "$SCRIPTS/spec_build.py" "$FIX/tree-badge.spec.md" -o "$TMP/tree-badge.html" ) >/dev/null 2>&1 \
   && ok "built tree-badge from its spec" || bad "spec_build.py failed on tree-badge.spec.md"

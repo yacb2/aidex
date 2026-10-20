@@ -22,7 +22,7 @@ highest rung that carries the figure's meaning without loss**:
 
 Drop a rung only when the one above loses something the page relies on, and say what in
 the caption's neighbourhood. A rung-3 drawing is aidex:figure-sonnet's job: an `.svg` that
-passes the `figure` block's rules (`03-spec-grammar.md` § The `figure` block), embedded
+passes the `figure` block's rules (`06-block-bodies.md` § The `figure` block), embedded
 with `::: figure {src="…" title="…"}`. Nobody inlines SVG in a spec.
 
 **A screenshot is cropped only when it focuses on one thing (BL-763, owner 2026-10-11).**
