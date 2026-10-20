@@ -632,6 +632,37 @@ for args in "" "--slug dead"; do
   hasnt "partial listing ${args:-default}: no volume rm" "docker volume rm"
 done
 
+echo "== every printed rmi / network rm carries a one-line reason =="
+# Layer: script-level, docker shim (no daemon). A suggestion with no stated basis asks the
+# reader to trust the sweep; the comment line above the command says what it rests on.
+mkdir -p "$TMP/wbin"
+cat > "$TMP/wbin/docker" <<'SHIM'
+#!/usr/bin/env bash
+case "$*" in
+  "images -f dangling=true -q") echo d1 ;;
+  "inspect -f"*d1) echo myproj-wt-gonea ;;
+  "images -f dangling=true -f label="*) echo d1 ;;
+  "image inspect"*) echo myproj-wt-gonec ;;
+  "network ls"*) echo myproj-wt-goneb_default ;;
+  "network inspect"*) echo 0 ;;
+  images*) echo myproj-wt-gonec-web ;;
+esac
+exit 0
+SHIM
+chmod +x "$TMP/wbin/docker"
+out="$( cd "$ROOT" && PATH="$TMP/wbin:$PATH" bash "$SCRIPT" 2>&1 )"
+# grep -F splits a multi-line pattern into alternatives, so the line above the command is read.
+above() { grep -Fx -B1 -- "$2" <<< "$out" | head -1 | grep -Fxq -- "$3" && pass "$1" || fail "$1: line above '$2' is not '$3' in: $out"; }
+above "reason: tagged image" "  docker rmi myproj-wt-gonec-web" "  # no live worktree or running container for myproj-wt-gonec; the image rebuilds from its compose file"
+above "reason: dangling layer" "  docker rmi d1" "  # no live worktree or running container for myproj-wt-gonea; the image rebuilds from its compose file"
+above "reason: network" "  docker network rm myproj-wt-goneb_default" "  # no live worktree or running container for myproj-wt-goneb; the network has no endpoints"
+hasnt "reason: still no volume rm" "volume rm"
+hasnt "reason: still no down -v" "down -v"
+# Under --slug the sweep cannot claim the containers are gone, so it names the scope instead.
+out="$( cd "$ROOT" && PATH="$TMP/wbin:$PATH" bash "$SCRIPT" --slug gonec 2>&1 )"
+above "reason under --slug: names the scope, not an empty project" "  docker rmi myproj-wt-gonec-web" "  # belongs to myproj-wt-gonec (--slug); the image rebuilds from its compose file"
+hasnt "reason under --slug: no claim that containers are gone" "no live worktree or running container"
+
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
 [[ "$FAIL" -eq 0 ]]

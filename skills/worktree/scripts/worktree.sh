@@ -26,8 +26,11 @@
 #   up   : bring an EXISTING worktree's stack back on its recorded slot. Without
 #          it, a worktree whose stack is down has no way back and the directory
 #          is stranded — the state a failed `down` leaves behind.
-#   down : tear the stack down INCLUDING what compose does not reclaim, verify
-#          nothing is left attributable to the slug, then remove the directory.
+#   down : tear the stack down and reclaim what compose does not (untagged
+#          layers, the network), verify nothing else is left attributable to the
+#          slug, then remove the directory. A volume that is name-pinned or
+#          mounted by another project is KEPT: down runs without -v and warns
+#          "keeping volume".
 #          --force discards uncommitted work (git refuses otherwise). NEVER pass
 #          it without the user asking: it destroys work no one can recover.
 #          Host processes still holding the directory are REPORTED, never killed;

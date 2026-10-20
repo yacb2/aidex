@@ -81,7 +81,7 @@ Dispatch by first argument:
 | `/aidex:worktree status` | Same as no args (explicit alias) |
 | `/aidex:worktree bootstrap` | Investigate topology, verify the stack is isolatable, write `config.env` |
 | `/aidex:worktree new <slug> --branch <b> [--base <commit-ish>]` | Create a fully isolated worktree (`scripts/worktree.sh new`). The branch forks from `--base`, else the default branch's tip, never the ambient checkout; the report names it (`base feat/x (+1 over main)`). For per-repo SHAs, pre-create the branches (`git -C <repo> branch <b> <sha>`): an existing branch is used at its own tip, and `--base` with an existing branch is refused |
-| `/aidex:worktree down <slug>` | Tear it down completely and verify nothing remains. Add `--delete-branch` to also delete the branch `new` created (recorded in `.wt-branch`; a checkout that moved on is skipped, never deleted) in each participant repo — `git branch -d`, which refuses an unmerged branch, so it is its own gate. Off by default: the branch is the only trace a torn-down worktree leaves. It never merges anything. |
+| `/aidex:worktree down <slug>` | Tear the stack down, keeping any volume that is name-pinned or mounted by another project (`down -v` only when none is, with a `keeping volume` warning otherwise), then verify nothing else attributable remains. Add `--delete-branch` to also delete the branch `new` created (recorded in `.wt-branch`; a checkout that moved on is skipped, never deleted) in each participant repo — `git branch -d`, which refuses an unmerged branch, so it is its own gate. Off by default: the branch is the only trace a torn-down worktree leaves. It never merges anything. |
 | `/aidex:worktree list` | Every worktree of this project: slot, branch, stack state |
 | `bash "${CLAUDE_SKILL_DIR}/scripts/test-db-preflight.sh" --db <test-db> [--port P]` | **Read-only** check before starting a suite: is the test database `clear` (0), `BUSY` — another run holds it (1), `STALE` — an interrupted run left it behind (2), or `UNDETERMINED` (4). Never drops or terminates anything. Run it when a suite may already be in flight; the two failure states need opposite advice, and both otherwise surface as an opaque traceback |
 
@@ -236,7 +236,7 @@ with no container to read as `NOT JUDGED volume:`. The project line is always `d
 without `-v` (under `--slug` too): run from the workspace root, `-p <project> down -v`
 would remove the main stack's name:-pinned volume whenever nothing mounts it. A shared
 volume or one not named `<project>_*` is named on a `# no -v:` line. When the container
-listing failed, even partway, no removal command is printed at all (BL-857).
+listing failed, even partway, no removal command is printed at all (BL-857). Every `docker rmi` and `docker network rm` line carries a one-line `# ...` reason above it: `# no live worktree or running container for <project>; the image rebuilds from its compose file` (or `...; the network has no endpoints`), and under `--slug`, where containers may still exist, `# belongs to <project> (--slug); ...`. The commands are still only printed, never run.
 
 ### Doc-shape check
 
