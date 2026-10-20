@@ -652,7 +652,7 @@ SHIM
 chmod +x "$TMP/wbin/docker"
 out="$( cd "$ROOT" && PATH="$TMP/wbin:$PATH" bash "$SCRIPT" 2>&1 )"
 # grep -F splits a multi-line pattern into alternatives, so the line above the command is read.
-above() { grep -Fx -B1 -- "$2" <<< "$out" | head -1 | grep -Fxq -- "$3" && pass "$1" || fail "$1: line above '$2' is not '$3' in: $out"; }
+above() { grep -Fx -B1 -- "$2" <<< "$out" | sed -n 1p | grep -Fx -- "$3" >/dev/null && pass "$1" || fail "$1: line above '$2' is not '$3' in: $out"; }
 above "reason: tagged image" "  docker rmi myproj-wt-gonec-web" "  # no live worktree or running container for myproj-wt-gonec; the image rebuilds from its compose file"
 above "reason: dangling layer" "  docker rmi d1" "  # no live worktree or running container for myproj-wt-gonea; the image rebuilds from its compose file"
 above "reason: network" "  docker network rm myproj-wt-goneb_default" "  # no live worktree or running container for myproj-wt-goneb; the network has no endpoints"
