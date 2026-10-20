@@ -296,7 +296,8 @@ not `proposal=yes`), exactly `key — title` or `key — title (verdict)`, stays
 is not rendered: the fold already shows that outcome (BL-841). Any other row renders,
 whatever its key. A ledger left with no rendered row is not drawn, nor is a `section` left
 with only its head, except `#sec-ledger` on a page with no masthead, where it is the
-Decided section's only anchor. Either way a `ledger-rows-hidden` build warning names the
+Decided section's only anchor once nothing is open (while a question is open the section
+follows the last open block, BL-860) and `decided-section-anchor` requires it on every round. Either way a `ledger-rows-hidden` build warning names the
 section and the hidden rows, since its heading and eyebrow are the author's text.
 
 ### `verdict`

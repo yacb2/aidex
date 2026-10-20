@@ -584,11 +584,22 @@
       return sec;
     }
 
-    /* After the ledger when there is one, else after the header: the reader
-     * meets what is settled before what is still being asked, and the open
-     * blocks keep the run of the page to themselves. */
+    /* After the last open question's top-level block (BL-860): the open
+     * questions lead the page and the fold is the bottom section of the round,
+     * before the notes box and any reference matter. With nothing open, after
+     * the ledger when there is one, else after the header. Always a child of
+     * .main, never inside a container, so the rail lists it once. An open item
+     * inside a unit moves into the fold with it, so it is no anchor: the
+     * section would be inserted into itself. */
     var after = document.getElementById('sec-ledger') ||
                 document.querySelector('.main > header');
+    var main = document.querySelector('.main');
+    var last = items.filter(function (el) {
+      return !isSettled(el) && !el.classList.contains('consult-notes') &&
+        !units.some(function (u) { return u.node.contains(el); });
+    }).pop();
+    while (last && last.parentNode !== main) last = last.parentNode;
+    if (last) after = last;
     function place(sec) {
       if (after && after.parentNode) after.parentNode.insertBefore(sec, after.nextSibling);
       else (document.querySelector('.main') || document.body).appendChild(sec);

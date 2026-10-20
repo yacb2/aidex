@@ -97,9 +97,12 @@ decided-section-anchor
     `.consult-group`, or a group whose every consult item is decided, is a unit
     the composer moves into the collapsed "decided" section. A page with at
     least one such unit has an element `#sec-ledger` or a <header> whose parent
-    carries class `main`: the section goes after that anchor, and without one
-    it is appended at the end of `.main`, after the general notes. A decided
-    item in a half-open group folds in place and needs no anchor.
+    carries class `main`. While a question is open the section goes after the
+    last open block and uses no anchor (BL-860); once nothing is open it goes
+    after that anchor, and without one it is appended at the end of `.main`,
+    after the general notes. The rule asks for the anchor on every such page,
+    open questions or not, since the round that settles the last one needs it.
+    A decided item in a half-open group folds in place and needs no anchor.
 
 img-src-portable
     No <img> `src` or `srcset` candidate with the `file:` scheme or an absolute
@@ -773,8 +776,8 @@ def check_decided_section_anchor(path, html_text):
         ((len(decided) - dropped, "decided"), (dropped, "dropped")) if k)
     return [("decided-section-anchor", decided[0].line,
              "%s item(s) and no anchor for their section: neither "
-             "#sec-ledger nor a <header> directly under .main, so the composer "
-             "appends them after the general notes" % counts)]
+             "#sec-ledger nor a <header> directly under .main, so once nothing is "
+             "open the composer appends them after the general notes" % counts)]
 
 
 # --- 10. img-src-portable -------------------------------------------------------

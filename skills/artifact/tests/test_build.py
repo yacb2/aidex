@@ -893,7 +893,8 @@ try:
           any(w[0] == "ledger-rows-hidden" and "sec-ledger" in w[2] and "Q5" in w[2]
               for w in warned), repr(warned))
     # With no masthead there is no <header>, and #sec-ledger is the only anchor
-    # the composer's Decided section has (check-artifact decided-section-anchor):
+    # the composer's Decided section has once nothing is open (BL-860), which
+    # check-artifact decided-section-anchor requires on every round:
     # the section stays there, warned, so the page still passes the contract.
     nspec = os.path.join(tmp, "secledger-nomast.spec.md")
     with open(nspec, "w", encoding="utf-8") as fh:

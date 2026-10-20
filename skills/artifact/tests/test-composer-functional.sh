@@ -1325,6 +1325,69 @@ tk="$(k858_title inplace)"
 [[ "$tk" == *"K858|DEC=0|EYEBROW=|ENTRIES=0|INPLACE=6|"* ]] \
   || fail "BL-380/BL-858: a page whose settled items all fold in place has no Decidido section and no eyebrow: $tk"
 
+# ---- BL-860: open questions lead, the resolved fold follows the last open group ----
+# The builder emits blocks as children of .main, after the ledger. The fold of settled
+# questions used to be inserted after the ledger, ABOVE the open blocks, so on a long
+# round the open questions fell below the first screen (consultation.md calls it the
+# bottom section; the grader's line 1 deducts a page that does not lead with them).
+# Rows: open blocks present -> fold (then dropped) right after the last open block, before
+# the notes box and the appendix, and the rail agrees, even when a settled block (G5) is the
+# page's last; nothing open -> the fold keeps its place after the ledger; a loose settled item
+# (P1) holding an open one (C1) after the last open block moves with its unit, so C1 is not the
+# anchor (it threw HierarchyRequestError, the section inserted into itself). Layer: browser, because the composer moves the nodes at load.
+order_title() {  # order_title <open: 1|0|2, 2 = 1 plus the nested P1> -> the probe's <title>
+  local q=' data-free' nest=''
+  [[ $1 == 0 ]] && q=' data-free data-decided="Option A"'
+  [[ $1 == 2 ]] && nest='<section class="consult-item" data-id="P1" data-title="Suelta" data-free data-decided="Si"><h3><span class="consult-id">P1</span>Siete?</h3><textarea></textarea><section class="consult-item" data-id="C1" data-title="Anidada" data-free><h3><span class="consult-id">C1</span>Ocho?</h3><textarea></textarea></section></section>'
+  printf '%s\n' '<meta name="consult-visual" content="none: a layout probe, nothing to draw">' \
+    '<div class="page"><main class="main"><header><p class="eyebrow">PROBE</p><h1>Order</h1></header>' \
+    '<section id="sec-ledger"><div class="sec-head"><h2>Ya decidido</h2></div><div class="ledger"><div><span class="k">d1</span><span class="v"><b>Hecho.</b> x</span></div></div></section>' \
+    '<section class="consult-group" id="G1" data-id="G1" data-title="Uno"><div class="sec-head"><h2>Uno</h2></div><p>Contexto.</p><section class="consult-item" data-id="Q1" data-title="Abierta uno"'"$q"'><h3><span class="consult-id">Q1</span>Una?</h3><textarea></textarea></section></section>' \
+    '<section class="consult-group" id="G2" data-id="G2" data-title="Dos"><div class="sec-head"><h2>Dos</h2></div><p>Contexto.</p><section class="consult-item" data-id="D1" data-title="Resuelta" data-decided="Option A"><h3><span class="consult-id">D1</span>Dos?</h3><div class="opts one"><label><input type="radio" name="D1" data-label="Option A" checked><span>Option A</span></label></div><textarea></textarea></section></section>' \
+    '<section class="consult-group" id="G3" data-id="G3" data-title="Tres"><div class="sec-head"><h2>Tres</h2></div><p>Contexto.</p><section class="consult-item" data-id="D3" data-title="Resuelta tres" data-decided="Option A"><h3><span class="consult-id">D3</span>Tres?</h3><div class="opts one"><label><input type="radio" name="D3" data-label="Option A" checked><span>Option A</span></label></div><textarea></textarea></section><section class="consult-item" data-id="Q2" data-title="Abierta dos"'"$q"'><h3><span class="consult-id">Q2</span>Cuatro?</h3><textarea></textarea></section></section>' \
+    '<section class="consult-group" id="G4" data-id="G4" data-title="Cuatro"><div class="sec-head"><h2>Cuatro</h2></div><p>Contexto.</p><section class="consult-item" data-id="X1" data-title="Fuera" data-decided="Descartada: ya no aplica" data-dropped="ya no aplica"><h3><span class="consult-id">X1</span>Cinco?</h3><textarea></textarea></section></section>' \
+    '<section class="consult-group" id="G5" data-id="G5" data-title="Cinco"><div class="sec-head"><h2>Cinco</h2></div><p>Contexto.</p><section class="consult-item" data-id="D5" data-title="Resuelta cinco" data-free data-decided="Option A"><h3><span class="consult-id">D5</span>Seis?</h3><textarea></textarea></section></section>' \
+    "$nest" \
+    '<section class="consult-item consult-notes" id="notes" data-id="notes" data-title="Notas generales"><h3>Notas generales</h3><textarea></textarea></section>' \
+    '<section id="sec-ref"><div class="sec-head"><h2>Referencias</h2></div><p>Anexo.</p></section>' \
+    '<div class="endbar"><button type="button" id="consult-copy-end">Copiar</button><span class="consult-status" id="consult-status-end"></span></div>' \
+    '</main><aside class="rail"><p class="railhead">Contenido</p><nav class="raillist" id="raillist"></nav>' \
+    '<div class="consult-bar"><button type="button" id="consult-copy">Copiar</button><span class="consult-status" id="consult-status"></span></div></aside></div>' \
+    '<script>var oerr = []; window.addEventListener("error", function (e) { oerr.push(e.message); });' \
+    'window.addEventListener("load", function () {' \
+    ' var ids = [].map.call(document.querySelectorAll(".main > section"), function (s) { return s.id || s.dataset.id; });' \
+    ' var rail = [].map.call(document.querySelectorAll("#raillist a.railitem.sec"), function (a) { return a.getAttribute("href"); });' \
+    ' var c1 = document.querySelector("[data-id=C1]");' \
+    ' document.title = "ORDER|MAIN=" + ids.join(",") + "|RAIL=" + rail.join(",") + "|ERR=" + oerr.join(";") +' \
+    '   "|ITEMS=" + document.querySelectorAll("#raillist a").length + "|C1=" + (c1 && c1.isConnected ? "on" : "off") + "|END";' \
+    '});</script>' > "$TMP/obody.html"
+  if [[ $1 == 2 ]]; then  # loose items fail consult-shape, so this page inlines the kit (the ids_page way)
+    { printf '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>order</title><style>\n'
+      cat "$SKILL/assets/artifact-kit/tokens.css" "$SKILL/assets/artifact-kit/components.css"
+      printf '</style></head><body>\n'; cat "$TMP/obody.html"
+      printf '<script>\n'; cat "$SKILL/assets/artifact-kit/composer.js"; printf '</script>\n</body></html>\n'
+    } > "$TMP/reports/order-$1.html"
+  else
+    bash "$WRAP" --title "order" --lang es --out "$TMP/reports/order-$1.html" < "$TMP/obody.html" > "$TMP/owrap.log" 2>&1 \
+      || fail "BL-860: the fold-order probe ($1) failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/owrap.log" | sed -n 1,4p)"
+  fi
+  CHROME_WINDOW=1280,900 chrome_dump "$TMP/odom.html" "file://$TMP/reports/order-$1.html" 45 || true
+  grep -oE '<title>[^<]*</title>' "$TMP/odom.html" | sed -n 1p
+}
+to="$(order_title 1)"
+[[ "$to" == *"ORDER|MAIN=sec-ledger,G1,G3,sec-decided,sec-dropped,notes,sec-ref|"* ]] \
+  || fail "BL-860: with open blocks the resolved fold must follow the last open block (G3), before the notes and the appendix: $to"
+[[ "$to" == *"|RAIL=#sec-ledger,#G1,#G3,#sec-decided,#sec-dropped,#sec-ref|"* ]] \
+  || fail "BL-860: the rail must list the resolved fold after the open blocks, as the body has it: $to"
+to="$(order_title 0)"
+[[ "$to" == *"ORDER|MAIN=sec-ledger,sec-decided,sec-dropped,notes,sec-ref|"* ]] \
+  || fail "BL-860: with nothing open the resolved fold keeps its place right after the ledger: $to"
+to="$(order_title 2)"
+[[ "$to" == *"ORDER|MAIN=sec-ledger,G1,G3,sec-decided,sec-dropped,notes,sec-ref|RAIL=#sec-ledger,#G1,#G3,#sec-decided,#sec-dropped,#sec-ref|ERR=|"* ]] \
+  || fail "BL-860: an open item nested in a settled loose item moves with it, so the fold still follows G3 and the page loads without an error: $to"
+[[ "$to" == *"|ITEMS="[1-9]*"|C1=on|END"* ]] \
+  || fail "BL-860: with the nested item the rail must still be drawn and C1 stay on the page, inside the fold: $to"
+
 # ---- BL-629: a decided row carries the answer to the owner's note, visible while folded ----
 # The owner approved a row and attached a worry; the next round's decided row folds, so the
 # reply was hidden. `answer` on a decided row must show inside the folded summary, the row
@@ -3812,7 +3875,7 @@ pnn="${tm#*PASTENN=}"; pnn="${pnn%%|ENDNN*}"
 # wrapped: the source checks refuse these shapes, and this cell is about the
 # composer's answer to them. Two pages, with and without a rail, because the
 # two item-id paths are separate code. With a rail, the settled block W5 is
-# moved into the Decided section: no rail entry (BL-373), but it gets its id so a deep link lands (C-c05). Each page loads twice on one profile:
+# moved into the Decided section, which follows the open blocks (BL-860), so W5 lists after W3: no rail entry (BL-373), but it gets its id so a deep link lands (C-c05). Each page loads twice on one profile:
 # ?fill types into W2 so the second load restores it and draws the banner.
 kit="$SKILL/assets/artifact-kit"
 ids_page() {  # ids_page <out> <rail-markup>
@@ -3888,14 +3951,14 @@ ti="$(ids_run "$TMP/reports/ids.html")"
   || fail "group-item-id-collision: the composer gave two elements one id (a block's id, an authored anchor, a nested block's data-id or a kit id taken again): $ti"
 [[ "$ti" == *"|LAND=W1:ok,W4:ok,W2:ok,W3:ok,notes:ok|"* ]] \
   || fail "group-item-id-collision: an item's rail link does not land on the item: $ti"
-[[ "$ti" == *"|IDS=W5=W5,W1=W1-2,W4=W4-2,W2=W2,W3=W3-2,notes=notes|"* ]] \
+[[ "$ti" == *"|IDS=W1=W1-2,W4=W4-2,W2=W2,W3=W3-2,W5=W5,notes=notes|"* ]] \
   || fail "group-item-id-collision: an item did not get its data-id, or the first free suffix when that was taken: $ti"
 [[ "$ti" == *"$kept"* ]] \
   || fail "group-item-id-collision: an authored holder lost its id, or the kit chrome was not drawn: $ti"
 ti="$(ids_run "$TMP/reports/ids-norail.html")"
 [[ "$ti" == *"IDS|DUP=|"* ]] \
   || fail "group-item-id-collision: with no rail, the composer gave two elements one id: $ti"
-[[ "$ti" == *"|IDS=W5=W5,W1=W1-2,W4=W4-2,W2=W2,W3=W3,notes=notes|"* ]] \
+[[ "$ti" == *"|IDS=W1=W1-2,W4=W4-2,W2=W2,W3=W3,W5=W5,notes=notes|"* ]] \
   || fail "group-item-id-collision: with no rail, an item did not get its data-id or the first free suffix: $ti"
 [[ "$ti" == *"$kept"* ]] \
   || fail "group-item-id-collision: with no rail, an authored holder lost its id, or the kit chrome was not drawn: $ti"
