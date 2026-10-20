@@ -18,7 +18,7 @@
 //   page-hscroll      the page scrolls horizontally
 //   raster-shrunk     at 390 px, a screenshot-sized raster <img> (natural width >= 800 px) drawn
 //                     at under half its natural width, so text inside it cannot be read; not
-//                     one inside a kit zoom button (`[data-zoom]`)
+//                     one inside a kit zoom button (`[data-zoom]`) or a `figure[data-viewer]` (zoom=yes)
 // and for the three render contract classes of the defect registry (LOOP-006):
 //   text-style-drift          a kit class that declares a font-size renders at another
 //                             size (a descendant rule such as `.consult-item p` beat it),
@@ -238,14 +238,15 @@ const check = () => {
   // census names is a 1280 px one) and drawn under half of it. At 390 px the column is ~358 px,
   // so any image >= 800 px is already drawn at <= 0.45x: the WIDTH floor is what decides on a
   // kit page and the ratio never does; it is kept for a narrower-than-kit or wider-viewport page.
-  // A figure the kit turned into a zoom button (`[data-zoom]`, composer.js, BL-466) opens the
+  // A figure the kit turned into a zoom button (`[data-zoom]`, composer.js, BL-466), or one the spec marked
+  // `zoom=yes` (`figure[data-viewer]`, BL-859, read statically so a page without the composer is judged the same), opens the
   // image at full size, so a shrunk grid thumbnail there is the designed state, not a defect.
   const RASTER_MIN_NATURAL = 800, RASTER_MAX_RATIO = 0.5, RASTER_VIEWPORT_MAX = 480;
   if (innerWidth <= RASTER_VIEWPORT_MAX) {
     const raster = /\.(png|jpe?g|webp|gif)(\?|#|$)|^data:image\/(png|jpe?g|webp|gif)[;,]/i;
     for (const im of document.body.querySelectorAll('img')) {
       const src = im.currentSrc || im.getAttribute('src') || '';
-      if (!vis(im) || im.closest('svg,[data-zoom]') || !raster.test(src) || !im.complete) continue;
+      if (!vis(im) || im.closest('svg,[data-zoom],figure[data-viewer]') || !raster.test(src) || !im.complete) continue;
       const nat = im.naturalWidth, w = im.getBoundingClientRect().width;
       if (nat < RASTER_MIN_NATURAL || !w || w / nat >= RASTER_MAX_RATIO) continue;
       // Named so the fixer can find it: a real page embeds every capture as a data URI, so the

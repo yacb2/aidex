@@ -179,6 +179,32 @@ def run_highlight(tmp):
           and 'top:66.667%' in grid, grid[:1200])
 
 
+def run_zoom(tmp):
+    print("== zoom=yes (BL-859): the figure is marked for the Ampliar viewer ==")
+    write(tmp, "figures/big.png", png_of(200, 100))
+    write(tmp, "figures/a.svg", SVG)
+    def one(extra, src="figures/big.png"):
+        alt = ' alt="la lista"' if src.endswith(".png") else ""
+        return '::: figure {src="%s"%s %s}\n:::\n' % (src, alt, extra)
+    html = build(one('zoom=yes'), base_dir=tmp)
+    check("page-level png with zoom=yes: the <figure> carries data-viewer",
+          "<figure data-viewer>" in html, html[:200])
+    html = build(one('zoom=true', "figures/a.svg"), base_dir=tmp)
+    check("page-level svg with zoom=true: data-viewer too", "<figure data-viewer" in html, html[:200])
+    html = build(one(''), base_dir=tmp)
+    check("no zoom option: no data-viewer on a page-level figure", "data-viewer" not in html, html[:200])
+    item = ('::: item {#Q1 title="T"}\n¿Cuál?\n\n%s\n- A — uno\n- B — dos\n:::\n'
+            % one('zoom=yes'))
+    html = build(item, base_dir=tmp)
+    check("zoom=yes inside an item: data-viewer written once, not doubled",
+          html.count("data-viewer") == 1, html[:400])
+    html = build(item.replace(" zoom=yes", ""), base_dir=tmp)
+    check("a lone figure of an item without zoom still gets data-viewer from the item",
+          html.count("data-viewer") == 1, html[:400])
+    for bad in ("zoom=no", 'zoom=""', "zoom=maybe", "zoom=Yes"):
+        refused("%s is refused, naming the figure and the values" % bad,
+                one(bad), tmp, 1, "`figure` zoom=", "yes")
+
 
 def main():
     tmp = tempfile.mkdtemp(prefix="spec-figure-")
@@ -186,6 +212,7 @@ def main():
         run(tmp)
         run_shots(tmp)
         run_highlight(tmp)
+        run_zoom(tmp)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     if failures:

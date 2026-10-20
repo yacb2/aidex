@@ -58,6 +58,9 @@ open(d + "/page.spec.md", "w", encoding="utf-8").write('''::: masthead {visual="
 One item per figure shape.
 :::
 
+::: figure {#Zp src="lone.png" alt="de pagina" title="Captura fuera de un item" zoom=yes}
+:::
+
 ::: group {#G title="Grupo"}
 ::: item {#Q1 title="Galeria de 8"}
 ¿Cual captura es la correcta?
@@ -196,6 +199,8 @@ check() {  # check <python expression over d> <label>
   then ok "$2"; else fail "$2: $json"; fi
 }
 for w in w1280 w390; do
+  check "d['$w']['markers']['pageZoom'] == 'button' and d['$w']['pageZoom']['open'] and d['$w']['pageZoom']['imgShown'] and d['$w']['pageZoom']['cap'] == 'Captura fuera de un item'" \
+    "$w: a zoom=yes figure outside any item gets Ampliar and opens the viewer (BL-859)"
   check "d['$w']['markers']['lonePng'] == 'button' and d['$w']['lonePng']['open'] and d['$w']['lonePng']['imgShown'] and d['$w']['lonePng']['tile'] == '1 / 1'" \
     "$w: a lone png gets Ampliar and opens the viewer"
   check "d['$w']['markers']['loneSvg'] == 'button' and d['$w']['markers']['label'] == '\"Ampliar\"' and d['$w']['loneSvg']['open'] and d['$w']['loneSvg']['svgShown'] and not d['$w']['loneSvg']['imgShown']" \

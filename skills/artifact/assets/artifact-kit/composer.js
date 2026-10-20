@@ -2261,7 +2261,7 @@
     var groups = [].slice.call(document.querySelectorAll('.consult-group'))
       .filter(function (g) { return (g.getAttribute('data-tiles') || '').trim(); });
     var shots = [].slice.call(document.querySelectorAll(
-      '.consult-item .gal.shots figure, .consult-item figure[data-viewer]')).filter(hasPicture);
+      '.consult-item .gal.shots figure, figure[data-viewer]')).filter(hasPicture);
     if (!rows.length && !groups.length && !shots.length) return;
 
     /* ---- the dialog ---- */
@@ -2698,7 +2698,7 @@
      * tile, so a mark there could never be redrawn or opened (BL-655). */
     var MARK_LINE = /^\[mark (\S+) (\d{1,3}(?:\.\d)?),(\d{1,3}(?:\.\d)?) (\d{1,3}(?:\.\d)?)x(\d{1,3}(?:\.\d)?)\](?: (.*))?$/;
 
-    function marksBox(row) { return row.querySelector('textarea.kit-marks'); }
+    function marksBox(row) { return row ? row.querySelector('textarea.kit-marks') : null; }   /* a zoom=yes figure outside any item has no row */
 
     /* ---- the keyboard draft ----
      * The Mark button puts a 20 x 20 region in the middle of the image;
@@ -2919,7 +2919,7 @@
       var row = opener.closest('.consult-item');
       var tile = opener.getAttribute('data-tile');
       /* Parked first: a disabled button drops the focus out of the dialog. */
-      var noMark = isDecided(row) || !marksBox(row) || dlg.classList.contains('shots');
+      var noMark = !row || isDecided(row) || !marksBox(row) || dlg.classList.contains('shots');
       mlayer.classList.toggle('readonly', noMark);
       if (noMark && document.activeElement === bMark) dlg.focus();
       bMark.disabled = noMark;

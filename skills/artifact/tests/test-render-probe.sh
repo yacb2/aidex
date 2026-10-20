@@ -725,6 +725,7 @@ echo "== a screenshot-sized raster drawn at less than half its width (LOOP-012 P
 python3 "$HERE/png_fixture.py" "$TMP/shrunk.png" 1600 900 110
 python3 "$HERE/png_fixture.py" "$TMP/small.png" 780 400 120
 python3 "$HERE/png_fixture.py" "$TMP/zoomable.png" 1600 900 130
+python3 "$HERE/png_fixture.py" "$TMP/viewer.png" 1600 900 140
 out="$(bash "$PROBE" "$TMP/raster-shrunk.html" 2>&1)"; rc=$?
 [[ $rc -eq 1 ]] && ok "raster-shrunk exits 1" || bad "raster-shrunk exit $rc, expected 1: $out"
 line="$(grep -E '^DEFECT raster-shrunk\.html @390px raster-shrunk: ' <<<"$out" || true)"
@@ -736,8 +737,8 @@ grep -qE '^DEFECT raster-shrunk\.html @390px raster-shrunk: img #[0-9]+ "Captura
   && ok "a data-URI raster is raster-shrunk, named by ordinal, alt and caption" || bad "no named data-URI raster-shrunk at 390px in: $out"
 hit="$(grep -E '^DEFECT raster-shrunk\.html @1280px raster-shrunk: ' <<<"$out" || true)"
 [[ -z "$hit" ]] && ok "raster-shrunk is a 390 px finding only" || bad "$hit"
-hit="$(grep -E '^DEFECT raster-shrunk\.html @[0-9]+px raster-shrunk: .*(small|zoomable)\.png|^DEFECT raster-shrunk\.html @[0-9]+px raster-shrunk: .*Dibujo' <<<"$out" || true)"
-[[ -z "$hit" ]] && ok "a raster under 800 px, one with the zoom button and an svg are not raster-shrunk" || bad "$hit"
+hit="$(grep -E '^DEFECT raster-shrunk\.html @[0-9]+px raster-shrunk: .*(small|zoomable|viewer)\.png|^DEFECT raster-shrunk\.html @[0-9]+px raster-shrunk: .*Dibujo' <<<"$out" || true)"
+[[ -z "$hit" ]] && ok "a raster under 800 px, one with the zoom button, one in a data-viewer figure (BL-859) and an svg are not raster-shrunk" || bad "$hit"
 
 echo "== a table that scrolls sideways carries a visible notice (LOOP-012 QA, table-scroll-cue) =="
 out="$(bash "$PROBE" "$TMP/table-scroll-cue.html" 2>&1)"; rc=$?

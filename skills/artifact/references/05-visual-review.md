@@ -23,7 +23,7 @@ the HTML, not the builder's reasoning. A builder who grades its own page approve
 outside its svg, svg text drawn under 11 px at 390 px, an unfilled outline whose stroke
 crosses figure text, a spill or cut, a fixed control over text, sideways scroll, a raster
 of 800 px or more drawn under half its width at 390 px: `raster-shrunk`, fixed by putting the
-image in a zoomable figure (cropping only a single-element shot, never a context shot: `figures.md`); a table that scrolls
+image in a zoomable figure (`zoom=yes` on the `figure` block; cropping only a single-element shot, never a context shot: `figures.md`); a table that scrolls
 sideways with no visible written notice under it: `table-scroll-no-cue`, fixed by using the
 kit's `.tw` wrapper, whose composer adds "desliza →" while it scrolls, since the fade alone is
 not a cue) and on the
