@@ -231,6 +231,13 @@ mounters() {
 
 # say_cmd CMD... — print a removal command, unless the container listing failed: a
 # running container missing from a partial listing reads as gone, so nothing is judged.
+# basis PROJECT WHAT — the one-line reason above a rmi / network rm line. Outside --slug
+# the project reached here because no live worktree or running container claims it;
+# under --slug containers may still exist, so the line names the scope instead.
+basis() {
+  if [[ -n "$SLUG" ]]; then say_cmd "# belongs to $1 (--slug); $2"
+  else say_cmd "# no live worktree or running container for $1; $2"; fi
+}
 say_cmd() { if [[ $failed -eq 0 ]]; then echo "  $*"; fi; }    # never false: _lib.sh sets -e
 
 # --- compose projects ---
@@ -341,6 +348,7 @@ while IFS= read -r img; do
   in_scope "$img" "$lbl" || continue
   if ! is_known "$img" "$lbl"; then
     echo "$LABEL image: $img"
+    basis "$PREFIX$(owner_slug "$img" "$lbl")" "the image rebuilds from its compose file"
     say_cmd docker rmi "$img"
     orphans_found=$((orphans_found + 1))
   fi
@@ -371,6 +379,7 @@ while IFS= read -r proj; do
   [[ -z "$ids" ]] && continue
   n="$(wc -w <<< "$ids" | tr -d ' ')"
   echo "$LABEL dangling images: $proj ($n)"
+  basis "$proj" "the image rebuilds from its compose file"
   say_cmd docker rmi "$ids"
   orphans_found=$((orphans_found + 1))
 done <<< "$dangling_projects"
@@ -395,6 +404,7 @@ while IFS= read -r net; do
   fi
   echo "$LABEL network: $net ($attached container(s) attached)"
   if [[ "$attached" == "0" ]]; then
+    basis "$PREFIX$(owner_slug "$net")" "the network has no endpoints"
     say_cmd docker network rm "$net"
   else
     echo "  # still has attached containers — tear their stack down first, do not force-remove"
