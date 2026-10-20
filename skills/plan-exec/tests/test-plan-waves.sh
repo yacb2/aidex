@@ -252,6 +252,20 @@ if [ "$rc" -eq 0 ] && [ "$got" = $'wave 1: 9\nwave 2: 10' ] && [ "$(wc -l < "$TM
    && grep -qF 2026-05-14-session-handoff.md "$TMP/err"; then echo "ok: non-phase files skipped, named once on stderr"
 else printf 'FAIL: non-phase files skipped, named once on stderr\n  want: rc=0 wave 1: 9 | wave 2: 10, one stderr line naming both briefs and the dated file\n  got:  rc=%s stdout=%s stderr=%s\n' "$rc" "${got//$'\n'/ | }" "$(tr '\n' ' ' < "$TMP/err")"; failures=$((failures+1)); fi
 
+# BL-861: /aidex:ui-contract writes phase 0 as 00-ui-contract.md; only 00-index.md is not a
+# phase (an index parsed as a phase would collide as a second phase 0 and be refused)
+uicontract() {  # uicontract <dir> <done 0|1>
+  local box=" "; [ "$2" = 1 ] && box="x"
+  mkdir -p "$1"
+  printf -- '---\ntitle: x\n---\n\n| Phase | Status |\n|---|---|\n| 0 | - [ ] |\n' > "$1/00-index.md"
+  printf -- '---\ndepends_on: []\nphase-type: hitl-align\n---\n\n# Phase 0: UI contract\n\n## Phase 0 Checkpoint\n\n- [%s] Owner approved\n' "$box" > "$1/00-ui-contract.md"
+  phase "$1" 1 "0" afk-impl '`a.txt`' 0; phase "$1" 2 "0" afk-impl '`b.txt`' 0
+}
+d="$TMP/ui0done"; uicontract "$d" 1
+check "ticked 00-ui-contract.md is phase 0, done: its dependents run" "$d" "wave 1: 1, 2"
+d="$TMP/ui0open"; uicontract "$d" 0
+check "unticked 00-ui-contract.md is phase 0, pending: it runs first" "$d" $'wave 1: 0\nwave 2: 1, 2'
+
 # c28: backticked symbols inside the template's parentheses are not paths; a path with a
 # directory inside parentheses still is (fail closed)
 d="$TMP/symbols"
