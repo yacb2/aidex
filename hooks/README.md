@@ -257,3 +257,12 @@ Limits, by design of the one rule:
   shows them by hand.
 - Absence needs a listable parent: when the parent directory is gone too (a whole
   folder of projects deleted), its projects are not judged and stay silent.
+
+## delegation-rule-core.sh — delegation rule core (SessionStart, opt-in)
+
+Prints `hooks/assets/delegation-rule-core.md` (the delegation routing rule without
+personal paths, dates or ledgers) into the session context. **Default off.** Switch it on
+with the plugin option `delegation_rule_core` (`userConfig` in `plugin.json`, boolean);
+Claude Code hands the value to the hook as `CLAUDE_PLUGIN_OPTION_DELEGATION_RULE_CORE`, and
+only the exact value `true` prints. Turn the option off to revert; nothing else changes.
+Test: `bash hooks/test-delegation-rule-core.sh`.
