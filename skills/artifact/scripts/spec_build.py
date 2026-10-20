@@ -414,7 +414,9 @@ def emit_section(node, ctx):
     # nothing; a section left with only its head is the "heading over nothing"
     # refused above, so it is not drawn — except `#sec-ledger` on a page with
     # no masthead, where it is the only anchor the composer's Decided section
-    # has (check-artifact `decided-section-anchor`). A section that stays keeps
+    # has once nothing is open (with a question open the section follows the
+    # last open block, BL-860), and check-artifact `decided-section-anchor`
+    # requires it on every round. A section that stays keeps
     # its heading and eyebrow, the author's text: the build names the hidden
     # rows rather than rewrite a count it cannot read.
     hidden = [k for c in node.children for k in ctx.hidden_rows.get(c.line, ())

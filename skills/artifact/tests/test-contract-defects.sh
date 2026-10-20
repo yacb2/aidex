@@ -332,6 +332,15 @@ out="$(python3 "$CD" --class $C "$TMP/c9-dropped.html" 2>&1)"
 [[ "$out" == *": 1 dropped item(s) and no anchor"* ]] \
   && ok "a dropped item's anchor finding says dropped, not decided" \
   || bad "a dropped item's anchor finding reads: $out"
+# BL-860: while a question is open the composer puts the fold after the last open block and
+# uses no anchor; the anchor is for the round where nothing is open, so the page still fails
+# and the message says when the fold falls to the bottom.
+page c9-openfirst es "<main class=\"main\"><h1>Ronda 2</h1><section class=\"consult-item\" data-id=\"Q0\">$RADIO</section>$DECIDED</main>"
+fails $C c9-openfirst "an open loose item before the decided one does not stand in for the anchor"
+out="$(python3 "$CD" --class $C "$TMP/c9-openfirst.html" 2>&1)"
+[[ "$out" == *"so once nothing is open the composer appends them after the general notes"* ]] \
+  && ok "the anchor finding says the fold falls after the notes only once nothing is open" \
+  || bad "the anchor finding on a page with an open item reads: $out"
 page c9-mixed es '<main class="main"><h1>Ronda 2</h1><section class="consult-item" data-id="Q1" data-decided="Sí"></section><section class="consult-item" data-id="Q2" data-decided="Descartada: ya no aplica" data-dropped="ya no aplica"></section></main>'
 out="$(python3 "$CD" --class $C "$TMP/c9-mixed.html" 2>&1)"
 [[ "$out" == *": 1 decided and 1 dropped item(s) and no anchor"* ]] \
