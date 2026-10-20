@@ -221,7 +221,7 @@ builder, not tokenizer.
 A `group` needs no child for its own free text: the build closes every group with
 its notes box (BL-701; `04-block-vocabulary.md`), so a spec never writes one.
 
-- **A decided-but-correctable point is an `item decided=yes proposal=yes` in its consult group** (BL-687, BL-692: `proposal=yes` keeps it in place instead of folding it as settled), with the other items of its round: not a top-level `callout`, not a `ledger` row (the ledger holds what EARLIER rounds settled). `04-block-vocabulary.md` § `item` has the shape; `tests/fixtures/decided-items.spec.md` is a built example. A proposal with no option lines is refused (`proposal=yes needs options`), `free=yes` or not: the reader corrects it by re-picking, so it lists its options with the proposed one `{recommended}` or `{chosen}`, and that one is pre-selected whether `decided=` is the flag or the verdict as text (a `dropped=` item cannot be a proposal).
+- **A decided-but-correctable point is an `item decided=yes proposal=yes` in its consult group** (BL-687, BL-692: `proposal=yes` keeps it in place instead of folding it as settled), with its round's other items: not a top-level `callout`, not a `ledger` row (the ledger holds what EARLIER rounds settled). Shape: `04-block-vocabulary.md` § `item`; built example: `tests/fixtures/decided-items.spec.md`. A proposal with no option lines is refused (`proposal=yes needs options`), `free=yes` or not: the reader corrects by re-picking, so the proposed option is `{recommended}` or `{chosen}` and pre-selected whether `decided=` is the flag or the verdict text (a `dropped=` item cannot be a proposal).
 - **`item` at the document's top level builds**, but `check_artifact`'s `check_shape` fails
   the built page (an item outside a block, § 8.4), so an ungrouped item cannot ship.
 - **`item`, `masthead` and `note` accept a nested `note` or `callout`**, in the position
@@ -271,7 +271,7 @@ A `masthead` may declare `lang="es"` or `lang="en"`: the page's language. It bec
 other language fails `check_artifact`'s `lang` rule (BL-279).
 
 - A second `masthead` is refused ("second masthead"): a page has exactly one.
-- A page built from a spec with a `masthead` carries `<meta name="spec-built">`; check-artifact then fails it if a hand edit leaves zero or two mastheads. A spec with no `masthead` (a fragment, or a page titled by `--title`) carries no stamp. The CLI still refuses an answerable spec with neither a masthead nor `--title` ("no document title").
+- A page built from a spec with a `masthead` carries `<meta name="spec-built">`, and check-artifact fails it if a hand edit leaves zero or two mastheads. No `masthead` (a fragment, or `--title`), no stamp. An answerable spec with neither is refused ("no document title").
 - A `lang=` that contradicts the body is refused as a mixed-language page: 3 or more stopwords of the other language and at least 3 times the declared language's, counted over rendered prose only (code, attribute keys, URLs and data blocks are left out).
 
 The declaration WINS over `--lang` and over `build(lang=…)`, which are the default
@@ -355,7 +355,7 @@ Optional attrs on `bar` and `line` (`type=stacked` takes none: it has no value a
 
 | Attr | Values | Effect |
 |---|---|---|
-| `labels` | `on`, `off` | a value label on every bar (default `on` for `bar`, `off` for `line`); a label that would touch another moves one line out, and if that is taken too the smaller one is not drawn — never an overlap. Every bar and point carries a `<title>` tooltip with its series, category and value either way |
+| `labels` | `on`, `off` | a value label on every bar (default `on` for `bar`, `off` for `line`); a label that would touch another moves one line out, and if that is taken too the smaller one is not drawn — never an overlap. Every bar and point has a `<title>` tooltip (series, category, value) |
 | `y-title` | text | the value axis's title, horizontal, above the plot |
 | `x-title` | text | the category axis's title, under the category labels |
 
@@ -500,7 +500,7 @@ checked once every box is known). Each starts with a reserved first word and a s
 
 | Line | Means |
 |---|---|
-| `badge name: text` | a pill on the box's **top edge**, 24 units right of the middle (clear of the incoming edge and its arrowhead, which it never covers), in `acc`, over a page-ground fill so the border does not run through it. It is not a box: it never counts for the cap, and it is part of its box's footprint, so a neighbour clears the pill and not only the box |
+| `badge name: text` | a pill on the box's **top edge**, 24 units right of the middle (clear of the incoming edge and its arrowhead), in `acc`, over a page-ground fill so the border does not run through it. It is not a box: it never counts for the cap, and it is part of its box's footprint, so a neighbour clears the pill and not only the box |
 | `lock name` | a lock glyph (a filled body and an open shackle, two primitives, no icon font, no emoji) in a strip the box grows by on its right; the label moves left to leave it |
 | `acc name` / `flg name` | paints the box in that kit class. An untoned tree box is `mut` (muted border, normal text), so `acc` (the recommended thing) and `flg` (the affected thing) stand out |
 

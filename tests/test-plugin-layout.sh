@@ -61,7 +61,13 @@ fi
 # docs/retired/ is verbatim retired history (the pre-plugin rules/ folder, moved there
 # 2026-09-12). Nothing reads it, and rewriting the slash commands inside it would falsify
 # the record it exists to keep, so it is excluded rather than edited.
-F_MATCHES=$(grep -rnE '(^|[^A-Za-z0-9_/.])/aidex-[a-z-]+([^A-Za-z0-9_/-]|$)' "$ROOT/skills" "$ROOT/docs" "$ROOT/README.md" 2>/dev/null | grep -v '^[^:]*docs/retired/')
+F_RE='(^|[^A-Za-z0-9_/.)}])/aidex-[a-z-]+([^A-Za-z0-9_/-]|$)'
+# A path joined onto a substitution, $(...)/aidex-x or ${x}/aidex-x, is not a command
+# (worktree-multi.sh's aidex-exclude file tripped it); prose with a bare command still is.
+printf '%s\n' 'wx="$(git rev-parse --git-dir)/aidex-exclude"' 'f="${d}/aidex-exclude"' | grep -qE "$F_RE" \
+  && fail "f. regex flags a path joined onto \$(...) or \${...}"
+printf '%s\n' 'run /aidex-audit now' | grep -qE "$F_RE" || fail "f. regex misses a bare /aidex-audit"
+F_MATCHES=$(grep -rnE "$F_RE" "$ROOT/skills" "$ROOT/docs" "$ROOT/README.md" 2>/dev/null | grep -v '^[^:]*docs/retired/')
 F_COUNT=$(printf '%s' "$F_MATCHES" | grep -c . || true)
 if [ -z "$F_MATCHES" ]; then
   pass "f. no bare /aidex-* slash command refs (saw 0)"
