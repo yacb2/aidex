@@ -404,9 +404,10 @@ The rule, and it is the precedence rule for the three states an answer can be in
   short-text or Other value is not preselected unless the author adds it as an option
   marked `{provisional}`. Leaving that option ticked with no ask beside it confirms it,
   and the round after records the decision; a reply that drops it (`[not-now]`, an ask
-  alone, another pick, a page defect only, no block) withdraws it, and `new-round` removes
-  the marker from each option the answered page showed checked (a marker written this round
-  stays, in any order of the verbs). Until then it
+  alone, another pick, a page defect only, no block) withdraws it, and the verb that opens the
+  round removes the marker from each option the answered page showed checked (a marker written this round
+  stays, in any order of the verbs); a `spec_build.py` rebuild that would open it refuses and
+  names `spec_verbs.py new-round`. Until then it
   does not move to the ledger, it is not recorded as settled, and it is not
   implemented. The page says so while both are set (`.kit-provisional`, a line on the item)
   and the copied reply says so too: the answer gains a `[provisional]` marker —

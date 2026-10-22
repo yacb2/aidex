@@ -72,8 +72,8 @@ round, including a delegated `--building` build's, omit it): it fails, naming
 duty FIRST, then run the verbs: any rebuild after `save-reply.sh` opens the round,
 a verb's included, so when a verb (`decide`, `new-round`) is the first rebuild, no
 `--new-round` follows it (it would refuse: the round is already open). A verb that opens the round
-expires the proposals the reply accepted untouched; a `spec_build.py` rebuild that would open it
-over one (with or without `--new-round`) refuses and names `spec_verbs.py new-round` (BL-840). A `[show-me]` duty is
+expires the proposals the reply accepted untouched and the `{provisional}` picks it withdrew; a `spec_build.py` rebuild that would open it
+over either (with or without `--new-round`) refuses and names `spec_verbs.py new-round` (BL-840, BL-822). A `[show-me]` duty is
 fulfilled by a `diagram` block (`tree`, `compare`) in the page brief, or, where the install has those agents (they are the owner's, not shipped in this plugin's `agents/`), by launching
 `aidex:figure-sonnet` (wireframes only) or `aidex:verify-browser-opus` BEFORE the page brief, never by writing more prose. `check-artifact --prev` then FAILS a wrap
 that does not carry out a printed duty — no bypass

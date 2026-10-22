@@ -2592,27 +2592,32 @@ def refuse_unexpired_proposals(args, spec_text):
     a saved reply that accepted a proposal untouched (BL-840). The wrap opens the
     round from that state (a reply saved for the open round), with or without
     --new-round; the round transition is the verb's, which expires the proposals
-    the reader accepted, and a round opened here would show them again, live."""
+    the reader accepted, and a round opened here would show them again, live.
+    So does a `{provisional}` pick the reply withdrew (BL-822): the verb drops its
+    marker, a round opened here would ship it checked again."""
     if not (wrap_report._current_round(args.out) >= 1
             and wrap_report.reply_saved(args.out)):
         return False
     import spec_verbs                       # lazy: spec_verbs imports this module
     accepted = spec_verbs.unexpired_proposals(args.spec, args.out, spec_text)
-    if not accepted:
+    withdrawn = spec_verbs.withdrawn_provisional(args.spec, args.out, spec_text)
+    if not accepted and not withdrawn:
         return False
     cmd = [os.path.join(os.path.dirname(os.path.abspath(__file__)), "spec_verbs.py"),
            "new-round", args.spec, "--out", args.out]
     cmd += ["--lang", args.lang] if args.lang else []
     cmd += ["--discard-hand-edit"] if args.discard_hand_edit else []
+    ids = lambda xs: ", ".join("#" + i for i in xs)
+    why = (["accepted the proposal%s %s untouched, and show %s again as open"
+            % ("" if len(accepted) == 1 else "s", ids(accepted),
+               "it" if len(accepted) == 1 else "them")] if accepted else []) + \
+          (["withdrew the {provisional} pick on %s, and ship it checked again"
+            % ids(withdrawn)] if withdrawn else [])
     sys.stderr.write(
         "spec-build: refused: this rebuild would open round %d over the saved "
-        "reply, which accepted the proposal%s %s untouched, and show %s again "
-        "as open. Run `python3 %s` instead (it expires accepted proposals and "
-        "opens the round); nothing was written\n"
-        % (wrap_report._current_round(args.out) + 1,
-           "" if len(accepted) == 1 else "s",
-           ", ".join("#" + i for i in accepted),
-           "it" if len(accepted) == 1 else "them",
+        "reply, which %s. Run `python3 %s` instead (it expires accepted proposals "
+        "and withdrawn provisional picks and opens the round); nothing was written\n"
+        % (wrap_report._current_round(args.out) + 1, "; and ".join(why),
            " ".join(shlex.quote(c) for c in cmd)))
     return True
 
