@@ -160,6 +160,18 @@ PY
 python3 "$SCRIPTS/sweep-eligible.py" | grep >/dev/null -F "Date:2020-01-01" && ok "sweep-eligible prints the malformed value" || bad "malformed value hidden"
 bash "$SCRIPTS/sweep-kickoff.sh" --dry-run > "$TMP/ko2" 2>&1
 grep -q "BL-016 .*BAD FORM" "$TMP/ko2" && ok "kickoff deferred section shows BAD FORM rows" || bad "kickoff lacks BAD FORM"
+# a date: that defer-item.sh would refuse is BAD FORM, never WAITING (hidden by kickoff) nor READY;
+# the two YYYY-MM-DD rows on either side of the boundary must still be judged
+for row in "date:2026-02-30|BAD FORM" "date:next-week|BAD FORM" "date:|BAD FORM" "date:20201005|BAD FORM" \
+           "date:2020-W40-1|BAD FORM" "date:2020-1-1|BAD FORM" "date:2020-01-01T00:00|BAD FORM" \
+           "date:2020-02-29|READY" "date:2999-12-31|WAITING"; do
+  v="${row%%|*}" want="${row#*|}"
+  python3 - "$DEFD"/*bl-016*.md "$v" <<'PY'
+import sys,re
+p,v=sys.argv[1:3]; t=re.sub(r'^ready_when:.*$', 'ready_when: "%s"' % v, open(p).read(), count=1, flags=re.M); open(p,'w').write(t)
+PY
+  got="$(verdict BL-016)"; [[ "$got" == "$want" ]] && ok "deferred ready_when '$v': $want" || bad "deferred ready_when '$v': want $want, got $got"
+done
 
 # kickoff REVIEW overflows only the waiting value, not every long reason
 O="$(mk "outside repo")"   # BL-017

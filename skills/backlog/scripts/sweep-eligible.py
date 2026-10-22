@@ -108,10 +108,12 @@ def ready(value):
     kind, _, arg = value.partition(':')
     arg = arg.strip()
     if kind == 'date':
+        if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', arg):  # fromisoformat also takes 20261005 and 2026-W40-1
+            return None
         try:
             return datetime.date.today() >= datetime.date.fromisoformat(arg)
-        except ValueError:
-            return False
+        except ValueError:  # 2026-02-30: the form defer-item.sh refuses, not a wait
+            return None
     if kind == 'cmd' and arg:
         if not approved(arg):
             return APPROVE
