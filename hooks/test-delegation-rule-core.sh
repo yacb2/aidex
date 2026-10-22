@@ -23,8 +23,8 @@ for v in UNSET false "" 0 1 TRUE yes "true "; do
 done
 out="$(run true)"
 [ "$out" = "$(cat "$CORE")" ] || fail "value 'true' must print the core file verbatim"
-printf '%s' "$out" | grep -q 'Files to read first' || fail "core lacks the 'Files to read first' brief section"
-printf '%s' "$out" | grep -q 'what you deliberately left alone' || fail "core lacks the 'what you deliberately left alone' brief section"
+printf '%s' "$out" | grep >/dev/null 'Files to read first' || fail "core lacks the 'Files to read first' brief section"
+printf '%s' "$out" | grep >/dev/null 'what you deliberately left alone' || fail "core lacks the 'what you deliberately left alone' brief section"
 
 # Core text carries nothing private to one machine or one trial.
 for pat in '/Users/' '~/\.claude' '~/Documents' 'aidex_ws' '[Oo]wner' 'readout' 'TRIAL' 'review-yield' 'BL-[0-9]' '20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]' 'ADR'; do
