@@ -344,7 +344,8 @@ and `<n>-shots.json`: tiles in order, the `data-id` item ids each tile holds, th
 order, and the files written this run under one run stamp (stdout repeats them as `SHOT`
 lines). Each run writes its PNGs into its own subdirectory `<n>.run-<stamp>/` and the manifest
 last, by rename, with `run`, `dir` and every file path relative to the manifest's directory; the
-probe keeps the previous run and prunes older ones, so a grader never reads tiles of two runs.
+probe keeps the previous run and any still running, and prunes older finished ones, so a grader
+never reads tiles of two runs.
 
 **Step 3, the handoff.** Launch the grader with exactly these things: the user's request
 in their words, the absolute path of the manifest `<n>-shots.json` (not the two full-page
