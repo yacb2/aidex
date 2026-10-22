@@ -9,8 +9,9 @@ subagent (the payload carries `agent_id`). The main session is never touched.
 The command is split into words and separators by one linear regex and walked token by
 token: `sleep` counts only in command position inside a loop condition or body, so `sleep` or a
 loop keyword inside an argument, a quoted string or a comment does not. The script of
-`bash -c '...'` is walked too. Known limits: heredoc bodies are read as shell; a command with an
-unbalanced quote or an unknown character (such as a non-breaking space outside quotes) is allowed.
+`bash -c '...'` is walked too, past shell options and their values (`-o pipefail`, `+e`).
+Known limits: heredoc bodies are read as shell; a command with an unbalanced quote or an
+unknown character (such as a non-breaking space outside quotes) is allowed.
 """
 import json, re, sys
 
@@ -18,6 +19,12 @@ LOOPS = {"for", "while", "until"}
 KEYWORDS = {"do", "then", "else", "elif", "if", "fi", "{", "}", "!", "while", "until"}
 WRAPPERS = {"timeout", "nice", "env", "command", "exec", "nohup", "time"}
 SHELLS = {"bash", "sh", "zsh"}
+SHELL_VALUE_OPTS = {"--rcfile", "--init-file", "--emulate"}
+# Short options that take a value, per shell: (letters, value attaches to the word; then one letter).
+# bash/sh: each o and O takes the next word wherever it sits (`-oe NAME`, `-oO A B`).
+# zsh: -O is CORRECT_ALL, and the first o takes the next word only when it ends the word;
+# otherwise the rest of the word is its value (`-oerrexit`, `-eopipefail`, `-oposixargzero`).
+SHORT_VALUE_OPTS = {"bash": ("oO", False), "sh": ("oO", False), "zsh": ("o", True)}
 ASSIGN = re.compile(r"[A-Za-z_]\w*=")
 WRAP_ARG = re.compile(r"-.*|\d+(\.\d+)?[smhd]?")
 WRAP_VALUE_OPTS = {"-s", "-k", "-n", "-u", "-C", "--signal", "--kill-after"}
@@ -90,14 +97,20 @@ def polls(cmd, in_loop=False):
             base = unquote(t).rsplit("/", 1)[-1]
             if base == "sleep" and (open_loops or in_loop):
                 return True
-            if base in SHELLS:  # walk the script of `bash -c`, `sh -lc`, ...
-                for j in range(i + 1, len(toks) - 1):
-                    if toks[j][0] or not toks[j][1].startswith("-"):
-                        break
-                    if not toks[j][1].startswith("--") and "c" in toks[j][1]:
-                        if not toks[j + 1][0] and polls(unquote(toks[j + 1][1]), in_loop or open_loops > 0):
-                            return True
-                        break
+            if base in SHELLS:  # walk the script of `bash -c`, `sh -lc`, `bash -o pipefail -c`, ...
+                j, has_c = i + 1, False
+                while j < len(toks) and toks[j][1][0] in "-+":  # separators never start with - or +
+                    opt = toks[j][1]
+                    short = not opt.startswith("--")
+                    has_c |= short and "c" in opt
+                    letters, attached = SHORT_VALUE_OPTS[base]
+                    if attached:
+                        values = opt.find(letters) == len(opt) - 1
+                    else:
+                        values = sum(opt.count(x) for x in letters)
+                    j += 1 + (values if short else opt in SHELL_VALUE_OPTS)
+                if has_c and j < len(toks) and polls(unquote(toks[j][1]), in_loop or open_loops > 0):
+                    return True
             wrapped = cmd_pos = base in WRAPPERS
     return False
 

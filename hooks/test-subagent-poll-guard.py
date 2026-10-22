@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Tests for subagent-poll-guard.py. Run: python3 hooks/test-subagent-poll-guard.py"""
-import importlib.util, os, sys, time
+import importlib.util, os, subprocess, sys, time
 
 HOOK = os.path.join(os.path.dirname(os.path.abspath(__file__)), "subagent-poll-guard.py")
 spec = importlib.util.spec_from_file_location("subagent_poll_guard", HOOK)
@@ -49,6 +49,37 @@ cases = [
     ("arithmetic for loop is denied", sub("for ((i=0; i<30; i++)); do curl -sf localhost:8000 && break; sleep 2; done"), True),
     ("sleep as the while condition is denied", sub("while sleep 5; do pgrep -f run-all.sh || break; done"), True),
     ("bash -c behind a wrapper is denied", sub("timeout 900 bash -c 'until [ -s f ]; do sleep 5; done'"), True),
+    # Shell options before or after -c, and their values, do not end the option walk.
+    ("bash -o pipefail -c loop is denied", sub("bash -o pipefail -c 'until curl x; do sleep 1; done'"), True),
+    ("bash -euo pipefail -c loop is denied", sub("bash -euo pipefail -c 'while true; do sleep 1; done'"), True),
+    ("bash +o posix -c loop is denied", sub("bash +o posix -c 'while true; do sleep 1; done'"), True),
+    ("bash +e -c loop is denied", sub("bash +e -c 'while true; do sleep 1; done'"), True),
+    ("bash -O extglob -c loop is denied", sub("bash -O extglob -c 'while true; do sleep 1; done'"), True),
+    ("bash --rcfile r -c loop is denied", sub("bash --rcfile r -c 'while true; do sleep 1; done'"), True),
+    ("bash --init-file r -c loop is denied", sub("bash --init-file r -c 'while true; do sleep 1; done'"), True),
+    ("zsh -o errexit -c loop is denied", sub("zsh -o errexit -c 'while true; do sleep 1; done'"), True),
+    ("bash -c -o pipefail loop is denied", sub("bash -c -o pipefail 'while true; do sleep 1; done'"), True),
+    # bash/sh: each o/O in a short cluster takes the next word, wherever it sits; a long option does not.
+    ("bash -oe pipefail -c loop is denied", sub("bash -oe pipefail -c 'while true; do sleep 1; done'"), True),
+    ("bash -eou pipefail -c loop is denied", sub("bash -eou pipefail -c 'while true; do sleep 1; done'"), True),
+    ("bash -oO two values -c loop is denied", sub("bash -oO pipefail extglob -c 'while true; do sleep 1; done'"), True),
+    ("sh -oO two values -c loop is denied", sub("sh -oO pipefail extglob -c 'while true; do sleep 1; done'"), True),
+    ("zsh --bsdecho -c loop is denied", sub("zsh --bsdecho -c 'while true; do sleep 1; done'"), True),
+    ("bash -c -- loop is denied", sub("bash -c -- 'while true; do sleep 1; done'"), True),
+    ("bash +O extglob -c loop is denied", sub("bash +O extglob -c 'while true; do sleep 1; done'"), True),
+    # zsh -O is CORRECT_ALL and takes no value; zsh --emulate takes one; zsh -o takes the next
+    # word only when it ends the cluster, otherwise the rest of the word is its value.
+    ("zsh -O -c loop is denied", sub("zsh -O -c 'while true; do sleep 1; done'"), True),
+    ("zsh --emulate sh -c loop is denied", sub("zsh --emulate sh -c 'while true; do sleep 1; done'"), True),
+    ("zsh -oerrexit -c loop is denied", sub("zsh -oerrexit -c 'while true; do sleep 1; done'"), True),
+    ("zsh -eopipefail -c loop is denied", sub("zsh -eopipefail -c 'while true; do sleep 1; done'"), True),
+    ("zsh -o name ending in o -c loop is denied", sub("zsh -oposixargzero -c 'while true; do sleep 1; done'"), True),
+    ("bash -o pipefail -c without a loop is allowed", sub("bash -o pipefail -c 'echo hi; sleep 1'"), False),
+    ("bash -o pipefail script with no -c is allowed", sub("bash -o pipefail 'while true; do sleep 1; done'"), False),
+    ("bash --norc loop file with no -c is allowed", sub("bash --norc 'while true; do sleep 1; done'"), False),
+    ("bash -c with no script is allowed", sub("bash -c"), False),
+    ("sh -lc cluster loop is denied", sub("sh -lc 'while true; do sleep 1; done'"), True),
+    ("bash -c sleep inside an outer loop is denied", sub("until [ -s f ]; do bash -c 'sleep 1'; done"), True),
     ("wrapper option value is not the command", sub("until [ -s f ]; do timeout -s KILL 5 sleep 1; done"), True),
     # A backslash-newline is a blank, not part of a word.
     ("sleep after a line continuation is denied", sub("until curl -sf x; do \\\n  sleep 2; \\\ndone"), True),
@@ -71,6 +102,18 @@ cases = [
 
 R = mod.REASON
 rows = [(n, lambda d=d, w=w: ((decide(d) is not None) == w, f"want deny={w}")) for n, d, w in cases]
+
+# Parity with main: every row main's guard denies must still be denied, so a change that
+# opens a bypass main closed fails here even when the row's own expectation was edited.
+shown = subprocess.run(["git", "-C", os.path.dirname(HOOK), "show", "main:hooks/subagent-poll-guard.py"],
+                       capture_output=True, text=True)
+if shown.returncode:
+    print(f"SKIP main parity: git show main failed: {shown.stderr.strip()}")
+else:
+    main_guard = {"__name__": "main_guard"}
+    exec(compile(shown.stdout, "main:hooks/subagent-poll-guard.py", "exec"), main_guard)
+    rows += [(f"main parity: {n}", lambda d=d: (decide(d) is not None, "main denies, now allowed"))
+             for n, d, _ in cases if main_guard["decide"](d)]
 rows += [
     ("REASON holds 'Never poll'", lambda: ("Never poll" in R, "missing")),
     ("REASON holds 'running in the background'", lambda: ("running in the background" in R, "missing")),
