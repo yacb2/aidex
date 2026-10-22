@@ -1750,6 +1750,50 @@ Contexto dos.
           r.returncode == 0 and rnd(pg(bp)) == "2" and not q2_live(pg(bp))
           and "proposal=yes" not in read(bp), r.stdout + r.stderr)
 
+    # BL-822 x BL-840: a `{provisional}` pick the saved reply withdrew expires on the same
+    # round transition, so the builder refuses it like an accepted proposal (else round 2
+    # ships the withdrawn pick checked again) and a verb that is the first rebuild drops it.
+    prov_spec = PAGE.replace("- YAML anidado — estructura explícita",
+                             "- YAML anidado — estructura explícita {provisional}")
+    gone_rep = "### Q1 · Fences o YAML\n\n- [not-now]\n"
+    q1_ticked = lambda path: bool(re.search(r'data-label="YAML anidado" checked', read(path)))
+    check("BL-822 fixture: the answered page draws the provisional pick checked",
+          prov_spec != PAGE and q1_ticked(first_build(fresh("nr-prov-fixture", prov_spec,
+                                                            build=False))))
+    for flag in (["--new-round"], []):
+        bp = nr("nr-build-prov" + "".join(flag).replace("-", ""), gone_rep, prov_spec)
+        page_before = read(pg(bp), "rb")
+        r = subprocess.run([sys.executable, BUILD, bp, "-o", pg(bp)] + flag,
+                           capture_output=True, text=True)
+        check("BL-822 spec_build %s over a withdrawn {provisional} pick exits 1 naming #Q1 and "
+              "'spec_verbs.py new-round', page byte-identical (round 1)" % (flag or "(no flag)"),
+              r.returncode == 1 and "#Q1" in r.stderr and "spec_verbs.py new-round" in r.stderr
+              and read(pg(bp), "rb") == page_before and rnd(pg(bp)) == "1",
+              r.stdout + r.stderr)
+    r = run("new-round", bp)
+    check("BL-822 ...and the verb it names drops the marker and opens round 2 unchecked",
+          r.returncode == 0 and "{provisional}" not in read(bp) and rnd(pg(bp)) == "2"
+          and not q1_ticked(pg(bp)), r.stdout + r.stderr)
+    bp = nr("nr-build-prov-kept", "### Q1 · Fences o YAML\n\n- YAML anidado [provisional]\n",
+            prov_spec)
+    r = subprocess.run([sys.executable, BUILD, bp, "-o", pg(bp), "--new-round"],
+                       capture_output=True, text=True)
+    check("BL-822 spec_build --new-round over a kept {provisional} pick opens round 2 checked",
+          r.returncode == 0 and rnd(pg(bp)) == "2" and q1_ticked(pg(bp)), r.stdout + r.stderr)
+    bp = nr("nr-build-prov-additem", gone_rep, prov_spec)
+    r = run("add-item", bp, "--group", "G1", "--id", "Q3", "--title", "Ruta",
+            "--option", "Uno {recommended}", "--option", "Dos")
+    check("BL-822 add-item as the first rebuild over a withdrawn {provisional} pick drops it "
+          "(round 2, Q1 unchecked)",
+          r.returncode == 0 and rnd(pg(bp)) == "2" and "{provisional}" not in read(bp)
+          and not q1_ticked(pg(bp)), r.stdout + r.stderr)
+    bp = nr("nr-build-prov-acc", gone_rep + "\n" + acc,
+            prov_spec.replace(" decided=yes", " decided=yes proposal=yes"))
+    r = subprocess.run([sys.executable, BUILD, bp, "-o", pg(bp)], capture_output=True, text=True)
+    check("BL-822 the refusal over an accepted proposal AND a withdrawn pick names both",
+          r.returncode == 1 and "proposal #Q2" in r.stderr and "pick on #Q1" in r.stderr,
+          r.stderr)
+
     # The refusal's command, pasted as printed, must get through: shlex-split the backticked
     # line from stderr and run it (python3 -> this interpreter).
     def run_named(stderr):

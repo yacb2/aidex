@@ -1133,8 +1133,9 @@ def _apply_edit(spec_path, transform, out=None, lang=None, needs_page=False,
         # BL-840: this rebuild opens the round over the saved reply (the wrap reads
         # that state), so whichever verb runs first expires what the reader
         # accepted, as `new_round` does; the builder refuses a round that would not.
-        new = _expire_proposals(new, _answered_snapshot(spec_path, out),
-                                _prev_file(spec_path, out, ".reply.md"))
+        answered = _answered_snapshot(spec_path, out)
+        reply = _prev_file(spec_path, out, ".reply.md")
+        new = _expire_provisional(_expire_proposals(new, answered, reply), answered, reply)
     base_dir = os.path.dirname(os.path.abspath(spec_path))
     # The language the builder CLI would pick for this spec, not a constant.
     try:
@@ -1313,6 +1314,20 @@ def unexpired_proposals(spec_path, out, spec_text):
                           if n.block_type == "item" and "proposal" in n.attrs]
     left = set(props(expired))
     return [i for i in props(spec_text) if i not in left]
+
+
+def withdrawn_provisional(spec_path, out, spec_text):
+    """The ids whose `{provisional}` pick `new-round` would expire now
+    (`_expire_provisional` over the saved snapshot and reply), in spec order. The
+    builder refuses a round opened over them, as over `unexpired_proposals`: it
+    would ship the withdrawn pick checked again (BL-822)."""
+    expired = _expire_provisional(spec_text, _answered_snapshot(spec_path, out),
+                                  _prev_file(spec_path, out, ".reply.md"))
+    marks = lambda text: {n.id: len(spec_build.provisional_labels(n))
+                          for n in _walk(_parse(text, "the spec"))
+                          if n.block_type == "item"}
+    left = marks(expired)
+    return [i for i, k in marks(spec_text).items() if k > left[i]]
 
 
 def new_round_file(spec_path, out=None, lang=None, dropped=(), retitled=(),
