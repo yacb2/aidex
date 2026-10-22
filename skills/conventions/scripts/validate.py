@@ -1527,28 +1527,42 @@ def check_plan_scoped_shape(path: Path, text: str, fm: dict | None) -> list[Find
 
 # ---------- Driver ----------
 
+def _rev_parse(start: Path, *args: str) -> str | None:
+    try:
+        r = subprocess.run(["git", "-C", str(start), "rev-parse", *args],
+                           capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return r.stdout.strip() if r.returncode == 0 and r.stdout.strip() else None
+
+
 def _main_worktree_root(start: Path) -> Path | None:
     """Root of the main worktree when `start` is inside a LINKED worktree, else None
     (_lib.sh find_project_root's hop: a linked worktree is a sibling of its project)."""
-    def git(*args: str) -> str | None:
-        try:
-            r = subprocess.run(["git", "-C", str(start), "rev-parse", *args],
-                               capture_output=True, text=True, timeout=10)
-        except (OSError, subprocess.SubprocessError):
-            return None
-        return r.stdout.strip() if r.returncode == 0 and r.stdout.strip() else None
-    common = git("--path-format=absolute", "--git-common-dir")
-    gitdir = git("--absolute-git-dir")
+    common = _rev_parse(start, "--path-format=absolute", "--git-common-dir")
+    gitdir = _rev_parse(start, "--absolute-git-dir")
     if common and gitdir and Path(common).resolve() != Path(gitdir).resolve():
         return Path(common).resolve().parent
     return None
+
+
+def _nested_in(start: Path, ctx_root: Path) -> bool:
+    """BL-769, as in _lib.sh find_project_root: `start` is in a LINKED worktree and the
+    `.context/` found at `ctx_root` holds both that worktree and its main tree (strictly
+    below it). The worktree is then the project, not `ctx_root`."""
+    main = _main_worktree_root(start)
+    top = _rev_parse(start, "--show-toplevel")
+    return (main is not None and top is not None
+            and ctx_root in Path(top).resolve().parents and ctx_root in main.parents)
 
 
 def find_context_dir(start: Path) -> Path | None:
     """Nearest `.context/` upward from `start`. The walk stops at $HOME, exclusive, like
     _lib.sh find_project_root: a stray ~/.context must not capture a project with none.
     From a linked git worktree with no `.context/` on the walk, the main worktree's
-    `.context/` answers, as in _lib.sh."""
+    `.context/` answers, as in _lib.sh. A `.context/` that holds both the linked worktree
+    and its main tree is the workspace's, not this worktree's (BL-769): None, since the
+    walk already passed the worktree root without finding one."""
     start = start.resolve()
     cur = start
     home = os.environ.get("HOME")
@@ -1557,7 +1571,7 @@ def find_context_dir(start: Path) -> Path | None:
         if stop is not None and cur == stop:
             break
         if (cur / ".context").is_dir():
-            return cur / ".context"
+            return None if _nested_in(start, cur) else cur / ".context"
         if cur.parent == cur:
             break
         cur = cur.parent

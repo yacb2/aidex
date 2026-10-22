@@ -289,6 +289,23 @@ for S in "$QW" "$DR"; do
 done
 pass "no-argument default stops at the nearest .context/ and at \$HOME (exit 2)"
 
+# The no-argument default is _ids.find_root, the resolver the rest of the chain shares
+# (_lib.sh find_project_root's rules). A private walk had neither the linked-worktree hop
+# nor BL-769: from a worktree nested in a workspace it read the workspace's backlog.
+mkdir -p "$WS/ws6/.context/backlog" "$WS/ws6/proj" "$WS/ws7/main/.context/backlog"
+for R in "$WS/ws6/proj" "$WS/ws7/main"; do
+  git -C "$R" init -q && git -C "$R" -c user.email=t@t -c user.name=t commit -q --allow-empty -m i
+done
+git -C "$WS/ws6/proj" worktree add -q "$WS/ws6/_tmp/wt/x" -b x
+git -C "$WS/ws7/main" worktree add -q "$WS/ws7-wt" -b y
+for S in "$QW" "$DR"; do
+  ( cd "$WS/ws6/_tmp/wt/x" && HOME="$WS" python3 "$S" >/dev/null 2>&1 ); RCW=$?
+  [[ $RCW -eq 2 ]] || fail "$(basename "$S") from a worktree nested in a workspace read the workspace's backlog (rc=$RCW, want 2)"
+  ( cd "$WS/ws7-wt" && HOME="$WS" python3 "$S" >/dev/null 2>&1 ); RCS=$?
+  [[ $RCS -eq 0 ]] || fail "$(basename "$S") from a sibling linked worktree did not reach the main tree's backlog (rc=$RCS, want 0)"
+done
+pass "no-argument default resolves a nested worktree to itself and a sibling worktree to its main tree"
+
 if [[ $FAILURES -gt 0 ]]; then
   printf '\n%d check(s) failed\n' "$FAILURES"
   exit 1

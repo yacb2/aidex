@@ -23,6 +23,9 @@ Usage:
 Exit 0 always: this proposes, it does not gate.
 """
 import argparse, json, os, re, sys
+from pathlib import Path
+
+import _ids
 
 PRIORITIES = ("P0", "P1", "P2", "P3")
 ESTIMATES = ("XS", "S", "M", "L", "XL")
@@ -58,16 +61,8 @@ def sort_key(item):
 
 
 def default_context():
-    """Nearest `.context/` above the cwd, never past $HOME (validate.py find_context_dir)."""
-    cur, home = os.path.realpath(os.getcwd()), os.environ.get("HOME")
-    stop = os.path.realpath(home) if home and os.path.isdir(home) else None
-    while cur != stop:
-        if os.path.isdir(os.path.join(cur, ".context")):
-            return os.path.join(cur, ".context")
-        if os.path.dirname(cur) == cur:
-            break
-        cur = os.path.dirname(cur)
-    return os.path.abspath(".context")
+    """The project's `.context/` from the cwd, by the resolver the chain shares (_ids.find_root)."""
+    return str(_ids.find_root(Path.cwd()) / ".context")
 
 
 def main():
