@@ -24,6 +24,9 @@ Usage:
 Exit 0 always: this produces a work-list, it does not gate.
 """
 import argparse, json, os, re, subprocess, sys
+from pathlib import Path
+
+import _ids
 
 FM_END = re.compile(r"^---\s*$", re.M)
 SHA = re.compile(r"\b[0-9a-f]{7,40}\b")
@@ -102,16 +105,8 @@ def anchors_for(body, ctx, repos):
 
 
 def default_context():
-    """Nearest `.context/` above the cwd, never past $HOME (validate.py find_context_dir)."""
-    cur, home = os.path.realpath(os.getcwd()), os.environ.get("HOME")
-    stop = os.path.realpath(home) if home and os.path.isdir(home) else None
-    while cur != stop:
-        if os.path.isdir(os.path.join(cur, ".context")):
-            return os.path.join(cur, ".context")
-        if os.path.dirname(cur) == cur:
-            break
-        cur = os.path.dirname(cur)
-    return os.path.abspath(".context")
+    """The project's `.context/` from the cwd, by the resolver the chain shares (_ids.find_root)."""
+    return str(_ids.find_root(Path.cwd()) / ".context")
 
 
 def main():

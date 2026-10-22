@@ -23,11 +23,26 @@ def _git(start: Path, *args: str):
     return r.stdout.strip() if r.returncode == 0 and r.stdout.strip() else None
 
 
+def _nested_worktree_root(start: Path, ctx_root: Path):
+    """BL-769, as in _lib.sh find_project_root: when `start` is in a LINKED worktree and
+    the `.context/` found at `ctx_root` holds both that worktree and its main tree
+    (strictly below it), the worktree root is the project. Otherwise None."""
+    common = _git(start, "--path-format=absolute", "--git-common-dir")
+    gitdir = _git(start, "--absolute-git-dir")
+    top = _git(start, "--show-toplevel")
+    if not (common and gitdir and top) or Path(common).resolve() == Path(gitdir).resolve():
+        return None
+    top, main = Path(top).resolve(), Path(common).resolve().parent
+    return top if ctx_root in top.parents and ctx_root in main.parents else None
+
+
 def find_root(start: Path) -> Path:
     """The nearest ancestor holding `.context/`, never climbing into $HOME (a stray
-    ~/.context must not capture a project with none). A linked git worktree is a sibling
-    of its project, so when the walk finds none the main worktree answers, as in
-    conventions/scripts/_lib.sh find_project_root. Otherwise `start` itself."""
+    ~/.context must not capture a project with none), unless that `.context/` also holds
+    the linked worktree `start` is in and its main tree (_nested_worktree_root). A linked
+    git worktree is a sibling of its project, so when the walk finds none the main
+    worktree answers, as in conventions/scripts/_lib.sh find_project_root. Otherwise
+    `start` itself."""
     d = start.resolve()
     home = os.environ.get("HOME")
     stop = Path(home).resolve() if home and Path(home).is_dir() else None
@@ -35,7 +50,7 @@ def find_root(start: Path) -> Path:
         if stop is not None and d == stop:
             break
         if (d / ".context").is_dir():
-            return d
+            return _nested_worktree_root(start, d) or d
         d = d.parent
     common = _git(start, "--path-format=absolute", "--git-common-dir")
     gitdir = _git(start, "--absolute-git-dir")

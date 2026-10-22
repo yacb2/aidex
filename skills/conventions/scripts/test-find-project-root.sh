@@ -29,6 +29,24 @@ trap 'rm -rf "$TMP"' EXIT
 # run <cwd> <home> -> prints the resolved root
 run() { ( cd "$1" && HOME="$2" bash -c ". '$LIB'; find_project_root" ); }
 
+# The two Python ports must answer as find_project_root does from the same directory:
+# backlog/_ids.find_root (define-check, sweep-eligible, renumber-ids, migrate-filenames)
+# and validate.find_context_dir (validate, migrate-conventions --apply). BL-769 landed in
+# the bash resolver only, so from a nested worktree both still wrote into, or judged, the
+# workspace's live .context/ while the bash scripts of the same chain used the worktree.
+IDS_DIR="$(cd "$(dirname "$LIB")/../../backlog/scripts" && pwd -P)"
+VAL_DIR="$(dirname "$LIB")"
+# parity <cwd> <home>: both ports against find_project_root's answer from <cwd>
+parity() {
+  local want got wantctx
+  want="$(run "$1" "$2")"
+  got="$(HOME="$2" python3 -I -c 'import sys, pathlib; sys.path.insert(0, sys.argv[1]); import _ids; print(_ids.find_root(pathlib.Path(sys.argv[2])))' "$IDS_DIR" "$1")"
+  [[ "$got" == "$want" ]] || fail "_ids.find_root from '$1' answered '$got', find_project_root '$want'"
+  wantctx="None"; [[ -d "$want/.context" ]] && wantctx="$want/.context"
+  got="$(HOME="$2" python3 -I -c 'import sys, pathlib; sys.path.insert(0, sys.argv[1]); import validate; print(validate.find_context_dir(pathlib.Path(sys.argv[2])))' "$VAL_DIR" "$1")"
+  [[ "$got" == "$wantctx" ]] || fail "validate.find_context_dir from '$1' answered '$got', expected '$wantctx' (find_project_root: '$want')"
+}
+
 FAKEHOME="$TMP/home"
 mkdir -p "$FAKEHOME/.context/references"          # the stray ancestor .context
 mkdir -p "$FAKEHOME/projects"
@@ -153,6 +171,7 @@ if command -v git >/dev/null 2>&1; then
   if [[ -d "$NWT" ]]; then
     got="$(run "$NWT" "$FAKEHOME")"
     [[ "$got" == "$NESTED" ]] || fail "from a worktree of a repo nested in a workspace, expected the main tree '$NESTED', got '$got' — a script would write into the parent workspace's private .context/"
+    parity "$NWT" "$FAKEHOME"
   else
     echo "skip: git worktree add unavailable — case 10 not exercised"
   fi
@@ -176,10 +195,12 @@ if command -v git >/dev/null 2>&1 && [[ -d "$NESTED/.git" ]]; then
     for c in "$IWT" "$IWT/sub"; do
       got="$(run "$c" "$FAKEHOME")"
       [[ "$got" == "$IWT" ]] || fail "from '$c' (a worktree inside the workspace), expected the worktree root '$IWT', got '$got' — a script would write into the workspace's live .context/"
+      parity "$c" "$FAKEHOME"
     done
     # (b) the nested repo's main checkout still resolves to the workspace.
     got="$(run "$NESTED" "$FAKEHOME")"
     [[ "$got" == "$WS" ]] || fail "the nested repo's main checkout must still resolve to the workspace '$WS', got '$got'"
+    parity "$NESTED" "$FAKEHOME"
   else
     echo "skip: git worktree add unavailable — case 11 not exercised"
   fi
@@ -190,6 +211,7 @@ if command -v git >/dev/null 2>&1 && [[ -d "$NESTED/.git" ]]; then
   if [[ -d "$CWT" ]]; then
     got="$(run "$CWT" "$FAKEHOME")"
     [[ "$got" == "$WMAIN" ]] || fail "a worktree under its own main tree must resolve to the main tree '$WMAIN', got '$got'"
+    parity "$CWT" "$FAKEHOME"
   else
     echo "skip: git worktree add unavailable — case 11 row c not exercised"
   fi
@@ -206,10 +228,26 @@ if command -v git >/dev/null 2>&1 && [[ -d "$NESTED/.git" ]]; then
     if [[ -d "$C/proj" ]]; then
       got="$(run "$C/proj" "$FAKEHOME")"
       [[ "$got" == "$C" ]] || fail "from a participant worktree '$C/proj' inside a container whose .context/ is a $variant, expected the container '$C', got '$got'"
+      parity "$C/proj" "$FAKEHOME"
     else
       echo "skip: git worktree add unavailable — case 11 row d ($variant) not exercised"
     fi
   done
+  # (e) the .context/ found must hold the WORKTREE too, not only the main tree: a main
+  # tree moved inside its own worktree, below a .context/ (W/a/.context, W/a/main),
+  # keeps W/a as the root; it is not the nested shape, so W must not answer.
+  E="$FAKEHOME/projects/rowe"
+  mkdir -p "$E"
+  ( git init -q "$E/main" && git -C "$E/main" -c user.email=t@t -c user.name=t commit -q --allow-empty -m i \
+      && git -C "$E/main" worktree add -q "$E/W" -b rowe && mkdir -p "$E/W/a/.context" \
+      && mv "$E/main" "$E/W/a/main" && git -C "$E/W/a/main" worktree repair ) >/dev/null 2>&1
+  if [[ -d "$E/W/a/main/.git" && -f "$E/W/.git" ]]; then
+    got="$(run "$E/W/a" "$FAKEHOME")"
+    [[ "$got" == "$E/W/a" ]] || fail "with the main tree inside its own worktree, expected the nearest .context/ '$E/W/a', got '$got'"
+    parity "$E/W/a" "$FAKEHOME"
+  else
+    echo "skip: worktree repair unavailable — case 11 row e not exercised"
+  fi
 else
   echo "skip: git not on PATH — case 11 not exercised"
 fi
