@@ -160,6 +160,13 @@ S16="$TMP/s16"; mkdir -p "$S16/.context/plans/2026-01-01-x"
 out="$(bash "$SCRIPTS/migrate-audit.sh" "$S16" 2>&1)"
 guide="$(printf '%s\n' "$out" | sed -n 's/^ *See \(.*05-migration-guide\.md\) for full details\.$/\1/p')"
 [[ -n "$guide" && -f "$guide" ]] || fail "s16: advice does not name an existing migration guide: '$guide'"
+# (f13a02d5) the printed next steps mirror the guide's list: removing the seeder step
+# left the script reading 1..6, 8. Both must number 1..N with the same N.
+printed="$(printf '%s\n' "$out" | sed -n 's/^  \([0-9][0-9]*\)\. .*/\1/p' | tr '\n' ' ')"
+listed="$(awk '/prints the steps below/{f=1;next} f&&/^[0-9]/{n=1} n&&/^$/{exit} n' "$SCRIPTS/../references/05-migration-guide.md" \
+  | sed -n 's/^\([0-9][0-9]*\)\. .*/\1/p' | tr '\n' ' ')"
+[[ -n "$printed" && "$printed" == "$listed" && "$printed" == "$(awk -v n="$(printf '%s' "$printed" | wc -w)" 'BEGIN{for(i=1;i<=n;i++) printf "%d ", i}')" ]] \
+  || fail "next-steps-numbering: printed next steps '$printed' do not number 1..N like the guide's '$listed'"
 
 # --- audit-s42: --layout --apply reports a failing reindex (duplicate id) and still succeeds ---
 M42="$TMP/m42"; mkdir -p "$M42/.context/audits/ux"

@@ -309,7 +309,7 @@ cat <<EOF
   6. Refresh the run-level roll-up, which a manual move does not touch:
        /aidex:audit reindex   (from the migrated project — it resolves the root
        from the working directory, not from this script's argument)
-  8. Run /aidex:audit validate to check coherence.
+  7. Run /aidex:audit validate to check coherence.
 
   See $SKILL_DIR/references/05-migration-guide.md for full details.
 EOF
