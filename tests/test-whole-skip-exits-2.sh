@@ -6,10 +6,11 @@
 # (run-all.sh:81-84: .sh and .py roots, same patterns below).
 #
 # Whole-test skip rule, on a non-comment line:
-#   .sh  an `echo`/`printf` of SKIP that carries `exit 0` itself or is followed on the very next
-#        line by a bare `exit 0`.
+#   .sh  an `echo`/`printf` of SKIP that carries `exit 0` or a bare `exit` itself, or is followed
+#        on the very next line by one (a bare `exit` returns the echo's status, 0).
 #   .py  a `print("SKIP...` that carries, or is followed on the next line by, a bare `return`,
-#        `sys.exit(0)`, `exit(0)` or `raise SystemExit(0)`.
+#        `sys.exit(0)`, `exit(0)` or `raise SystemExit(0)`, or any of them without the 0.
+# Part 0 runs the scanner on fixture rows first, so a pattern that stops matching fails here.
 # A partial in-run skip (the test continues afterwards) is not matched. This file is excluded:
 # its own comments quote the pattern.
 #
@@ -24,8 +25,8 @@ SELF="tests/test-whole-skip-exits-2.sh"
 PY='
 import os, re, sys
 self_path = os.environ["SELF"]
-sh_exit = re.compile(r"\bexit 0\b")
-py_exit = re.compile(r"\b(return|sys\.exit\(0\)|exit\(0\)|raise SystemExit\(0\))\s*$")
+sh_exit = re.compile(r"\bexit( 0|;|$)")  # bare `exit` returns the last status: 0
+py_exit = re.compile(r"\b(return|sys\.exit\(0?\)|exit\(0?\)|raise SystemExit(\(0?\))?)\s*$")
 examined, bad = 0, []
 prev = None  # (path, lineno) of the last SKIP line
 for rec in sys.stdin.buffer.read().split(b"\n"):
@@ -43,12 +44,12 @@ for rec in sys.stdin.buffer.read().split(b"\n"):
     if is_skip:
         examined += 1
         prev = (path, n)
-        same = re.search(r";\s*(return|sys\.exit\(0\)|exit\(0\))\s*$", text) if py else sh_exit.search(text)
+        same = re.search(r";\s*" + py_exit.pattern, text) if py else sh_exit.search(text)
         if same:
             bad.append(f"{path}:{n}: {text.strip()}")
     elif prev and prev == (path, n - 1):
         nxt = text.strip()
-        hit = py_exit.fullmatch(nxt) if py else re.match(r"exit 0\b", nxt)
+        hit = py_exit.fullmatch(nxt) if py else sh_exit.match(nxt)
         if hit:
             bad.append(f"{path}:{prev[1]}: SKIP then exit at line {n}")
         prev = None
@@ -57,6 +58,43 @@ for rec in sys.stdin.buffer.read().split(b"\n"):
 print(examined)
 for b in bad: print(b)
 '
+
+# ---- Part 0: self-check of the scanner on synthetic `git grep -z` records (path NUL n NUL text).
+selfbad=()
+check_row() { # want(flag|pass) path skip-line [next-line]
+  local out
+  out="$( { printf '%s\0%s\0%s\n' "$2" 1 "$3"; [[ $# -lt 4 ]] || printf '%s\0%s\0%s\n' "$2" 2 "$4"; } \
+    | SELF="$SELF" python3 -I -c "$PY" | sed 1d)"
+  if [[ -n "$out" ]]; then [[ "$1" == flag ]] || selfbad+=("must pass: $2: $3 / ${4-}")
+  else [[ "$1" == pass ]] || selfbad+=("must flag: $2: $3 / ${4-}"); fi
+}
+check_row flag t.sh 'echo "SKIP: x"; exit 0'
+check_row flag t.sh 'echo "SKIP: x"; exit'
+check_row flag t.sh '{ echo "SKIP: x"; exit; }'
+check_row flag t.sh 'echo "SKIP: x"' 'exit 0'
+check_row flag t.sh 'echo "SKIP: x"' 'exit'
+check_row flag t.sh 'echo "SKIP: x"' 'exit;'
+check_row pass t.sh 'echo "SKIP: x"; exit 2'
+check_row pass t.sh 'echo "SKIP: will not exit"'
+check_row pass t.sh 'echo "SKIP: x"' 'exit 2'
+check_row pass t.sh 'echo "SKIP: x"' 'exit "$rc"'
+check_row pass t.sh 'echo "SKIP: x"' 'exit_code=0'
+check_row pass t.sh 'echo "skip: x"; exit 0'  # wrong case: run-all.sh needs ^SKIP, not a whole skip
+check_row flag t.py 'print("SKIP: x")' 'sys.exit(0)'
+check_row flag t.py 'print("SKIP: x")' 'sys.exit()'
+check_row flag t.py 'print("SKIP: x")' 'exit()'
+check_row flag t.py 'print("SKIP: x")' 'raise SystemExit'
+check_row flag t.py 'print("SKIP: x")' 'raise SystemExit()'
+check_row flag t.py 'print("SKIP: x")' 'return'
+check_row flag t.py 'print("SKIP: x"); sys.exit()'
+check_row flag t.py 'print("SKIP: x"); raise SystemExit(0)'
+check_row pass t.py 'print("SKIP: x")' 'sys.exit(2)'
+check_row pass t.py 'print("SKIP: x")' 'raise SystemExit(2)'
+check_row pass t.py 'print("SKIP: x"); sys.exit(2)'
+[[ "$(printf '' | SELF="$SELF" python3 -I -c "$PY")" == 0 ]] || selfbad+=("empty input must examine 0 lines")
+if [[ ${#selfbad[@]} -gt 0 ]]; then
+  printf 'FAIL: self-check: %s\n' "${selfbad[@]}"; exit 1
+fi
 
 raw="$(mktemp)"; trap 'rm -f "$raw"' EXIT
 git grep -z -nE -A1 '(echo|printf) +["'"'"']?SKIP|print\(["'"'"']SKIP' -- \
