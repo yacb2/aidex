@@ -252,8 +252,12 @@ if [ "$rc" -eq 0 ] && [ "$got" = $'wave 1: 9\nwave 2: 10' ] && [ "$(wc -l < "$TM
    && grep -qF 2026-05-14-session-handoff.md "$TMP/err"; then echo "ok: non-phase files skipped, named once on stderr"
 else printf 'FAIL: non-phase files skipped, named once on stderr\n  want: rc=0 wave 1: 9 | wave 2: 10, one stderr line naming both briefs and the dated file\n  got:  rc=%s stdout=%s stderr=%s\n' "$rc" "${got//$'\n'/ | }" "$(tr '\n' ' ' < "$TMP/err")"; failures=$((failures+1)); fi
 
-# BL-861: /aidex:ui-contract writes phase 0 as 00-ui-contract.md; only 00-index.md is not a
-# phase (an index parsed as a phase would collide as a second phase 0 and be refused)
+# BL-861: /aidex:ui-contract writes phase 0 as 00-ui-contract.md, and plans write other
+# phase 0 files (walkcut 00-golden-guard.md, echo_lab 00-align.md, ns-web 00-preflight-sync.md).
+# A file numbered 0 is a phase only with a `# Phase` heading or phase-type:/depends_on: front
+# matter; one without (asset_lab 00-contract.md) is skipped and named on stderr. 00-index.md is
+# never a phase and is skipped silently (an index parsed as a phase would collide as a second
+# phase 0 and be refused)
 uicontract() {  # uicontract <dir> <done 0|1>
   local box=" "; [ "$2" = 1 ] && box="x"
   mkdir -p "$1"
@@ -265,6 +269,45 @@ d="$TMP/ui0done"; uicontract "$d" 1
 check "ticked 00-ui-contract.md is phase 0, done: its dependents run" "$d" "wave 1: 1, 2"
 d="$TMP/ui0open"; uicontract "$d" 0
 check "unticked 00-ui-contract.md is phase 0, pending: it runs first" "$d" $'wave 1: 0\nwave 2: 1, 2'
+# quiet <name> <dir> <stdout> <file stderr must name, or '' for an empty stderr>
+quiet() {
+  local got rc ok=1; got="$(python3 "$SCRIPT" "$2" 2>"$TMP/err")"; rc=$?
+  [ "$rc" -eq 0 ] && [ "$got" = "$3" ] || ok=0
+  if [ -z "$4" ]; then [ -s "$TMP/err" ] && ok=0; else grep -qF "$4" "$TMP/err" || ok=0; fi
+  if [ "$ok" = 1 ]; then echo "ok: $1"
+  else printf 'FAIL: %s\n  want: rc=0 stdout=%s stderr=%s\n  got:  rc=%s stdout=%s stderr=%s\n' "$1" "${3//$'\n'/ | }" "${4:-<empty>}" "$rc" "${got//$'\n'/ | }" "$(tr '\n' ' ' < "$TMP/err")"; failures=$((failures+1)); fi
+}
+d="$TMP/guard0"     # walkcut promo-grammar: 00-golden-guard.md, 01 depends_on [0]
+phase "$d" 0 "" afk-impl '`g.txt`' 0; phase "$d" 1 "0" afk-impl '`a.txt`' 0
+quiet "unticked 00-<name>.md phase 0 runs first, its dependent after" "$d" $'wave 1: 0\nwave 2: 1' ""
+CONTRACT=$'---\ntitle: data contract\n---\n\n# Data contract\n\nField list.\n'
+# zero <case> <file> <content> <admitted 1|0>: the file beside a finished, independent 01-p.md
+zero() {
+  local d="$TMP/zero-$1"; phase "$d" 1 "" afk-impl '`a.txt`' 1; printf '%s' "$3" > "$d/$2"
+  if [ "$4" = 1 ]; then quiet "$1: $2 is phase 0, pending" "$d" "wave 1: 0" ""
+  else quiet "$1: $2 is not a phase, named on stderr" "$d" "" "$2"; fi
+}
+zero heading-only   00-preflight-sync.md $'# Phase 0: Pre-flight Sync\n\n---\n\n- [ ] Audit\n' 1
+zero after-fm       00-preflight-decisions.md $'---\nphase: 0\nstatus: doing\n---\n\n# Phase 0 — Preflight decisions\n' 1
+zero phase-type     00-guard.md $'---\ntier: mechanical\nphase-type: afk-impl\n---\n\n# Guard\n' 1
+zero depends-on     00-guard.md $'---\ntitle: guard\ndepends_on: []\n---\n\n# Guard\n' 1
+zero contract       00-contract.md "$CONTRACT" 0
+zero plural         00-guard.md $'# Phases overview\n\n- [ ] Read\n' 0
+zero lowercase      00-guard.md $'# phase 0\n\n- [ ] Read\n' 0
+zero h2-only        00-guard.md $'# Guard\n\n## Phase 0 Checkpoint\n\n- [ ] Read\n' 0
+zero key-in-value   00-guard.md $'---\ntitle: "no depends_on: here"\n---\n\n# Guard\n' 0
+zero body-key       00-guard.md $'# Guard\n\ndepends_on: []\nphase-type: afk-impl\n' 0
+zero empty          00-guard.md '' 0
+zero unterminated   00-guard.md $'---\ndepends_on: []\n\n# Guard\n' 0
+zero one-zero       0-contract.md "$CONTRACT" 0
+zero three-zeros    000-contract.md "$CONTRACT" 0
+d="$TMP/unmarked1"; mkdir -p "$d"; printf -- '# Guard\n\n- [ ] Read\n' > "$d/01-p.md"  # the rule reads files numbered 0 only
+quiet "unmarked 01-<name>.md is still phase 1" "$d" "wave 1: 1" ""
+d="$TMP/index0"; phase "$d" 1 "" afk-impl '`a.txt`' 1
+printf -- '---\ntitle: x\n---\n\n# Plan\n\n- [ ] Phase 1\n' > "$d/00-index.md"
+quiet "00-index.md beside finished phases is skipped silently" "$d" "" ""
+d="$TMP/ui0other"; uicontract "$d" 0; printf '%s' "$CONTRACT" > "$d/00-contract.md"
+quiet "00-ui-contract.md beside 00-contract.md is the only phase 0" "$d" $'wave 1: 0\nwave 2: 1, 2' 00-contract.md
 
 # c28: backticked symbols inside the template's parentheses are not paths; a path with a
 # directory inside parentheses still is (fail closed)

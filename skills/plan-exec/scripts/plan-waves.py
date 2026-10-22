@@ -7,8 +7,10 @@ disjoint (a slashless name in parentheses only clashes with another phase's real
 at most three per wave; a phase with no **Files:** paths or phase-type hitl-* runs alone.
 Later waves assume every earlier wave completed. Checkpoint boxes are those under every
 heading naming Checkpoint; a phase without one is judged on every box in the file.
-A phase file is NN-<phase>.md (1-3 digits; 00-index.md is not a phase, 00-ui-contract.md is
-phase 0); other digit-led names are skipped and named on stderr.
+A phase file is NN-<phase>.md (1-3 digits); other digit-led names are skipped and named on
+stderr. 00-index.md is silently not a phase; any other file numbered 0 (00-ui-contract.md,
+00-golden-guard.md) is phase 0 only with a `# Phase` heading or phase-type:/depends_on: front
+matter, and without one it is skipped and named on stderr.
 With a second argument `--fanout`, nothing is printed; exit 1 and a stderr line naming the
 phases and the file when a fan-out run (every dependency-ready phase launched together) would
 put two phases with a shared path, or one with no **Files:** paths, in one wave.
@@ -246,6 +248,12 @@ def fanout_refusal(phases):
     return None
 
 
+def phase_marked(path):
+    text = path.read_text()
+    return (re.search(r"^# Phase\b", text, re.M)
+            or re.search(r"^(phase-type|depends_on):", front_matter(text), re.M))
+
+
 def die(msg):
     sys.exit(f"plan-waves: {msg}")
 
@@ -261,7 +269,11 @@ def main():
     skipped = [f.name for f in named if not re.match(r"\d{1,3}-", f.name)]
     if skipped:
         print("plan-waves: skipped, not NN-<phase>.md: " + ", ".join(skipped), file=sys.stderr)
-    phases = [parse_phase(f) for f in named if f.name not in skipped]
+    unmarked = [f.name for f in named if re.match(r"0{1,3}-", f.name) and not phase_marked(f)]
+    if unmarked:
+        print("plan-waves: skipped, numbered 0 without a `# Phase` heading or phase-type:/depends_on:"
+              " front matter: " + ", ".join(unmarked), file=sys.stderr)
+    phases = [parse_phase(f) for f in named if f.name not in skipped + unmarked]
     if not phases:
         die(f"{plan} has no phase files")
     for n in sorted({p["n"] for p in phases}):
