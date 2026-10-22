@@ -865,14 +865,18 @@ if (shots) {
     fs.writeFileSync(tmp, JSON.stringify(m, null, 2) + '\n');
     fs.renameSync(tmp, mf);
     // Prune: run directories of this page whose stamp sorts strictly BEFORE the previous run's
-    // (stamps are fixed-width, so lexical order is time order; -pNNN only breaks ms ties). A dir
-    // at or after it may be another probe's run in progress, so it stays; orphans of a crashed
-    // run are swept one run later. No readable previous (no manifest, old layout, corrupt) prunes
-    // nothing. Never this run's own dir: a probe that started earlier but finishes after another
-    // sorts before that one's stamp (prev) and must not delete what its own manifest names. The builder's own rm is blocked, so the probe does it.
+    // (stamps are fixed-width, so lexical order is time order; -pNNN only breaks ms ties) AND
+    // whose writer (the stamp's pid) is no longer running. Stamp order alone cannot tell a
+    // finished run from one in progress: with three overlapping probes the slowest one started
+    // first and sorts before prev, so a run is kept while its pid answers kill(pid, 0), EPERM
+    // included (alive, another user). This run's own dir is kept the same way. A dir at or after
+    // prev stays whatever its pid; orphans of a crashed run are swept one run later. No readable
+    // previous (no manifest, old layout, corrupt) prunes nothing. The builder's own rm is
+    // blocked, so the probe does it.
     const stampOf = d => d.slice(d.indexOf('.run-') + 5);
+    const running = d => { try { process.kill(Number(d.slice(d.lastIndexOf('-p') + 2)), 0); return true; } catch (e) { return e.code === 'EPERM'; } };
     const runPat = new RegExp(`^${m.page.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.run-\\d{8}T\\d+Z-p\\d+$`);
-    for (const d of fs.readdirSync(shots)) if (runPat.test(d) && prev && d !== m.dir && stampOf(d) < stampOf(prev)) fs.rmSync(path.join(shots, d), { recursive: true, force: true });
+    for (const d of fs.readdirSync(shots)) if (runPat.test(d) && prev && stampOf(d) < stampOf(prev) && !running(d)) fs.rmSync(path.join(shots, d), { recursive: true, force: true });
   }
   console.log(`SHOTS run=${runStamp} files=${written.length}`);
   for (const w of written) console.log(`SHOT ${path.resolve(w)}`);

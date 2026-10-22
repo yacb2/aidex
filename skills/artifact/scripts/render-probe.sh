@@ -26,7 +26,8 @@
 #                      (temp file + rename): tiles in order, the data-id items each holds, ids
 #                      in page order, `run`, `dir`, and files written this run, every path
 #                      relative to <dir>. The previous run's directory is kept, older ones
-#                      for the page are pruned; stdout gets `SHOTS run=<stamp> files=<n>` and one
+#                      for the page whose probe is no longer running are pruned; stdout gets
+#                      `SHOTS run=<stamp> files=<n>` and one
 #                      `SHOT <path>` per file
 #   --contract <slug>  run only that contract class; the last stdout line is
 #                      `CONTRACT <slug> findings=<n>` (absent on a crash)

@@ -29,7 +29,8 @@ ok()  { printf '  ok: %s\n' "$1"; PASS=$((PASS + 1)); }
 bad() { printf '  FAIL: %s\n' "$1" >&2; FAIL=$((FAIL + 1)); }
 
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+LIVE=""
+trap 'rm -rf "$TMP"; [[ -n "$LIVE" ]] && kill "$LIVE" 2>/dev/null' EXIT
 
 # has_shot <shots-dir> <name>: both full-page PNGs of the page exist in its run subdirectory.
 has_shot() { local d f; for d in "$1/$2".run-*; do [[ -s "$d/$2-1280.png" && -s "$d/$2-390.png" ]] && return 0; done; return 1; }
@@ -772,15 +773,20 @@ out="$(bash "$PROBE" --shots "$TMP/c-shots" --contract figure-text-contrast "$TM
 echo "== a re-probe into one --shots dir never mixes two runs =="
 # BL-823: a grader launched while the builder re-probed read tiles of two builds. Each run now
 # writes into its own <name>.run-<stamp>/ and the manifest last, by rename; the previous run
-# is kept (a grader may still read it), older ones are pruned. Three runs of one page with a
+# is kept (a grader may still read it), older finished ones are pruned. Three runs of one page with a
 # different height each time, so the runs are told apart by what the tiles say.
 printf '<!doctype html><html><body style="margin:0"><div data-id="a" style="height:1000px">a</div></body></html>\n' > "$TMP/rerun.html"
 rr="$TMP/rerun-shots"; mf="$rr/rerun-shots.json"; inodes=()
 for h in 1000 1500 2000; do
   if [[ $h -eq 2000 ]]; then
     # F1: a dir newer than any real stamp may be another probe's run in progress; one older than
-    # the previous run is an orphan. The run must keep the first and sweep the second.
-    mkdir -p "$rr/rerun.run-29991231T235959999Z-p1" "$rr/rerun.run-20000101T000000000Z-p1"
+    # the previous run whose writer is dead (pid 99999999 never exists) is an orphan. The run must
+    # keep the first and sweep the second. Three overlapping probes: one that started before the
+    # previous run and is still running sorts before it too; its writer is alive (this test's
+    # sleep, or pid 1 owned by another user: EPERM), so its dir must stay.
+    sleep 300 & LIVE=$!
+    mkdir -p "$rr/rerun.run-29991231T235959999Z-p1" "$rr/rerun.run-20000101T000000000Z-p99999999" \
+      "$rr/rerun.run-20000101T000000001Z-p$LIVE" "$rr/rerun.run-20000101T000000002Z-p1"
   fi
   printf '<!doctype html><html><body style="margin:0"><div data-id="a" style="height:%spx">a</div></body></html>\n' "$h" > "$TMP/rerun.html"
   out="$(bash "$PROBE" --shots "$rr" "$TMP/rerun.html" 2>&1)"
@@ -792,7 +798,7 @@ chk="$(python3 - "$mf" "$rr" "$stamp" "$prev_stamp" <<'PY'
 import json, os, sys, glob
 mf, d, stamp, prev = sys.argv[1:5]
 m = json.load(open(mf))
-runs = sorted(os.path.basename(x) for x in glob.glob(os.path.join(d, "rerun.run-*")) if "29991231" not in x)
+runs = sorted(os.path.basename(x) for x in glob.glob(os.path.join(d, "rerun.run-*")) if "29991231" not in x and "20000101" not in x)
 if len(runs) != 2: print(f"run dirs {runs}, want the latest and the previous only"); sys.exit()
 if m["run"] != stamp or m["dir"] != f"rerun.run-{stamp}": print(f"manifest run/dir {m['run']} {m['dir']}, printed stamp {stamp}"); sys.exit()
 if runs != sorted([f"rerun.run-{prev}", m["dir"]]): print(f"kept {runs}, want previous {prev} and latest"); sys.exit()
@@ -807,7 +813,9 @@ PY
 )"
 [[ "$chk" == ok ]] && ok "after 3 runs: latest + previous run dirs only, the manifest lists only files of the latest, all exist" || bad "re-probe runs: $chk"
 [[ -d "$rr/rerun.run-29991231T235959999Z-p1" ]] && ok "a run dir newer than the previous run (another probe in progress) is not pruned" || bad "prune deleted a newer run dir"
-[[ ! -e "$rr/rerun.run-20000101T000000000Z-p1" ]] && ok "an orphan older than the previous run is swept" || bad "old orphan kept"
+[[ ! -e "$rr/rerun.run-20000101T000000000Z-p99999999" ]] && ok "an orphan older than the previous run, writer dead, is swept" || bad "old orphan kept"
+[[ -d "$rr/rerun.run-20000101T000000001Z-p$LIVE" ]] && ok "a run dir older than the previous run whose probe is still running is not pruned" || bad "prune deleted the run dir of a live probe older than the previous run"
+[[ -d "$rr/rerun.run-20000101T000000002Z-p1" ]] && ok "a live writer owned by another user (EPERM) counts as running" || bad "prune deleted a run dir whose writer answers EPERM"
 # The inode check is a proxy for "a reader sees the old or the new manifest, never half of one":
 # rename gives a new inode, an in-place rewrite keeps it.
 [[ "${inodes[1]}" != "${inodes[2]}" ]] && ok "the manifest is replaced by rename (new inode), never rewritten in place" || bad "manifest inode unchanged across runs: ${inodes[*]}"
