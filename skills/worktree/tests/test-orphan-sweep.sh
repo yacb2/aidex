@@ -634,11 +634,15 @@ done
 
 echo "== every printed rmi / network rm carries a one-line reason =="
 # Layer: script-level, docker shim (no daemon). A suggestion with no stated basis asks the
-# reader to trust the sweep; the comment line above the command says what it rests on.
+# reader to trust the sweep; the comment line above the command says what it rests on,
+# and only what is known: gonec has an exited container whose working_dir is gone (proof),
+# gonea and goneb have no container at all, which a worktree moved elsewhere with a
+# stopped stack reads the same as (no proof, BL-857).
 mkdir -p "$TMP/wbin"
 cat > "$TMP/wbin/docker" <<'SHIM'
 #!/usr/bin/env bash
 case "$*" in
+  ps*) printf '%s\t%s\t\t%s\n' myproj-wt-gonec /nonexistent/myproj-wt-gonec exited ;;
   "images -f dangling=true -q") echo d1 ;;
   "inspect -f"*d1) echo myproj-wt-gonea ;;
   "images -f dangling=true -f label="*) echo d1 ;;
@@ -653,15 +657,16 @@ chmod +x "$TMP/wbin/docker"
 out="$( cd "$ROOT" && PATH="$TMP/wbin:$PATH" bash "$SCRIPT" 2>&1 )"
 # grep -F splits a multi-line pattern into alternatives, so the line above the command is read.
 above() { grep -Fx -B1 -- "$2" <<< "$out" | sed -n 1p | grep -Fx -- "$3" >/dev/null && pass "$1" || fail "$1: line above '$2' is not '$3' in: $out"; }
-above "reason: tagged image" "  docker rmi myproj-wt-gonec-web" "  # no live worktree or running container for myproj-wt-gonec; the image rebuilds from its compose file"
-above "reason: dangling layer" "  docker rmi d1" "  # no live worktree or running container for myproj-wt-gonea; the image rebuilds from its compose file"
-above "reason: network" "  docker network rm myproj-wt-goneb_default" "  # no live worktree or running container for myproj-wt-goneb; the network has no endpoints"
+above "reason: tagged image, working_dir gone" "  docker rmi myproj-wt-gonec-web" "  # every container of myproj-wt-gonec shows its working_dir gone; the image rebuilds from its compose file"
+above "reason: dangling layer, no container" "  docker rmi d1" "  # no container of myproj-wt-gonea to judge (a moved worktree with a stopped stack reads the same); the image rebuilds from its compose file"
+above "reason: network, no container" "  docker network rm myproj-wt-goneb_default" "  # no container of myproj-wt-goneb to judge (a moved worktree with a stopped stack reads the same); the network has no endpoints"
 hasnt "reason: still no volume rm" "volume rm"
 hasnt "reason: still no down -v" "down -v"
 # Under --slug the sweep cannot claim the containers are gone, so it names the scope instead.
 out="$( cd "$ROOT" && PATH="$TMP/wbin:$PATH" bash "$SCRIPT" --slug gonec 2>&1 )"
 above "reason under --slug: names the scope, not an empty project" "  docker rmi myproj-wt-gonec-web" "  # belongs to myproj-wt-gonec (--slug); the image rebuilds from its compose file"
-hasnt "reason under --slug: no claim that containers are gone" "no live worktree or running container"
+hasnt "reason under --slug: no claim that containers are gone" "every container of"
+hasnt "reason under --slug: no claim that no container exists" "no container of"
 
 echo
 echo "RESULT: $PASS passed, $FAIL failed"

@@ -231,12 +231,15 @@ mounters() {
 
 # say_cmd CMD... — print a removal command, unless the container listing failed: a
 # running container missing from a partial listing reads as gone, so nothing is judged.
-# basis PROJECT WHAT — the one-line reason above a rmi / network rm line. Outside --slug
-# the project reached here because no live worktree or running container claims it;
-# under --slug containers may still exist, so the line names the scope instead.
+# basis PROJECT WHAT — the one-line reason above a rmi / network rm line, stating only
+# what is known. Outside --slug a project in gone_projects showed every working_dir gone;
+# any other project has no container at all, which a worktree moved elsewhere with a
+# stopped stack reads the same as (BL-857). Under --slug containers may still exist, so
+# the line names the scope instead.
 basis() {
   if [[ -n "$SLUG" ]]; then say_cmd "# belongs to $1 (--slug); $2"
-  else say_cmd "# no live worktree or running container for $1; $2"; fi
+  elif [[ " ${gone_projects[*]:-} " == *" $1 "* ]]; then say_cmd "# every container of $1 shows its working_dir gone; $2"
+  else say_cmd "# no container of $1 to judge (a moved worktree with a stopped stack reads the same); $2"; fi
 }
 say_cmd() { if [[ $failed -eq 0 ]]; then echo "  $*"; fi; }    # never false: _lib.sh sets -e
 

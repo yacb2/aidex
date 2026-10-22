@@ -236,7 +236,7 @@ with no container to read as `NOT JUDGED volume:`. The project line is always `d
 without `-v` (under `--slug` too): run from the workspace root, `-p <project> down -v`
 would remove the main stack's name:-pinned volume whenever nothing mounts it. A shared
 volume or one not named `<project>_*` is named on a `# no -v:` line. When the container
-listing failed, even partway, no removal command is printed at all (BL-857). Every `docker rmi` and `docker network rm` line carries a one-line `# ...` reason above it: `# no live worktree or running container for <project>; the image rebuilds from its compose file` (or `...; the network has no endpoints`), and under `--slug`, where containers may still exist, `# belongs to <project> (--slug); ...`. The commands are still only printed, never run.
+listing failed, even partway, no removal command is printed at all (BL-857). Every `docker rmi` and `docker network rm` line carries a one-line `# ...` reason above it: `# every container of <project> shows its working_dir gone; the image rebuilds from its compose file` (or `...; the network has no endpoints`), or, when the project has no container at all, `# no container of <project> to judge (a moved worktree with a stopped stack reads the same); ...`, and under `--slug`, where containers may still exist, `# belongs to <project> (--slug); ...`. The commands are still only printed, never run.
 
 ### Doc-shape check
 
