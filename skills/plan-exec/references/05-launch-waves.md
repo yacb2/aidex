@@ -12,7 +12,10 @@ by wave:
    A non-zero exit means stop and show its stderr to the user: the argument is not a plan
    folder, the folder has no phase files, or two phase files share a number. On exit 0, a
    stderr line `skipped, not NN-<phase>.md: ...` is informational: it names digit-led files
-   (briefs, dated notes) that are not phases.
+   (briefs, dated notes) that are not phases. A stderr line `skipped, numbered 0 without a
+   # Phase heading ...` names a 00-*.md (not 00-index.md) with neither a `# Phase` heading
+   nor `phase-type:`/`depends_on:` front matter; show it to the user, since a phase 0 written
+   without them leaves its dependents `blocked`.
 2. Launch the WHOLE wave in one message, one worktree per phase that writes.
 3. Each member then follows step 1's items 1-N for itself. Integrate the members in order at
    the checkpoint (step 2), one commit per phase.
