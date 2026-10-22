@@ -712,9 +712,10 @@ build_envs() {  # build_envs <slot|"">
 # Prints "<volume>: <why>" per declared volume that exists and was either created
 # by another project (its compose label is not exactly $CPROJ), resolves to the
 # same name under the main project, or is referenced by a container of another
-# project, in any state. Returns 1 when that cannot be judged; the caller then
-# keeps every volume. Runs in the compose dir; the arguments are the prefix each
-# docker call runs under (env, timeout).
+# project, in any state, and "own <volume>" per other declared volume that exists.
+# Returns 1 when that cannot be judged; the caller then keeps every volume. Runs
+# in the compose dir; the arguments are the prefix each docker call runs under
+# (env, timeout).
 kept_volumes() {  # kept_volumes <runner...>
   local names main mains existing v label refs
   main="$(compose_project_name "$PROJECT")"
@@ -733,7 +734,7 @@ kept_volumes() {  # kept_volumes <runner...>
     fi
     refs="$("$@" docker ps -a --filter "volume=$v" --format '{{.Names}} {{.Label "com.docker.compose.project"}}' 2>/dev/null)" || return 1
     refs="$(awk -v p="$CPROJ" 'NF && $2 != p { print $1 }' <<<"$refs" | tr '\n' ' ')"
-    [[ -z "$refs" ]] || echo "$v: mounted by ${refs% } (another project)"
+    if [[ -n "$refs" ]]; then echo "$v: mounted by ${refs% } (another project)"; else echo "own $v"; fi
   done <<<"$names"
 }
 # The non-external volume names in `compose config --format json` on stdin.
@@ -743,15 +744,28 @@ for v in (json.load(sys.stdin).get("volumes") or {}).values():
     if not v.get("external"): print(v["name"])'
 }
 # Sets `vflag` to -v, or to nothing when kept_volumes names a volume or cannot judge.
+# Without -v the own volumes would outlive the teardown (the sweep then withholds
+# the slot on every re-run), so a judged keep also lists them in `own_volumes`
+# for remove_own_volumes, after compose down has removed their containers.
 judge_volumes() {  # judge_volumes <compose dir> <runner...>
   local dir="$1" kept line; shift
-  vflag="-v"
+  vflag="-v" own_volumes=""
   if ! kept="$(cd "$dir" && kept_volumes "$@")"; then
     vflag=""; warn "could not judge which volumes compose down -v would remove — tearing down without -v, every volume kept"
-  elif [[ -n "$kept" ]]; then
+  elif grep -qv -e '^own ' -e '^$' <<<"$kept"; then
     vflag=""
-    while IFS= read -r line; do warn "keeping volume $line — tearing down without -v"; done <<<"$kept"
+    while IFS= read -r line; do
+      if [[ "$line" == "own "* ]]; then own_volumes+="${line#own }"$'\n'
+      else warn "keeping volume $line — tearing down without -v"; fi
+    done <<<"$kept"
   fi
+}
+remove_own_volumes() {  # remove_own_volumes <runner...>
+  local v
+  while IFS= read -r v; do
+    [[ -n "$v" ]] || continue
+    "$@" docker volume rm "$v" >/dev/null 2>&1   # after `down` the sweep lists what stays; rollback is silent
+  done <<<"$own_volumes"
 }
 write_wt_env() {
   local dest="$1" slot="$2" f="$1/.env"
@@ -1100,6 +1114,7 @@ if [[ "$cmd" == "new" ]]; then
   #   1. compose down timeout: rollback has none; `down` bounds it by AIDEX_DOWN_TIMEOUT
   #      (default 300 s). Reason for `down`: a wedged daemon hung it for good
   #      (60f767cf, worktree-c05). Rollback: no recorded reason; that commit left it unbounded.
+  #      The per-volume rm after it (remove_own_volumes) follows the same split.
   #   2. slot ports in the environment: rollback passes only COMPOSE_PROJECT_NAME and the
   #      suffix variable; `down` runs through "${envs[@]}" from build_envs (slot ports
   #      included). Reason: no recorded reason. Code observation only: the first three
@@ -1139,6 +1154,7 @@ if [[ "$cmd" == "new" ]]; then
       ( cd "$rbdir"
         env COMPOSE_PROJECT_NAME="$CPROJ" "$WT_SUFFIX_VAR=-$SLUG" \
           docker compose -p "$CPROJ" --profile '*' down ${vflag:+"$vflag"} --rmi local --remove-orphans ) >/dev/null 2>&1
+      remove_own_volumes
       local dang
       dang="$(docker images -f dangling=true -f "label=com.docker.compose.project=$CPROJ" -q | tr '\n' ' ')"
       [[ -n "${dang// /}" ]] && docker rmi $dang >/dev/null 2>&1
@@ -1350,6 +1366,7 @@ if [[ "$cmd" == "down" ]]; then
   ( cd "$COMPOSE_DIR" && with_timeout "${AIDEX_DOWN_TIMEOUT:-300}" \
       env "${envs[@]}" docker compose -p "$CPROJ" --profile '*' down ${vflag:+"$vflag"} --rmi local --remove-orphans ) \
     || unreclaimed="compose down failed (exit $?)"
+  remove_own_volumes with_timeout "${AIDEX_DOCKER_TIMEOUT:-30}"
 
   # `--rmi local` cannot reach untagged layers this project built; nothing else
   # ever revisits them. Label-scoped, so only this project can be touched.

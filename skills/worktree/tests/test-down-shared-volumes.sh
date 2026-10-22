@@ -41,7 +41,8 @@ mkdir -p "$TMP/bin" "$TMP/slots" "$TMP/p/.context/worktrees" "$TMP/p/backend"
 # so a literal `name:` stays the same in both renders (config-main-fails makes
 # only that render fail). Every `compose down` is logged with its arguments, and the
 # directory of every `config` and `down` is logged: the judgement must read the
-# same compose file the teardown then runs from.
+# same compose file the teardown then runs from. Every `volume rm` logs its
+# volume to rm.log.
 cat > "$TMP/bin/docker" <<'STUB'
 #!/bin/sh
 case " $* " in
@@ -54,6 +55,7 @@ case " $* " in
     sed "s/@S@/$WT_SUFFIX/g" "$SCN/config.json"; exit 0 ;;
   *" volume ls "*) [ -f "$SCN/ls-fails" ] && exit 1; cat "$SCN/volumes" 2>/dev/null; exit 0 ;;
   *" volume inspect "*) for a; do v="$a"; done; cat "$SCN/label-$v"; exit $? ;;
+  *" volume rm "*) for a; do v="$a"; done; echo "$v" >> "$SCN/rm.log"; exit 0 ;;
   *" --filter volume="*) [ -f "$SCN/ps-fails" ] && exit 1; for a; do case "$a" in volume=*) v="${a#volume=}" ;; esac; done
     cat "$SCN/ps-$v" 2>/dev/null; exit 0 ;;
   *" ps -a "*) echo "$COMPOSE_PROJECT_NAME-db-1"; exit 0 ;;
@@ -86,6 +88,7 @@ vol() {  # vol <scn> <name> <label> [ps line]: an existing volume, its label, wh
   [[ -z "${4:-}" ]] || printf '%s\n' "$4" >> "$1/ps-$2"
 }
 used_v() { grep -q -- ' down -v ' "$1/down.log" 2>/dev/null; }
+rm_issued() { grep -qxF -- "$2" "$1/rm.log" 2>/dev/null; }   # rm_issued <scn> <volume>
 same_dir() {  # same_dir <scn> <dir> <label>: config and down both ran in <dir>, last time
   [[ "$(tail -1 "$1/config.pwd" 2>/dev/null)" == "$2" && "$(tail -1 "$1/down.pwd" 2>/dev/null)" == "$2" ]] \
     || fail "$3: compose config and compose down must both run in $2; config ran in '$(tail -1 "$1/config.pwd" 2>/dev/null)', down in '$(tail -1 "$1/down.pwd" 2>/dev/null)'"
@@ -99,7 +102,7 @@ check_down() {
   local slug="$1" want="$2" frag="$3" why="$4" scn="$TMP/scn/$1" out
   out="$(run "$scn" new "$slug" --branch "wt/$slug")" || { fail "$slug fixture: new failed: $out"; return; }
   [[ -z "${5:-}" ]] || : > "$scn/$5"
-  : > "$scn/down.log"
+  : > "$scn/down.log"; : > "$scn/rm.log"
   out="$(run "$scn" down "$slug" --force)"
   [[ -s "$scn/down.log" ]] || { fail "$slug: compose down never ran: $out"; return; }
   if [[ "$want" == v ]]; then
@@ -127,6 +130,7 @@ check_down r2 keep "keeping volume p-wt-r2_pg: mounted by" "own volume mounted b
 s="$(scenario r3)"; printf '{"volumes":{"pg":{"name":"p-wt-r3_pg"}}}' > "$s/config.json"
 vol "$s" p-wt-r3_pg p-wt-r3 "p-wt-r3-db-1 p-wt-r3"
 check_down r3 v "" "own volume, own container only"
+[[ -s "$s/rm.log" ]] && fail "r3: with -v no volume needs its own rm; docker saw volume rm: $(cat "$s/rm.log")"
 
 # r4: external is never compose's to remove, whoever made it -- it never blocks -v.
 s="$(scenario r4)"; printf '{"volumes":{"ext":{"name":"p_ext","external":true},"pg":{"name":"p-wt-r4_pg"}}}' > "$s/config.json"
@@ -199,6 +203,25 @@ s="$(scenario r18)"; printf '{"volumes":{"pg":{"name":"p-wt-r18_pg"}}}' > "$s/co
 vol "$s" p-wt-r18_pg p-wt-r18
 check_down r18 keep "could not judge" "ps -a failed" ps-fails
 
+# r24: a kept volume next to own ones -- dropping -v for the pinned one must not
+# leak the worktree's own volume: it gets its own `volume rm`, and nothing kept,
+# external or mounted by another project does.
+s="$(scenario r24)"
+printf '{"volumes":{"pg":{"name":"p_pgdata"},"data":{"name":"p-wt-r24_data"},"ext":{"name":"p_ext","external":true},"sh":{"name":"p-wt-r24_sh"}}}' > "$s/config.json"
+vol "$s" p_pgdata p; vol "$s" p-wt-r24_data p-wt-r24; vol "$s" p_ext p; vol "$s" p-wt-r24_sh p-wt-r24 "p-db-1 p"
+check_down r24 keep "keeping volume p_pgdata: created by project 'p'" "kept pinned volume beside an own one"
+rm_issued "$s" p-wt-r24_data || fail "r24: the worktree's own volume p-wt-r24_data was never removed; docker saw volume rm: $(cat "$s/rm.log")"
+for k in p_pgdata p_ext p-wt-r24_sh; do
+  rm_issued "$s" "$k" && fail "r24: volume rm ran on $k, which is kept"
+done
+
+# r25: a judgement that fails halfway (the pinned volume already judged kept,
+# then ps fails on the own one) removes nothing one by one either.
+s="$(scenario r25)"; printf '{"volumes":{"pg":{"name":"p_pgdata"},"data":{"name":"p-wt-r25_data"}}}' > "$s/config.json"
+vol "$s" p_pgdata p; vol "$s" p-wt-r25_data p-wt-r25
+check_down r25 keep "could not judge" "judgement failed after a kept volume" ps-fails
+[[ -s "$s/rm.log" ]] && fail "r25: an unjudged teardown must remove no volume; docker saw volume rm: $(cat "$s/rm.log")"
+
 # r19: a wedged daemon answering the judgement never holds the teardown past
 # AIDEX_DOCKER_TIMEOUT (the stub hangs 20 s on `config`).
 s="$(scenario r19)"; printf '{"volumes":{"pg":{"name":"p-wt-r19_pg"}}}' > "$s/config.json"
@@ -254,5 +277,14 @@ grep -qF "keeping volume p_pgdata: same name under the main project 'p'" <<<"$ou
   || fail "r21 (rollback): output must name the kept volume; got: $out"
 same_dir "$s" "$TMP/p-wt-r21" "r21 (rollback)"
 
+# r26: r24 on the rollback path.
+s="$(scenario r26)"; printf '{"volumes":{"pg":{"name":"p_pgdata"},"data":{"name":"p-wt-r26_data"}}}' > "$s/config.json"
+vol "$s" p_pgdata p; vol "$s" p-wt-r26_data p-wt-r26; : > "$s/up-fails"; : > "$s/down.log"
+out="$(run "$s" new r26 --branch wt/r26)"
+grep -q 'rolling back' <<<"$out" || fail "r26 fixture: a failing compose up did not roll back: $out"
+used_v "$s" && fail "r26 (rollback): compose down ran with -v over main's pinned volume; docker saw: $(cat "$s/down.log")"
+rm_issued "$s" p-wt-r26_data || fail "r26 (rollback): the worktree's own volume p-wt-r26_data was never removed; docker saw volume rm: $(cat "$s/rm.log" 2>/dev/null)"
+rm_issued "$s" p_pgdata && fail "r26 (rollback): volume rm ran on p_pgdata, which is kept"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
-echo "OK — teardown keeps shared volumes: down and rollback drop -v (and say why) when a declared volume was created by, is mounted by, or keeps its name under another project, or when nothing can be judged; an own, external, absent or undeclared volume keeps -v"
+echo "OK — teardown keeps shared volumes: down and rollback drop -v (and say why) when a declared volume was created by, is mounted by, or keeps its name under another project, or when nothing can be judged; an own, external, absent or undeclared volume keeps -v, and an own volume beside a kept one gets its own volume rm"
