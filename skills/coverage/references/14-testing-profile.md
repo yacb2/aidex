@@ -79,6 +79,7 @@ and the gate; the pack says what a test at that layer looks like in that framewo
 |---|---|---|
 | a Django backend pack | pytest + pytest-django + DRF shapes and traps | app backend |
 | `testing-vue` | Vitest + Vue Test Utils + Pinia + MSW shapes and traps | app frontend |
+| `testing-react-next` | Vitest + React Testing Library + user-event + next-intl + TanStack Query + MSW shapes and traps (client jsdom and node `server` projects) | Next.js app frontend |
 | `testing-playwright-app` | Playwright specs, helpers, seed generators and the disposable template-database environment (`test-e2e.sh` generator) | app E2E |
 | `testing-payload` | Payload CMS integration tests (Vitest, Local API) | website backend |
 | `testing-svelte` | Vitest + Svelte Testing Library shapes | website frontend |
