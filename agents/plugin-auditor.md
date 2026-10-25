@@ -13,29 +13,31 @@ You audit installed plugins for token cost vs. usage.
 - The snapshot JSON (`context-snapshot.py`, path in the prompt): `categories['custom-agents']`
   is the measured idle cost of every plugin subagent together; `skills{}` carries each
   plugin skill's `uses` / `last_used` when `usage_available` is true.
+- `claude plugin list --json`: one entry per installed plugin, with `installPath` and, for a
+  plugin installed from a directory source, `readFromFolder` — the folder it actually loads from.
 - `~/.claude/plugins/installed_plugins.json`
-- `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/agents/*.md`
-- `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/commands/*.md` (for command names)
+- `<dir>/agents/*.md` and `<dir>/commands/*.md` (for command names), `<dir>` as recorded in step 1
 
 ## Steps
 
 ### 1. Enumerate plugins
 
-Parse `installed_plugins.json`. For each plugin entry, record:
+Parse `claude plugin list --json`. For each plugin entry, record:
 - Plugin name and marketplace (`<plugin>@<marketplace>`)
-- `installPath`
+- `dir`: `readFromFolder` when the entry has it, else `installPath`. If the CLI is unavailable,
+  fall back to `installPath` from `installed_plugins.json` and say the folder may be stale.
 - `installedAt`, `lastUpdated`
 
 ### 2. Attribute the measured agent cost
 
-For each plugin's installPath, list `agents/*.md`. The idle cost is the snapshot's
+For each plugin's `dir`, list `agents/*.md`. The idle cost is the snapshot's
 `custom-agents` row, shared between plugins in proportion to their agent count — never
 N × a constant (3 agents measured 320 tokens on 2.1.263, not 1,800). Plugins with 0 agents
 have no idle cost — mark `OK` and skip.
 
 ### 3. Collect command names
 
-For each plugin, list `commands/*.md`. The command name is the filename stem (e.g., `review-pr.md` → `/review-pr`). Also gather any namespaced slash commands from SKILL.md headers if present.
+For each plugin's `dir`, list `commands/*.md`. The command name is the filename stem (e.g., `review-pr.md` → `/review-pr`). Also gather any namespaced slash commands from SKILL.md headers if present.
 
 ### 4. Check recent usage
 
@@ -91,7 +93,7 @@ The auditor never decides this alone — it surfaces uninstall as a candidate th
 
 ### 7. Validate plugin manifest schema
 
-For each non-protected plugin where `installPath` is reachable, run `claude plugin validate <installPath>` (when the CLI is available). Capture issues like:
+For each non-protected plugin where `dir` is reachable, run `claude plugin validate <dir>` (when the CLI is available). Capture issues like:
 
 - `themes` / `monitors` not nested under `experimental.*` (current schema requires this).
 - Missing top-level `$schema` / `version` / `description`.

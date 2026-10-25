@@ -28,6 +28,19 @@ fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 
 [[ -f "$AGENT" ]] || { echo "FAIL: agent file not found ($AGENT)"; exit 1; }
 
+# --- scope: the global level must scan ~/.claude/skills/ ---
+# Regression (BL-868): the plugin path sweep rewrote every `~/.claude/skills/` to
+# `${CLAUDE_PLUGIN_ROOT}/skills/`, including this scan list. The plugin root holds no
+# symlinks; the user's global links live in ~/.claude/skills/, which was never scanned,
+# so a broken global link could not be reported at all.
+GLOBAL="$(awk '/^\*\*Global level/{on=1; next} on && /^$/{exit} on' "$AGENT")"
+[[ -n "$GLOBAL" ]] || fail "no '**Global level:**' scan list found in $AGENT"
+printf '%s' "$GLOBAL" | grep >/dev/null -F '`~/.claude/skills/`' \
+  || fail "global scan list does not name ~/.claude/skills/ (where the global skill links live): $GLOBAL"
+if printf '%s' "$GLOBAL" | grep >/dev/null -F '${CLAUDE_PLUGIN_ROOT}/skills/'; then
+  fail "global scan list still names \${CLAUDE_PLUGIN_ROOT}/skills/, which holds no symlinks"
+fi
+
 # --- extract the first ```bash block that scans for symlinks ---
 SNIPPET="$(awk '/^```bash$/{inb=1; buf=""; next} /^```$/{if (inb && buf ~ /-type l/) {printf "%s", buf; exit} inb=0} inb{buf = buf $0 "\n"}' "$AGENT")"
 [[ -n "$SNIPPET" ]] || { echo "FAIL: could not extract a '-type l' bash block from $AGENT"; exit 1; }
@@ -78,4 +91,4 @@ printf '%s' "$out" | grep "^OK: .*rel-ok.md" | grep >/dev/null -- "-> /" \
   || fail "OK line for a relative link does not report an absolute resolved target"
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
-echo "OK — snippet classifies relative/absolute × healthy/dangling correctly (5/5), resolves absolute for LK2"
+echo "OK — global scope is ~/.claude/skills/; snippet classifies relative/absolute × healthy/dangling correctly (5/5), resolves absolute for LK2"

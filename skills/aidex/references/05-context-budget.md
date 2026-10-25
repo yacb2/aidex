@@ -101,7 +101,7 @@ it if its tools were not wanted at all.
 
 Each `agents/*.md` inside an installed plugin is loaded on every session, regardless of whether the plugin's commands are invoked. The cost is the snapshot's `custom-agents` row — measured, not modelled: on 2.1.263 the vercel plugin's 3 agents cost 320 tokens together, where the old N × 600 heuristic would have said 1,800.
 
-- Attribute the row to plugins by counting `~/.claude/plugins/cache/*/*/*/agents/*.md` per plugin; the count decides the share, the snapshot decides the total.
+- Attribute the row to plugins by counting `agents/*.md` in each plugin's folder (`readFromFolder` from `claude plugin list --json`, else `installPath`); the count decides the share, the snapshot decides the total.
 - Candidate for per-project disable if: it carries the row **AND** its skills show no use in `/skill-doctor` (`uses` 0 / `last used` never) **AND** the project's stack does not want them.
 - Built-in skills like `/simplify` are harness-level (0 tokens extra) — do not confuse with homonymous plugin subagents (e.g., `pr-review-toolkit`'s `code-simplifier`).
 
@@ -151,7 +151,7 @@ Project CLAUDE.md above ~3k tokens (~300 lines) typically contains movable conte
 A skill loaded globally but unused for the current project stack still pays metadata cost.
 
 - Detect project stack from `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `docker-compose.yml`, and the project's `CLAUDE.md` Tech Stack section as a tiebreaker.
-- For each global skill in `${CLAUDE_PLUGIN_ROOT}/skills/` whose domain doesn't match the stack, propose a per-project `skillOverrides` patch in `<project>/.claude/settings.local.json` (`name-only` for cross-cutting plausible skills; `off` when categorically excluded). The skill stays installed, just silenced for this project. See `skills-auditor` for the full decision matrix.
+- For each global skill in `~/.claude/skills/` or `${CLAUDE_PLUGIN_ROOT}/skills/` whose domain doesn't match the stack, propose a per-project `skillOverrides` patch in `<project>/.claude/settings.local.json` (`name-only` for cross-cutting plausible skills; `off` when categorically excluded). The skill stays installed, just silenced for this project. See `skills-auditor` for the full decision matrix.
 
 ## Output shape
 

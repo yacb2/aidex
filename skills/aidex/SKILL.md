@@ -14,7 +14,7 @@ Single entry point for auditing, diagnosing, and fixing the AI assistant ecosyst
 | Domain | Location | What it checks |
 |--------|----------|---------------|
 | **Context structure** | `.context/` | References, docs, plans, backlog (incl. `_deferred/`), issues, roadmap, requests, decisions, research, audits, loops, communications, worktrees — numbering, metadata, index coverage, reorganization suggestions. Optional tier (`data`, `diagrams`, `drafts`, `experiments`, `profiles`, `worklists`, `workflows`) reported at INFO only |
-| **Skills** | `.claude/skills/`, `${CLAUDE_PLUGIN_ROOT}/skills/` | Frontmatter, size, structure, scope placement |
+| **Skills** | `.claude/skills/`, `~/.claude/skills/`, `${CLAUDE_PLUGIN_ROOT}/skills/` | Frontmatter, size, structure, scope placement |
 | **Symlinks** | `.claude/skills/*`, `.claude/commands/*` | Targets exist, no broken/orphan links |
 | **Memory** | `~/.claude/projects/<slug>/memory/` + its `MEMORY.md` index | Session logs saved as memories, secrets, closed subjects, duplicates, content in the always-on index. See `/aidex:aidex memory` |
 | **CLAUDE.md** | `.claude/CLAUDE.md` or `./CLAUDE.md` | Size, security, structure, stale references |
@@ -136,7 +136,8 @@ Check for:
 - .claude/ (skills/, CLAUDE.md)
 - ~/.claude/projects/<slug>/memory/ (memory files + MEMORY.md; slug = the project path
   with `/` and `_` turned into `-`)
-- ${CLAUDE_PLUGIN_ROOT}/skills/ (global skills)
+- ~/.claude/skills/ (global skills: the user's own)
+- ${CLAUDE_PLUGIN_ROOT}/skills/ (global skills: aidex's)
 ```
 
 Build a quick inventory of what exists and its size. This determines which agents to launch.
