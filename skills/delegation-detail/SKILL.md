@@ -47,8 +47,11 @@ are the owner's own ledger.
 **One delegate, one unit of at most about 80 turns.** A plan phase or one backlog item,
 never "phase 4 plus propagation". A bigger unit is cut into serial delegates, or parallel
 ones on disjoint files. A delegate's own context grows every turn, so long runs cost more
-per turn and lose more than short ones; most of the observed loss was in delegates of 120+
-turns, which is why the cap matters more than any depth floor.
+per turn and lose more than short ones. Measured (hook v4/v5, priced at current rates):
+120+ turn delegates are about 1.3% of sonnet tasks (42 of 3,327) but 17% of sonnet spend
+($258 of $1,488), and 1.1% of opus tasks but 10.5% of opus spend; median cost per sonnet
+task rises from $0.17 (<40 turns) to $5.20 (120+). Runaway cost per unit is why the cap
+matters more than any depth floor.
 
 ## Cut by size, not only by kind
 

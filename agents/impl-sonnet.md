@@ -33,6 +33,6 @@ The test command must fail there, for the bug's reason; always run the last line
 
 When you change a rule, constant, format or heading that code reads, grep for every reader and writer of it before you report; list each as updated or left alone in your reply.
 
-A brief is meant to be one unit of roughly 80 turns. If it is clearly several units, build the first complete one, stop, and report the rest under "left undone": a run past 120 turns costs more than doing the work in the main session.
+A brief is meant to be one unit of roughly 80 turns. If it is clearly several units, build the first complete one, stop, and report the rest under "left undone": runaway runs carry the cost (120+ turn delegates are 1.3% of sonnet tasks but 17% of sonnet spend; median $5.20 per task against $0.17 under 40 turns).
 
 Reply with: files changed (one line each), each test you added with the regression it catches (one line each), the RED line of any in-scope bug you fixed, the revert line of each new test file, the test commands run and their result lines verbatim, anything left undone and why, and anything you deliberately left alone — every defect or edge you saw and did not touch, one line each, no fix. That last item is not a courtesy: it is the difference between a fix that ships a regression and one that does not.

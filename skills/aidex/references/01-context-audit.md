@@ -37,14 +37,14 @@ What the snapshot carries, and which agent reads it:
 1. **Read the budget heuristics first:** `${CLAUDE_PLUGIN_ROOT}/skills/aidex/references/05-context-budget.md`. It holds the idle-token budget thresholds, the cost drivers ranked by typical savings, and the `CB-*` codes the agents below emit — without it you cannot tell an expensive footprint from a normal one, and the synthesis in step 4 has nothing to rank against.
 2. **Take the snapshot.** Run `context-snapshot.py` (or `--from-context` on the pasted report). Surface idle total and per-category token counts immediately, from the JSON — nothing is estimated from file sizes any more. If `usage_available` is false (HIPAA or telemetry off), say so once and continue: cost is complete, usage is absent.
 3. **Launch in parallel** (single message, `run_in_background: true`), each with the snapshot path:
-   - `context-cost-analyzer` — classifies the categories, owns `CB-CM`, `CB-MD` and
-     `CB-RF` from the measured per-file tokens, and ranks every driver into one savings
-     list. It consumes the three below rather than re-deriving them.
+   - `context-cost-analyzer` — owns `CB-CM`, `CB-MD` and
+     `CB-RF` from the measured per-file tokens and classifies the categories. It does not
+     consume its siblings' lines: they run in this same batch.
    - `plugin-auditor` — owns `CB-PL`: the measured custom-agents cost attributed to its plugin, against usage.
    - `skills-auditor` — owns `CB-DU` (user↔project duplication) and `CB-SR` (stack relevance).
    - `memory-auditor` — reads the memory *files* and returns one verdict each; the index
      (`MEMORY.md`) is `context-cost-analyzer`'s `CB-MD`.
-4. **Synthesize** a single report ordered by **measured token savings descending**, annotating each with risk (low/medium/high).
+4. **Synthesize**, in the main session, one report that ranks every driver, including the `CB-PL`, `CB-DU` and `CB-SR` lines from the sibling agents, ordered by **measured token savings descending**, annotating each with risk (low/medium/high). If `skills-auditor` did not run (its gate is the project's `.claude/skills/`), `CB-DU` is moot and step 4 detects the stack itself for `CB-SR`, per `agents/skills-auditor.md` [SH].
 5. **Never auto-execute during the audit itself.** The audit reports; it does not mutate. Present runnable commands (`claude plugin uninstall ...`, `rm ...`, edit proposals) as proposals. Execution belongs to the apply phase below, and only once the user has picked from its menu.
 
 ## Apply phase (optional)

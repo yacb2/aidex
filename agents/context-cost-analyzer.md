@@ -32,16 +32,12 @@ Use the targets in `05-context-budget.md` § Budget targets. Mark each tunable c
 `~/.claude/CLAUDE.md`, the project CLAUDE.md, each `~/.claude/rules/*.md`, and the project's
 `MEMORY.md` index. Rank them by tokens. Flag overlap across global/user/project (`CB-RF`).
 
-**custom-agents** — `plugin-auditor` owns `CB-PL`: it attributes the measured
-`custom-agents` row to plugins and checks usage. It runs in the same parallel batch as you.
-Take its `CB-PL` lines as given and place them in the ranking; do not re-scan the plugin
-cache. If it did not run, say so and report custom-agents as unattributed.
+**custom-agents** — report the measured `custom-agents` row. `CB-PL` (plugin attribution)
+belongs to `plugin-auditor`; the main session ranks it.
 
 **skills** — `skills{}` carries each listed skill's tokens (built-ins included) and, when
-available, its usage. `skills-auditor` owns `CB-DU` (user↔project duplication) and `CB-SR`
-(stack relevance) and runs in the same batch. Take its lines as given. If it did not run —
-its launch gate is `.claude/skills/` existing, which a global-only project fails — `CB-DU`
-is moot and you detect the stack yourself for `CB-SR`. Savings for a demote are the skill's
+available, its usage. `CB-DU` and `CB-SR` belong to `skills-auditor`; the main session
+ranks them. Savings for a demote are the skill's
 measured listing tokens, nothing else; `05` § Usage says what the usage columns may and
 may not do.
 
