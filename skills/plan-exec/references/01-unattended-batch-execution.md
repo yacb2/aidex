@@ -62,11 +62,25 @@ single-agent baseline of that same plan, the threshold is the structural rule ab
   `is not a directory`, `no phase files` or `duplicate phase number` are structure errors, not a
   disjointness verdict. Never launch on exit 1; show the line to the user.
 - **Launch:** read the chosen asset and hand it to the `Workflow` tool, passing the plan as
-  `args = JSON.stringify({ planPath, phases: [{ id, spec, gateCmd, model, effort, agentType, depends_on }],
+  `args = JSON.stringify({ planPath, phases: [{ id, spec, gateCmd, model, effort, agentType, depends_on, firstBuild, sketchBranch }],
   autonomySurface, preAuthorized, maxRetries })`. `depends_on` is a list of phase `id`s a phase
   needs done first (omit/`[]` = edge-free); the pipeline form ignores it, the fan-out form
   schedules on it. `args` arrives as a JSON **string** — the script `JSON.parse`s it. Iterate
   via `{scriptPath}` re-invoke (picks up edits, runs fresh).
+- **`firstBuild` and `sketchBranch`** (ui-contract trial BL-820): a phase with `agentType:
+  'aidex:gallery-builder'` and `firstBuild: true` (a screen with no gallery spec; omit it on a
+  re-capture) also launches `aidex:gallery-builder-shadow` from the template and runs its live
+  builder at opus/high. It needs `sketchBranch`, the live sketch branch the shadow worktree starts
+  from; without it no shadow runs. After the Workflow returns, the main session reads the returned
+  `shadows` array (`{phase, worktree, branch, base, settled, result, error, liveAttempts}`) to write the log
+  line, copy the evidence and run `worktree.sh down` for each (a `settled: false` entry was still
+  running when a live crash returned; `settled: true` with `result` and `error` both null counts as an
+  errored shadow). Names are `gbshadow-<plan slug>-<id>`, the slug being the last segment of
+  `planPath` without its extension. After a **pipeline** throw (a crashed live builder) there is no
+  return value: once no shadow agent of this run is still running, list
+  `git worktree list | grep gbshadow-<plan slug>-` (this plan only, never the bare prefix) and tear
+  each down after its evidence copy and log line exist. See
+  `skills/ui-contract/references/05-gallery-builder-shadow.md`.
 - The arbiter is **conditional and directing**: the JS loop's `if (!proof.passed) retry` is the
   `verify_first` carrier in batch; the arbiter fires on retry-budget exhaustion, a **blocked
   implementer** (the director path: implementers return structured `WORK_SCHEMA` reports, a

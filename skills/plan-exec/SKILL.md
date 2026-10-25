@@ -139,7 +139,8 @@ the phase tier map, and what happens when a phase fails its gate.
    Skill tool), `user-invocable: false` — living in the project's
    `.claude/agents/<name>.md`, or `~/.claude/agents/<name>.md` when several projects share it; those
    are the two locations an agent name resolves from, project first. Pass its name as the batch
-   phase's `agentType`. No definition → the phase runs unrestricted and pays ~49k of prefix per call
+   phase's `agentType`. A first gallery build also sets the phase's `firstBuild: true` and `sketchBranch`
+   (`references/01-unattended-batch-execution.md`); the main session reads the returned `shadows` afterwards. No definition → the phase runs unrestricted and pays ~49k of prefix per call
    instead of ~14k.
    **The definition must be on disk before this session started.** The agent registry is read at
    session start: a stub written mid-session is invisible to the session that wrote it, and a batch

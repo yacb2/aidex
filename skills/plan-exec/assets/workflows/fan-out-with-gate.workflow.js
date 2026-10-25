@@ -13,7 +13,7 @@
 // context"), so a wave must finish before its dependents start.
 //
 // CONTRACT: launched by the plan-exec skill via the `Workflow` tool with
-//   args = JSON.stringify({ planPath, phases: [{ id, spec, gateCmd, model, effort, agentType, depends_on }],
+//   args = JSON.stringify({ planPath, phases: [{ id, spec, gateCmd, model, effort, agentType, depends_on, firstBuild, sketchBranch }],
 //                           autonomySurface, preAuthorized, maxRetries })
 // `args` arrives as a JSON STRING (Phase-1 gotcha) -> parseArgs() does JSON.parse.
 // `depends_on` is a list of phase `id`s this phase needs done first (default [] = edge-free).
@@ -314,12 +314,62 @@ if (!/^\d+$/.test(String(ctx.maxRetries))) throw new Error(`maxRetries must be a
 if (!(cfg.phases || []).length) throw new Error('fan-out: args.phases is empty or missing')
 const phases = cfg.phases.map((p) => ({ ...p, id: String(p.id), depends_on: [].concat(p.depends_on ?? []).map(String).filter((d) => d !== '') }))
 
+// ── Shadow arm (BL-873, trial BL-820; reference: ui-contract 05-gallery-builder-shadow.md) ──
+// A phase whose agentType is exactly aidex:gallery-builder AND that carries `firstBuild: true`
+// (a screen with no gallery spec) also launches aidex:gallery-builder-shadow beside the live
+// builder, once per phase. `sketchBranch` (the live sketch branch) is required on such a phase:
+// without it no shadow launches and `shadows` records {phase, error: 'no sketchBranch'}.
+// The live call starts first; the shadow starts in a microtask, so a synchronous throw from
+// agent() for the shadow cannot reach the live unit. A Workflow script cannot outlive its run, so
+// the unit's return waits for the shadow (no timeout; owner-approved). Its result is never used
+// for pass/fail or merged into the work. each `shadows` entry is recorded at launch (settled:false) and filled when the
+// shadow settles; liveAttempts (live() calls, director relaunches included) is added at the end. The live builder of such a phase
+// runs at the agent's own opus/high, not the plan's tier cell, so the trial compares what it says.
+// The main session writes the log line, copies evidence and runs worktree.sh down afterwards.
+// gateCmd is not in scope here.
+const isFirstGalleryBuild = (p) => p.agentType === 'aidex:gallery-builder' && p.firstBuild === true
+const shadows = []
+const shadowStarted = new Set()
+// Live calls per phase id, director relaunches included: CORE's director path re-runs the same
+// attempt number, so the result row's `attempts` undercounts what the live arm was given.
+const liveCalls = new Map()
+// Worktree names carry the plan slug so two plans (or a re-run) do not collide on a bare phase id.
+const planSlug = (String(cfg.planPath || 'plan').split('/').filter(Boolean).pop() || 'plan').replace(/\.[^.]*$/, '').replace(/[^\w.-]/g, '-')
+function withShadow(p, live) {
+  const id = String(p.id)
+  liveCalls.set(id, (liveCalls.get(id) || 0) + 1)
+  if (!isFirstGalleryBuild(p) || shadowStarted.has(id)) return live()
+  shadowStarted.add(id)
+  if (!/^[\w.-]+$/.test(id)) { shadows.push({ phase: id, error: 'unsafe id' }); return live() }
+  if (typeof p.sketchBranch !== 'string' || !p.sketchBranch.trim()) { shadows.push({ phase: id, error: 'no sketchBranch' }); return live() }
+  const livePromise = live()
+  const worktree = `gbshadow-${planSlug}-${id}`
+  const branch = `gbshadow/${planSlug}-${id}`
+  // Recorded at launch, filled on settle: a live crash returns while the shadow still runs.
+  const rec = { phase: id, worktree, branch, base: p.sketchBranch, settled: false, result: null, error: null }
+  shadows.push(rec)
+  const shadow = Promise.resolve()
+    .then(() => agent(
+      `You are the shadow arm of the gallery-builder trial for plan ${cfg.planPath}, phase ${id}. ` +
+      `Read references/05-gallery-builder-shadow.md of the ui-contract skill. First create your own worktree: ` +
+      `worktree.sh new ${worktree} --branch ${branch} --base ${p.sketchBranch}. ` +
+      `Below is the live builder's brief. Swap its working path for your shadow worktree, and write your ` +
+      `gallery-kit.md, ui-contract.md and rows JSON to <shadow worktree>/.gbshadow/, never to the ` +
+      `consultation folder or the workspace .context/.\n\n${p.spec}`,
+      { label: `shadow:${id}`, phase: 'Execute', agentType: 'aidex:gallery-builder-shadow', model: 'sonnet', effort: 'medium' }
+    ))
+    .then((r) => { rec.result = r == null ? null : typeof r === 'string' ? r : JSON.stringify(r) },
+          (e) => { rec.error = String(e) })
+    .then(() => { rec.settled = true })
+  return Promise.all([livePromise, shadow]).then(([work]) => work)
+}
+
 // Build the blind implementer for a phase (gateCmd is NOT in scope here — verifier-only).
 // WORK_SCHEMA (director pattern): the implementer reports blocked_reason instead of stopping
 // silently, and lists pub/deny actions in pending_actions instead of performing them —
 // CORE's runPhase routes those through the arbiter/checkAction.
 function makeImplement(p) {
-  return (feedback, attempt) =>
+  return (feedback, attempt) => withShadow(p, () =>
     agent(
       `Plan: ${cfg.planPath}\nPhase ${p.id} (attempt ${attempt}).\n\n${p.spec}\n\n` +
       `Autonomy surface (binding): ${ctx.autonomySurface}\n` +
@@ -341,9 +391,9 @@ function makeImplement(p) {
       // `agentType` is the only carrier for a TOOLSET (`agent()` has no `tools` option):
       // it names a registered agent definition whose `tools:` is the tier row's. Spread
       // conditionally — an `agentType: undefined` key is not the same as no key.
-      { label: `exec:${p.id}`, phase: 'Execute', schema: WORK_SCHEMA, model: p.model || 'opus', effort: p.effort || 'low',
+      { label: `exec:${p.id}`, phase: 'Execute', schema: WORK_SCHEMA, model: isFirstGalleryBuild(p) ? 'opus' : p.model || 'opus', effort: isFirstGalleryBuild(p) ? 'high' : p.effort || 'low',
         ...(p.agentType ? { agentType: p.agentType } : {}) }
-    )
+    ))
 }
 
 const completed = new Set()
@@ -404,4 +454,5 @@ while (completed.size + blockedIds.size < phases.length) {
 }
 
 const blocked = [...blockedIds].filter((id) => !results.some((r) => r && r.phaseId === id))
-return { planPath: cfg.planPath, results, blocked, batchedAsks }
+for (const s of shadows) { s.liveAttempts = liveCalls.get(s.phase) }
+return { planPath: cfg.planPath, results, blocked, batchedAsks, shadows }

@@ -21,6 +21,32 @@ On a **first build** only (the screen has no gallery spec; see SKILL.md § First
 shadow's hand-back is never awaited: the consultation page opens on the live builder's hand-back
 alone, and the shadow's, whenever it arrives, is only read for the evidence copy and the log line.
 
+**Workflow exception (stated once; every "never awaited / never waited on" here and below holds
+for session launches only).** A first build launched by a plan-exec Workflow (`agentType:
+'aidex:gallery-builder'` on a phase marked `firstBuild: true` with a `sketchBranch`) gets the arm
+from the template (`withShadow` in both `plan-exec/assets/workflows/` forms), launched beside the
+live unit and swallowing its failure. A Workflow cannot outlive its run, so the unit's return waits
+for the shadow, with no timeout. Such a build:
+
+- runs the live builder at opus/high explicitly (the plan's tier cell would otherwise win) and the
+  shadow at sonnet/medium;
+- is logged with `launched_by: workflow`, and its `page_open_utc` includes the shadow's wait, so it
+  is excluded from the timing comparison;
+- gets the live arm's retry loop, which the shadow lacks: the Workflow returns `shadows[]` with
+  `liveAttempts`, and a screen whose live arm needed more than one attempt is logged with that
+  count (`live_attempts`) and excluded from the 5-screen comparison;
+- returns `shadows: [{phase, worktree, branch, base, settled, result, error, liveAttempts}]`. The main
+  session reads it after the Workflow returns, writes the log line, copies the evidence and runs
+  `worktree.sh down` for each; the gate runs follow the same rules as below. A phase without
+  `sketchBranch` (a non-empty string) launches no shadow and records `{phase, error: 'no sketchBranch'}`;
+  an id outside `[\w.-]` records `{phase, error: 'unsafe id'}`. Every entry carries `liveAttempts`,
+  the count of live builder launches, arbiter-directed relaunches included.
+- names the worktree `gbshadow-<plan slug>-<phase id>` (slug from the plan path's last segment) and the
+  branch `gbshadow/<plan slug>-<phase id>`: Workflow names are id-based, unlike the session's
+  `gbshadow-<screen>`. An entry is recorded at launch with `settled: false` and filled when the
+  shadow settles; `settled: true` with `result: null` and `error: null` is logged as an errored
+  shadow (`shadow_gate_green` false, `cells_shadow` 0).
+
 - **Worktree.** The shadow gets its own, started from the live sketch branch so it builds against
   the same code (host screen, extraction BEFORE included):
   `worktree.sh new gbshadow-<screen> --branch gbshadow/<screen> --base <live sketch branch>`
@@ -81,6 +107,8 @@ the adjudication below decides.
 | `live_gate_green`, `shadow_gate_green` | the no-update gate run green (bool; live null when its run was killed) |
 | `cells_live`, `cells_shadow` | rows of each hand-back cell table, not-applicable included |
 | `evidence` | the kept directory above |
+| `launched_by` | `session` or `workflow`; a `workflow` row is excluded from the `page_open_utc` timing comparison |
+| `live_attempts` | Workflow launches only: the live arm's attempt count; above 1 excludes the screen from the 5 |
 
 A shadow that errors, stalls or returns no gallery by the start of the next round (re-capture or
 hardening) is still logged, with `shadow_gate_green` false, `cells_shadow` 0 and an empty `shadow/` directory,
@@ -109,4 +137,6 @@ live gallery's, with no shadow-only wrong-state or identical-cell defect. One sc
 either clause rejects. Then the owner decides; adoption edits the frontmatter of
 `agents/gallery-builder.md` and the table row in SKILL.md, and removes this trial.
 
-Revert: delete `agents/gallery-builder-shadow.md`, this file and the SKILL.md pointer.
+Revert: delete `agents/gallery-builder-shadow.md`, this file, the SKILL.md pointer, the `firstBuild`/`sketchBranch` paragraph in
+`plan-exec/references/01-unattended-batch-execution.md`, the sentence about it in `plan-exec/SKILL.md`, and `withShadow`
+(with `isFirstGalleryBuild`, `shadows`, `liveCalls`, `planSlug`) in `pipeline-with-gate.workflow.js` and `fan-out-with-gate.workflow.js`.
