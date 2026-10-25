@@ -204,8 +204,11 @@ rows['one failed verify batch fails the unit at verify'] = async () => {
   const facts = Array.from({ length: 30 }, (_, i) => fact(i + 1))
   const ok = batchVerify()
   const { out, prompts } = await run({ ...base, units: ['u'] }, { u: {
-    extract: { facts, not_covered: [] }, verify: p => p.includes('] c26') ? null : ok(p), compare: { items: [] } } })
+    extract: { facts, not_covered: [] }, verify: p => p.includes('] c26') ? null
+      : { verdicts: ok(p).verdicts.map(x => x.i === 3 ? { ...x, verdict: 'refuted' } : x) }, compare: { items: [] } } })
   assert.deepStrictEqual([unit(out, 'u').status, unit(out, 'u').failed_stage], ['failed', 'verify'])
+  // the first batch's verdicts were real: they survive the later batch's failure
+  assert.deepStrictEqual(unit(out, 'u').not_confirmed.map(x => x.id), ['u#3'])
   assert.ok(!prompts.some(p => p.type === 'aidex:drift-compare'))
 }
 
@@ -225,6 +228,45 @@ rows['an extract that fails twice fails the unit at extract after exactly two ca
   assert.strictEqual(prompts.filter(p => p.type === 'aidex:drift-extract').length, 2)
   assert.strictEqual(prompts.length, 2)
   assert.deepStrictEqual([unit(out, 'u').status, unit(out, 'u').failed_stage], ['failed', 'extract'])
+}
+
+// BL-875: refuted/unverifiable facts (and those past the verify cap) were dropped, so they could not
+// be adjudicated later without the subagent transcripts. Ids are <slug>#<index in the extracted list>.
+rows['not_confirmed keeps refuted, unverifiable and past-cap facts with global ids; confirmed are left out'] = async () => {
+  const facts = Array.from({ length: 51 }, (_, i) => fact(i + 1))
+  // global 3 refuted (first batch), global 27 unverifiable (second batch, local 2), global 50 is past the cap
+  const verdictFor = (p, i) => {
+    const second = p.includes('] c26')
+    const g = (second ? 25 : 0) + i
+    return g === 3 ? 'refuted' : g === 27 ? 'unverifiable' : 'confirmed'
+  }
+  const verify = p => ({ verdicts: Array.from({ length: p.split('\n').filter(l => /^\d+\. \[/.test(l)).length },
+    (_, i) => ({ i, verdict: verdictFor(p, i), evidence: 'ev' + i })) })
+  const { out } = await run({ ...base, units: ['u'] }, { u: { extract: { facts, not_covered: [] }, verify, compare: { items: [] } } })
+  assert.deepStrictEqual(unit(out, 'u').not_confirmed, [
+    { id: 'u#3', claim: 'c4', cites: 'f.py:4-5', verdict: 'refuted', evidence: 'ev3' },
+    { id: 'u#27', claim: 'c28', cites: 'f.py:28-29', verdict: 'unverifiable', evidence: 'ev2' },
+    { id: 'u#50', claim: 'c51', cites: 'f.py:51-52', verdict: 'past-cap' }])
+}
+const ok1 = { extract: { facts: [fact(1)], not_covered: [] }, verify: { verdicts: [{ i: 0, verdict: 'confirmed', evidence: 'e' }] }, compare: { items: [] } }
+rows['not_confirmed is [] when verify is off'] = async () => {
+  const { out } = await run({ ...base, units: ['u'], verify: false }, { u: { extract: ok1.extract, compare: ok1.compare } })
+  assert.deepStrictEqual(unit(out, 'u').not_confirmed, [])
+}
+rows['not_confirmed is [] when every fact is confirmed'] = async () => {
+  const { out } = await run({ ...base, units: ['u'] }, { u: ok1 })
+  assert.deepStrictEqual(unit(out, 'u').not_confirmed, [])
+}
+rows['not_confirmed is [] when the unit failed at extract'] = async () => {
+  const { out } = await run({ ...base, units: ['u'] }, { u: { extract: { facts: [], not_covered: ['a.py'] } } })
+  assert.deepStrictEqual(unit(out, 'u').not_confirmed, [])
+}
+rows['a unit failed at compare keeps its not_confirmed (verify finished, verdicts are real)'] = async () => {
+  const { out } = await run({ ...base, units: ['u'] }, { u: {
+    extract: { facts: [fact(1), fact(2)], not_covered: [] },
+    verify: { verdicts: [{ i: 0, verdict: 'refuted', evidence: 'e' }, { i: 1, verdict: 'confirmed', evidence: 'e' }] }, compare: 'throw' } })
+  assert.strictEqual(unit(out, 'u').failed_stage, 'compare')
+  assert.deepStrictEqual(unit(out, 'u').not_confirmed, [{ id: 'u#0', claim: 'c1', cites: 'f.py:1-2', verdict: 'refuted', evidence: 'e' }])
 }
 
 let bad = 0

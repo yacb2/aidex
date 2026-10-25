@@ -22,7 +22,8 @@
 //   { run: {root, work, date, verify},
 //     units: [{ slug, status: "ok"|"failed", failed_stage: null|"extract"|"verify"|"compare"|"unknown",
 //               facts_extracted, facts_confirmed (null when verify is off), facts_dropped_inferred (verify off),
-//               facts_to_compare (what compare was given), facts_unverified (past the 50-fact verify cap), not_covered (count), findings }],
+//               facts_to_compare (what compare was given), facts_unverified (past the 50-fact verify cap), not_covered (count), findings,
+//               not_confirmed: [{ id: "<slug>#<index in the extracted list>", claim, cites: "file:start-end", verdict: "refuted"|"unverifiable"|"past-cap", evidence (absent for past-cap) }] }],
 //     findings: [{ type: "stale"|"wrong"|"missing", reference, reference_line, detail,
 //                  evidence: "file:line", unit: slug }] }
 // A unit with zero facts (and no uncovered files) or zero confirmed facts is "ok" with findings 0 (compare is skipped).
@@ -318,7 +319,8 @@ async function safe(prompt, opts) {
 }
 
 const VERIFY_BATCH = 25
-const factLine = (f, i) => `${i}. [${f.file}:${f.line_start}-${f.line_end} · ${f.symbol}] ${f.claim}`
+const cites = f => `${f.file}:${f.line_start}-${f.line_end}`
+const factLine = (f, i) => `${i}. [${cites(f)} · ${f.symbol}] ${f.claim}`
 
 const extractPrompt = slug => `Project root: ${A.root}
 Unit: ${slug}
@@ -341,7 +343,7 @@ Report, with the reference path and line: "stale" = the reference says something
 ${facts.map(factLine).join('\n')}`
 
 const done = (slug, status, failed_stage, extra) => ({ slug, status, failed_stage, facts_extracted: 0,
-  facts_confirmed: useVerify ? 0 : null, facts_dropped_inferred: 0, facts_to_compare: 0, facts_unverified: 0, not_covered: 0, findings: [], ...extra })
+  facts_confirmed: useVerify ? 0 : null, facts_dropped_inferred: 0, facts_to_compare: 0, facts_unverified: 0, not_covered: 0, findings: [], not_confirmed: [], ...extra })
 
 phase('Units')
 // extract, verify and compare are Read-only: a relative path in their prompt resolves against the agent's cwd (BL-855).
@@ -373,7 +375,9 @@ const results = await pipeline(slugs,
   async (st, slug) => {
     if (st.status === 'failed') return st
     if (!useVerify || !st.facts.length) return { ...st, confirmed: st.facts }
-    const fail = () => done(slug, 'failed', 'verify', { facts_extracted: st.facts_extracted, not_covered: st.not_covered })
+    const notConfirmed = []
+    // Verdicts already returned by earlier batches stay in the result.
+    const fail = () => done(slug, 'failed', 'verify', { facts_extracted: st.facts_extracted, not_covered: st.not_covered, not_confirmed: notConfirmed })
     // Batches of VERIFY_BATCH, each numbered from 0 (BL-741: one call for 51 facts ran out of turns).
     const facts = st.facts.slice(0, VERIFY_BATCH * 2)
     if (facts.length < st.facts.length) log(`verify:${slug}: ${st.facts.length - facts.length} facts past ${facts.length} not verified`)
@@ -389,16 +393,21 @@ const results = await pipeline(slugs,
         log(`verify:${slug}#${b}: verdict indices are not exactly 0..${batch.length - 1}`)
         return fail()
       }
-      const byI = new Map(v.verdicts.map(x => [x.i, x.verdict]))
-      confirmed.push(...batch.filter((f, i) => byI.get(i) === 'confirmed'))
+      const byI = new Map(v.verdicts.map(x => [x.i, x]))
+      confirmed.push(...batch.filter((f, i) => byI.get(i).verdict === 'confirmed'))
+      // Kept so a refuted or unverifiable fact can be adjudicated later without the agent transcripts.
+      batch.forEach((f, i) => { const x = byI.get(i); if (x.verdict !== 'confirmed') notConfirmed.push(
+        { id: `${slug}#${b * VERIFY_BATCH + i}`, claim: f.claim, cites: cites(f), verdict: x.verdict, evidence: x.evidence }) })
     }
-    return { ...st, confirmed, unverified: st.facts.length - facts.length }
+    st.facts.slice(facts.length).forEach((f, k) => notConfirmed.push(
+      { id: `${slug}#${facts.length + k}`, claim: f.claim, cites: cites(f), verdict: 'past-cap' }))
+    return { ...st, confirmed, notConfirmed, unverified: st.facts.length - facts.length }
   },
   async (st, slug) => {
     if (st.status === 'failed') return st
     const base = { facts_extracted: st.facts_extracted, not_covered: st.not_covered,
       facts_dropped_inferred: st.facts_dropped_inferred, facts_to_compare: st.confirmed.length,
-      facts_unverified: st.unverified || 0,
+      facts_unverified: st.unverified || 0, not_confirmed: st.notConfirmed || [],
       facts_confirmed: useVerify ? st.confirmed.length : null }
     if (!st.confirmed.length) return done(slug, 'ok', null, base)
     const c = await safe(comparePrompt(slug, st.confirmed), { label: `compare:${slug}`, phase: 'Units',
@@ -419,6 +428,6 @@ return {
   units: [...rows, ...lost].map(r => ({ slug: r.slug, status: r.status, failed_stage: r.failed_stage,
     facts_extracted: r.facts_extracted, facts_confirmed: r.facts_confirmed, facts_dropped_inferred: r.facts_dropped_inferred,
     facts_to_compare: r.facts_to_compare, facts_unverified: r.facts_unverified, not_covered: r.not_covered,
-    findings: r.findings.length })),
+    findings: r.findings.length, not_confirmed: r.not_confirmed })),
   findings: [...rows, ...lost].flatMap(r => r.findings),
 }
