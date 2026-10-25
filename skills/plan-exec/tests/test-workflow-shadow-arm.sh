@@ -117,6 +117,12 @@ for T in pipeline-with-gate.workflow.js fan-out-with-gate.workflow.js; do
     "o.calls.every(c => !c.label.startsWith('shadow:')) && o.ret.shadows[0].error === 'no sketchBranch'"
   check "$n: an unsafe phase id launches no shadow" $T "[{\"id\":\"1.2 build/screen\",\"spec\":\"s\",\"gateCmd\":\"true\",$FB}]" ok \
     "o.calls.every(c => !c.label.startsWith('shadow:')) && o.ret.shadows[0].error === 'unsafe id' && o.ret.results[0].passed === true"
+  check "$n: a sketchBranch with shell metacharacters launches no shadow" $T "$(P s true '"agentType":"aidex:gallery-builder","firstBuild":true,"sketchBranch":"x; rm -rf ~"')" ok \
+    "o.calls.every(c => !c.label.startsWith('shadow:')) && o.ret.shadows[0].error === 'unsafe sketchBranch' && o.ret.results[0].passed === true"
+  check "$n: a sketchBranch starting with a dash or holding .. launches no shadow" $T "$(P s true '"agentType":"aidex:gallery-builder","firstBuild":true,"sketchBranch":"--force"')" ok \
+    "o.ret.shadows[0].error === 'unsafe sketchBranch'"
+  check "$n: an id holding .. launches no shadow" $T "[{\"id\":\"..\",\"spec\":\"s\",\"gateCmd\":\"true\",$FB}]" ok \
+    "o.calls.every(c => !c.label.startsWith('shadow:')) && o.ret.shadows[0].error === 'unsafe id'"
   check "$n: a dotted safe id still gets a shadow" $T "[{\"id\":\"1.2\",\"spec\":\"s\",\"gateCmd\":\"true\",$FB}]" ok \
     "o.ret.shadows[0].worktree === 'gbshadow-p-1.2'"
 done

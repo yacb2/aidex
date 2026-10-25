@@ -340,8 +340,9 @@ function withShadow(p, live) {
   liveCalls.set(id, (liveCalls.get(id) || 0) + 1)
   if (!isFirstGalleryBuild(p) || shadowStarted.has(id)) return live()
   shadowStarted.add(id)
-  if (!/^[\w.-]+$/.test(id)) { shadows.push({ phase: id, error: 'unsafe id' }); return live() }
+  if (!/^[\w.-]+$/.test(id) || id.includes('..')) { shadows.push({ phase: id, error: 'unsafe id' }); return live() }
   if (typeof p.sketchBranch !== 'string' || !p.sketchBranch.trim()) { shadows.push({ phase: id, error: 'no sketchBranch' }); return live() }
+  if (!/^(?!-)[\w.\/-]+$/.test(p.sketchBranch) || p.sketchBranch.includes('..')) { shadows.push({ phase: id, error: 'unsafe sketchBranch' }); return live() }
   const livePromise = live()
   const worktree = `gbshadow-${planSlug}-${id}`
   const branch = `gbshadow/${planSlug}-${id}`
