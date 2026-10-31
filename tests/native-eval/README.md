@@ -31,7 +31,7 @@ FOLDER name (`plan`, `plan-exec`, `artifact`), and the double dash is what keeps
 selects zero cases exits 1 rather than reporting green.
 
 Knobs, all env vars: `EVAL_MODEL` (default `claude-sonnet-5`), `EVAL_JUDGE_MODEL`
-(`haiku`), `EVAL_MIN_DELTA` (`0.30`), `EVAL_MAX_COST` (`8`), `EVAL_JOBS` (`1`, passes `--concurrency`; 1-8 agent runs at once on the same
+(`claude-haiku-5-5`), `EVAL_MIN_DELTA` (`0.30`), `EVAL_MAX_COST` (`8`), `EVAL_JOBS` (`1`, passes `--concurrency`; 1-8 agent runs at once on the same
 rate limit — the way to parallelise, since two `run-eval.sh` processes collide on
 `plugin-evals/`, which collect-cases.sh rebuilds), `EVAL_KEEP_TEMP=1`
 (passes `--keep-temp`, so a run's `trace.jsonl` survives for inspection — the only
@@ -40,6 +40,56 @@ way to see which tools actually ran).
 `run-all.sh` does not pick these up: it globs `test-*.sh`, and these are
 `run-eval.sh` / `collect-cases.sh` on purpose. Nothing here should run in a
 suite sweep — every invocation spends quota.
+
+## Reading a result honestly
+
+A run is **INVALID** when it timed out, errored, or lost its judge to the cost
+ceiling; a result is INVALID when it is `partial` or `claude plugin eval` exited 2.
+`run-eval.sh` prints `INVALID`, lists the case under `FAILED` and exits non-zero:
+an invalid run can no longer read as a pass. Re-run the case; do not average it in.
+
+Each result `_tmp/native-eval-<stamp>.json` has a sidecar `…<stamp>.meta.json` with
+`git_sha`, `dirty` (untracked files count), `claude_version`, `model` and
+`judge_model`. A comparison between two results is only worth making when those
+agree except for the edit under test; `dirty: true` means the SHA does not name
+what ran.
+
+`noise-summary.sh <result.json>` prints one row per case and arm; the last column
+is `A/B`: A = runs where the `llm` grader passed while a `regex` or `file_exists`
+grader failed, B = runs where it failed while every one of them passed. A run's
+llm verdict counts as passed only if every scored `llm` grader passed. A result
+marked `partial` gets the flag `partial` on every row and no verdict. A column
+that is not `0/0` means the judge and the mechanics disagree about the same
+output; read those runs before trusting either.
+
+### Pinning the judge
+
+`EVAL_JUDGE_MODEL` defaults to the full ID `claude-haiku-5-5`, not the `haiku`
+alias (which resolves to that ID today but moves when the default does).
+`--judge-model` accepts a full model ID: measured on claude 2.1.316 with a
+one-case throwaway plugin, `--judge-model claude-haiku-5-5` produced
+`suite.judgeModel: claude-haiku-5-5` and three judge votes (`PASS PASS PASS`).
+
+## A/B an edit
+
+Use this to decide whether an edit to a skill helps, and reserve it for edits to
+discipline skills (skills whose job is to stop the agent doing something it
+otherwise does); it costs a verdict run per side.
+
+1. Two worktrees of this repo: `base` (the edit's parent) and `head` (the edit).
+2. The same cases in both (`--case` or `--only`), the same day, the same claude
+   version (check both `.meta.json` sidecars), `dirty: false`.
+3. `--verdict` (3 runs) in each, alternating the order of the two runs (base,
+   head, head, base, ...) so drift in the model or the rate limit does not
+   favour one side.
+4. Compare with `noise-summary.sh` on each result: the treatment (head) passes if
+   it is at control (base) minus at most one failure at n=3 per case. A marginal
+   cell (exactly at that edge) is extended by two more runs, not argued.
+
+**NO-HEADROOM means strengthen the case.** A case that both arms pass in every
+run (`no-headroom` in `noise-summary.sh`) cannot show a difference; it proves
+nothing about the edit. Make the case harder (a fixture or prompt where the
+unaided agent fails), then measure again. Do not read it as "the edit is fine".
 
 ## Trust boundary
 
@@ -72,7 +122,7 @@ throwaway probe suites — every cell below is a run, not a doc page.
 | type | keys | notes |
 |---|---|---|
 | `tool_used` | `tool`, `input_match`, `min`, `max` | the trigger indicator; `arm: with-only` is the input, `scored:false` is how it reads back in the JSON |
-| `llm` | body = criteria, `weight`, `arm`, `focus` | judged 3x by `--judge-model` (default haiku); `focus: last_message` grades the final message only |
+| `llm` | body = criteria, `weight`, `arm`, `focus` | judged 3x by `--judge-model` (pinned `claude-haiku-5-5`, see "Pinning the judge"); `focus: last_message` grades the final message only |
 | `file_exists` | `path` glob, cwd-relative | sees only files the **run creates** — scaffolded files are invisible to it (still true at 2.1.273). `*` works; character classes do **not** (`20[0-9][0-9]-*` failed 3/3 on a file that existed) |
 | `regex` | `pattern`, `match`, `target` | **can** be scoped to a file since some version after 2.1.269: `target: {source: file, path: <literal>}`, also `target: trace`. The path must be literal — a `*` glob throws "path does not exist" |
 | `tool_order` | `before`, `after` | tool names only; too coarse to encode RED->GREEN |
