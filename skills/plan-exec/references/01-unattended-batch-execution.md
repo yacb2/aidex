@@ -117,7 +117,7 @@ For each unchecked phase, in order:
 - `agentType` — **optional**, and the only carrier for a toolset: `agent()` has no `tools` option,
   so a tier row that restricts `tools:` takes effect only when the phase names a registered agent
   definition that carries it (`.claude/agents/<name>.md` in the project, or `~/.claude/agents/`;
-  see SKILL.md Orient step 7 for the stub). Omit the key when the plan has no such definition —
+  stub: `references/06-restricted-tier-agent-definition.md`). Omit the key when the plan has no such definition —
   the phase then runs on the default toolset and pays the full per-call prefix. Same key and same
   handling in both forms.
 - `depends_on` — the phase's prerequisite phases (from the plan's `(depends_on: [...])` metadata;

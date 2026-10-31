@@ -65,7 +65,7 @@ describe('[Component/Feature] - Regression', () => {
 
 A purely visual or CSS bug (spacing, alignment, colors) needs no automated test; document it in the commit message. Every other bug gets a regression test.
 
-For a timing or race failure, read `skills/coverage/references/15-green-that-proves-nothing.md` § 9 before deciding a test is not possible.
+For a timing or race failure, read `${CLAUDE_PLUGIN_ROOT}/skills/coverage/references/15-green-that-proves-nothing.md` § 9 before deciding a test is not possible.
 
 Even then, consider: can any ASPECT be tested? A CSS bug might have a testable component (e.g., the class is applied correctly even if the visual rendering can't be tested).
 

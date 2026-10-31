@@ -96,10 +96,11 @@ Steps 1-4 of the final phase stay in `SKILL.md`; these are steps 5-10.
 
 9. **Bind the cleanup to the merge.** Read
    `../../conventions/references/autonomy-conventions.md` § Integrating a branch is not a
-   commit. If the merge was pre-authorized and has run: project gate on the merged trunk
-   (when one is declared), then `worktree.sh down <slug> --delete-branch`. If it was not:
-   put that command, slug filled in, in the final summary for whoever merges (for an
-   `EnterWorktree` checkout, `git worktree remove` plus `git branch -d`).
+   commit. Close-out never merges, so write the post-merge sequence into the final summary,
+   slug filled in: project gate on the merged trunk (when one is declared), then
+   `worktree.sh down <slug> --delete-branch` (for an `EnterWorktree` checkout,
+   `git worktree remove` plus `git branch -d`). Whoever merges runs it right after the merge;
+   when the merge was pre-authorized at Orient, that is this run, after step 10.
 
 10. **Notify completion.** If `~/.claude/scripts/notify.sh` exists and is executable,
    run it with a short completion message (e.g.
