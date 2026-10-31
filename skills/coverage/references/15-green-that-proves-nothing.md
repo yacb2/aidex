@@ -17,6 +17,7 @@ Stack-agnostic. The concrete harness shapes live in the stack pack named by
 - [6. `toBeVisible()` does not catch a layout collapse](#6-tobevisible-does-not-catch-a-layout-collapse)
 - [7. Confirm the fixture contains the case the check discriminates](#7-confirm-the-fixture-contains-the-case-the-check-discriminates)
 - [8. Every absence check needs a positive control in the same run](#8-every-absence-check-needs-a-positive-control-in-the-same-run)
+- [9. Flake: race or polluter](#9-a-flake-is-a-race-or-a-polluter)
 
 ## 1. Mutation is the only evidence a behaviour is guarded
 
@@ -139,3 +140,18 @@ something in the same run that makes it show *something* happening.
 Related, and the same shape: **measure a backend suite one run at a time.** Two concurrent
 runs against the same container produce hundreds of failures that mean nothing, and they
 read as a regression.
+
+## 9. A flake is a race or a polluter
+
+A test that passes and fails on the same code has one of two causes: it races something it
+does not wait for, or an earlier test leaves state behind. Retrying it, or raising a
+timeout, hides both.
+
+- **Assert on the awaited condition, not on a sleep.** Wait for the element, the response,
+  the row or the event the assertion needs. A fixed delay is a guess at the slowest run.
+- **Reproduce under the failing load or order.** Run it in the order and at the
+  parallelism where it failed (full suite, shared container, throttled CPU); a green solo
+  run proves nothing about a flake. A race shows up under load, a polluter under order.
+- **Halve the preceding test set to find the polluter.** If it fails only after other
+  tests, run the first half of those tests before it, then the half that still fails,
+  until one test remains. Fix that test's leftover state (file, env var, global, row).
