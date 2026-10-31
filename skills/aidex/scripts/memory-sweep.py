@@ -41,7 +41,12 @@ import time
 # fixture set is now real, at tests/fixtures/memory/, run by tests/test-memory-sweep.sh.
 # AIDEX_MEMORY_PROJECT_ROOT resolves slugs to trees the same way, for the checks that
 # read the project.
-PROJECTS = os.environ.get("AIDEX_MEMORY_ROOT") or os.path.expanduser("~/.claude/projects")
+CONFIG_DIR = os.path.expanduser(os.environ.get("CLAUDE_CONFIG_DIR") or "~/.claude")
+# A leading ~ is the home directory; anything still relative means the default, never a
+# tree under the cwd.
+CONFIG_DIR = (os.path.normpath(CONFIG_DIR) if os.path.isabs(CONFIG_DIR)
+              else os.path.expanduser("~/.claude"))
+PROJECTS = os.environ.get("AIDEX_MEMORY_ROOT") or os.path.join(CONFIG_DIR, "projects")
 
 # Budgets. Both come from skills/aidex/references/memory-hygiene.md — keep them in lockstep with it.
 # 800 is the p90 of the 416 memories measured 2026-08-06 (median 277w): it flags the
@@ -650,8 +655,7 @@ def dir_digest(memdir: str) -> str:
 def write_stamp(memdir: str) -> None:
     """Record that `memdir` was audited now. Never raises: a stamp is a convenience."""
     try:
-        d = os.path.join(os.path.expanduser("~"), ".claude", "aidex",
-                         "memory-audit-stamp")
+        d = os.path.join(CONFIG_DIR, "aidex", "memory-audit-stamp")
         os.makedirs(d, exist_ok=True)
         slug = os.path.basename(os.path.dirname(memdir.rstrip("/")))
         with open(os.path.join(d, slug + ".json"), "w") as fh:

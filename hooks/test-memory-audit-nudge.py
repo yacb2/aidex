@@ -18,6 +18,13 @@ SWEEP = os.path.join(REPO, "skills", "aidex", "scripts", "memory-sweep.py")
 
 fails = []
 TOTAL = [0]
+# Never inherited: an ambient CLAUDE_CONFIG_DIR (a work session) would re-point every
+# case away from the temp HOME. The config-dir cases set it explicitly.
+ENV0 = {k: v for k, v in os.environ.items() if k != "CLAUDE_CONFIG_DIR"}
+# Hooks run from a temp cwd: a config dir that resolves to a relative path (an empty
+# CLAUDE_CONFIG_DIR taken literally) must land there, never in the checkout.
+CWD = tempfile.mkdtemp(prefix="hook-cwd-")
+os.chdir(CWD)
 
 
 def check(name, ok, detail=""):
@@ -73,9 +80,10 @@ def unstamp():
         os.remove(p)
 
 
-def run(cwd=PROJ, session="s1"):
-    env = dict(os.environ)
+def run(cwd=PROJ, session="s1", **extra):
+    env = dict(ENV0)
     env["HOME"] = HOME
+    env.update(extra)
     payload = json.dumps({"hook_event_name": "SessionStart", "source": "startup",
                           "cwd": cwd, "session_id": session})
     p = subprocess.run(["sh", HOOK], input=payload, env=env,
@@ -218,7 +226,7 @@ memory("three.md")
 rc, out, _ = run(session=fresh_session())
 check("drifted again, so it speaks", message(out) != "", out)
 
-env = dict(os.environ)
+env = dict(ENV0)
 env["HOME"] = HOME
 env["AIDEX_MEMORY_ROOT"] = os.path.join(HOME, ".claude", "projects")
 subprocess.run([sys.executable, SWEEP, "--project=" + SLUG], env=env,
@@ -281,6 +289,48 @@ p = subprocess.run([sys.executable, SWEEP, "--stamp"], env=env,
 check("--stamp without --project= is refused", p.returncode == 2, p.returncode)
 check("and says why", "nobody audited" in p.stderr, p.stderr[:200])
 
+print("== memory, state and stamp follow CLAUDE_CONFIG_DIR, never a hard-coded ~/.claude ==")
+
+# A session started with CLAUDE_CONFIG_DIR=~/.claude-work keeps its memory under that
+# directory: the hook looked for it, and kept its state, under the personal ~/.claude.
+# The stamp is written by the sweep and read by the hook, so both ends are exercised:
+# the sweep runs with no AIDEX_MEMORY_ROOT, finding the project from the config dir.
+# A leading ~ is the home directory; unset, empty or relative means $HOME/.claude, never
+# a tree under the cwd.
+for label, cfg, sub in [("set", tempfile.mkdtemp(prefix="memnudge-cfg-"), None),
+                        ("empty", "", ".claude"), ("tilde", "~/x", "x"), ("tilde-alone", "~", ""),
+                        ("relative", "rel", ".claude")]:
+    c_home = tempfile.mkdtemp(prefix="memnudge-cfghome-")
+    c_proj = os.path.join(c_home, "Documents", "projects", "cfg-ws")
+    os.makedirs(c_proj)
+    c_slug = c_proj.replace("/", "-")
+    root = cfg if sub is None else os.path.join(c_home, sub)
+    c_mem = os.path.join(root, "projects", c_slug, "memory")
+    os.makedirs(c_mem)
+    with open(os.path.join(c_mem, "fact.md"), "w") as fh:
+        fh.write("---\nname: x\nmetadata:\n  type: project\n---\n\na durable fact\n")
+    c_env = {"HOME": c_home, "CLAUDE_CONFIG_DIR": cfg}
+    rc, out, _ = run(cwd=c_proj, session="cfg-a", **c_env)
+    check("CLAUDE_CONFIG_DIR %s: memory found there, so it speaks" % label, message(out) != "", out)
+    check("CLAUDE_CONFIG_DIR %s: the once-per-session marker is under it" % label,
+          os.path.isfile(os.path.join(root, "tmp", "mem-nudge-cfg-a-" + c_slug)))
+    sweep_env = dict(ENV0, **c_env)
+    sweep_env.pop("AIDEX_MEMORY_ROOT", None)
+    subprocess.run([sys.executable, SWEEP, "--project=" + c_slug, "--stamp"], env=sweep_env,
+                   capture_output=True, text=True, timeout=120)
+    rc, out, _ = run(cwd=c_proj, session="cfg-b", **c_env)
+    check("CLAUDE_CONFIG_DIR %s: the sweep stamps under it and that silences the hook" % label,
+          out is None and os.path.isfile(os.path.join(root, "aidex", "memory-audit-stamp",
+                                                       c_slug + ".json")), out)
+    check("CLAUDE_CONFIG_DIR %s: nothing created in the cwd" % label, os.listdir(CWD) == [],
+          os.listdir(CWD))
+    if label in ("set", "tilde", "tilde-alone"):
+        check("CLAUDE_CONFIG_DIR %s: nothing written under $HOME/.claude" % label,
+              not os.path.exists(os.path.join(c_home, ".claude")))
+    if label == "set":
+        shutil.rmtree(cfg, ignore_errors=True)
+    shutil.rmtree(c_home, ignore_errors=True)
+
 print("== fails open and silent ==")
 
 stamp(0, raw="{not json")
@@ -291,7 +341,7 @@ stamp(0, raw=json.dumps({"digest": "1:2:3"}))
 rc, out, _ = run(session=fresh_session())
 check("a stamp with no timestamp is silent", out is None and rc == 0, out)
 
-env2 = dict(os.environ)
+env2 = dict(ENV0)
 env2["HOME"] = HOME
 p = subprocess.run(["sh", HOOK], input="not json at all", env=env2,
                    capture_output=True, text=True, timeout=60)

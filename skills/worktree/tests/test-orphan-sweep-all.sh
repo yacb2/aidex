@@ -11,6 +11,9 @@
 # Run with: bash skills/worktree/tests/test-orphan-sweep-all.sh
 
 set -uo pipefail
+# Never inherited: an ambient CLAUDE_CONFIG_DIR (a work session) would move the summary
+# away from the temp HOME. The config-dir rows set it explicitly.
+unset CLAUDE_CONFIG_DIR
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 SCRIPT="$HERE/../scripts/orphan-sweep.sh"
@@ -125,6 +128,31 @@ has   "status ok" "status=ok"
 has   "three candidates" "candidates=3"
 has   "candidate names" "candidate_projects=bpsync-check shop_ws-wt-gone shop_ws-wt-plain"
 hasnt "the summary carries no command" "docker "
+
+echo "== the summary follows CLAUDE_CONFIG_DIR, never a hard-coded ~/.claude =="
+# The hook reads it from the config dir, so the writer must agree. Unset or empty means
+# $HOME/.claude.
+printf 'sentinel\n' > "$S"
+( cd "$TMP" && HOME="$H" CLAUDE_CONFIG_DIR="$TMP/cfg" FIX="$TMP" DLOG="$DLOG" PATH="$TMP/bin:$PATH" bash "$SCRIPT" --all --write-summary >/dev/null 2>&1 )
+grep -q '^candidates=3$' "$TMP/cfg/tmp/docker-orphans/summary" 2>/dev/null \
+  && pass "CLAUDE_CONFIG_DIR set: summary written under it" || fail "CLAUDE_CONFIG_DIR set: no summary under it"
+[[ "$(cat "$S")" == sentinel ]] && pass "CLAUDE_CONFIG_DIR set: nothing written under \$HOME/.claude" \
+  || fail "CLAUDE_CONFIG_DIR set: \$HOME/.claude summary was rewritten"
+( cd "$TMP" && HOME="$H" CLAUDE_CONFIG_DIR="" FIX="$TMP" DLOG="$DLOG" PATH="$TMP/bin:$PATH" bash "$SCRIPT" --all --write-summary >/dev/null 2>&1 )
+grep -q '^candidates=3$' "$S" && pass "CLAUDE_CONFIG_DIR empty: summary under \$HOME/.claude" \
+  || fail "CLAUDE_CONFIG_DIR empty: summary: $(cat "$S")"
+# A leading ~ is the home directory; a relative value means $HOME/.claude, never a tree
+# under the cwd.
+( cd "$TMP" && HOME="$H" CLAUDE_CONFIG_DIR="~/x" FIX="$TMP" DLOG="$DLOG" PATH="$TMP/bin:$PATH" bash "$SCRIPT" --all --write-summary >/dev/null 2>&1 )
+grep -q '^candidates=3$' "$H/x/tmp/docker-orphans/summary" 2>/dev/null \
+  && pass "CLAUDE_CONFIG_DIR ~/x: summary under \$HOME/x" || fail "CLAUDE_CONFIG_DIR ~/x: no summary under \$HOME/x"
+printf 'sentinel\n' > "$S"
+( cd "$TMP" && HOME="$H" CLAUDE_CONFIG_DIR="rel" FIX="$TMP" DLOG="$DLOG" PATH="$TMP/bin:$PATH" bash "$SCRIPT" --all --write-summary >/dev/null 2>&1 )
+grep -q '^candidates=3$' "$S" && pass "CLAUDE_CONFIG_DIR relative: summary under \$HOME/.claude" \
+  || fail "CLAUDE_CONFIG_DIR relative: summary: $(cat "$S")"
+[[ ! -e "$TMP/~" && ! -e "$TMP/rel" ]] && pass "CLAUDE_CONFIG_DIR ~/x and relative: nothing created in the cwd" \
+  || fail "CLAUDE_CONFIG_DIR ~/x or relative: a tree was created in the cwd"
+run --write-summary >/dev/null   # the rows below read the last good summary
 
 echo "== docker not running =="
 : > "$DLOG"

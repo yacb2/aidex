@@ -1,5 +1,5 @@
 #!/bin/sh
-# SessionStart hook (matcher: startup) — say, at most once a day across the machine, that
+# SessionStart hook (matcher: startup) — say, at most once a day per config dir, that
 # compose projects whose working directory no longer exists still have containers
 # (BL-810, BL-811).
 #
@@ -10,7 +10,7 @@
 # is running (a live worktree moved with a plain `mv` keeps its old one).
 # The judgement is `orphan-sweep.sh --all` (skills/worktree/scripts/orphan-sweep-all.sh);
 # this hook makes ZERO docker calls on the start path. It reads the summary that scan
-# wrote under ~/.claude/tmp/docker-orphans/ and, when that summary is missing or older
+# wrote under ${CLAUDE_CONFIG_DIR:-~/.claude}/tmp/docker-orphans/ and, when that summary is missing or older
 # than 20 h, launches the scan detached for the next session to read.
 #
 # Fails open and silent: no jq, no summary, zero candidates -> exit 0. A docker-less or
@@ -19,7 +19,12 @@
 cat >/dev/null
 command -v jq >/dev/null 2>&1 || exit 0
 
-DIR="$HOME/.claude/tmp/docker-orphans"
+CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+# A leading ~ is the home directory; anything still relative means the default, never a
+# tree under the cwd.
+case "$CFG" in "~"|"~/"*) CFG="$HOME${CFG#\~}" ;; esac
+case "$CFG" in /*) ;; *) CFG="$HOME/.claude" ;; esac
+DIR="$CFG/tmp/docker-orphans"
 SUMMARY="$DIR/summary"
 LOCK="$DIR/scan.lock"
 SWEEP="$(cd "$(dirname "$0")/.." && pwd -P)/skills/worktree/scripts/orphan-sweep.sh"

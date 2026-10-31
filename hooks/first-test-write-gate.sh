@@ -16,7 +16,7 @@
 # Key: session_id plus agent_id, because a subagent starts from a fresh context. Main is
 # the ABSENT field (the probe saw main send none); any present value, even "", is keyed
 # as itself. No session_id: allow, write nothing. State:
-# ~/.claude/aidex/first-test-write/<session>.tsv, one key per line; check and append
+# ${CLAUDE_CONFIG_DIR:-~/.claude}/aidex/first-test-write/<session>.tsv, one key per line; check and append
 # happen under flock, so parallel Writes from one context get exactly one deny.
 #
 # Only a Write, or a Bash command, that creates a path that does not exist yet: an Edit,
@@ -53,12 +53,16 @@ try:
     session = "".join(c for c in str(ev.get("session_id") or "") if c.isalnum() or c in "-_")
     if not session:
         sys.exit(0)
+    cfg = os.path.expanduser(os.environ.get("CLAUDE_CONFIG_DIR") or "~/.claude")
+    # A leading ~ is the home directory; anything still relative means the default,
+    # never a tree under the cwd.
+    cfg = os.path.normpath(cfg) if os.path.isabs(cfg) else os.path.expanduser("~/.claude")
     # An agent whose definition preloads the testing skill (`skills: [aidex:testing]`)
     # already has the core in context: denying it costs a turn and teaches nothing.
     atype = str(ev.get("agent_type") or "")
     if atype:
         plugin, _, name = atype.rpartition(":")
-        cands = [os.path.join(os.path.expanduser("~"), ".claude", "agents", name + ".md"),
+        cands = [os.path.join(cfg, "agents", name + ".md"),
                  os.path.join(ev.get("cwd") or os.getcwd(), ".claude", "agents", name + ".md")]
         if plugin == "aidex":
             cands = [os.path.join(os.environ["HOOK_DIR"], "..", "agents", name + ".md")]
@@ -69,7 +73,7 @@ try:
                     sys.exit(0)
                 break
     key = "main" if "agent_id" not in ev else "agent:" + str(ev["agent_id"])
-    state_dir = os.path.join(os.path.expanduser("~"), ".claude", "aidex", "first-test-write")
+    state_dir = os.path.join(cfg, "aidex", "first-test-write")
     os.makedirs(state_dir, exist_ok=True)
     with open(os.path.join(state_dir, session + ".tsv"), "a+") as fh:
         fcntl.flock(fh, fcntl.LOCK_EX)

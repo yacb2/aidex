@@ -2,6 +2,13 @@
 
 The wired hooks are listed in `hooks.json`. The retired router and durability hooks (and their README) live in `docs/retired/hooks/`.
 
+**Config dir.** Every hook keeps its state under the session's config dir, `${CLAUDE_CONFIG_DIR:-~/.claude}`:
+a leading `~` is the home directory, and a relative value falls back to `~/.claude` (never a tree under
+the cwd). Only an absolute (or `~`) value is supported: Claude Code resolves a relative one against
+several folders, so with a relative value the gate below guards only `~/.claude`. `memory-save-gate.sh` guards the memory of both that dir and `~/.claude`, and logs to the config
+dir's `aidex/memory-gate.jsonl`; its sunset review counts every config dir's `aidex/memory-gate.jsonl`
+(`~/.claude` and `~/.claude-work` alike).
+
 ## context-depth-nudge.sh — context-depth band notice (UserPromptSubmit)
 
 > **Opt-in, like every hook here.** `install.sh` copies this file to
@@ -135,7 +142,7 @@ reads and anything unparseable pass.
 Edit/MultiEdit, a write over an existing file and non-test paths pass and write no state.
 Main is keyed by the ABSENT `agent_id` (what main sends); a present value, even `""`, is
 keyed as itself. No `session_id`: allow, no state. State:
-`~/.claude/aidex/first-test-write/<session>.tsv`, checked and appended under `flock`, so
+`${CLAUDE_CONFIG_DIR:-~/.claude}/aidex/first-test-write/<session>.tsv`, checked and appended under `flock`, so
 parallel Writes from one context get exactly one deny. Fail-open on any error.
 
 **Tests:** `python3 test-first-test-write-gate.py` — 109 checks, including the pattern
@@ -228,7 +235,7 @@ without a readable `main` the parity rows are skipped with a `SKIP main parity` 
 
 ## docker-orphan-nudge.sh — compose projects whose working directory is gone (SessionStart, startup)
 
-At most once a day across the machine, one `systemMessage` line when the last complete
+At most once a day per config dir, one `systemMessage` line when the last complete
 `orphan-sweep.sh --all` scan found a candidate orphan (BL-810, BL-811): a compose project
 with containers, every one labelled with `com.docker.compose.project.working_dir`, none of
 those directories existing (under `$HOME`, parent listable without it). Names are never
@@ -241,7 +248,7 @@ workspace-scoped sweep, which still prints `down` (no `-v`), `rmi` and `network 
 none of them running, so a live worktree moved with a plain `mv` whose stack is stopped
 would be handed a removal command (its volumes are listed with none).
 
-**Zero docker calls on the start path.** It reads `~/.claude/tmp/docker-orphans/summary`
+**Zero docker calls on the start path.** It reads `${CLAUDE_CONFIG_DIR:-~/.claude}/tmp/docker-orphans/summary`
 and, when that is missing or older than 20 h, launches the scan detached (own process
 group, no inherited stdio, `mkdir` lock) with `/usr/local/bin:/opt/homebrew/bin` prefixed
 to PATH, because a hook's PATH on macOS lacks docker. With no summary yet the session is

@@ -1,7 +1,8 @@
 #!/bin/sh
 # PreToolUse hook — refuse to let the unrecoverable shapes of non-memory reach disk.
 #
-# Matches Write/Edit/MultiEdit on ~/.claude/projects/*/memory/*.md, MEMORY.md included.
+# Matches Write/Edit/MultiEdit on ${CLAUDE_CONFIG_DIR:-~/.claude}/projects/*/memory/*.md and ~/.claude/projects/*/memory/*.md,
+# MEMORY.md included.
 # Anything else is an immediate allow. It does not implement a single check of its own:
 # it imports CHECKS from the installed memory-sweep.py, so the gate and the sweep can
 # never disagree about what a memory is. If that module moves, breaks, or
@@ -32,7 +33,8 @@
 #   later audit deleted or moved. Nothing else counts — not "the check fired", not
 #   "the author reworded it". The audit's verdict is the judge.
 #
-#   Blocks are COUNTED from ~/.claude/aidex/memory-gate.jsonl: one line per decision,
+#   Blocks are COUNTED from every config dir's aidex/memory-gate.jsonl (each session logs to
+#   ${CLAUDE_CONFIG_DIR:-~/.claude}/aidex/memory-gate.jsonl, so ~/.claude and ~/.claude-work both count): one line per decision,
 #   {ts, decision, rules, path}. The DECISION is logged, never the body — a body could
 #   contain the secret the hook just blocked.
 #
@@ -89,14 +91,21 @@ GATE_BLOCKING = ("no-secrets",)
 if tool not in ("Write", "Edit", "MultiEdit"):
     allow()
 
-home = os.path.expanduser("~")
-memroot = os.path.join(home, ".claude", "projects")
+cfg = os.path.expanduser(os.environ.get("CLAUDE_CONFIG_DIR") or "~/.claude")
+# A leading ~ is the home directory; anything still relative means the default,
+# never a tree under the cwd.
+cfg = os.path.normpath(cfg) if os.path.isabs(cfg) else os.path.expanduser("~/.claude")
+# Both roots: the config dir's memory, and the personal one a CLAUDE_CONFIG_DIR session
+# can still write into. Equal when the variable is unset.
+roots = dict.fromkeys((os.path.join(cfg, "projects"),
+                       os.path.join(os.path.expanduser("~"), ".claude", "projects")))
 try:
     ap = os.path.abspath(os.path.expanduser(path))
 except Exception:
     allow()
-# ~/.claude/projects/<slug>/memory/<file>.md — exactly that depth, nothing below it.
-parts = ap[len(memroot) + 1:].split(os.sep) if ap.startswith(memroot + os.sep) else []
+memroot = next((r for r in roots if ap.startswith(r + os.sep)), None)
+# <root>/<slug>/memory/<file>.md — exactly that depth, nothing below it.
+parts = ap[len(memroot) + 1:].split(os.sep) if memroot else []
 if len(parts) != 3 or parts[1] != "memory" or not parts[2].endswith(".md"):
     allow()
 memdir = os.path.join(memroot, parts[0], "memory")
@@ -157,7 +166,7 @@ except Exception:
 def log(decision, rules):
     # The decision, never the body: a body could carry the secret just blocked.
     try:
-        d = os.path.join(home, ".claude", "aidex")
+        d = os.path.join(cfg, "aidex")
         os.makedirs(d, exist_ok=True)
         with open(os.path.join(d, "memory-gate.jsonl"), "a") as fh:
             fh.write(json.dumps({"ts": time.strftime("%Y-%m-%dT%H:%M:%S"),

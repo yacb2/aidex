@@ -86,7 +86,12 @@ fi
 
 # One notice per band per session. Without this it speaks on every prompt for the
 # rest of the session, which is how a useful signal becomes noise that gets muted.
-STATE_DIR="$HOME/.claude/tmp"
+CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+# A leading ~ is the home directory; anything still relative means the default, never a
+# tree under the cwd.
+case "$CFG" in "~"|"~/"*) CFG="$HOME${CFG#\~}" ;; esac
+case "$CFG" in /*) ;; *) CFG="$HOME/.claude" ;; esac
+STATE_DIR="$CFG/tmp"
 mkdir -p "$STATE_DIR" 2>/dev/null
 # One marker per session would otherwise accumulate forever. Only runs on the
 # turns that actually cross a band, so at most three times per session.

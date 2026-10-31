@@ -38,11 +38,16 @@ case "$CWD" in /*) ;; *) exit 0 ;; esac
 # `frontend/` or `backend/`, and the exact-cwd slug for those does not exist — so the
 # nudge was silent precisely where the work happens. It walks upward to find the project.
 #
-# The walk STOPS BEFORE $HOME, deliberately. `~/.claude/projects/-Users-<user>/memory` is
+# The walk STOPS BEFORE $HOME, deliberately. `${CLAUDE_CONFIG_DIR:-~/.claude}/projects/-Users-<user>/memory` is
 # a real memory directory (sessions started in the home directory), so an unbounded walk
 # would make every session in any non-project directory — Downloads, a scratch dir —
 # nudge about the user-level memory. An exact cwd of $HOME still matches, because the
 # exact form is tried before the walk begins.
+CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+# A leading ~ is the home directory; anything still relative means the default, never a
+# tree under the cwd.
+case "$CFG" in "~"|"~/"*) CFG="$HOME${CFG#\~}" ;; esac
+case "$CFG" in /*) ;; *) CFG="$HOME/.claude" ;; esac
 MEMDIR=""
 DIR="$CWD"
 FIRST=1
@@ -55,8 +60,8 @@ while [ -n "$DIR" ] && [ "$DIR" != "/" ]; do
   fi
   for CAND in "$(printf '%s' "$DIR" | tr '/' '-')" \
               "$(printf '%s' "$DIR" | tr '_' '-' | tr '/' '-')"; do
-    if [ -d "$HOME/.claude/projects/$CAND/memory" ]; then
-      MEMDIR="$HOME/.claude/projects/$CAND/memory"
+    if [ -d "$CFG/projects/$CAND/memory" ]; then
+      MEMDIR="$CFG/projects/$CAND/memory"
       SLUG="$CAND"
       break 2
     fi
@@ -68,7 +73,7 @@ done
 
 # One notice per project per session. Without it the line repeats on every resume of a
 # session that has already been told, which is how a useful signal becomes noise.
-STATE_DIR="$HOME/.claude/tmp"
+STATE_DIR="$CFG/tmp"
 mkdir -p "$STATE_DIR" 2>/dev/null
 find "$STATE_DIR" -maxdepth 1 -name 'mem-nudge-*' -mtime +7 -delete 2>/dev/null
 STATE_FILE="$STATE_DIR/mem-nudge-${SESSION:-unknown}-$SLUG"
@@ -83,7 +88,7 @@ DIGEST=$(find "$MEMDIR" -maxdepth 1 -name '*.md' -type f -exec stat -f '%m %z' {
 case "$DIGEST" in ''|0:0:0) exit 0 ;; esac          # empty directory: nothing to nudge
 COUNT=${DIGEST%%:*}
 
-STAMP="$HOME/.claude/aidex/memory-audit-stamp/$SLUG.json"
+STAMP="$CFG/aidex/memory-audit-stamp/$SLUG.json"
 NOW=$(date +%s)
 if [ -f "$STAMP" ]; then
   STAMP_AT=$(jq -r '.at // empty' "$STAMP" 2>/dev/null)

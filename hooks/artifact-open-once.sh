@@ -35,7 +35,7 @@
 # the transcript as a user entry, so it also releases the budget. It is rare, and erring
 # toward allowing an open is the right direction for a friction guard.
 #
-# State: ~/.claude/aidex/open-once/<session>.tsv, one "<turn>\t<path>" line per open.
+# State: ${CLAUDE_CONFIG_DIR:-~/.claude}/aidex/open-once/<session>.tsv, one "<turn>\t<path>" line per open.
 # Fails open on every path: no python3, no transcript, malformed JSON -> silent exit 0.
 #
 # THE OTHER DIRECTION (BL-678, owner decision 2026-10-06). The same turn counter also
@@ -153,7 +153,11 @@ def user_turn(transcript):
 def state_files(data):
     session = str(data.get("session_id") or data.get("sessionId") or "unknown")
     session = "".join(c for c in session if c.isalnum() or c in "-_") or "unknown"
-    state_dir = os.path.join(os.path.expanduser("~"), ".claude", "aidex", "open-once")
+    cfg = os.path.expanduser(os.environ.get("CLAUDE_CONFIG_DIR") or "~/.claude")
+    # A leading ~ is the home directory; anything still relative means the default,
+    # never a tree under the cwd.
+    cfg = os.path.normpath(cfg) if os.path.isabs(cfg) else os.path.expanduser("~/.claude")
+    state_dir = os.path.join(cfg, "aidex", "open-once")
     return state_dir, os.path.join(state_dir, session + ".tsv"), \
         os.path.join(state_dir, session + ".wraps.tsv")
 

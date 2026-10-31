@@ -11,7 +11,7 @@ worse than no hook.
 
   python3 hooks/test-memory-save-gate.py
 """
-import json, os, re, subprocess, sys, tempfile
+import json, os, re, shutil, subprocess, sys, tempfile
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(REPO, "hooks", "memory-save-gate.sh")
@@ -31,6 +31,10 @@ def check(name, ok, detail=""):
 
 
 HOME = tempfile.mkdtemp(prefix="memgate-home-")
+# Hooks run from a temp cwd: a config dir that resolves to a relative path (an empty
+# CLAUDE_CONFIG_DIR taken literally) must land there, never in the checkout.
+CWD = tempfile.mkdtemp(prefix="hook-cwd-")
+os.chdir(CWD)
 MEMDIR = os.path.join(HOME, ".claude", "projects", "-probe-proj", "memory")
 os.makedirs(MEMDIR, exist_ok=True)
 
@@ -74,10 +78,15 @@ GITMEMDIR = os.path.join(HOME, ".claude", "projects", REPO_SLUG, "memory")
 os.makedirs(GITMEMDIR, exist_ok=True)
 
 
-def run(payload, sweep=SWEEP, raw=None, project_root=None):
+def run(payload, sweep=SWEEP, raw=None, project_root=None, home=HOME, cfg=None):
     """Returns (returncode, parsed-json-or-None, stdout)."""
     env = dict(os.environ)
-    env["HOME"] = HOME
+    env["HOME"] = home
+    # Never inherited: an ambient CLAUDE_CONFIG_DIR (a work session) would move the guarded
+    # memory root away from the temp HOME. The config-dir cases set it explicitly.
+    env.pop("CLAUDE_CONFIG_DIR", None)
+    if cfg is not None:
+        env["CLAUDE_CONFIG_DIR"] = cfg
     # Never inherited: an ambient override would silently re-point every check.
     env.pop("AIDEX_MEMORY_PROJECT_ROOT", None)
     if project_root:
@@ -333,6 +342,58 @@ if os.path.isfile(logf):
               for r in rows), rows[:2])
     check("denies were logged", any(r["decision"] == "deny" for r in rows))
     check("nudges were logged", any(r["decision"] == "nudge" for r in rows))
+
+print("== the guarded root and the log follow CLAUDE_CONFIG_DIR, never a hard-coded ~/.claude ==")
+
+# A session started with CLAUDE_CONFIG_DIR=~/.claude-work keeps its memory under that
+# directory, so a gate rooted at ~/.claude/projects let every write there through
+# unchecked. Any spelling of the directory counts: the path the tool writes is
+# normalised, so the root must be too. A leading ~ is the home directory; unset, empty
+# or relative means $HOME/.claude (a relative value is never resolved against the cwd).
+CFG_CASES = {
+    "set":      lambda real: real,
+    "dot":      lambda real: real + "/.",
+    "dslash":   lambda real: os.path.dirname(real) + "//" + os.path.basename(real),
+    "dotdot":   lambda real: os.path.dirname(real) + "/zz/../" + os.path.basename(real),
+    "tilde":    lambda real: "~/cfgdir",
+    "empty":    lambda real: "",
+    "relative": lambda real: "cfgdir",
+}
+for label, spell in CFG_CASES.items():
+    c_home = tempfile.mkdtemp(prefix="memgate-cfghome-")
+    real = os.path.join(c_home, "cfgdir")
+    cfg = spell(real)
+    root = os.path.join(c_home, ".claude") if label in ("empty", "relative") else real
+    c_mem = os.path.join(root, "projects", "-cfg-proj", "memory")
+    os.makedirs(c_mem)
+    ev = {"tool_name": "Write", "tool_input": {
+        "file_path": os.path.join(c_mem, "s.md"),
+        "content": TYPED % 'Set api_key = "Ab3xQ7zL9mNp2Rt5" in the config.'}}
+    rc, out, _ = run(ev, home=c_home, cfg=cfg)
+    check("CLAUDE_CONFIG_DIR %s (%r): a secret written to its memory is denied" % (label, cfg),
+          decision(out) == "deny", out)
+    check("CLAUDE_CONFIG_DIR %s: the deny is logged under it" % label,
+          os.path.isfile(os.path.join(root, "aidex", "memory-gate.jsonl")))
+    check("CLAUDE_CONFIG_DIR %s: nothing created in the cwd" % label, os.listdir(CWD) == [],
+          os.listdir(CWD))
+    if label == "set":
+        check("CLAUDE_CONFIG_DIR set: nothing written under $HOME/.claude",
+              not os.path.exists(os.path.join(c_home, ".claude")))
+        at = lambda path: dict(ev, tool_input=dict(ev["tool_input"], file_path=path))
+        rc, out, _ = run(at(os.path.join(real + "-x", "projects", "-cfg-proj", "memory", "s.md")),
+                         home=c_home, cfg=cfg)
+        check("CLAUDE_CONFIG_DIR set: a sibling dir sharing its prefix is not guarded",
+              decision(out) != "deny", out)
+        rc, out, _ = run(at(os.path.join(c_mem, "sub", "deep.md")), home=c_home, cfg=cfg)
+        check("CLAUDE_CONFIG_DIR set: a file below memory/ is not guarded", decision(out) != "deny", out)
+        # The personal memory stays guarded too: moving the config dir must not turn the
+        # gate off for $HOME/.claude/projects, which a work session can still write into.
+        p_mem = os.path.join(c_home, ".claude", "projects", "-cfg-proj", "memory")
+        os.makedirs(p_mem)
+        rc, out, _ = run(at(os.path.join(p_mem, "s.md")), home=c_home, cfg=cfg)
+        check("CLAUDE_CONFIG_DIR set: a secret written to $HOME/.claude memory is still denied",
+              decision(out) == "deny", out)
+    shutil.rmtree(c_home, ignore_errors=True)
 
 print("\nmemory-save-gate: %d checks, %d failed" % (TOTAL[0], len(fails)))
 if fails:

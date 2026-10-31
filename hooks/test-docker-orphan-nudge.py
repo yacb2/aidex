@@ -38,9 +38,12 @@ os.makedirs(SWEEP_DIR)
 HOOK = os.path.join(PLUGIN, "hooks", "docker-orphan-nudge.sh")
 shutil.copy(HOOK_SRC, HOOK)
 SWEEP_LOG = os.path.join(ROOT, "sweep.log")
+# The hook runs from its own empty cwd, so a config dir resolved against the cwd shows.
+CWD = os.path.join(ROOT, "cwd")
+os.makedirs(CWD)
 with open(os.path.join(SWEEP_DIR, "orphan-sweep.sh"), "w") as fh:
     # Sleeps so a hook that waited for it would be measurably slow.
-    fh.write('echo "$* | PATH=$PATH" >> "%s"\nsleep 2\n' % SWEEP_LOG)
+    fh.write('echo "$* | PATH=$PATH | CLAUDE_CONFIG_DIR=$CLAUDE_CONFIG_DIR" >> "%s"\nsleep 2\n' % SWEEP_LOG)
 
 DIR = os.path.join(HOME, ".claude", "tmp", "docker-orphans")
 SUMMARY = os.path.join(DIR, "summary")
@@ -55,19 +58,20 @@ def reset():
         os.remove(SWEEP_LOG)
 
 
-def summary(status="ok", candidates=0, names="", at=1760000000, age_h=0):
-    os.makedirs(DIR, exist_ok=True)
-    with open(SUMMARY, "w") as fh:
+def summary(status="ok", candidates=0, names="", at=1760000000, age_h=0, d=DIR):
+    os.makedirs(d, exist_ok=True)
+    path = os.path.join(d, "summary")
+    with open(path, "w") as fh:
         fh.write("scanned_at=%d\nstatus=%s\ncandidates=%d\ncandidate_projects=%s\n" % (at, status, candidates, names))
     t = time.time() - age_h * 3600
-    os.utime(SUMMARY, (t, t))
+    os.utime(path, (t, t))
 
 
-def run():
-    env = {"HOME": HOME, "PATH": os.environ["PATH"]}
+def run(**extra):
+    env = {"HOME": HOME, "PATH": os.environ["PATH"], **extra}
     t0 = time.time()
     p = subprocess.run(["bash", HOOK], input=json.dumps({"hook_event_name": "SessionStart", "source": "startup"}),
-                       capture_output=True, text=True, env=env, timeout=10)
+                       capture_output=True, text=True, env=env, timeout=10, cwd=CWD)
     return p, time.time() - t0
 
 
@@ -149,6 +153,46 @@ try:
     check("stale: speaks from the last summary", "old" in (message(p) or ""), p.stdout)
     check("stale: scan relaunched", wait_for(SWEEP_LOG))
     wait_for(LOCK, present=False)
+
+    print("== the summary is read from CLAUDE_CONFIG_DIR, never a hard-coded ~/.claude ==")
+    # A session started with CLAUDE_CONFIG_DIR=~/.claude-work read and stamped the personal
+    # ~/.claude. A leading ~ is the home directory; unset, empty or relative means
+    # $HOME/.claude, never a tree under the cwd.
+    for label, cfg, where in [("set", os.path.join(ROOT, "cfg"), os.path.join(ROOT, "cfg")),
+                              ("empty", "", ".claude"), ("tilde", "~/x", "x"),
+                              ("relative", "rel", ".claude")]:
+        home = os.path.join(ROOT, "h-" + label)
+        shutil.rmtree(CWD)
+        os.makedirs(CWD)
+        summary(candidates=1, names="cfg-" + label,
+                d=os.path.join(home, where, "tmp", "docker-orphans"))
+        p, _ = run(HOME=home, CLAUDE_CONFIG_DIR=cfg)
+        check("CLAUDE_CONFIG_DIR %s: speaks from that summary" % label,
+              "cfg-" + label in (message(p) or ""), p.stdout)
+        check("CLAUDE_CONFIG_DIR %s: nothing created in the cwd" % label, os.listdir(CWD) == [],
+              os.listdir(CWD))
+        if label in ("set", "tilde"):
+            check("CLAUDE_CONFIG_DIR %s: nothing written under $HOME/.claude" % label,
+                  not os.path.exists(os.path.join(home, ".claude")))
+
+    print("== the scan is launched for the same config dir ==")
+    # Once a day per config dir: the detached scan must write the summary this hook reads,
+    # so it inherits CLAUDE_CONFIG_DIR and holds its lock in that directory.
+    reset()
+    home, cfg = os.path.join(ROOT, "h-scan"), os.path.join(ROOT, "cfg-scan")
+    run(HOME=home, CLAUDE_CONFIG_DIR=cfg)
+    check("missing summary under cfg: scan.lock taken under it",
+          os.path.isdir(os.path.join(cfg, "tmp", "docker-orphans", "scan.lock")))
+    want, end = "CLAUDE_CONFIG_DIR=%s\n" % cfg, time.time() + 6
+    log = ""
+    while want not in log and time.time() < end:   # a scan an earlier row launched may log first
+        time.sleep(0.1)
+        log = open(SWEEP_LOG).read() if os.path.exists(SWEEP_LOG) else ""
+    check("missing summary under cfg: the scan carries CLAUDE_CONFIG_DIR", want in log,
+          log.replace(os.environ["PATH"], "<PATH>"))
+    check("missing summary under cfg: nothing under $HOME/.claude",
+          not os.path.exists(os.path.join(home, ".claude")))
+    wait_for(os.path.join(cfg, "tmp", "docker-orphans", "scan.lock"), present=False)
 finally:
     shutil.rmtree(ROOT, ignore_errors=True)
 

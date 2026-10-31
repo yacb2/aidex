@@ -4,14 +4,17 @@
 Self-contained: builds synthetic transcripts rather than depending on real ones,
 so it runs anywhere and does not rot when transcripts are cleaned up.
 
-  python3 ~/.claude/hooks/test-context-depth-nudge.py
+  python3 hooks/test-context-depth-nudge.py
 """
-import json, os, subprocess, sys, tempfile
+import json, os, shutil, subprocess, sys, tempfile
 
 HOOK = os.path.join(os.path.dirname(os.path.abspath(__file__)), "context-depth-nudge.sh")
-ENV = {"PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin", "HOME": os.path.expanduser("~")}
-STATE = os.path.expanduser("~/.claude/tmp")
 TMP = tempfile.mkdtemp(prefix="ctxdepth-test-")
+# A temp HOME, never the real one, and no CLAUDE_CONFIG_DIR: the rows below read the
+# $HOME/.claude default; section 9 sets the variable on purpose.
+HOME = os.path.join(TMP, "home")
+ENV = {"PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin", "HOME": HOME}
+STATE = os.path.join(HOME, ".claude", "tmp")
 
 fails = []
 
@@ -54,9 +57,9 @@ def clean(sid):
         os.remove(f)
 
 
-def run(payload, raw=None):
+def run(payload, raw=None, env=ENV):
     data = raw if raw is not None else json.dumps(payload)
-    p = subprocess.run(["/bin/sh", HOOK], input=data, capture_output=True, text=True, env=ENV, timeout=30)
+    p = subprocess.run(["/bin/sh", HOOK], input=data, capture_output=True, text=True, env=env, timeout=30)
     return p.stdout.strip(), p.stderr.strip(), p.returncode
 
 
@@ -207,9 +210,30 @@ got = fire(path, sid)
 check("partially written last line is skipped, not fatal", "Over half of all input spend" in got, got)
 clean(sid)
 
-for f in os.listdir(TMP):
-    os.remove(os.path.join(TMP, f))
-os.rmdir(TMP)
+print("\n=== 9. state follows CLAUDE_CONFIG_DIR, never a hard-coded ~/.claude ===")
+# A session started with CLAUDE_CONFIG_DIR=~/.claude-work wrote its band markers into the
+# personal ~/.claude (fired 10 times at work). A leading ~ is the home directory; unset,
+# empty or relative means $HOME/.claude, never a tree under the cwd.
+for label, cfg_value, where in [("set", os.path.join(TMP, "cfg"), os.path.join(TMP, "cfg", "tmp")),
+                                ("empty", "", os.path.join(TMP, "h-empty", ".claude", "tmp")),
+                                ("tilde", "~/x", os.path.join(TMP, "h-tilde", "x", "tmp")),
+                                ("relative", "rel", os.path.join(TMP, "h-relative", ".claude", "tmp"))]:
+    h = os.path.join(TMP, "h-" + label)
+    env = dict(ENV, HOME=h, CLAUDE_CONFIG_DIR=cfg_value)
+    CWD = os.path.join(TMP, "cwd-" + label)
+    os.makedirs(CWD)
+    subprocess.run(["/bin/sh", HOOK], input=json.dumps({
+        "transcript_path": transcript("cfg-" + label, 320_000), "session_id": "TEST-cfg",
+        "prompt": "x"}), capture_output=True, text=True, env=env, cwd=CWD, timeout=30)
+    check(f"CLAUDE_CONFIG_DIR {label}: band marker under {os.path.relpath(where, TMP)}",
+          os.path.isfile(os.path.join(where, "ctx-band-TEST-cfg")),
+          f"$HOME/.claude exists={os.path.exists(os.path.join(h, '.claude'))}")
+    check(f"CLAUDE_CONFIG_DIR {label}: nothing created in the cwd", os.listdir(CWD) == [], os.listdir(CWD))
+    if label in ("set", "tilde"):
+        check(f"CLAUDE_CONFIG_DIR {label}: nothing written under $HOME/.claude",
+              not os.path.exists(os.path.join(h, ".claude")))
+
+shutil.rmtree(TMP, ignore_errors=True)
 
 print("\n" + ("ALL PASS" if not fails else f"{len(fails)} FAILURES: {fails}"))
 sys.exit(1 if fails else 0)

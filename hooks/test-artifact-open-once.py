@@ -22,6 +22,13 @@ import time
 import tempfile
 
 HOOK = os.path.join(os.path.dirname(os.path.abspath(__file__)), "artifact-open-once.sh")
+# Never inherited: an ambient CLAUDE_CONFIG_DIR (a work session) would re-point every
+# cell away from the temp HOME. cfg_cells sets it explicitly.
+ENV0 = {k: v for k, v in os.environ.items() if k != "CLAUDE_CONFIG_DIR"}
+# Hooks run from a temp cwd: a config dir that resolves to a relative path (an empty
+# CLAUDE_CONFIG_DIR taken literally) must land there, never in the checkout.
+CWD = tempfile.mkdtemp(prefix="hook-cwd-")
+os.chdir(CWD)
 
 PASS = 0
 FAIL = 0
@@ -59,7 +66,7 @@ def run(command, home, session="s1", transcript_path=None, tool="Bash"):
     }
     if transcript_path is not None:
         payload["transcript_path"] = transcript_path
-    env = dict(os.environ, HOME=home)
+    env = dict(ENV0, HOME=home)
     p = subprocess.run(["sh", HOOK], input=json.dumps(payload),
                        capture_output=True, text=True, env=env)
     decision = ""
@@ -81,12 +88,14 @@ def check(label, got, want):
         print("  FAIL %s: got %r, want %r" % (label, got, want))
 
 
-def event(name, home, tr, session="w1", **extra):
+def event(name, home, tr, session="w1", cfg=None, **extra):
     """Feed the hook a real PostToolUse / Stop event; return (rc, stdout)."""
     payload = {"hook_event_name": name, "session_id": session,
                "transcript_path": tr, "cwd": home}
     payload.update(extra)
-    env = dict(os.environ, HOME=home)
+    env = dict(ENV0, HOME=home)
+    if cfg is not None:
+        env["CLAUDE_CONFIG_DIR"] = cfg
     p = subprocess.run(["sh", HOOK], input=json.dumps(payload),
                        capture_output=True, text=True, env=env)
     return p.returncode, p.stdout
@@ -103,6 +112,34 @@ def wrap_post(home, tr, page, **extra):
     cmd = "bash skills/artifact/scripts/wrap-report.sh --title T --in b.html --out %s" % page
     return event("PostToolUse", home, tr, tool_name="Bash",
                  tool_input={"command": cmd}, **extra)
+
+
+def cfg_cells():
+    """State follows CLAUDE_CONFIG_DIR, never a hard-coded ~/.claude: a session started
+    with CLAUDE_CONFIG_DIR=~/.claude-work wrote its state into the personal ~/.claude.
+    A leading ~ is the home directory; unset, empty or relative means $HOME/.claude,
+    never a tree under the cwd."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    with tempfile.TemporaryDirectory() as root, \
+            tempfile.TemporaryDirectory(dir=here) as pages:
+        page = os.path.join(pages, "wrapped.html")
+        open(page, "w").write("<p>x</p>")
+        for label, cfg, sub in [("set", os.path.join(root, "cfg"), None), ("empty", "", ".claude"),
+                                ("tilde", "~/x", "x"), ("relative", "rel", ".claude")]:
+            home = os.path.join(root, "h-" + label)
+            os.makedirs(home)
+            tr = os.path.join(home, "t.jsonl")
+            transcript(tr, 1)
+            wrap_post(home, tr, page, session="cfg1", cfg=cfg)
+            where = os.path.join(cfg if sub is None else os.path.join(home, sub), "aidex", "open-once")
+            check("CLAUDE_CONFIG_DIR %s: wrap state lands under the config dir" % label,
+                  os.path.isfile(os.path.join(where, "cfg1.wraps.tsv")), True)
+            # The hook runs from the event's cwd (here: home), so look in both.
+            check("CLAUDE_CONFIG_DIR %s: nothing created in the cwd" % label,
+                  os.listdir(CWD) + [n for n in os.listdir(home) if n in ("~", "rel")], [])
+            if label in ("set", "tilde"):
+                check("CLAUDE_CONFIG_DIR %s: nothing written under $HOME/.claude" % label,
+                      os.path.exists(os.path.join(home, ".claude")), False)
 
 
 def wrap_cells():
@@ -191,7 +228,7 @@ def wrap_cells():
         def spawn(payload, proc_cwd):
             payload = dict(payload, session_id="r1", transcript_path=tr, cwd=pages)
             p = subprocess.run(["sh", HOOK], input=json.dumps(payload), capture_output=True,
-                               text=True, env=dict(os.environ, HOME=home), cwd=proc_cwd)
+                               text=True, env=dict(ENV0, HOME=home), cwd=proc_cwd)
             return p.returncode, p.stdout
 
         def relcase(open_arg, session_tr):
@@ -217,7 +254,7 @@ def wrap_cells():
             p = subprocess.run(["sh", HOOK], capture_output=True, text=True,
                                input=json.dumps({"hook_event_name": "Stop", "cwd": locked,
                                                  "session_id": "r2", "transcript_path": tr}),
-                               env=dict(os.environ, HOME=home))
+                               env=dict(ENV0, HOME=home))
             check("an unreadable cwd fails open, no traceback",
                   (p.returncode, p.stdout.strip(), "Traceback" in p.stderr), (0, "", False))
         finally:
@@ -225,7 +262,7 @@ def wrap_cells():
 
         # stdin that is valid JSON but not an event object fails open.
         for raw in ("null", "[]", '"x"', "1"):
-            env = dict(os.environ, HOME=home)
+            env = dict(ENV0, HOME=home)
             p = subprocess.run(["sh", HOOK], input=raw, capture_output=True,
                                text=True, env=env)
             check("stdin %s fails open" % raw, (p.returncode, p.stdout.strip()), (0, ""))
@@ -238,7 +275,7 @@ def wrap_cells():
 
         rc, out = event("Stop", home, "/nonexistent/t.jsonl")
         check("Stop with no transcript fails open", (rc, out.strip()), (0, ""))
-        env = dict(os.environ, HOME=home)
+        env = dict(ENV0, HOME=home)
         p = subprocess.run(["sh", HOOK], input="{not json", capture_output=True,
                            text=True, env=env)
         check("malformed event fails open", (p.returncode, p.stdout.strip()), (0, ""))
@@ -317,7 +354,7 @@ def kit_cells():
         w = subprocess.run(["bash", wrap, "--title", "T", "--out", real],
                            input='<div class="page"><main class="main"><p>body</p></main></div>',
                            capture_output=True, text=True,
-                           env=dict(os.environ, HOME=home))
+                           env=dict(ENV0, HOME=home))
         check("wrap-report.sh produced the page", os.path.isfile(real), True)
         rc, d, _ = run("open %s" % real, home, transcript_path=tr)
         check("a real wrap-report page under .context/reports opens", (rc, d), (0, ""))
@@ -396,7 +433,7 @@ def main():
         check("missing transcript: fails open", (rc, d), (0, ""))
         p = subprocess.run(["sh", HOOK], input="not json",
                            capture_output=True, text=True,
-                           env=dict(os.environ, HOME=home))
+                           env=dict(ENV0, HOME=home))
         check("malformed input: fails open", (p.returncode, p.stdout.strip()), (0, ""))
         rc, d, _ = run("open %s" % art, home, transcript_path=tr, tool="Read")
         check("a non-Bash tool is not ours", (rc, d), (0, ""))
@@ -546,6 +583,8 @@ def main():
     kit_cells()
 
     wrap_cells()
+
+    cfg_cells()
 
     print("%s — artifact open-once: %d passed, %d failed"
           % ("FAIL" if FAIL else "OK", PASS, FAIL))

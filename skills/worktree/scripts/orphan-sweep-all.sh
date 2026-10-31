@@ -7,7 +7,7 @@
 # Usage:
 #   orphan-sweep.sh --all                    # print the listing, always exit 0
 #   orphan-sweep.sh --all --write-summary    # also write the summary the session-start
-#                                            # hook reads (~/.claude/tmp/docker-orphans/summary)
+#                                            # hook reads (<config dir>/tmp/docker-orphans/summary)
 #
 # The only rule, Docker's own labels plus the filesystem, no name parsing:
 #   CANDIDATE ORPHAN  the project has containers, every one of them carries a
@@ -39,7 +39,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-SUMMARY_DIR="$HOME/.claude/tmp/docker-orphans"
+CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+# A leading ~ is the home directory; anything still relative means the default, never a
+# tree under the cwd.
+case "$CFG" in "~"|"~/"*) CFG="$HOME${CFG#\~}" ;; esac
+case "$CFG" in /*) ;; *) CFG="$HOME/.claude" ;; esac
+SUMMARY_DIR="$CFG/tmp/docker-orphans"
 SUMMARY="$SUMMARY_DIR/summary"
 TAB=$'\t'
 

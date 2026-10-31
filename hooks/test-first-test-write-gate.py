@@ -26,6 +26,10 @@ CENSUS = os.path.join(HERE, "..", "skills", "testing", "scripts", "census.py")
 
 fails = []
 total = 0
+# Hooks run from a temp cwd: a config dir that resolves to a relative path (an empty
+# CLAUDE_CONFIG_DIR taken literally) must land there, never in the checkout.
+CWD = tempfile.mkdtemp(prefix="hook-cwd-")
+os.chdir(CWD)
 
 
 def check(name, ok):
@@ -36,20 +40,27 @@ def check(name, ok):
         fails.append(name)
 
 
-def run(home, stdin):
-    p = subprocess.run(["sh", HOOK], input=stdin, capture_output=True, text=True,
-                       env=dict(os.environ, HOME=home))
+# Never inherited: an ambient CLAUDE_CONFIG_DIR (a work session) would re-point every
+# row away from the temp HOME. The rows that need it set it explicitly.
+ENV0 = {k: v for k, v in os.environ.items() if k != "CLAUDE_CONFIG_DIR"}
+
+
+def run(home, stdin, cfg=None):
+    env = dict(ENV0, HOME=home)
+    if cfg is not None:
+        env["CLAUDE_CONFIG_DIR"] = cfg
+    p = subprocess.run(["sh", HOOK], input=stdin, capture_output=True, text=True, env=env)
     return p.returncode, p.stdout
 
 
-def call(home, path, tool="Write", session="s1", agent=None, agent_type=None):
+def call(home, path, tool="Write", session="s1", agent=None, agent_type=None, cfg=None):
     ev = {"tool_name": tool, "session_id": session,
           "tool_input": {"file_path": path, "content": "x"}}
     if agent is not None:
         ev["agent_id"] = agent
     if agent_type is not None:
         ev["agent_type"] = agent_type
-    code, out = run(home, json.dumps(ev))
+    code, out = run(home, json.dumps(ev), cfg)
     decision, reason = "allow", ""
     if out.strip():
         try:
@@ -110,6 +121,29 @@ check("an agent whose skills do not include testing is still denied",
 check("an agent type with no definition found is still denied",
       call(home, new("tests/test_p3.py"), session="pre", agent="b3", agent_type="nowhere")[1] == "deny")
 
+# State and the user agents directory follow CLAUDE_CONFIG_DIR, never a hard-coded
+# ~/.claude: a session started with CLAUDE_CONFIG_DIR=~/.claude-work wrote its state into
+# the personal ~/.claude. A leading ~ is the home directory; unset, empty or relative
+# means $HOME/.claude, never a tree under the cwd.
+for label, cfg, where in [("set", tempfile.mkdtemp(), None), ("empty", "", ".claude"),
+                          ("tilde", "~/x", "x"), ("relative", "rel", ".claude")]:
+    cfg_home = tempfile.mkdtemp()
+    root = cfg if where is None else os.path.join(cfg_home, where)
+    call(cfg_home, new("tests/test_cfg.py"), session="cfg1", cfg=cfg)
+    check(f"CLAUDE_CONFIG_DIR {label}: state lands under the config dir",
+          os.path.isfile(os.path.join(root, "aidex", "first-test-write", "cfg1.tsv")))
+    check(f"CLAUDE_CONFIG_DIR {label}: nothing created in the cwd", os.listdir(CWD) == [])
+    if label in ("set", "tilde"):
+        check(f"CLAUDE_CONFIG_DIR {label}: nothing written under $HOME/.claude",
+              not os.path.exists(os.path.join(cfg_home, ".claude")))
+    if label == "set":
+        os.makedirs(os.path.join(cfg, "agents"))
+        with open(os.path.join(cfg, "agents", "builder.md"), "w") as fh:
+            fh.write("---\nname: builder\nskills: [aidex:testing]\n---\n# Builder\n")
+        check("CLAUDE_CONFIG_DIR set: a preloading agent defined there is not denied",
+              call(cfg_home, new("tests/test_cfg2.py"), session="cfg2", agent="b1",
+                   agent_type="builder", cfg=cfg)[1] == "allow")
+
 # Missing session_id: no key to hold the budget under, so allow and write nothing.
 home2 = tempfile.mkdtemp()
 code, out = run(home2, json.dumps({"tool_name": "Write", "tool_input": {"file_path": new("tests/test_z.py")}}))
@@ -121,7 +155,7 @@ def race(session, n=8):
     ev = lambda i: json.dumps({"tool_name": "Write", "session_id": session,
                                "tool_input": {"file_path": new(f"tests/test_r{i}.py")}})
     procs = [subprocess.Popen(["sh", HOOK], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                              text=True, env=dict(os.environ, HOME=home)) for _ in range(n)]
+                              text=True, env=dict(ENV0, HOME=home)) for _ in range(n)]
     for i, p in enumerate(procs):
         p.stdin.write(ev(i))
         p.stdin.close()
@@ -281,7 +315,7 @@ def layout_call(session):
     ev = {"tool_name": "Write", "session_id": session, "tool_input": {"file_path": new("tests/test_l.py")}}
     return subprocess.run(["sh", os.path.join(root, "hooks", "first-test-write-gate.sh")],
                           input=json.dumps(ev), capture_output=True, text=True,
-                          env=dict(os.environ, HOME=home)).stdout
+                          env=dict(ENV0, HOME=home)).stdout
 check("from a copy of the shipped layout, a new-test Write is denied", '"deny"' in layout_call("lay1"))
 os.remove(os.path.join(root, "skills", "testing", "scripts", "census.py"))
 check("... and without census.py it fails open", layout_call("lay2") == "")
