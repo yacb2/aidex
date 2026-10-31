@@ -146,7 +146,7 @@ bash "$SCRIPTS/sweep-kickoff.sh" --title "Include nd" --slug include-nd --includ
 # a depends cycle cannot be ordered: exit 2, no work-list
 bash "$SCRIPTS/define-item.sh" "$DID" --depends "$BID" --no-index >/dev/null 2>&1
 bash "$SCRIPTS/sweep-kickoff.sh" --title "cycle" --slug cycle >/dev/null 2>"$TMP/err"; RC=$?
-[[ $RC -eq 2 && ! -e .context/worklists/*cycle* ]] && grep -q "cycle" "$TMP/err" && ok "a depends cycle exits 2 and writes nothing" || bad "cycle: rc=$RC $(cat "$TMP/err")"
+[[ $RC -eq 2 ]] && ! ls .context/worklists/*cycle* >/dev/null 2>&1 && grep -q "cycle" "$TMP/err" && ok "a depends cycle exits 2 and writes nothing" || bad "cycle: rc=$RC $(cat "$TMP/err")"
 
 # --origin sweep (Task 4.4)
 S="$(bash "$SCRIPTS/register-item.sh" --origin sweep --title "found mid-sweep" --worklist "$WL" --no-index 2>/dev/null)"
