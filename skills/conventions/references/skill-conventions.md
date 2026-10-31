@@ -70,7 +70,7 @@ description: Complete description including WHEN to use this skill.
 | Field | Required | Description |
 |-------|----------|-------------|
 | `name` | No | Display name (lowercase, hyphens, max 64 chars). Defaults to directory name. |
-| `description` | Recommended | **Trigger-first**: start with "Use when…", describe only when to use (NOT what it does). Claude uses this for auto-invocation. Single field preferred. Target <500 chars, <900 max before splitting. |
+| `description` | Recommended | **Trigger-first**: start with "Use when…", describe only when to use (NOT what it does). Claude uses this for auto-invocation. Single field preferred. Keep it under ~900 chars before splitting. |
 | `when_to_use` | Optional | Extra trigger phrasings if `description` would exceed ~900 chars. Concatenated into the listing (1,536-char combined cap). Prefer folding into `description`. |
 | `argument-hint` | No | Hint for autocomplete (e.g., `[issue-number]`). |
 | `arguments` | No | Named positional arguments for `$name` substitution in the body; names map to positions in order. Space-separated string or YAML list. |
@@ -106,7 +106,7 @@ failure is actionable.
 
 The frontmatter `description` determines when the skill triggers. Get it right and Claude invokes the skill on real user phrasings; get it wrong and the skill effectively does not exist.
 
-**The single most important rule (from `obra/superpowers`, the most-used Claude Code skill framework, empirically validated by them and corroborated by the aidex 2026-05-15 trigger-eval):**
+**The single most important rule (from `obra/superpowers`, the most-used Claude Code skill framework, validated by them; the aidex 2026-05-15 trigger-eval measured recall, not whether the body gets skipped, so it does not corroborate the body-skip claim):**
 
 > **`description` = WHEN to use, NOT what the skill does.** Start with "Use when…". Describe only triggering conditions, symptoms, and contexts. NEVER summarize the skill's process or workflow.
 
@@ -143,7 +143,7 @@ description: Use when the user wants to audit, organize, clean up, or health-che
 3. **No "pushy trigger" phrases** ("ALWAYS use this skill", "Make sure to use this skill whenever"). Verified to not improve recall; just consumes budget.
 4. **One sub-domain per skill.** A description that must enumerate 5+ unrelated sub-types is a mega-skill — Anthropic and Superpowers both name this anti-pattern. Split it. (In the aidex eval, the 5-sub-type `conventions` never cleared 2/10 across four iterations; the single-purpose `backlog` reached 7/10.)
 5. **Never anchor the triggering half on a sibling's name.** A sibling's `/aidex:<name>` (`/aidex:plan-exec`) before the `Not for:` marker puts its trigger words in this skill's matcher text. A sibling may be named after `Not for:`, as the disambiguator (see Canonical structure). Enforced by `test_registry_lockstep.py` check 8c.
-6. **Third person, concise.** The description is injected into the system prompt. <500 chars ideal, <900 before reaching for `when_to_use`, 1,024 hard target.
+6. **Third person, concise.** The description is injected into the system prompt. Stay <900 chars before reaching for `when_to_use`; 1,024 is the hard target. After the first sentence, keep only the `Fires on` phrasing list and `Not for:`; `test_registry_lockstep.py` check 8d is a form lint for process-summary sentences there, not evidence that the body gets skipped.
 
 ### The recall ceiling (critical expectation-setting)
 
@@ -176,9 +176,23 @@ Implications when authoring or reviewing a skill:
 | SKILL.md body | ~4k tokens | 5k tokens | Progressive disclosure |
 | Code lines (% of total) | < 5% | < 10% | Book Index pattern |
 | Largest inline code block | 3 lines | 5 lines | Move larger blocks to references |
-| `description` (trigger-first, single field) | <500 chars | ~900 chars | Matcher sees this; tight = stronger signal. Split to `when_to_use` only past ~900 |
+| `description` (trigger-first, single field) | none set | ~900 chars | Matcher sees this. Split to `when_to_use` only past ~900 |
 | `description` + `when_to_use` combined (only if split) | ~700 chars | 1,536 chars | Hard cap in skill listing per Claude Code spec |
 | References | Unlimited | Unlimited | Loaded as needed |
+
+**Rendered ceiling.** The body limits above are not the binding one. After compaction Claude
+Code re-attaches a skill cut at a fixed character count of the rendered text, so a skill under
+5k tokens can still lose its tail. `skills/conventions/scripts/test_skill_budget.sh` owns the
+number and prints `<skill>: rendered N, margin M`; read the margin there, do not copy figures
+into other files. If the re-attached skill ends in the truncation marker, Read it from disk in
+full before acting; the part after the cut is not in context. A body addition that would cross
+the gate moves text out behind an imperative numbered pointer instead.
+
+**`$N` substitution.** A skill invoked with arguments has `$0`, `$1`, ... and `$name` replaced
+in its body, so a literal dollar amount followed by a digit (the cost figures in
+`skills/delegation-detail/SKILL.md`, lines 52-53, are the example) can be rewritten in the
+rendered text. Write such figures so no `$` sits directly before a digit, or accept that the
+rendering changes them. This is a canon note only: no test or escape exists.
 
 **How to get under the ideal — reduce first, then measure.** What comes out of a body is
 genuinely *conditional* content: a procedure with its own trigger, or one that runs once per
@@ -485,6 +499,11 @@ reproduce? The report lands in `.context/research/`, the accepted hunks in one b
 sweep. Cost is sub-agent tokens, roughly 100k to 200k per skill, so the cadence is per
 model generation, never per release. Retuning `effortLevel` is not a trigger: effort is
 adjusted per session for pace and quota, and the audited text does not change with it.
+
+A hunk that deletes the stated reason behind a discipline rule (the "because ..." that says
+what goes wrong without the rule) needs a with/without run first: the same task executed with
+the rule and reason, and without, before the deletion is accepted. Dead references and
+duplicated text stay free to remove without a run.
 
 ### What a shipped rule may cite from `.context/`
 

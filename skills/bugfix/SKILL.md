@@ -3,8 +3,7 @@ name: bugfix
 description: >
   Use whenever a bug is reported and a fix is asked for, however small the fix looks, even a
   one-line change: the regression test comes before the edit, so do not patch the code directly
-  on a bug report. Investigate root cause, write a failing regression test (RED), implement the
-  minimum fix, confirm the test passes (GREEN), then commit test and fix together. Fires on "fix
+  on a bug report. Fires on "fix
   this bug", "this is broken", "it's not working", "there's a regression", "resolve this issue",
   "X returns Y instead of Z, fix it", or a reference to a bug report. Not for: planning
   multi-step work (/aidex:plan); executing a written plan phase-by-phase (/aidex:plan-exec);
@@ -78,6 +77,8 @@ The bug-fix workflow is these nine steps — the prose below keys to their step 
    the same as forgotten. For a visual/CSS-only bug this step is not optional —
    it is the only verification there is, and it closes on the UI evidence gate
    (see the exception below).
+
+Three failed fix rounds in a row: stop and report what was tried and what each run showed.
 
 ## Agent Configuration
 

@@ -29,7 +29,7 @@ Read conventions: `${CLAUDE_PLUGIN_ROOT}/skills/conventions/references/skill-con
   - Over maximum on **either** axis → finding. Over ideal on either → INFO with the remedy: progressive disclosure, i.e. move the self-contained advanced sections to `references/` and leave a pointer, not a summary.
   - Code blocks under 5 lines (move to references/).
 - **[SD] Orphaned references**: Files in `references/` not linked from SKILL.md.
-- **[SE] Description quality**: Description >50 chars, includes trigger phrases, has negative triggers.
+- **[SE] Description quality**: Description >50 chars, includes trigger phrases, has negative triggers. Report INFO for a sentence after the first that does not open with `Fires on` or `Also fires` and is not in `Not for:` (a process summary). Same rule as `test_registry_lockstep.py` check 8d, including its per-sentence exemptions: defer to `DESC_8D_EXEMPT` there rather than flagging a listed sentence. Form lint only, not evidence the body is skipped.
 - **[SG] User↔project overlap** (check code `CB-DU`): For each skill present in BOTH a global scope (`~/.claude/skills/` or `${CLAUDE_PLUGIN_ROOT}/skills/`) and `<project>/.claude/skills/`, read both frontmatters. If `name` matches AND `description` Jaccard similarity on word sets exceeds 0.7, report WARNING. Propose either deleting the local copy (accept global) or unlinking the global (keep the override). Keeping both pays metadata cost twice.
 - **[SH] Stack relevance** (CB-SR): Detect project stack from disk, then rank global/aidex skills by relevance.
 
