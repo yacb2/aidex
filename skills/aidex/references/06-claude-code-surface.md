@@ -71,10 +71,17 @@ because `surface-drift-check.py` needs a version per row, and a claim nobody has
 has none. Ask `claude-code-guide` once; then either move the row up with a version or
 delete the claim at its source.
 
-- **Post-compaction skill budget** — `context-cost-analyzer` said recent skill invocations
-  survive auto-compaction under a ~5k-per-skill / ~25k combined cap. A fresh `-p`
-  session cannot measure it, and nothing else has. The analyzer no longer reasons from
-  it; the claim is parked here until verified.
+- **Post-compaction skill budget** — Measured 2026-10-31 (superpowers-adoptions m18, 22 compaction
+  events): the re-attached attachment is capped at **20,000 characters of the rendered text**
+  (body without front matter, `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_SKILL_DIR}` expanded, plus the
+  "Base directory for this skill" header) INCLUDING a ~100-character truncation marker ("skill
+  content truncated for compaction"), so about 19,900 characters of the skill are kept.
+  `test_skill_budget.sh` gates at 19,900 rendered and has no slack beyond that. Undetermined:
+  whether truncation starts at more than 19,900 or at more than 20,000 (every cut seen was at
+  exactly 20,000). The 25k combined cap is still unverified. 12 of 13 truncated sessions never
+  re-read the SKILL.md afterwards (the 13th re-invoked the Skill). Still unverified: force
+  `/compact` in a live session and grep the transcript for the marker (manual check, recorded in
+  the 2026-08-06 budget decision's addendum).
 
 ## What does NOT belong here
 

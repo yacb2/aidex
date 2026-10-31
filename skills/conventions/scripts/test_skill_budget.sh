@@ -22,6 +22,20 @@
 # Token estimate is bytes/4 — the same crude-but-stable rule the skills-auditor is told to
 # use, so the two agree by construction rather than by coincidence.
 #
+# Third axis, rendered size (superpowers-adoptions phase 01, measurement m18): after compaction
+# Claude Code re-attaches a skill cut at 20,000 characters of the RENDERED text. Rendered =
+# body without front matter, ${CLAUDE_PLUGIN_ROOT} and ${CLAUDE_SKILL_DIR} expanded to a
+# realistic absolute install path, plus the "Base directory for this skill: <path>" header.
+# Claude Code caps the re-attached text at 20,000 characters INCLUDING a ~100-character
+# truncation marker, so about 19,900 characters of the skill are kept. RENDERED_MAX is that
+# 19,900: the gate has no slack beyond it. Whether truncation starts at >19,900 or at >20,000
+# is undetermined (m18 saw only cuts at exactly 20,000), so 19,900 is the conservative reading.
+# Over RENDERED_MAX -> FAIL. A margin line "skill: rendered N, margin M" is printed for every
+# skill. Counted in characters, not bytes, by python (locale-independent). Front matter is the
+# first line "---" through the first closing "---" (CRLF fences count); a file without front
+# matter counts whole; "---" lines inside the body count. The blank line after the closing
+# fence is counted (safe direction: it can only over-count by one).
+#
 # Run with: bash skills/conventions/scripts/test_skill_budget.sh
 
 set -uo pipefail
@@ -34,6 +48,29 @@ CANON="$SCRIPT_DIR/../references/skill-conventions.md"
 # The skill list comes from _owned-skills.sh: every <root>/skills/*/ that holds a SKILL.md
 # (the plugin checkout is aidex-only, so nothing is filtered).
 . "$SCRIPT_DIR/_owned-skills.sh"
+
+# Realistic install path (marketplace cache shape); a checkout path is shorter, so this errs
+# on the safe side. The skill dir is <root>/skills/<name>.
+RENDER_PLUGIN_ROOT="/Users/example/.claude/plugins/cache/aidex/aidex/1.27.0"
+RENDERED_MAX=19900
+
+# skill_body <file> — the file without its front matter (see the header comment).
+skill_body() {
+  awk '{ l = $0; sub(/\r$/, "", l) }
+       NR == 1 { if (l == "---") { fm = 1; next } fm = 0 }
+       fm == 1 { if (l == "---") fm = 2; next }
+       { print }' "$1"
+}
+
+# rendered_text <skill-dir> — what Claude Code attaches for the skill, on stdout.
+rendered_text() {
+  local dir="$1" name root="$RENDER_PLUGIN_ROOT" body
+  name="$(basename "$dir")"
+  body="$(skill_body "$dir/SKILL.md")"
+  body="${body//'${CLAUDE_PLUGIN_ROOT}'/$root}"
+  body="${body//'${CLAUDE_SKILL_DIR}'/$root/skills/$name}"
+  printf 'Base directory for this skill: %s\n\n%s\n' "$root/skills/$name" "$body"
+}
 
 failures=0
 fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
@@ -69,12 +106,20 @@ while IFS= read -r skill_dir; do
   skill="$skill_dir/SKILL.md"
   [[ -f "$skill" ]] || continue
   name="$(basename "$skill_dir")"
-  body="$(awk 'NR>1 && /^---$/{f=1;next} f' "$skill")"
+  body="$(skill_body "$skill")"
   lines="$(grep -c '' <<<"$body")"
   tokens=$(( $(printf '%s' "$body" | wc -c) / 4 ))
   checked=$((checked + 1))
 
+  rendered="$(rendered_text "$skill_dir" | python3 -I -c 'import sys; print(len(sys.stdin.buffer.read().decode("utf-8", "replace")))')"
+  margin=$(( RENDERED_MAX - rendered ))
+  printf '%s: rendered %s, margin %s\n' "$name" "$rendered" "$margin"
+
   status="ok"
+  if (( margin < 0 )); then
+    fail "$name: rendered $rendered characters, over the $RENDERED_MAX limit — Claude Code cuts the re-attached skill at 20,000 after compaction; move a conditional branch to references/ behind a numbered Read step"
+    status="OVER MAX"
+  fi
   if (( lines > MAX_LINES )); then
     fail "$name: body is $lines lines, over the $MAX_LINES-line maximum — split to references/"
     status="OVER MAX"
