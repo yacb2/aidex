@@ -43,9 +43,10 @@ The operative rule here:
   for a migration or a dep install/update/downgrade, run it — commit, deps, and
   additive migrations are not gated. A **destructive migration** (data loss) is the
   exception: it stays gated (global DB rule).
-- **A mid-run bifurcation that is not destructive → do it and document it** (in the
-  plan doc / final summary) so you can review it afterward. Don't stop for a doubt
-  that breaks nothing; verify the assumption (investigate, don't guess).
+- **A mid-run bifurcation that is not destructive → do it and document it** (a
+  `Bifurcation: <what> · cost if wrong: <what breaks>` log line) so you can review
+  it afterward. Don't stop for a doubt that breaks nothing; verify the assumption
+  (investigate, don't guess).
 - **Only stop for:** a `deny`-class destructive action (skip + document), an
   un-pre-authorized publish (surface at the end), or a genuine hard blocker you
   cannot resolve (missing credentials, truly unknowable intended behavior).

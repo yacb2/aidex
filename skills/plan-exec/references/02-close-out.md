@@ -2,18 +2,14 @@
 
 > These run once, at the end of a plan. Paths are relative to the skill root (`../`).
 
-Steps 1-4 of the final phase stay in `SKILL.md`; these are steps 5-9.
+Steps 1-4 of the final phase stay in `SKILL.md`; these are steps 5-10.
 
 > **Close-out does not include merging.** Tearing the worktree down and integrating its
 > branch happen at the same moment and are routinely confused; only the first is
 > close-out. `git merge` into the trunk is **class 2** — pre-authorizable at Orient,
 > never assumed mid-run — because it ends the review window this plan's work still
 > needs. Finish, leave the branch **ready to merge**, and say so in the final summary.
-> **The merge owns the cleanup the close-out cannot do.** A worktree kept for review
-> outlives the run, and nothing else removes it: the final summary names the command,
-> `/aidex:worktree down <slug> --delete-branch` (or `git worktree remove` plus
-> `git branch -d` for an `EnterWorktree` checkout), and whoever merges runs it right
-> after the merge. `branch -d` refuses an unmerged branch, so running it early is safe.
+> **The merge owns the cleanup the close-out cannot do**: step 9.
 > Seen 2026-09-27: `feat/testing-canon` and its worktree survived the merge (df21cec).
 > Rule and rationale: `../../conventions/references/autonomy-conventions.md` § Integrating a branch is not a commit.
 
@@ -92,7 +88,20 @@ Steps 1-4 of the final phase stay in `SKILL.md`; these are steps 5-9.
    script never checks whether a later phase touched the queued cells: the `cells:` list is
    the orchestrator's declaration, and the owner reads it here.
 
-9. **Notify completion.** If `~/.claude/scripts/notify.sh` exists and is executable,
+8b. **List every bifurcation.** Run `grep -n 'Bifurcation:' <plan files>` (modular: every
+   `NN-*.md` and `00-index.md`) and copy each hit, with its `cost if wrong`, into the final
+   summary; with no hit, write `no bifurcations`. A review verdict the run overruled or
+   abandoned (shipped over DO NOT SHIP, a finding dropped unfixed, a round not run) is a
+   bifurcation: log it as one before this grep, or the summary hides it.
+
+9. **Bind the cleanup to the merge.** Read
+   `../../conventions/references/autonomy-conventions.md` § Integrating a branch is not a
+   commit. If the merge was pre-authorized and has run: project gate on the merged trunk
+   (when one is declared), then `worktree.sh down <slug> --delete-branch`. If it was not:
+   put that command, slug filled in, in the final summary for whoever merges (for an
+   `EnterWorktree` checkout, `git worktree remove` plus `git branch -d`).
+
+10. **Notify completion.** If `~/.claude/scripts/notify.sh` exists and is executable,
    run it with a short completion message (e.g.
    `bash "$HOME/.claude/scripts/notify.sh" "plan-exec: <plan slug> complete"`). This
    reuses the user's existing permission/idle notifier — do not assume it exists;
