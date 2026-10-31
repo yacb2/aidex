@@ -46,7 +46,10 @@ SCOPE — every skills/* walk below goes through _owned_skills(), never the raw 
 
   8. skill-NAME lockstep + 8b. the `description` surface budget (<900 chars)
      + 8c. a model-invocable description names no sibling `/aidex:<name>` before
-     `Not for:` (skill-conventions.md description rule 5).
+     `Not for:` (skill-conventions.md description rule 5)
+     + 8d. after its first sentence, a model-invocable description holds only
+     `Fires on` / `Also fires` sentences before `Not for:` (a form lint for
+     process-summary sentences, not behaviour evidence).
   9. every owned skill directory is inside the `aidex` namespace — the `aidex-`
      prefix, or the bare orchestrator `aidex` itself. FAILS. Two bundled skills
      lost the prefix once (a9da52b) and it was restored by hand, by the user
@@ -178,6 +181,35 @@ def _sibling_before_not_for(me: str, desc: str) -> list[str]:
     head = desc.split("Not for:")[0]
     return [f"skills/{me}/SKILL.md names /aidex:{s} before 'Not for:'"
             for s in re.findall(r"/aidex:([a-z0-9-]+)", head) if s != me]
+
+
+# Skills with a non-trigger second sentence that is routing or scope, not a process summary
+# (guard 8d): name -> (reason, sentence prefixes allowed). Exempt by sentence prefix, never
+# the whole skill, and each entry is checked live (stale entries fail). Not a precedent: a new
+# entry needs a stated reason like these.
+DESC_8D_EXEMPT = {
+    "artifact": ("sub-action routing and the never-the-built-in-tool rule are triggers",
+                 ("Sub-action:", "Always this skill")),
+    "backlog": ("'Also owns the board' widens the trigger scope", ("Also owns the board",)),
+    "testing": ("states which agents preload it, a loading condition", ("Preloaded into",)),
+    "ui-contract": ("names the defect class that owes this skill, a trigger",
+                    ("A visual defect",)),
+}
+_TRIGGER_LEAD = re.compile(r"(?:Also fires|Fires on)\b")
+# A sentence ends at . ! ? , optionally followed by a closing quote or paren.
+_SENTENCE_END = re.compile(r"(?<=[.!?][\"')])\s+|(?<=[.!?])\s+")
+
+
+def _process_sentences(desc: str, exempt: tuple[str, ...] = ()) -> list[str]:
+    """Guard 8d, a FORM lint (not behaviour evidence that the body gets skipped). Skips the
+    first sentence, drops the `Not for:` tail, and returns every remaining sentence that
+    opens with neither `Fires on` / `Also fires` (the verbatim-phrasing list) nor an `exempt`
+    prefix. Such a sentence reads as a process summary ("Investigate ...", "Enforces ...").
+    Known blind spots: text after `Not for:` is not scanned, and a one-sentence description
+    passes trivially."""
+    head = " ".join(desc.split("Not for:")[0].split())
+    return [x for x in _SENTENCE_END.split(head)[1:]
+            if x and not _TRIGGER_LEAD.match(x) and not x.startswith(exempt)]
 
 
 # Agents allowed to declare no effort, each with its reason (guard 7).
@@ -613,6 +645,50 @@ def main() -> int:
         failures.append("guard 8c passed a sibling named before 'Not for:'")
     if _sibling_before_not_for("loop", "Use when /aidex:loop. Not for: y (/aidex:plan-exec)"):
         failures.append("guard 8c rejects a sibling after 'Not for:' or the skill's own name")
+
+    # 8d. Form lint: no process-summary sentence after the first (skill-conventions.md,
+    #     "The description field"). Same skip set as 8c.
+    descs_8d = {}
+    for skill_md in owned_skill_mds:
+        fm = re.match(r"^---\n(.*?)\n---\n", skill_md.read_text(encoding="utf-8"), re.S)
+        if not fm or re.search(r"^disable-model-invocation:\s*true", fm.group(1), re.M):
+            continue
+        d = desc_re.search(fm.group(1))
+        if d:
+            name = skill_md.parent.name
+            descs_8d[name] = _unquote(d.group(2))
+            prefixes = DESC_8D_EXEMPT.get(name, ("", ()))[1]
+            for sent in _process_sentences(descs_8d[name], prefixes):
+                failures.append(f"skills/{name}/SKILL.md description has a "
+                                f"non-trigger sentence after the first: '{sent[:60]}...'")
+    for name, (_reason, prefixes) in DESC_8D_EXEMPT.items():
+        raw = _process_sentences(descs_8d.get(name, ""))
+        if not raw or not all(x.startswith(prefixes) for x in raw):
+            failures.append(f"DESC_8D_EXEMPT['{name}'] is stale: its description no longer "
+                            f"has non-trigger sentences that all start with {prefixes}")
+    probes_8d = [
+        ('Use when x. Investigate y, then fix. Fires on "a". Not for: z.',
+         ["Investigate y, then fix."], "a process sentence after the first"),
+        ('Use when x, y. Fires on "a". Also fires on "b". Not for: z. Do q.', [],
+         "Fires sentences, the first sentence or the Not for tail"),
+        ('Use when x. investigate y. Not for: z', ["investigate y."],
+         "a lowercase process sentence"),
+        ('Use when x. fires on "a". Not for: z', ['fires on "a".'],
+         "a lowercase `fires on` (the lead is case-sensitive)"),
+        ('Use when x. Fires a subagent that writes y. Not for: z',
+         ['Fires a subagent that writes y.'], "a process sentence that starts with Fires"),
+        ('Use when x. Fires on "a." Investigate y. Not for: z', ["Investigate y."],
+         'a sentence after a period inside a closing quote'),
+        ('Use when x. Fires on "a?" Investigate y. Not for: z', ["Investigate y."],
+         'a sentence after a question mark inside a closing quote'),
+        ('Use when x. Fires on (a.) Investigate y. Not for: z', ["Investigate y."],
+         "a sentence after a period inside a closing paren"),
+    ]
+    for text, want, label in probes_8d:
+        if _process_sentences(text) != want:
+            failures.append(f"guard 8d probe: wrong result for {label}")
+    if _process_sentences("Use when x. Sub-action: y. Not for: z", ("Sub-action:",)):
+        failures.append("guard 8d ignores an exempted sentence prefix")
 
     # (retired) `docs/retired/hooks/aidex-router.sh` was checked here for emitting a skill that
     # exists. The hook is unwired and no longer installed (its replay came out
