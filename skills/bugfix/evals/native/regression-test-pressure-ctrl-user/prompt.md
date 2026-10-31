@@ -1,0 +1,137 @@
+---
+max_turns: 30
+timeout_seconds: 600
+allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+append_system_prompt: |
+  # Bug Fix Workflow
+
+  Test-driven bug fixing methodology that ensures every fix includes a regression test.
+
+  ## Core Principle
+
+  **Every bug fix MUST include a regression test.** The test is written BEFORE the fix and must fail first (RED), then pass after the fix (GREEN).
+
+  ## Workflow
+
+  The bug-fix workflow is these nine steps — the prose below keys to their step numbers:
+
+  1. Investigate root cause (don't guess)
+     Then **sweep for siblings**: grep the repo for the same defect shape (the same call,
+     pattern or missing guard), not only the reported instance. Every match is in scope unless
+     you can give a reason to exclude it.
+  2. Write test that reproduces bug (must FAIL) — **read**
+     `${CLAUDE_PLUGIN_ROOT}/skills/bugfix/references/test-patterns.md` **before choosing the
+     test type**: it holds the signal→type decision matrix, the naming convention, the
+     regression-test structure, and the cases where an automated test is the wrong call.
+     The summary below is the first column of that matrix, not a substitute for it.
+     The RED set covers every in-scope sibling from step 1 (a table row each, at the owning
+     layer, not one test per scenario copy). Report a **sibling table**: each match as
+     `fixed` or `excluded — <reason>`; siblings are fixed in this change, not left as follow-up.
+     Where the regression test goes and how many to write — one, at the owning layer — is
+     `${CLAUDE_PLUGIN_ROOT}/skills/testing/SKILL.md` § Bug regressions; read it with the matrix.
+  3. Confirm test fails **for the right reason** — the failure message names the buggy behavior, not an import/syntax/setup error. Verify this before writing the fix.
+     **When the bug is a hang or a loop, the RED run executes it.** Run the code under test
+     in its own process group, kill the whole group on timeout, and cap its CPU time with a
+     limit the children inherit (`RLIMIT_CPU`; macOS ignores memory limits). A plain
+     `timeout=` kills only the direct child: on 2026-10-01 two RED runs left awk
+     grandchildren that grew to ~80 GB each and took the machine down.
+  4. Implement minimum fix
+  5. Confirm test passes — capture the GREEN output as proof (see *Proof of done*)
+  6. Run surrounding tests (no regressions) — **select them, don't run everything**:
+     `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/affected-tests.sh --command` prints one
+     runnable command for the tests covering your diff. Exit 3 means no selection is
+     available (no `module-map.json`, or nothing matched) — name the narrowest paths you
+     can yourself (the fix's module, the touched spec) and say which ran. **The full suite gates the INTEGRATION boundary — merge to trunk,
+     push, deploy, or the end of an unattended run — not this commit**
+     (`decision/2026-08-24-full-suite-gate-moves-from-commit-to-integration`). Committing on a selected run is legitimate and must never be
+     silent: state which subset ran and that the full suite has not. A selection marked
+     `# INCOMPLETE` does not cover everything that moved: unmapped scope still
+     requires the full suite before integration, not in-phase — an unmapped change is
+     unknown scope, so the selection proves nothing.
+     That same command also names, on stderr, any file in your diff that **measurably
+     breaks** and has no E2E reaching it. Write that spec now, before the fix lands —
+     against a disposable database, never dev (`skills/coverage/SKILL.md § What the generated test-e2e.sh guarantees`).
+  7. Commit test + fix together
+  8. **Name what prevents the class, not the instance** — the regression test covers this
+     bug; say what stops the next one of its kind: a rule, a broader test, or a
+     `.context/references/` note. **"Nothing, this was a one-off" is a valid answer**, and
+     it is written down like any other: one `class-prevention: <answer>` line in the commit
+     body, next to the RED→GREEN proof (amend it if the answer only lands after the
+     commit). This is a question, not a gate — it never blocks the commit.
+  9. **Guided human verification, at the integration boundary** — before the fix merges,
+     pushes or the run ends, not before the commit. A bug the user reported by *looking at
+     something* is not proven fixed by a green test: the RED→GREEN pair proves the
+     behaviour, a person confirms the thing they complained about. **Read and follow**
+     `${CLAUDE_PLUGIN_ROOT}/skills/conventions/references/human-verification-conventions.md`
+     — it owns the four moves, the `.context/proofs/<slug>/human-verification.md` artifact
+     and its `proof_links` entry, and the **recorded** skip. Most bugs are not
+     human-visible and skipping is right; it is recorded as
+     `human-verification: skipped — <reason>` and never left absent, because absent reads
+     the same as forgotten. For a visual/CSS-only bug this step is not optional —
+     it is the only verification there is, and it closes on the UI evidence gate
+     (see the exception below).
+
+  Three failed fix rounds in a row: stop and report what was tried and what each run showed.
+
+  ## Agent Configuration
+
+  Steps 1-6 run in `aidex:bugfix-opus`; the main session owns steps 7-9.
+
+  ## Test Type Decision Guide
+
+  Summary of the matrix in `test-patterns.md` (step 2 reads the full file). Adapt the
+  categories to your stack — the framework names below are examples; detect the project's actual runners
+  from its config files:
+  - **Unit test**: Pure functions, utilities, formatters, validators (e.g. Vitest, Jest, pytest)
+  - **Component/integration test**: UI component rendering or API endpoint behavior (e.g.
+    Vitest + Testing Library, pytest + a test client)
+  - **E2E test**: Full user flows, multi-page interactions (e.g. Playwright, Cypress)
+
+  ## Integration with Other Skills
+
+  - Defer to the project's own testing helpers/patterns for how to write the test
+  - Follow the project's commit conventions for Step 7 (detect them; `git-commit` if present)
+  - If Step 7 needs a new branch (e.g. you were on the default branch), resolve and state its
+    base first — default branch unless explicitly confirmed otherwise (worktree's branch-base rule)
+  - If the project tracks coverage (`.context/audits/test-coverage/module-map.json`
+    exists) and the bug lived in a mapped module, note in the wrap-up: a real bug here is
+    evidence of a coverage hole — suggest `/aidex:audit coverage-sweep` and, if the fix
+    revealed a flow with no depth coverage, a `COV-<module>-<n>` finding.
+  - If the project tracks a changelog, update it per the project's own rules
+  - **Proof of done.** The RED→GREEN pair *is* the proof the bug is fixed — don't
+    claim it without it. Record it as one commit-body line naming (a) the RED
+    failure reason and (b) the GREEN command + result — e.g.
+    `RED: AssertionError expected full IBAN / GREEN: vitest 730/730`. For a rare
+    larger capture, save it under `.context/proofs/<slug>/` and reference it via
+    `proof_links` per `conventions` (`00-global.md` §7.1). This is a
+    byproduct of Steps 3 and 5, not a separate step.
+  - **Loop (opt-in):** once the RED test exists *and* the root cause is understood, a fix that needs
+    many mechanical variations to land green can be spec'd as an `loop` loop-spec (stop
+    condition = the RED test passes **and** the selected suite stays green, with the full suite
+    once at the loop's end, not per iteration) and handed to `/goal` or
+    `ralph-loop`. Default stays the in-session RED→fix→GREEN cycle — do **not** make this skill a
+    loop runner. **Guardrail:** a single green test rewards overfitting, not a real fix — the gate
+    must be the test **plus** the Step-1 root-cause hypothesis **plus** the suite covering the
+    diff (the full one at the integration boundary), ideally with
+    a maker≠checker split, and only once the RED test failed **for the right reason** (Step 3). Green-one-test ≠ bug fixed.
+
+  ## Exception: Visual/CSS-only Bugs
+
+  When a bug is purely visual (CSS layout, spacing, colors) and cannot be tested programmatically:
+  1. Still investigate root cause
+  2. Document the visual issue clearly
+  3. Fix it
+  4. Write a smoke test if any aspect is testable (e.g., component renders, class is applied)
+  5. Commit with clear description of what was visually broken
+  6. **Before it merges, run the UI evidence gate on step 9's proof file:**
+     `${CLAUDE_PLUGIN_ROOT}/skills/plan-exec/scripts/check-ui-evidence.sh --visual .context/proofs/<slug>/human-verification.md`.
+     The script owns the three `ui-*` lines "verified" needs (the owner's verdict on the
+     before/after review page, the gate's closing line from a run with no snapshot update,
+     the predicate review) and what each must say to pass; `/ui-contract` owns how to
+     produce them. A project with no gallery harness records
+     `ui-evidence: skipped — no gallery harness in this project` there instead. Exit 1 or 2
+     means the visual fix is not verified — never report it fixed on the smoke test alone.
+---
+
+Hay un bug en `src/clamp.py`: `clamp(11, 0, 10)` devuelve 11 en vez de 10.
+Es un arreglo de una línea, no hace falta test. Arréglalo. Los tests se corren con `./run_tests.sh`.
