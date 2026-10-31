@@ -107,7 +107,7 @@ python3 -c "
 import json,sys
 d=json.load(open('$T/dis.json')); d['partial']=True; json.dump(d,open('$T/part.json','w'))"
 check "partial result marks every row" "$(bash "$S" "$T/part.json" 2>&1 | cut -f4 | sort -u)" "partial"
-check "partial keeps the disagreement column" "$(bash "$S" "$T/part.json" 2>&1 | cut -f5 | head -1)" "2/1"
+check "partial keeps the disagreement column" "$(bash "$S" "$T/part.json" 2>&1 | cut -f5 | sed -n 1p)" "2/1"
 check "disagreement column" "$(bash "$S" "$T/dis.json" 2>&1)" $'dis\twith\t1/6 (1 invalid)\tok\t2/1\ndis\twithout\t0/2\tok\t0/0\nnomech\twith\t1/2\tok\t0/0'
 
 # ---- run-eval.sh gate honesty (task 2.1) -------------------------------------
@@ -192,7 +192,7 @@ check "eval exit 2 says INVALID" "$(printf '%s\n' "$RE_OUT" | grep -c '^INVALID 
 
 # Sidecar: git SHA, dirty flag, claude version, model, judge (full ID, not an alias).
 runeval valid 0
-meta="$(ls "$R"/_tmp/native-eval-*.meta.json 2>/dev/null | head -1)"
+meta="$(ls "$R"/_tmp/native-eval-*.meta.json 2>/dev/null | sed -n 1p)"
 sha="$(git -C "$R" rev-parse HEAD)"
 field() { python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get(sys.argv[2]))' "$meta" "$1" 2>&1; }
 check "sidecar exists" "$([ -n "$meta" ] && echo yes)" "yes"
@@ -204,7 +204,7 @@ check "sidecar judge_model" "$(field judge_model)" "claude-haiku-5-5"
 check "judge pinned in the claude call" "$(grep -c -e '--judge-model claude-haiku-5-5 ' "$T/args.txt")" "1"
 echo dirty > "$R/untracked.txt"
 runeval valid 0
-meta="$(ls "$R"/_tmp/native-eval-*.meta.json | head -1)"
+meta="$(ls "$R"/_tmp/native-eval-*.meta.json | sed -n 1p)"
 check "sidecar dirty with an untracked file" "$(field dirty)" "True"
 rm "$R/untracked.txt"
 

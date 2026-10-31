@@ -4,6 +4,13 @@
 
 Steps 1-4 of the final phase stay in `SKILL.md`; these are steps 5-10.
 
+## Contents
+
+- [Merging is not close-out](#merging-is-not-close-out)
+- [Steps 5-10](#steps-5-10)
+
+## Merging is not close-out
+
 > **Close-out does not include merging.** Tearing the worktree down and integrating its
 > branch happen at the same moment and are routinely confused; only the first is
 > close-out. `git merge` into the trunk is **class 2** — pre-authorizable at Orient,
@@ -12,6 +19,8 @@ Steps 1-4 of the final phase stay in `SKILL.md`; these are steps 5-10.
 > **The merge owns the cleanup the close-out cannot do**: step 9.
 > Seen 2026-09-27: `feat/testing-canon` and its worktree survived the merge (df21cec).
 > Rule and rationale: `../../conventions/references/autonomy-conventions.md` § Integrating a branch is not a commit.
+
+## Steps 5-10
 
 5. **Tear down isolation** if a worktree was entered at Orient: `ExitWorktree`
    (`keep` to resume later, `remove` for a clean exit — it refuses to drop uncommitted
