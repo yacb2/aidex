@@ -169,6 +169,14 @@ with no merge request anywhere in the chain. **Tearing down a worktree is close-
 integrating its branch is not.** The two are routinely confused because they happen at
 the same moment.
 
+**Cleanup is bound to the authorized merge.** The merge itself stays class 2. Once it is
+authorized and has run, the session that merged does the cleanup the close-out could not:
+(1) run the project's gate on the merged trunk, when the project declares one (a
+conditional step, not measured: no run has yet shown a merge that passed on the branch
+and failed on the trunk); (2) then `worktree.sh down <slug> --delete-branch`. `branch -d`
+refuses an unmerged branch, so step 2 cannot destroy unmerged work. Push is still a
+release and is not covered by authorizing the merge.
+
 ## The arbiter policy (active enforcement)
 
 The rules above are static; at a real mid-run boundary the executing agent still
