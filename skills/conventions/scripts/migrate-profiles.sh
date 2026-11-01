@@ -63,14 +63,18 @@ for pair in $PAIRS; do
   [[ -f "$old" ]] || continue
   if [[ -e "$new" ]]; then echo "skip: $old (target $new already exists)"; KEPT="$KEPT ${pair%%:*}"; continue; fi
   if tracked "$old"; then how="git mv"; else how="mv (untracked or ignored: not in git history)"; fi
-  # a target the current .gitignore ignores owes the profiles whitelist even when no old line
-  # names it (references/00-profile.md is whitelisted through its folder, BL-865)
-  [[ "$in_git" -eq 1 ]] && git check-ignore --no-index -q -- "$new" && IGNORED_NEW=1
+  # a move that turns a visible file into an ignored one owes the profiles whitelist even when
+  # no old line names it (references/00-profile.md is whitelisted through its folder, BL-865).
+  # An old file already ignored keeps the project's policy: nothing is owed.
+  [[ "$in_git" -eq 1 ]] && ! git check-ignore --no-index -q -- "$old" \
+    && git check-ignore --no-index -q -- "$new" && IGNORED_NEW=1
   if [[ "$APPLY" -eq 0 ]]; then echo "would move: $old -> $new [$how]"; continue; fi
   if mkdir -p .context/profiles && { if tracked "$old"; then git mv "$old" "$new"; else mv "$old" "$new"; fi; }; then :
   else echo "FAILED to move $old -> $new (left in place)" >&2; KEPT="$KEPT ${pair%%:*}"; continue; fi
   if tracked "$new"; then echo "moved: $old -> $new [git mv]"
   else echo "UNTRACKED-MOVED $new (now versionable: check for secrets, then git add)"; fi
+  # the census keys its approvals by the profile path, so the move revokes it
+  [[ "${pair##*:}" == reference.md ]] && echo "note: re-approve the census for the new path: read $new, then docs-census.sh --trust"
 done
 if [[ "$DEPLOY" -eq 0 && -f .context/deploy-profile.md ]]; then
   echo "skip: .context/deploy-profile.md (synced bp-ops still reads it; pass --include-deploy to move it)"

@@ -634,10 +634,9 @@ def main() -> int:
     if root is None:
         print(f"no .context/ found from {args.root}", file=sys.stderr)
         return 2
+    # No references/ yet is zero modules, not an error: the canon profile path
+    # (profiles/reference.md) no longer creates that folder as a side effect.
     refs = root / ".context" / "references"
-    if not refs.is_dir():
-        print(f"no {refs}", file=sys.stderr)
-        return 2
 
     profile = (args.profile or profile_path(root / ".context")).resolve()
     axes, problems, block = load_profile(profile)

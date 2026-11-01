@@ -150,6 +150,17 @@ rc_is "profile only at profiles/reference.md exits 0" 0 "1/1 covered" -- python3
 printf -- '```census\naxis: things\nlabel: things\ncommand: printf "bravo\\n"\n```\n' > "$P4b/.context/references/00-profile.md"
 rc_is "profiles/reference.md wins over references/00-profile.md" 0 "1/1 covered" -- python3 "$CENSUS" --root "$P4b"
 
+# 6c. writing the profile at its canon path no longer creates references/ as a side effect: a
+# project with no references/ yet is a census of zero modules (every item a gap), not exit 2.
+P4c="$TMP/p4c"
+mkproject "$P4c" 'axis: things
+label: things
+command: printf "alpha\n"'
+mkdir -p "$P4c/.context/profiles"; mv "$P4c/.context/references/00-profile.md" "$P4c/.context/profiles/reference.md"; rmdir "$P4c/.context/references"
+rc_is "profile at canon path, no references/ dir: dry-run" 0 "[dry-run]" -- python3 "$CENSUS" --root "$P4c" --dry-run
+approve "$P4c"
+rc_is "profile at canon path, no references/ dir: every item a gap" 1 "gap        alpha" -- python3 "$CENSUS" --root "$P4c"
+
 # ---------------------------------------------------------------- 7. zero adoption NOTE
 P5="$TMP/p5"
 mkproject "$P5" 'axis: things

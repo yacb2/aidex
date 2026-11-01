@@ -166,5 +166,30 @@ grep -qx '!\.context/references/\*\*' "$R/.gitignore" || fail "reference-wl: the
 cp "$R/.gitignore" "$TMP/rwl.before"; ( cd "$R" && git add -A && git -c user.email=a@b -c user.name=n commit -qm moved )
 bash "$SCRIPT" "$R" --apply >/dev/null; cmp -s "$R/.gitignore" "$TMP/rwl.before" || fail "reference-wl: second --apply changed .gitignore"
 
+# 8c. the whitelist is owed only when the move CHANGES ignore status (old visible, new
+# ignored). A project that already ignores the old file keeps its policy: under `.context/`
+# or `/.context` git cannot re-include a child of an excluded folder, so appending the
+# whitelist would do nothing and report a false "placed"; under `.context/*` it would
+# un-ignore profiles/ in a project that chose to ignore all of .context.
+for row in 'ctxdir|.context/|artifact-style.md' 'ctxroot|/.context|artifact-style.md' \
+           'ctxstar|.context/*|artifact-style.md' 'refdir|.context/|references/00-profile.md'; do
+  name="${row%%|*}" rest="${row#*|}"; pat="${rest%%|*}" file="${rest#*|}"
+  R="$TMP/ign-$name"; mkdir -p "$R/.context/$(dirname "$file")"
+  ( cd "$R" && git init -q && echo x > ".context/$file" && printf '%s\n' "$pat" > .gitignore
+    git add .gitignore && git -c user.email=a@b -c user.name=n commit -qm init )
+  cp "$R/.gitignore" "$TMP/ign-$name.before"
+  out="$(bash "$SCRIPT" "$R" --apply 2>&1)"
+  cmp -s "$R/.gitignore" "$TMP/ign-$name.before" || fail "ign-$name: an already-ignored profile changed .gitignore: $(cat "$R/.gitignore")"
+  [[ "$out" != *placed* ]] || fail "ign-$name: reported a whitelist placement: $out"
+done
+
+# 8d. approvals are keyed by the profile path, so moving reference's profile revokes the
+# census approval: --apply says so instead of leaving the next census run to refuse.
+R="$TMP/reference-trust"; mkdir -p "$R/.context/references"; ( cd "$R" && git init -q && echo p > .context/references/00-profile.md
+  git add -f -A && git -c user.email=a@b -c user.name=n commit -qm init )
+out="$(bash "$SCRIPT" "$R" --apply 2>&1)"
+[[ "$out" == *"docs-census"*"--trust"* ]] || fail "reference-trust: no re-approval reminder after the move: $out"
+[[ "$(bash "$SCRIPT" "$TMP/apply" --apply 2>&1)" != *"--trust"* ]] || fail "reference-trust: reminder printed when reference did not move"
+
 if [[ $failures -gt 0 ]]; then printf '%d failure(s)\n' "$failures"; exit 1; fi
 echo "OK — migrate-profiles: dry-run inert, apply git-mv + one whitelist rewrite, dirty refused, deploy gated, BP block untouched"
