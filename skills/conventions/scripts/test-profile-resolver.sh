@@ -41,6 +41,19 @@ for pair in artifact:artifact-style.md communication:communication-style.md \
   done
 done
 
+# backlog: the sixth name, with NO legacy root file. It cannot join the loop above, whose
+# legacy step writes "$CTX/$legacy" (for an empty name, the directory itself).
+rm -rf "$CTX"; mkdir -p "$CTX"
+for fn in sh_resolve py_resolve; do
+  out="$($fn "$CTX" backlog)"; rc=$?
+  [[ $rc -eq 1 && -z "$out" ]] || fail "$fn backlog: no profile must give empty output and exit 1 (rc=$rc out=$out)"
+done
+mkdir -p "$CTX/profiles"; printf 'new\n' > "$CTX/profiles/backlog.md"
+for fn in sh_resolve py_resolve; do
+  out="$($fn "$CTX" backlog)" || fail "$fn backlog: the profile must resolve"
+  [[ "$out" == "$CTX/profiles/backlog.md" ]] || fail "$fn backlog: gave '$out', want $CTX/profiles/backlog.md"
+done
+
 # An unknown name is a refusal, never a guess.
 sh_resolve "$CTX" nonsense >/dev/null 2>&1 && fail "sh_resolve accepted an unknown profile name"
 py_resolve "$CTX" nonsense >/dev/null 2>&1 && fail "py_resolve accepted an unknown profile name"
@@ -56,4 +69,4 @@ w="$(. "$HERE/_lib.sh"; profile_write_path "$CTX" artifact)"
 [[ "$w" == "$CTX/profiles/artifact.md" ]] || fail "profile_write_path gave '$w'"
 
 if [[ $failures -gt 0 ]]; then printf '%d failure(s)\n' "$failures"; exit 1; fi
-echo "OK — profile resolver: 5 names x (none, legacy, new wins) in bash and python, unknown name refused"
+echo "OK — profile resolver: 5 names x (none, legacy, new wins) plus backlog (none, new) in bash and python, unknown name refused"

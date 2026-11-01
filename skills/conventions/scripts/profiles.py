@@ -7,6 +7,7 @@ Canon: skills/conventions/references/00-global.md, "Profiles". The bash twin is
 CLI: profiles.py <context-dir> <name>   prints the path, exit 1 when there is none.
 """
 import os
+import re
 import sys
 
 LEGACY = {
@@ -15,6 +16,7 @@ LEGACY = {
     "testing": "testing-profile.md",
     "deploy": "deploy-profile.md",
     "ui-contract": "ui-contract.md",
+    "backlog": "",  # no legacy root file: join(ctx, "") is the directory, never a file
 }
 
 
@@ -32,6 +34,23 @@ def resolve_profile(context_dir, name):
         if os.path.isfile(path):
             return path
     return None
+
+
+def profile_field(path, key):
+    """One front-matter scalar, quotes and a trailing ` #` comment stripped; "" when absent.
+    Twin of `profile_field` in _lib.sh: the same awk rules, line for line."""
+    if not os.path.isfile(path):
+        return ""
+    fences = 0
+    for line in open(path, encoding="utf-8", errors="replace").read().splitlines():
+        if re.match(r"^---\s*$", line):
+            fences += 1
+            if fences == 2:
+                break
+        elif fences == 1 and line.split(None, 1)[:1] == [key + ":"]:
+            val = re.sub(r"\s+#.*$", "", re.sub(r"^[^:]*:\s*", "", line))
+            return re.sub(r"""^["']|["']$""", "", val)
+    return ""
 
 
 def resolve_profile_or_root(root, name):

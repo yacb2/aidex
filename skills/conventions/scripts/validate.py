@@ -75,12 +75,25 @@ ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 ISO_FILENAME = re.compile(r"^\d{4}-\d{2}-\d{2}-[a-z0-9]+(-[a-z0-9]+)*\.md$")
 ISO_FOLDER = re.compile(r"^\d{4}-\d{2}-\d{2}-[a-z0-9]+(-[a-z0-9]+)*$")
 LEGACY_FILENAME = re.compile(r"^\d{8}-")
-CROSSREF_FIELDS = ("escalated_to", "superseded_by", "blocked_by", "origin_ref")
+CROSSREF_FIELDS = ("escalated_to", "superseded_by", "blocked_by", "origin_ref",
+                   "ticket", "parent", "pr", "review")
+# Fields that hold a comma list, each element judged on its own (BL-360). blocked_by is
+# free text, where a comma is prose, so it is never split.
+CROSSREF_LIST_FIELDS = ("escalated_to", "pr", "review")
 CROSSREF_FORMAT = re.compile(r"^(audit|backlog|plan|request|decision|reference|research|communication|loop|worktree|worklist)/.+$")
 # External refs (BL-070): stable identifiers whose target does not live in THIS
 # .context/ — an issue-tracker id, or a backlog item in another repo (written by
 # backlog's --escalate-to handshake). Format-checked, never existence-checked.
 EXTERNAL_ISSUE_FORMAT = re.compile(r"^issue/\S+$")
+# A pull request on the team's git host (backlog tracker profile): pr/<repo>#<n>[@<state>].
+# The state ladder depends on the field, so the shape takes the union and
+# PR_STATE_LADDER judges the word; ticket and parent take EXTERNAL_ISSUE_FORMAT only.
+EXTERNAL_PR_FORMAT = re.compile(
+    r"^pr/[A-Za-z0-9._-]+#[0-9]+(@(draft|open|approved|merged|closed|requested|changes))?$")
+PR_STATE_LADDER = {"pr": {"draft", "open", "approved", "merged", "closed"},
+                   "review": {"requested", "changes", "approved"}}
+TRACKER_FIELD_FORMAT = {"ticket": EXTERNAL_ISSUE_FORMAT, "parent": EXTERNAL_ISSUE_FORMAT,
+                        "pr": EXTERNAL_PR_FORMAT, "review": EXTERNAL_PR_FORMAT}
 CROSS_REPO_FORMAT = re.compile(r"^[A-Za-z0-9._-]+/BL-\d+$")
 REQUIRED_FIELDS = ("title", "status", "created", "updated")
 # Audit "board" files: living dashboards (per-methodology rollups), not work items.
@@ -195,7 +208,7 @@ def is_external_ref(ref: str) -> bool:
     Both are stable identifiers, so the format is checked but existence is not —
     the target is not on this filesystem tree. A `<type>/…` ref is never external:
     local types stay resolvable, so a typo in one is still caught."""
-    if EXTERNAL_ISSUE_FORMAT.match(ref):
+    if EXTERNAL_ISSUE_FORMAT.match(ref) or EXTERNAL_PR_FORMAT.match(ref):
         return True
     prefix = ref.split("/", 1)[0]
     return prefix not in PREFIX_TO_FOLDER and bool(CROSS_REPO_FORMAT.match(ref))
@@ -716,9 +729,10 @@ def check_crossrefs(type_name: str, path: Path, fm: dict | None,
         # in the shell scripts) reads it as one — so the list is split here and each
         # element judged on its own. A bad element in the middle must still fail, or
         # the split becomes a way to smuggle a broken ref past the check (BL-360).
-        # Only escalated_to: blocked_by is free text, where a comma is prose.
+        # The same split serves pr and review (CROSSREF_LIST_FIELDS); blocked_by is
+        # free text, where a comma is prose.
         refs = ([r.strip() for r in raw.split(",") if r.strip()]
-                if field_name == "escalated_to" else [raw])
+                if field_name in CROSSREF_LIST_FIELDS else [raw])
         for ref in refs:
             findings += _check_one_crossref(type_name, path, context_dir, field_name, ref)
     return findings
@@ -728,6 +742,20 @@ def _check_one_crossref(type_name, path, context_dir, field_name, ref) -> list[F
     """One cross-reference, judged on its own. Split out of check_crossrefs so a
     fan-out list can reuse it element by element (BL-360)."""
     findings: list[Finding] = []
+    # The tracker fields hold external refs only, in one shape each: ticket and parent an
+    # issue/<KEY>, pr and review a pr/<repo>#<n>[@<state>] whose state is on that field's
+    # own ladder (a review is never `merged`, a pr never `requested`).
+    shape = TRACKER_FIELD_FORMAT.get(field_name)
+    if shape is not None:
+        if not shape.match(ref):
+            findings.append(Finding(type_name, str(path), "cross-ref-format-invalid", "violation",
+                                    f"{field_name}={ref!r} does not match {shape.pattern}"))
+        elif (field_name in PR_STATE_LADDER and "@" in ref
+              and ref.rsplit("@", 1)[1] not in PR_STATE_LADDER[field_name]):
+            findings.append(Finding(type_name, str(path), "cross-ref-state-invalid", "violation",
+                                    f"{field_name}={ref!r}: state not in "
+                                    f"{sorted(PR_STATE_LADDER[field_name])}"))
+        return findings
     # External refs (issue/<id>, <repo>/BL-NNN) are accepted on format alone —
     # this branch must precede the format check, whose <type>/ enum rejects them.
     if is_external_ref(ref):

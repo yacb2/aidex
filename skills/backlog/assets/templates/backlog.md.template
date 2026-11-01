@@ -1,0 +1,44 @@
+---
+tracker_paths: ""   # space-separated top-level dirs under the project root whose work the external tracker owns, e.g. "app api"
+ticket_pattern: ""  # ERE for one ticket key, e.g. [A-Z]+-[0-9]+ ; matched anchored and case-insensitively, stored upper-case
+ticket_url: ""      # link template, e.g. https://tracker.example/issue/{key}
+pr_url: ""          # link template, e.g. https://git.example/org/{repo}/pull/{n}
+live_views: ""      # one quoted line of "label url" entries joined by " | ", the url is each entry's last word, e.g. "My issues https://tracker.example/my-issues | Reviews https://git.example/pulls?q=review-requested"
+---
+# Backlog profile
+
+Copy to `.context/profiles/backlog.md` to declare which work an external tracker owns.
+Never created automatically. The profile is **active** only when `tracker_paths` or
+`ticket_pattern` is non-empty: this copy, with every value empty, changes nothing.
+
+Scripts read the five front-matter keys above; the body below is prose the model reads
+before filing. A value must not contain ` #` (space then hash): the reader strips
+everything from there on as a comment. A `#` with no space before it (a URL fragment)
+is kept.
+
+## Routing
+
+| Work | Goes to | Command |
+|---|---|---|
+| Work on files outside tracker_paths | a plain backlog item | register-item.sh |
+| A problem seen under a tracker path, not yet agreed with the team | the same item with raise: to-raise (automatic) | register-item.sh --touches <path> |
+| Something to raise that touches no path (an access request, a process question) | raise: to-raise (explicit) | register-item.sh --raise to-raise |
+| Work that has a ticket (yours, or one you follow) | an item with ticket: issue/<KEY> | register-item.sh --origin issue --issue <KEY>, or define-item.sh <BL> --ticket <KEY> |
+| A sub-issue of a parent ticket | the item also carries parent: issue/<PARENT> | register-item.sh --ticket <KEY> --parent <PARENT>, or define-item.sh <BL> --parent <PARENT> |
+| A pull request | pr: on that item | define-item.sh <BL> --pr <repo>#<n>@<state> |
+| A review of a teammate's pull request | an item with review: pr/<repo>#<n>@requested | register-item.sh --review <repo>#<n> [--ticket <KEY>] |
+| Routed by mistake (your own work on a tracker path) | a plain item | define-item.sh <BL> --raise none |
+
+## Steps the project's tools own
+
+- <step>: <tool or person>. aidex records these; it never performs them (no ticket, PR,
+  push or fetch is made by aidex).
+
+## Raise
+
+- Who decides a finding: <where to look it up>. Items name a role, never a person.
+
+## Before working an item
+
+- Open the live ticket, its linked documents and the PR first. The tracker is the truth
+  for ticket state; the backlog item only links to it.
