@@ -882,11 +882,7 @@ def new_round(spec_text, dropped=(), retitled=(), answered_html=None, reply=None
                         "page no longer carries; an item that stays is marked "
                         "dropped=\"reason\" on its fence instead"
                         % ", ".join("#" + i for i in live))
-    absent = [i for i in retitled if _by_id(tree, i) is None]
-    if absent:
-        raise VerbError("--retitle %s: not in the spec. A retitled id is one "
-                        "that stays on the page with a new title"
-                        % ", ".join("#" + i for i in absent))
+    _refuse_absent_retitled(tree, retitled)
     if masthead is None:
         if not dropped and not retitled:
             return text
@@ -903,6 +899,36 @@ def new_round(spec_text, dropped=(), retitled=(), answered_html=None, reply=None
         changed |= _drop_attr(lines, masthead, "retitled-ids")
     if not changed:
         return text
+    return "\n".join(lines)
+
+
+def _refuse_absent_retitled(tree, retitled):
+    absent = [i for i in retitled if _by_id(tree, i) is None]
+    if absent:
+        raise VerbError("--retitle %s: not in the spec. A retitled id is one "
+                        "that stays on the page with a new title"
+                        % ", ".join("#" + i for i in absent))
+
+
+def add_retitled(spec_text, retitled):
+    """`decide --retitle` (BL-899): MERGE `retitled` into the masthead's
+    `retitled-ids`, so a reply that decides one item and rewords another
+    rebuilds in one edit. Unlike `new_round` it never replaces or removes the
+    attribute: decide opens no round, and the round's own `new-round` still
+    names its `--retitle` list (BL-611's one-round semantics stand)."""
+    retitled = [i for i in dict.fromkeys(d.strip().lstrip("#") for d in retitled) if i]
+    if not retitled:
+        return spec_text
+    tree = _parse(spec_text, "the spec")
+    _refuse_absent_retitled(tree, retitled)
+    masthead = next((n for n in tree if n.block_type == "masthead"), None)
+    if masthead is None:
+        raise VerbError("the spec has no `masthead` to record the ids on")
+    have = masthead.attrs.get("retitled-ids", "").split()
+    merged = have + [i for i in retitled if i not in have]
+    lines = _split(spec_text)
+    if not _set_attr(lines, masthead, "retitled-ids", " ".join(merged)):
+        return spec_text
     return "\n".join(lines)
 
 
@@ -1267,16 +1293,18 @@ def add_item_file(spec_path, group_id, item_id, title, body="", options=(),
                       out=out, lang=lang, discard_hand_edit=discard_hand_edit)
 
 
-def decide_many_file(spec_path, pairs, out=None, lang=None, discard_hand_edit=False):
+def decide_many_file(spec_path, pairs, out=None, lang=None, discard_hand_edit=False,
+                     retitled=()):
     """Record several `(id, verdict)` pairs, then rebuild ONCE: one reader reply
     that decides N items is one round, not N (BL-497). One refused pair refuses
-    the whole call, nothing written."""
+    the whole call, nothing written. `retitled` ids join the masthead's
+    `retitled-ids` in the same edit (`add_retitled`, BL-899)."""
     reply = _prev_file(spec_path, out, ".reply.md")
 
     def transform(text):
         for item_id, verdict in pairs:
             text = decide(text, item_id, verdict, reply)
-        return text
+        return add_retitled(text, retitled)
     return apply_edit(spec_path, transform, out=out, lang=lang, needs_page=True,
                       discard_hand_edit=discard_hand_edit)
 
@@ -1390,7 +1418,7 @@ def main(argv):
                    help="one option line; repeat it")
 
     d = common(subs.add_parser("decide", help="record an item's verdict",
-        form="spec_verbs.py decide <spec.md> --id <#id> --verdict <label> [--id <#id> --verdict <label>]..." + tail,
+        form="spec_verbs.py decide <spec.md> --id <#id> --verdict <label> [--id <#id> --verdict <label>]... [--retitle <#id>]..." + tail,
         hints=hints))
     d.add_argument("--id", required=True, action="append", dest="ident",
                    metavar="<#id>", help="repeat --id/--verdict to record "
@@ -1402,6 +1430,12 @@ def main(argv):
                         "note, or the item has no options. `yes` is refused on an item with "
                         "options (it would record the recommended option, not "
                         "the reader's) and fails the build on one without")
+
+    d.add_argument("--retitle", action="append", default=[], dest="retitled",
+                   metavar="<#id>", help="an item whose title this reply "
+                   "reworded; its id joins the masthead's retitled-ids in the "
+                   "same edit, so the rebuild passes (repeat for several; the "
+                   "round's new-round still names it)")
 
     n = common(subs.add_parser(
         "new-round", help="sync the ledger to the decided items and rebuild",
@@ -1441,7 +1475,8 @@ def main(argv):
             out = decide_many_file(
                 args.spec, list(zip(idents, args.verdict)),
                 out=args.out, lang=args.lang,
-                discard_hand_edit=args.discard_hand_edit)
+                discard_hand_edit=args.discard_hand_edit,
+                retitled=[i.lstrip("#") for i in args.retitled])
         else:
             out = new_round_file(args.spec, out=args.out, lang=args.lang,
                                  dropped=[i.lstrip("#") for i in args.dropped],

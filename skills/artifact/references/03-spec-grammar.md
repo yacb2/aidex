@@ -344,7 +344,11 @@ records the ids on the masthead as `retitled-ids="Q1 Q3"`, which builds
 instead of failing. The id never changes, and an id left out still fails. Unlike `--drop`,
 the declaration lasts ONE round: every `new-round` replaces `retitled-ids` with its own
 `--retitle` list and removes it when the call names none, so a later reword of the same id
-must be declared again. The id must still be in the spec. Start every round with
+must be declared again. The id must still be in the spec. When the same reply decides one
+item and rewords another (BL-899), `decide --id Q1 --verdict <label> --retitle <#id>` records
+the reworded id in the same edit as the verdict, MERGED into any `retitled-ids` already there
+(decide opens no round, so it never clears one), and its rebuild passes; the `new-round` that
+follows still names `--retitle <#id>`, since its own list replaces the masthead's. Start every round with
 `new-round`; a rebuild by other means keeps the previous declaration. (`new-round` also settles
 the `proposal=yes` items the reader saw on the saved answered page, BL-692, the ones the reply lists as accepted under `## Decidido sin corrección` included, except one the saved
 reply answered (an ask, `[not-now]` or a page defect in any saved paste, a re-pick, Other or a note), which stays an

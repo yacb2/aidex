@@ -1395,6 +1395,45 @@ try:
     check("--drop of an id still in the spec is refused: use item dropped=",
           r.returncode == 1 and "still" in r.stderr, r.stdout + r.stderr)
 
+    # --- BL-899: one reply decides Q1 and rewords Q2: decide --retitle -------
+    # decide alone fails consult-ids (Q2's title moved) and new-round --retitle
+    # alone refuses Q1's undecided plain pick: each verb needed the other first.
+    dl_spec = fresh("decide-retitle", PAGE.replace(" decided=yes", ""), build=False)
+    dl_page = first_build(dl_spec, reply=(
+        "### Q1 · Fences o YAML\n\n- Fences de Pandoc\n\n"
+        "### Q2 · Marcador de columna\n\n- [question]\n"
+        "¿Y si el marcador va en la cabecera?\n").encode("utf-8"))
+    reworded = read(dl_spec).replace('title="Marcador de columna"',
+                                     'title="Marcador en la cabecera"')
+    with open(dl_spec, "w", encoding="utf-8") as fh:
+        fh.write(reworded)
+    r = run("decide", dl_spec, "--id", "Q1", "--verdict", V)
+    check("BL-899: decide without --retitle still fails consult-ids on the "
+          "reworded Q2, spec untouched",
+          r.returncode == 1 and "id reused for a different claim" in r.stdout + r.stderr
+          and read(dl_spec) == reworded, r.stdout + r.stderr)
+    r = run("new-round", dl_spec, "--retitle", "Q2")
+    check("...and new-round --retitle Q2 first still refuses Q1's bare pick",
+          r.returncode == 1 and "decide --id Q1" in r.stderr
+          and read(dl_spec) == reworded, r.stdout + r.stderr)
+    r = run("decide", dl_spec, "--id", "Q1", "--verdict", V, "--retitle", "#Q2")
+    check("BL-899: decide --id Q1 --verdict ... --retitle Q2 exits 0 and records "
+          "both the verdict and retitled-ids",
+          r.returncode == 0 and 'retitled-ids="Q2"' in read(dl_spec).split("\n", 1)[0]
+          and 'decided="Fences de Pandoc"' in read(dl_spec), r.stdout + r.stderr)
+    r = run("new-round", dl_spec, "--retitle", "Q2")
+    built = read(dl_page)
+    check("...then new-round --retitle Q2 exits 0: the page is at round 2 with "
+          "Q2's new title",
+          r.returncode == 0
+          and '<meta name="consult-round" content="2">' in built
+          and 'data-title="Marcador en la cabecera"' in built,
+          r.stdout + r.stderr)
+    r = run("decide", fresh("decide-retitle-gone"), "--id", "Q1", "--verdict", V,
+            "--retitle", "Q99")
+    check("decide --retitle of an id not in the spec is refused",
+          r.returncode == 1 and "Q99" in r.stderr, r.stdout + r.stderr)
+
     # --- BL-612: groups and gallery rows drop too; a group relabel is a note ---
     print()
     print("== new-round --drop on groups and gallery rows; a group title is a note ==")
