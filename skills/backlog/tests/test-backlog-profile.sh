@@ -415,6 +415,20 @@ p2() {
   f="$(newitem "$P" "cross project blocked")"
   def "$D" "$f" --blocked-by vendor; rc=$?
   [[ $rc -eq 0 && "$(fm "$f" blocked_by)" == '"vendor"' ]] && ok "--blocked-by on another project's active item still writes" || bad "cross-project --blocked-by: rc=$rc $(cat "$TMP/def.err")"
+  # a .context/backlog that is a symlink to a folder named otherwise is still the active root
+  local S="$TMP/p2s"; rm -rf "$S" "$TMP/p2store"
+  mkdir -p "$TMP/p2store/bl/_archive" "$S/.context"; ln -s "$TMP/p2store/bl" "$S/.context/backlog"
+  f="$(newitem "$S" "symlinked backlog item")"
+  def "$S" BL-001 --blocked-by vendor; rc=$?
+  [[ $rc -eq 0 && "$(fm "$f" blocked_by)" == '"vendor"' ]] && ok "--blocked-by on an item of a symlinked backlog/ writes" || bad "symlinked --blocked-by: rc=$rc $(cat "$TMP/def.err")"
+  def "$S" BL-001 --escalated-to plan/2026-11-01-x; rc=$?
+  [[ $rc -eq 0 && "$(fm "$f" escalated_to)" == '"plan/2026-11-01-x"' ]] && ok "--escalated-to on an item of a symlinked backlog/ writes" || bad "symlinked --escalated-to: rc=$rc $(cat "$TMP/def.err")"
+  # a whitespace-only value would read as set here and as not blocked in the index: refused
+  f="$(newitem "$N" "blank blocked item")"; cp "$f" "$TMP/p2.before"
+  def "$N" "$f" --blocked-by "  "; rc=$?
+  [[ $rc -eq 2 ]] && cmp -s "$f" "$TMP/p2.before" && ok "--blocked-by '  ' exits 2, item byte-identical" || bad "blank --blocked-by: rc=$rc $(grep '^blocked_by:' "$f")"
+  def "$N" "$f" --escalated-to " "; rc=$?
+  [[ $rc -eq 2 ]] && cmp -s "$f" "$TMP/p2.before" && ok "--escalated-to ' ' exits 2, item byte-identical" || bad "blank --escalated-to: rc=$rc $(grep '^escalated_to:' "$f")"
 
   # phase 1's validator accepts everything the writer stored.
   [[ -z "$(ctx_crossref "$N/.context")" ]] && ok "validate.py: no cross-ref finding in the no-profile project" || bad "validate N: $(ctx_crossref "$N/.context")"

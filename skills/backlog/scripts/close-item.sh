@@ -32,7 +32,8 @@
 #                               correct one with define-item.sh. Takes only --reason/--no-index.
 #
 # Exit: 0 closed; 2 refused (nothing mutated); 4 archived and index written, but the id guard
-# found a duplicate or nonconforming id (the path is still printed); 1 archived, index stale.
+# found a duplicate or nonconforming id (the path is still printed); any other non-zero:
+# archived, index stale (the reindex's own exit code).
 # --reopen exits the same way, reading "reopened" for "archived".
 #
 # Resolves <BL-id> against active backlog items' front-matter `id:` field.

@@ -41,9 +41,10 @@
 #   --checked   the day a PR or review state was seen (YYYY-MM-DD, not in the future);
 #               alone it rewrites `checked`, beside --pr/--review it replaces today's stamp.
 #   --blocked-by  SETS the Blocked modifier on an active item (priority kept; defer-item.sh
-#               --reason appends instead); "" clears it to `blocked_by: ""`.
+#               --reason appends instead); "" clears it to `blocked_by: ""`; blanks only are refused.
 #   --escalated-to  SETS the field on an active item without closing it (register-item.sh
-#               --escalate-to accumulates); "" clears it. Shape is validate.py's to judge.
+#               --escalate-to accumulates); "" clears it, blanks only are refused. Shape is
+#               validate.py's to judge.
 #   --ticket and --pr clear `raise` (the ticket or PR arrived), whatever --raise says.
 #   --keep-title  with --ticket, leave the title and heading alone: register-item.sh
 #               --review passes it, because a review title names the key in parentheses.
@@ -126,11 +127,16 @@ PATTERN="${PATTERN#"${PATTERN%%[![:space:]]*}"}"; PATTERN="${PATTERN%"${PATTERN#
 # blocked_by and escalated_to carry lifecycle invariants: a _deferred/ item's blocked_by is
 # defer-item.sh's and must stay populated, an archived item's escalated_to is its close
 # record. Active means directly under some project's backlog/ (the item may be another
-# project's, so the cwd's BACKLOG_DIR is not the test).
+# project's, so the cwd's BACKLOG_DIR is not the test). The logical folder counts too: a
+# .context/backlog symlinked to a folder named otherwise is still the active root.
 if [[ $SET_BLOCKED -eq 1 || $SET_ESCALATED -eq 1 ]]; then
-  _dir="${_abs%/*}"
-  [[ "${_dir##*/}" == "backlog" ]] || die "--blocked-by and --escalated-to act on an active item only: $FILE (use defer-item.sh for a deferred one)"
+  _dir="${_abs%/*}" _ldir="$(CDPATH= cd "$(dirname "$FILE")" && pwd)"
+  [[ "${_dir##*/}" == "backlog" || "${_ldir##*/}" == "backlog" ]] \
+    || die "--blocked-by and --escalated-to act on an active item only: $FILE (use defer-item.sh for a deferred one)"
 fi
+# a whitespace-only value reads as set here and as empty in the index
+[[ $SET_BLOCKED -eq 0 || -z "$BLOCKED" || "$BLOCKED" =~ [^[:space:]] ]] || die "invalid --blocked-by '$BLOCKED' (text, or \"\" to clear)"
+[[ $SET_ESCALATED -eq 0 || -z "$ESCALATED" || "$ESCALATED" =~ [^[:space:]] ]] || die "invalid --escalated-to '$ESCALATED' (a ref, or \"\" to clear)"
 # norm_key <flag> <value>: the key upper-cased, an `issue/` prefix dropped; dies when refused.
 norm_key() {
   local key="${2#[Ii][Ss][Ss][Uu][Ee]/}" rc=0
