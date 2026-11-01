@@ -161,9 +161,8 @@ grep -q 'STRAY-DIR' <<<"$mrow" \
 
 # --- BL-890. docker not on PATH: STACK is unknown (`?`), never `down` ---------
 # A PATH with every directory that holds a `docker` dropped, the stub's included.
-NODOCKER_PATH="$(printf '%s\n' "$BIN:$PATH" | tr ':' '\n' \
-  | while IFS= read -r d; do [[ -n "$d" && ! -x "$d/docker" ]] && printf '%s:' "$d"; done)"
-NODOCKER_PATH="${NODOCKER_PATH%:}"   # a trailing ':' would put the cwd on PATH
+. "$DIR/fixtures/nodocker-path.sh"
+NODOCKER_PATH="$(nodocker_path "$BIN:$PATH")"
 [[ "$(row_for "$n" nb | awk -F'\t' '{print $4}')" == "down" ]] \
   || fail "BL-890 control: with docker available and no container up, STACK must be down: $(row_for "$n" nb)"
 nd_out="$( cd "$n" && PATH="$NODOCKER_PATH" "$BASH" "$WT" list --porcelain 2>"$TMP/nd.err" )"
@@ -171,8 +170,9 @@ nd_row="$(awk -F'\t' '$1 == "nb"' <<<"$nd_out")"
 check_row "BL-890 no docker" "$nd_row"
 [[ "$(awk -F'\t' '{print $4}' <<<"$nd_row")" == "?" ]] \
   || fail "BL-890: with docker not on PATH, the porcelain STACK must be '?', got: $nd_row"
-grep -q 'docker is not on PATH' "$TMP/nd.err" \
-  || fail "BL-890: list must warn on stderr that docker is not on PATH, got: $(cat "$TMP/nd.err")"
+# Exactly once, not once per row: the fixture has more than one worktree row.
+[[ "$(grep -c 'docker is not on PATH' "$TMP/nd.err")" -eq 1 ]] \
+  || fail "BL-890: list must warn exactly once on stderr that docker is not on PATH, got: $(cat "$TMP/nd.err")"
 nd_human="$( cd "$n" && PATH="$NODOCKER_PATH" "$BASH" "$WT" list 2>/dev/null | awk '$1 == "nb" {print $4}' )"
 [[ "$nd_human" == "?" ]] || fail "BL-890: with docker not on PATH, the human STACK must be '?', got: '$nd_human'"
 

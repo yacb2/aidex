@@ -121,8 +121,9 @@ prompt reading an error and deciding what to do, so **you** hold the state and
    exactly this). Do not `up` it — there is no worktree there. Find what is
    holding it with `down <slug>`, which reports the processes by PID. A STACK
    of `?` means docker is not on PATH (on macOS, Docker Desktop installs it in
-   `/usr/local/bin`): the stack may be running, and `down` refuses until docker
-   resolves.
+   `/usr/local/bin`): the stack may be running. `down` refuses (exit 2, nothing
+   touched) a tree that has a stack, meaning a slot claim held for it or the
+   generated root `.env`, until docker resolves; a `--no-infra` tree still goes.
 
 2. **Every state has a way out. Use it instead of improvising.**
 
@@ -133,6 +134,7 @@ prompt reading an error and deciding what to do, so **you** hold the state and
    | `no free slot in 1..N` | every slot is claimed | `list`, then `down` whatever is finished |
    | `slot N is claimed by '<other>'` | explicit `--slot` collided | let the allocator choose instead |
    | create failed | it already rolled back | fix the cause and re-run; do not clean up by hand |
+   | STACK `?`, or `down` exits 2 with `docker is not on PATH` | the stack may still be running and nothing was torn down | put docker back on PATH (`PATH="/usr/local/bin:$PATH"` for Docker Desktop on macOS) and `down` again; never a stub `docker`. Docker gone for good means no container can run, and no command releases the slot without it: ask the user, then `worktree-multi.sh remove --slug <slug> --dest <dir> --skip-teardown` and delete the claim `slot-N` in `${TMPDIR:-/tmp}/aidex-wt-slots-<project>/` |
    | `down` warns that host processes still hold the directory | the stack was hybrid: Docker's half is gone, a host process is not | read the reported PIDs; `down <slug> --reap` kills exactly those, by PID |
 
 3. **`--force` discards work that nobody can recover.** It is the only

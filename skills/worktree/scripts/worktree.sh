@@ -1337,9 +1337,15 @@ if [[ "$cmd" == "down" ]]; then
 
   # docker that cannot be run is not a daemon down on purpose (BL-890). Going on
   # left the stack running and then removed the directory, and with it the
-  # compose file a later teardown needs. A tree with a slot has a stack; a
-  # --no-infra tree has none and still goes. Refused before anything is touched.
-  if [[ -n "$SLOT" ]] && ! command -v docker >/dev/null 2>&1; then
+  # compose file a later teardown needs. Refused before anything is touched, for
+  # a tree that has a stack: a claim held for it, or the generated root .env.
+  # Not the slot: a config with no WT_PORT_VARS gets a stack and no slot, and
+  # `new --no-infra --slot N` a slot and no stack. The .env is a sound signal
+  # because write_wt_env runs only after `new`'s --no-infra exit (and in `up`),
+  # and refuses a root .env without the marker, so every tree that ever had a
+  # stack carries it and no --no-infra tree does.
+  if { [[ -n "$CLAIM_SEEN" ]] || head -1 "$DEST/.env" 2>/dev/null | grep >/dev/null -F -- "$WT_ENV_MARKER_TEXT"; } \
+     && ! command -v docker >/dev/null 2>&1; then
     err "docker is not on PATH (Docker Desktop installs it in /usr/local/bin); nothing was torn down or removed"
     exit 2
   fi
