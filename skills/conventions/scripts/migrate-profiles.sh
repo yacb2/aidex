@@ -74,7 +74,7 @@ for pair in $PAIRS; do
   if tracked "$new"; then echo "moved: $old -> $new [git mv]"
   else echo "UNTRACKED-MOVED $new (now versionable: check for secrets, then git add)"; fi
   # the census keys its approvals by the profile path, so the move revokes it
-  [[ "${pair##*:}" == reference.md ]] && echo "note: re-approve the census for the new path: read $new, then docs-census.sh --trust"
+  [[ "${pair##*:}" == reference.md ]] && echo "note: re-approve the census for the new path: read $new, then reference/scripts/docs-census.sh --trust"
 done
 if [[ "$DEPLOY" -eq 0 && -f .context/deploy-profile.md ]]; then
   echo "skip: .context/deploy-profile.md (synced bp-ops still reads it; pass --include-deploy to move it)"
