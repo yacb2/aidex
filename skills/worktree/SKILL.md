@@ -73,6 +73,10 @@ could not run a second copy of itself. A project now supplies only
 
 ## Sub-actions
 
+**Before any sub-action**, run `bash "${CLAUDE_SKILL_DIR}/scripts/leftover-sweep.sh"` and show its output.
+It removes empty leftover folders and prunes dead worktree records by itself; every `LEFTOVER` line
+(a non-empty folder no repo registers) becomes a question to the owner, remove or keep, before you proceed. Lines marked `skipped` or `left alone` go to the owner as-is, no action.
+
 Dispatch by first argument:
 
 | Command | Purpose |
