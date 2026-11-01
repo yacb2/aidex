@@ -14,8 +14,16 @@
 #
 #   C) roll-up index drift — a plans/audits 00-index.md that no longer matches its files.
 #
+#   D) PR-state drift — a backlog item's `pr:` entries (pr/<repo>#<n>@<state>, a comma
+#      list; backlog tracker profile) disagree with its status. No `gh`, no fetch:
+#      D1  a done item with a pr entry still @draft, @open or @approved;
+#      D2  an open/doing item with a pr entry not @merged/@closed while a squash title
+#          ending `(#<n>)` is in `git -C <root>/<repo> log --remotes` (as fresh as the last
+#          `git fetch`; a missing <repo> checkout gives no row), or whose every pr entry is
+#          already @merged/@closed.
+#
 # Exit: 1 if any category-A (actionable) or category-C (stale index) drift exists, else 0.
-# Category B is informational and never changes the exit. Never writes.
+# Categories B and D are informational and never change the exit. Never writes.
 
 set -euo pipefail
 
@@ -117,6 +125,52 @@ if [[ -x "$RA" && -d "$AUDITS_DIR" ]]; then
   msg="$(NO_COLOR=1 bash "$RA" --check 2>&1)" || DRIFT_C+=("${msg:-audits index stale}")
 fi
 
+# --- D: PR-state drift (pr: field vs item status) — reads local git only, edits nothing ---
+declare -a DRIFT_D=()
+# squash_title <repo-dir> <n>: the first remote-ref subject ending `(#<n>)`; the closing
+# paren anchors the number, so #1 never matches (#12). Only a checkout (<dir>/.git) is read:
+# git -C on a plain directory climbs to an enclosing repo, or exits 128 and, under pipefail,
+# would end this script. A missing dir or a non-checkout prints nothing.
+squash_title() {
+  [[ -e "$1/.git" ]] || return 0
+  { git -C "$1" log --remotes --format=%s 2>/dev/null || true; } \
+    | awk -v t="(#$2)" '{ s=$0; sub(/[[:space:]]+$/,"",s) } length(s)>=length(t) && substr(s,length(s)-length(t)+1)==t { print; exit }'
+}
+check_pr_drift() {
+  local f="$1" st prs id e repo n state live="" all=1 any=0 title
+  prs="$(fm "$f" pr)"; [[ -n "$prs" ]] || return 0
+  st="$(fm "$f" status)"; id="$(fm "$f" id)"; id="${id:-?}"
+  while IFS= read -r e; do
+    e="${e//[[:space:]]/}"; e="${e#pr/}"
+    [[ "$e" =~ ^([A-Za-z0-9._-]+)#([0-9]+)(@([a-z]+))?$ ]] || continue
+    repo="${BASH_REMATCH[1]}" n="${BASH_REMATCH[2]}" state="${BASH_REMATCH[4]}"
+    any=1
+    case "$state" in merged|closed) continue ;; esac
+    all=0
+    case "$st" in
+      done)
+        case "$state" in draft|open|approved) live="${live:+$live, }$repo#$n@$state" ;; esac ;;
+      open|doing)
+        [[ "$repo" == . || "$repo" == .. ]] && continue
+        title="$(squash_title "$ROOT/$repo" "$n")"
+        [[ -n "$title" ]] && DRIFT_D+=("D2 $id ($(basename "$f")) — status=$st, pr $repo#$n@${state:-?} but $repo log --remotes has \"$title\" ⇒ record @merged and close it") ;;
+    esac
+  done < <(printf '%s\n' "$prs" | tr ',' '\n')
+  [[ -n "$live" ]] && DRIFT_D+=("D1 $id ($(basename "$f")) — status=done but pr $live is still live ⇒ reopen it or record the PR state")
+  if [[ $any -eq 1 && $all -eq 1 ]]; then
+    case "$st" in open|doing) DRIFT_D+=("D2 $id ($(basename "$f")) — status=$st but every pr is merged/closed ⇒ close it") ;; esac
+  fi
+  return 0
+}
+if [[ -d "$BACKLOG_DIR" ]]; then
+  shopt -s nullglob
+  for f in "$BACKLOG_DIR"/*.md "$BACKLOG_DIR"/_archive/*.md; do
+    [[ "$(basename "$f")" == "00-index.md" ]] && continue
+    check_pr_drift "$f"
+  done
+  shopt -u nullglob
+fi
+
 echo
 printf '%sReconcile — tracking drift%s\n' "$C_BOLD" "$C_RESET"
 if [[ ${#CAND_A[@]} -gt 0 ]]; then
@@ -127,11 +181,15 @@ if [[ ${#DRIFT_C[@]} -gt 0 ]]; then
   printf '\n%sRoll-up index drift (regenerate to refresh):%s\n' "$C_YELLOW$C_BOLD" "$C_RESET"
   printf '  - %s\n' "${DRIFT_C[@]}"
 fi
+if [[ ${#DRIFT_D[@]} -gt 0 ]]; then
+  printf '\n%sPR-state drift (pr: vs status; D2 is as fresh as the last git fetch):%s\n' "$C_YELLOW$C_BOLD" "$C_RESET"
+  printf '  - %s\n' "${DRIFT_D[@]}"
+fi
 if [[ ${#INFO_B[@]} -gt 0 ]]; then
   printf '\n%sDone without commit provenance (info — pre-D-09 items are expected here):%s\n' "$C_DIM" "$C_RESET"
   printf '  - %s\n' "${INFO_B[@]}"
 fi
-if [[ ${#CAND_A[@]} -eq 0 && ${#DRIFT_C[@]} -eq 0 && ${#INFO_B[@]} -eq 0 ]]; then
+if [[ ${#CAND_A[@]} -eq 0 && ${#DRIFT_C[@]} -eq 0 && ${#DRIFT_D[@]} -eq 0 && ${#INFO_B[@]} -eq 0 ]]; then
   printf '\n%sNo drift detected — tracking chain is consistent.%s\n' "$C_GREEN" "$C_RESET"
 fi
 echo

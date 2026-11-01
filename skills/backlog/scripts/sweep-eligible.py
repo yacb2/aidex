@@ -19,11 +19,14 @@ Usage:
 import argparse, datetime, hashlib, json, os, re, signal, subprocess, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'conventions', 'scripts'))
 import importlib
 define_check = importlib.import_module('define-check')
+import profiles
 
 
 ROOT = None
+TRACKER_PATHS = []  # tracker_paths of the active backlog profile, set in main()
 
 
 # §1b of the sweep policy, mechanized. Every one of these was learned from an item
@@ -209,6 +212,39 @@ def queued_elsewhere(root):
     return out
 
 
+TRACKER_FIELDS = ('raise', 'ticket', 'pr', 'review')
+
+
+def tracker_paths(root):
+    """The words of `tracker_paths` when the backlog profile is ACTIVE (tracker_paths or
+    ticket_pattern non-empty), else []. An inert copy of the template owns nothing."""
+    prof = profiles.resolve_profile(os.path.join(root, '.context'), 'backlog')
+    if not prof:
+        return []
+    words = profiles.profile_field(prof, 'tracker_paths').split()
+    return words if words or profiles.profile_field(prof, 'ticket_pattern') else []
+
+
+def first_segment(tok):
+    """`./app/x.ts`, `app/` and `app` all name `app` (register-item.sh tracker_segment rules)."""
+    while tok.startswith('./'):
+        tok = tok[2:]
+    return tok.rstrip('/').split('/', 1)[0]
+
+
+def team_segments(touches, candidates, words):
+    """First segments of the declared touches and the derived touches_candidates that EQUAL
+    a tracker_paths word (segment equality, never a string prefix), in order of appearance.
+    Candidates are only backtick paths that exist on disk (define-check.py), so an item
+    with neither stays sweepable: the protection is partial."""
+    out = []
+    for tok in re.split(r'[,\s]+', touches) + list(candidates):
+        seg = first_segment(tok.strip())
+        if seg and seg in words and seg not in out:
+            out.append(seg)
+    return out
+
+
 def parse(path):
     d = define_check.parse(path)
     if d is None:
@@ -218,6 +254,10 @@ def parse(path):
     return {
         'missing': dc['missing'],
         'cross_repo': dc['cross_repo'],
+        # `raise: none` is the owner's "not a team finding" (define-item.sh deletes the line)
+        'tracked': any(fm.get(k, '') not in ('', 'none') if k == 'raise' else fm.get(k, '')
+                       for k in TRACKER_FIELDS),
+        'team': team_segments(fm.get('touches', ''), dc['touches_candidates'], TRACKER_PATHS),
         'awaiting': fm.get('awaiting', ''),
         'file': os.path.basename(path),
         'id': fm.get('id', '?'),
@@ -238,8 +278,9 @@ def main():
     a = ap.parse_args()
     sizes = [s.strip().upper() for s in a.size.split(',') if s.strip()]
 
-    global ROOT
+    global ROOT, TRACKER_PATHS
     ROOT = define_check.find_root()
+    TRACKER_PATHS = tracker_paths(ROOT)
     d = os.path.join(ROOT, '.context', 'backlog')
     items = []
     for f in sorted(os.listdir(d)):
@@ -255,6 +296,7 @@ def main():
     queued = queued_elsewhere(ROOT)
     eligible, review, needs = [], [], []
     for i in items:
+        tracked, team = i.pop('tracked'), i.pop('team')  # not in --json: its shape is unchanged
         if i['id'] in queued:
             i['reason'] = 'queued in ' + queued[i['id']]
             needs.append(i)
@@ -263,6 +305,15 @@ def main():
             needs.append(i)
         elif i['awaiting']:
             i['reason'] = 'awaiting ' + i['awaiting']
+            needs.append(i)
+        # Tracker-owned work, before the definition check: the tracker defines it, not
+        # `/aidex:backlog define`. The field skip needs no profile; the path skip needs an
+        # active one, and backs up cross_repo below, which sees sibling repos only.
+        elif tracked:
+            i['reason'] = 'tracked externally'
+            needs.append(i)
+        elif team:
+            i['reason'] = 'team repo: ' + ', '.join(team)
             needs.append(i)
         elif i['missing']:
             i['reason'] = 'underdefined: ' + ', '.join(i['missing'])

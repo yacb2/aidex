@@ -1,0 +1,9 @@
+ELIGIBLE (2) — defined (define-check.py), in this repo, no autonomy signal
+  BL-001   P2  S    item BL-001
+  BL-002   P2  S    item BL-002
+
+REVIEW (0) — defined, but read the body before starting
+
+NEEDS-DECISION (0) — route to the user, never into the run
+
+DEFERRED — condition check (0) — READY items go back with `defer-item.sh reactivate`
