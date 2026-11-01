@@ -911,11 +911,14 @@ def _refuse_absent_retitled(tree, retitled):
 
 
 def add_retitled(spec_text, retitled):
-    """`decide --retitle` (BL-899): MERGE `retitled` into the masthead's
-    `retitled-ids`, so a reply that decides one item and rewords another
-    rebuilds in one edit. Unlike `new_round` it never replaces or removes the
-    attribute: decide opens no round, and the round's own `new-round` still
-    names its `--retitle` list (BL-611's one-round semantics stand)."""
+    """`decide --retitle` (BL-899): set the masthead's `retitled-ids` to
+    `retitled`, so a reply that decides one item and rewords another rebuilds in
+    one edit. It REPLACES the attribute, as `new_round` does (BL-611: a
+    declaration lasts one round): over a saved reply, decide's rebuild is what
+    opens the round (BL-840), and an earlier round's id kept there would excuse
+    an undeclared reword in this one. Mid-round nothing is lost either: the
+    id-stability check compares with the last passing build, which already
+    carries an earlier rebuild's reword. An empty list changes nothing."""
     retitled = [i for i in dict.fromkeys(d.strip().lstrip("#") for d in retitled) if i]
     if not retitled:
         return spec_text
@@ -924,10 +927,8 @@ def add_retitled(spec_text, retitled):
     masthead = next((n for n in tree if n.block_type == "masthead"), None)
     if masthead is None:
         raise VerbError("the spec has no `masthead` to record the ids on")
-    have = masthead.attrs.get("retitled-ids", "").split()
-    merged = have + [i for i in retitled if i not in have]
     lines = _split(spec_text)
-    if not _set_attr(lines, masthead, "retitled-ids", " ".join(merged)):
+    if not _set_attr(lines, masthead, "retitled-ids", " ".join(retitled)):
         return spec_text
     return "\n".join(lines)
 
@@ -1297,7 +1298,7 @@ def decide_many_file(spec_path, pairs, out=None, lang=None, discard_hand_edit=Fa
                      retitled=()):
     """Record several `(id, verdict)` pairs, then rebuild ONCE: one reader reply
     that decides N items is one round, not N (BL-497). One refused pair refuses
-    the whole call, nothing written. `retitled` ids join the masthead's
+    the whole call, nothing written. `retitled` ids replace the masthead's
     `retitled-ids` in the same edit (`add_retitled`, BL-899)."""
     reply = _prev_file(spec_path, out, ".reply.md")
 
@@ -1372,8 +1373,9 @@ def new_round_file(spec_path, out=None, lang=None, dropped=(), retitled=(),
                 "(the answers lost in owner case 225f968e). Decide each first: "
                 "%s"
                 % (", ".join("#" + i for i, _ in picks),
-                   "; ".join("decide --id %s --verdict \"%s\"%s"
-                             % (i, v, " --discard-hand-edit" if discard_hand_edit else "")
+                   "; ".join("decide --id %s --verdict \"%s\"%s%s"
+                             % (i, v, "".join(" --retitle " + r for r in retitled),
+                                " --discard-hand-edit" if discard_hand_edit else "")
                              for i, v in picks)))
         return new_round(text, dropped, retitled, answered, reply)
     return apply_edit(spec_path, guarded, out=out, lang=lang, needs_page=True,
@@ -1433,9 +1435,8 @@ def main(argv):
 
     d.add_argument("--retitle", action="append", default=[], dest="retitled",
                    metavar="<#id>", help="an item whose title this reply "
-                   "reworded; its id joins the masthead's retitled-ids in the "
-                   "same edit, so the rebuild passes (repeat for several; the "
-                   "round's new-round still names it)")
+                   "reworded; the ids replace the masthead's retitled-ids in "
+                   "the same edit, so the rebuild passes (repeat for several)")
 
     n = common(subs.add_parser(
         "new-round", help="sync the ledger to the decided items and rebuild",

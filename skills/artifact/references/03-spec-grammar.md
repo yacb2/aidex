@@ -346,10 +346,11 @@ the declaration lasts ONE round: every `new-round` replaces `retitled-ids` with 
 `--retitle` list and removes it when the call names none, so a later reword of the same id
 must be declared again. The id must still be in the spec. When the same reply decides one
 item and rewords another (BL-899), `decide --id Q1 --verdict <label> --retitle <#id>` records
-the reworded id in the same edit as the verdict, MERGED into any `retitled-ids` already there
-(decide opens no round, so it never clears one), and its rebuild passes; the `new-round` that
-follows still names `--retitle <#id>`, since its own list replaces the masthead's. Start every round with
-`new-round`; a rebuild by other means keeps the previous declaration. (`new-round` also settles
+the reworded id in the same edit as the verdict and REPLACES `retitled-ids` as `new-round`
+does: over a saved reply decide's rebuild is the one that opens the round (BL-840), so an
+earlier round's id must not survive it. That rebuild already passed the reword, so the
+`new-round` that follows needs no `--retitle` for it. Start every round with `new-round` or
+`decide`; a rebuild by other means keeps the previous declaration. (`new-round` also settles
 the `proposal=yes` items the reader saw on the saved answered page, BL-692, the ones the reply lists as accepted under `## Decidido sin corrección` included, except one the saved
 reply answered (an ask, `[not-now]` or a page defect in any saved paste, a re-pick, Other or a note), which stays an
 open proposal until the writer `decide`s it, BL-711; it changes nothing

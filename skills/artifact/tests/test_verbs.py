@@ -1417,22 +1417,77 @@ try:
           r.returncode == 1 and "decide --id Q1" in r.stderr
           and read(dl_spec) == reworded, r.stdout + r.stderr)
     r = run("decide", dl_spec, "--id", "Q1", "--verdict", V, "--retitle", "#Q2")
+    built = read(dl_page)
     check("BL-899: decide --id Q1 --verdict ... --retitle Q2 exits 0 and records "
           "both the verdict and retitled-ids",
           r.returncode == 0 and 'retitled-ids="Q2"' in read(dl_spec).split("\n", 1)[0]
           and 'decided="Fences de Pandoc"' in read(dl_spec), r.stdout + r.stderr)
-    r = run("new-round", dl_spec, "--retitle", "Q2")
-    built = read(dl_page)
-    check("...then new-round --retitle Q2 exits 0: the page is at round 2 with "
+    check("...and its rebuild opens round 2 over the saved reply (BL-840) with "
           "Q2's new title",
-          r.returncode == 0
-          and '<meta name="consult-round" content="2">' in built
-          and 'data-title="Marcador en la cabecera"' in built,
-          r.stdout + r.stderr)
-    r = run("decide", fresh("decide-retitle-gone"), "--id", "Q1", "--verdict", V,
-            "--retitle", "Q99")
-    check("decide --retitle of an id not in the spec is refused",
-          r.returncode == 1 and "Q99" in r.stderr, r.stdout + r.stderr)
+          '<meta name="consult-round" content="2">' in built
+          and 'data-title="Marcador en la cabecera"' in built, built[:400])
+    r = run("new-round", dl_spec)
+    check("...then a plain new-round exits 0 and syncs Q1's verdict into the "
+          "ledger (the one thing only it does here)",
+          r.returncode == 0 and "::: ledger\n- Q1" in read(dl_spec),
+          r.stdout + r.stderr + read(dl_spec)[:600])
+
+    # A declaration lasts ONE round (BL-611): decide --retitle REPLACES the
+    # masthead's list as new-round does. A stale earlier-round id must not
+    # excuse an undeclared reword in the round decide's rebuild opens.
+    st_spec = fresh("decide-retitle-stale",
+                    PAGE.replace(" decided=yes", "").replace(
+                        'visual="none', 'retitled-ids="Q1" visual="none'),
+                    build=False)
+    first_build(st_spec, reply=(
+        "### Q1 · Fences o YAML\n\n- Fences de Pandoc\n\n"
+        "### Q2 · Marcador de columna\n\n- [question]\n"
+        "¿Y si el marcador va en la cabecera?\n").encode("utf-8"))
+    stale = read(st_spec).replace('title="Fences o YAML"', 'title="Fences o YAML anidado"') \
+                         .replace('title="Marcador de columna"', 'title="Marcador en la cabecera"')
+    with open(st_spec, "w", encoding="utf-8") as fh:
+        fh.write(stale)
+    r = run("decide", st_spec, "--id", "Q1", "--verdict", V, "--retitle", "Q2")
+    check("BL-899: decide --retitle Q2 over a stale retitled-ids=\"Q1\" still "
+          "refuses Q1's undeclared reword, spec untouched",
+          r.returncode == 1 and "Q1" in r.stdout + r.stderr
+          and "id reused for a different claim" in r.stdout + r.stderr
+          and read(st_spec) == stale, r.stdout + r.stderr)
+
+    # The masthead write itself, at its boundaries: replace, never merge.
+    mh = lambda ids: PAGE.replace('visual="none', 'retitled-ids="%s" visual="none' % ids)
+    head = lambda text: text.split("\n", 1)[0]
+    check("add_retitled: an existing retitled-ids=\"G1\" is REPLACED by the call's list",
+          'retitled-ids="Q2"' in head(spec_verbs.add_retitled(mh("G1"), ["Q2"])),
+          head(spec_verbs.add_retitled(mh("G1"), ["Q2"])))
+    check("add_retitled: the same id already declared leaves the spec unchanged",
+          spec_verbs.add_retitled(mh("Q2"), ["#Q2"]) == mh("Q2"))
+    check("add_retitled: no masthead attribute yet writes the call's list",
+          'retitled-ids="Q1 Q2"' in head(spec_verbs.add_retitled(PAGE, ["Q1", "Q2", "Q1"])))
+    check("add_retitled: an empty list leaves the spec unchanged",
+          spec_verbs.add_retitled(mh("G1"), []) == mh("G1"))
+
+    # The refusal is atomic: the verdict half of the call is not written either.
+    gone = fresh("decide-retitle-gone")
+    before = read(gone)
+    r = run("decide", gone, "--id", "Q1", "--verdict", V, "--retitle", "Q99")
+    check("decide --retitle of an id not in the spec is refused, spec "
+          "byte-identical (Q1's verdict not written)",
+          r.returncode == 1 and "Q99" in r.stderr and read(gone) == before
+          and 'decided="Fences de Pandoc"' not in read(gone), r.stdout + r.stderr)
+
+    # The bare-pick refusal names the decide form that carries the --retitle
+    # it was given: following the remedy must not loop back (BL-899 review).
+    lp_spec = fresh("decide-retitle-remedy", PAGE.replace(" decided=yes", ""), build=False)
+    first_build(lp_spec, reply=(
+        "### Q1 · Fences o YAML\n\n- Fences de Pandoc\n\n"
+        "### Q2 · Marcador de columna\n\n- [question]\n"
+        "¿Y si el marcador va en la cabecera?\n").encode("utf-8"))
+    r = run("new-round", lp_spec, "--retitle", "Q2")
+    check("new-round --retitle Q2's bare-pick refusal names decide ... --retitle Q2",
+          r.returncode == 1
+          and 'decide --id Q1 --verdict "Fences de Pandoc" --retitle Q2' in r.stderr,
+          r.stderr)
 
     # --- BL-612: groups and gallery rows drop too; a group relabel is a note ---
     print()
