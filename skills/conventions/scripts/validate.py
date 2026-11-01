@@ -723,6 +723,10 @@ def check_crossrefs(type_name: str, path: Path, fm: dict | None,
         raw = fm.get(field_name, "")
         if not raw:
             continue
+        # The tracker fields are the backlog's: a plan phase's `parent: 00-index.md` or a
+        # free-text `review:` line in another type is that type's own word, not a ref.
+        if field_name in TRACKER_FIELD_FORMAT and type_name != "backlog":
+            continue
         # escalated_to fans out: one item escalated to ten fleet repos carries ten
         # pointers, comma-separated. It stays a SCALAR string — the front-matter parser
         # above is deliberately minimal and every other reader (awk-based `read_field`

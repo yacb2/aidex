@@ -128,6 +128,16 @@ EOF
     out="$(crossref_rules "$v")"
     [[ "$out" == *cross-ref-*-invalid* ]] && ok "refused: $v ($out)" || bad "accepted '$v' (rules: '$out')"
   done
+  # The tracker shapes are the backlog's: another type keeps its own words in the same keys
+  # (a plan phase's `parent: 00-index.md`, a free-text `review:` line), unchecked as before.
+  local o="$TMP/p1o/.context"
+  rm -rf "$TMP/p1o"; mkdir -p "$o/plans/2026-11-01-x" "$o/research"
+  printf -- '---\ntitle: "Phase"\nstatus: open\nparent: 00-index.md\npr: none\ncreated: 2026-11-01\nupdated: 2026-11-01\n---\n# Phase\n\nA plan phase.\n' > "$o/plans/2026-11-01-x/01-phase.md"
+  printf -- '---\ntitle: "Note"\nstatus: open\nreview: PASS · 3 findings\nticket: see the thread\ncreated: 2026-11-01\nupdated: 2026-11-01\n---\n# Note\n\nA research note.\n' > "$o/research/2026-11-01-note.md"
+  for c in plans research; do
+    out="$(ctx_crossref "$o" "$c")"
+    [[ -z "$out" ]] && ok "$c: tracker keys outside the backlog are not shape-checked" || bad "$c tracker keys flagged: '$out'"
+  done
 }
 
 # --- p2 helpers -------------------------------------------------------------------------
@@ -145,9 +155,10 @@ mkproj() { rm -rf "$1"; mkdir -p "$1/.context/backlog/_archive"; }
 newitem() { local p="$1" t="$2"; shift 2; ( cd "$p" && bash "$REG" --origin manual --no-index --title "$t" "$@" 2>/dev/null ) | sed -n '$p'; }
 # def <project> <args...>: define-item.sh run from <project>; stderr to $TMP/def.err, rc kept.
 def() { local p="$1"; shift; ( cd "$p" && bash "$DEF" "$@" --no-index >/dev/null 2>"$TMP/def.err" ); }
-# The cross-ref rules validate.py reports for a whole .context/, space-joined; empty when clean.
+# ctx_crossref <ctx> [type]: the cross-ref rules validate.py reports for one type (default
+# backlog) of a whole .context/, space-joined; empty when clean.
 ctx_crossref() {
-  python3 "$CONV/validate.py" "$1" --type backlog --json 2>/dev/null | python3 -c '
+  python3 "$CONV/validate.py" "$1" --type "${2:-backlog}" --json 2>/dev/null | python3 -c '
 import json, sys
 try:
     d = json.load(sys.stdin)
@@ -342,10 +353,11 @@ GOLDEN_ISSUE=(--origin issue --issue abc-1 --title "Follow the ticket")
 
 p3() {
   echo "p3: register-item.sh routing, --raise, --ticket, --parent, --review, sweep-append skip"
-  local N="$TMP/p3n" I="$TMP/p3i" P="$TMP/p3p" T="$TMP/p3t" c g id n wl
+  local N="$TMP/p3n" I="$TMP/p3i" P="$TMP/p3p" T="$TMP/p3t" U="$TMP/p3u" W1="$TMP/p3w1" W2="$TMP/p3w2" c g id n wl l
 
-  # R0 golden: with no profile, and with an inert copy of the template, a registration is
-  # byte-identical to the pre-change script's (recorded from it: P3_RECORD_GOLDEN=1).
+  # R0 golden: with no profile, an inert copy of the template, or a profile whose two
+  # activating keys are whitespace only, a registration is byte-identical to the
+  # pre-change script's (recorded from it: P3_RECORD_GOLDEN=1).
   for c in plain issue; do
     g="$SKILL/tests/fixtures/p3-golden-$c.txt"
     if [[ -n "${P3_RECORD_GOLDEN:-}" ]]; then
@@ -353,15 +365,25 @@ p3() {
       if [[ $c == plain ]]; then golden "$N" "${GOLDEN_PLAIN[@]}" > "$g"; else golden "$N" "${GOLDEN_ISSUE[@]}" > "$g"; fi
       echo "  recorded $g"; continue
     fi
-    for p in "$N" "$I"; do
-      mkproj "$p"
-      [[ $p == "$I" ]] && { mkdir -p "$I/.context/profiles"; cp "$TEMPLATE" "$I/.context/profiles/backlog.md"; }
+    for p in "$N" "$I" "$W1" "$W2"; do
+      mkproj "$p"; [[ $p == "$N" ]] || mkdir -p "$p/.context/profiles"
+      case "$p" in
+        "$N")  l="no profile" ;;
+        "$I")  l="inert template"; cp "$TEMPLATE" "$I/.context/profiles/backlog.md" ;;
+        "$W1") l="ticket_pattern a space"; printf -- '---\ntracker_paths: ""\nticket_pattern: " "\n---\n' > "$p/.context/profiles/backlog.md" ;;
+        *)     l="tracker_paths spaces"; printf -- '---\ntracker_paths: "  "\nticket_pattern: ""\n---\n' > "$p/.context/profiles/backlog.md" ;;
+      esac
       if [[ $c == plain ]]; then golden "$p" "${GOLDEN_PLAIN[@]}" > "$TMP/g.out"; else golden "$p" "${GOLDEN_ISSUE[@]}" > "$TMP/g.out"; fi
-      if cmp -s "$g" "$TMP/g.out"; then ok "golden $c ($( [[ $p == "$N" ]] && echo no profile || echo inert template )): byte-identical"
-      else bad "golden $c differs ($( [[ $p == "$N" ]] && echo no profile || echo inert template ))"; diff "$g" "$TMP/g.out" >&2; fi
+      if cmp -s "$g" "$TMP/g.out"; then ok "golden $c ($l): byte-identical"
+      else bad "golden $c differs ($l)"; diff "$g" "$TMP/g.out" >&2; fi
     done
   done
   [[ -n "${P3_RECORD_GOLDEN:-}" ]] && return 0
+  # a whitespace-only ticket_pattern is no pattern: every key is taken
+  reg "$W1" --origin issue --issue ABC-1 --title "spaced pattern"
+  [[ $RC -eq 0 ]] && ok "ticket_pattern \" \": --origin issue --issue ABC-1 exits 0" || bad "W1 issue: rc=$RC $(cat "$TMP/reg.err")"
+  reg "$W1" --origin manual --ticket abc-2 --title "spaced pattern ticket"
+  [[ $RC -eq 0 && "$(fm "$RF" ticket)" == '"issue/ABC-2"' ]] && ok "ticket_pattern \" \": --ticket abc-2 is written" || bad "W1 ticket: rc=$RC $(cat "$TMP/reg.err")"
 
   # R0: no routing without an active profile; an explicit --raise is still accepted.
   for p in "$N" "$I"; do
@@ -399,6 +421,15 @@ p3() {
     reg "$T" --origin manual --title "two words" --touches "$c"
     [[ "$(fm "$RF" raise)" == "to-raise" && $(routed_lines) -eq 1 ]] && ok "R2: '$c' routes on a two-word tracker_paths" || bad "R2 T '$c': raise='$(fm "$RF" raise)'"
   done
+  # tracker_paths words are read like touches tokens: commas split, ./ and a trailing / drop
+  mkproj "$U"; mkdir -p "$U/.context/profiles"
+  printf -- '---\ntracker_paths: "./app/, api,web/"\nticket_pattern: ""\n---\n' > "$U/.context/profiles/backlog.md"
+  for c in "app/x.ts" "api/y.ts" "web/z.ts"; do
+    reg "$U" --origin manual --title "listed words" --touches "$c"
+    [[ "$(fm "$RF" raise)" == "to-raise" ]] && ok "R2: '$c' routes on tracker_paths \"./app/, api,web/\"" || bad "R2 U '$c': raise='$(fm "$RF" raise)' $(cat "$TMP/reg.err")"
+  done
+  reg "$U" --origin manual --title "not listed" --touches "application/x.ts"
+  ! hasfm "$RF" raise && ok "R3: application/x.ts does not route on tracker_paths \"./app/, api,web/\"" || bad "R3 U routed"
   # R3: segment equality, not prefix; no --touches is not routed.
   for c in "application/x.ts" "api/x.ts" "lib/app/x.ts" "apps" ".app/x" "/app/x"; do
     reg "$P" --origin manual --title "not routed" --touches "$c"
@@ -480,11 +511,13 @@ p3() {
   reg "$P" --origin sweep --worklist 2026-11-01-run --title "plain found"
   id="$(fm "$RF" id)"
   [[ $RC -eq 0 && $(grep -c " $id " "$wl") -eq 1 ]] && ok "sweep: a plain item is appended to the queue" || bad "sweep plain not appended: rc=$RC $(cat "$TMP/reg.err")"
-  for c in "--touches app/x.ts" "--raise to-raise" "--ticket ABC-7" "--review app#4"; do
-    reg "$P" --origin sweep --worklist 2026-11-01-run --title "tracked found" $c
+  # each case is <flags>|<the reason the warning ends with>
+  for c in "--touches app/x.ts|team repo: app" "--raise to-raise|tracked externally" \
+           "--ticket ABC-7|tracked externally" "--review app#4|tracked externally"; do
+    reg "$P" --origin sweep --worklist 2026-11-01-run --title "tracked found" ${c%|*}
     id="$(fm "$RF" id)"
-    [[ $RC -eq 0 && -f "$RF" && $(grep -c " $id " "$wl") -eq 0 ]] && grep -q "$id.*not appended" "$TMP/reg.err" \
-      && ok "sweep: $c is registered, not appended, and warned" || bad "sweep $c: rc=$RC in-queue=$(grep -c " $id " "$wl") $(cat "$TMP/reg.err")"
+    [[ $RC -eq 0 && -f "$RF" && $(grep -c " $id " "$wl") -eq 0 ]] && grep -q "$id.*not appended.* — ${c#*|}\$" "$TMP/reg.err" \
+      && ok "sweep: ${c%|*} is registered, not appended, and warned: ${c#*|}" || bad "sweep ${c%|*}: rc=$RC in-queue=$(grep -c " $id " "$wl") $(cat "$TMP/reg.err")"
   done
 }
 
@@ -572,6 +605,12 @@ _Auto-generated by \`backlog\` from front-matter. Do not edit by hand._" ]] \
     || { bad "Tickets rows"; diff <(printf '%s\n' "$g") <(section "$idx" Tickets) >&2; }
   [[ "$(section "$idx" Findings)" == "- **BL-002** · **[finding one]($(bn "$f2"))** — open · to-raise · P1" ]] \
     && ok "Findings: the raise word and the priority" || bad "Findings: $(section "$idx" Findings)"
+  # `raise: none` (hand-written; define-item.sh deletes it) is the owner's "not a finding":
+  # the item lists under the P lists, as the sweep reads it.
+  mkproj "$Q"; f1="$(newitem "$Q" "not a finding")"; addfm "$f1" raise none
+  idx="$(reindex "$Q")"
+  ! grep -q '^## Findings' "$idx" && section "$idx" "P2 — Medium" | grep >/dev/null 'not a finding' \
+    && ok "raise: none lists under P2, not Findings" || bad "raise none: $(cat "$idx")"
 
   # Q: an active profile with no ticket_url / pr_url / live_views: plain text, no view lines.
   mkproj "$Q"; mkdir -p "$Q/.context/profiles"
@@ -675,6 +714,11 @@ p5() {
   [[ "$(why "$S" BL-010)" == "tracked externally" ]] && ok "a doing item with a ticket on a tracker path reads tracked externally" || bad "BL-010: '$(why "$S" BL-010)'"
   [[ "$(why "$S" BL-011)" == eligible ]] && ok "raise: none is not tracked externally" || bad "BL-011: '$(why "$S" BL-011)'"
   ( cd "$S" && python3 "$SWEEP" ) | grep >/dev/null "BL-006.*team repo: app" && ok "the text output prints the team-repo reason" || bad "text output: $( cd "$S" && python3 "$SWEEP" )"
+
+  # tracker_paths words are read like touches tokens: commas split, ./ and a trailing / drop
+  printf -- '---\ntracker_paths: "./web/,app/"\nticket_pattern: ""\n---\n' > "$S/.context/profiles/backlog.md"
+  [[ "$(why "$S" BL-006)" == "team repo: app" && "$(why "$S" BL-007)" == "team repo: web" && "$(why "$S" BL-009)" == eligible ]] \
+    && ok "tracker_paths \"./web/,app/\": app and web skip, application stays eligible" || bad "listed words: BL-006 '$(why "$S" BL-006)' BL-007 '$(why "$S" BL-007)' BL-009 '$(why "$S" BL-009)'"
 
   # The path skip needs an ACTIVE profile with tracker_paths; the field skip needs none.
   printf -- '---\ntracker_paths: ""\nticket_pattern: "ABC-[0-9]+"\n---\n' > "$S/.context/profiles/backlog.md"

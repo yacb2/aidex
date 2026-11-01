@@ -14,7 +14,10 @@ DENY="$(dirname "$0")/../tests/test-public-denylist.sh"
 while read -r _local_ref local_sha remote_ref remote_sha; do
   [ "$local_sha" = "$Z" ] && continue
   [ "$local_sha" = "$remote_sha" ] && continue
-  if [ "$remote_sha" = "$Z" ]; then range=("$local_sha" --not --remotes); else range=("$remote_sha..$local_sha"); fi
+  # a new ref, or a remote sha this clone never fetched: scan what no remote-tracking ref has
+  if [ "$remote_sha" = "$Z" ] || ! git cat-file -e "$remote_sha" 2>/dev/null; then
+    range=("$local_sha" --not --remotes)
+  else range=("$remote_sha..$local_sha"); fi
   if ! bash "$DENY" --messages "${range[@]}"; then
     echo "pre-push: refused — public denylist check failed for $remote_ref (see above)." >&2; exit 1
   fi

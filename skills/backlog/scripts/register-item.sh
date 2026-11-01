@@ -44,7 +44,9 @@
 #                                  whose first path segment is a tracker_paths word routes the
 #                                  item to `raise: to-raise` (one stderr line says so), unless
 #                                  --raise, --ticket or --review is given; and --origin issue
-#                                  writes the --issue key as `ticket`. Nothing is refused.
+#                                  writes the --issue key as `ticket`. Routing refuses
+#                                  nothing; the one refusal is an --issue, --ticket or --parent key
+#                                  outside ticket_pattern (R1, exit 2).
 #   --context "<prose>"            the ## Context body, replacing the template prompt
 #   --acceptance "<criterion>"     one ## Acceptance bullet; repeat the flag for more
 #                                  Every registration ends by printing define-check.py's
@@ -535,30 +537,34 @@ if body:
 
 # active_backlog_profile <ctx>: print the project's backlog profile when it is ACTIVE (it
 # exists and tracker_paths or ticket_pattern is non-empty); rc 1 for none or an inert copy.
-# Takes the .context/ dir, never $ROOT: an index regenerated through --escalate-to is
-# another repo's.
+# A whitespace-only value is empty. Takes the .context/ dir, never $ROOT: an index
+# regenerated through --escalate-to is another repo's.
 active_backlog_profile() {
-  local prof
+  local prof v
   prof="$(resolve_profile "$1" backlog)" || return 1
-  [[ -n "$(profile_field "$prof" tracker_paths)$(profile_field "$prof" ticket_pattern)" ]] || return 1
+  v="$(profile_field "$prof" tracker_paths)$(profile_field "$prof" ticket_pattern)"
+  [[ -n "${v//[[:space:]]/}" ]] || return 1
   printf '%s' "$prof"
 }
 
 # tracker_segment <touches> <tracker_paths>: print the first --touches token's first path
 # segment that EQUALS a tracker_paths word (a segment, never a string prefix: `application/`
-# is not `app`); rc 1 when none does. Tokens split on commas and whitespace, with leading
-# `./` and trailing `/` stripped, so `./app/`, `app/` and a bare `app` all name `app`.
+# is not `app`); rc 1 when none does. Tokens and words alike split on commas and
+# whitespace, with leading `./` and trailing `/` stripped, so `./app/`, `app/` and a bare
+# `app` all name `app`.
 tracker_segment() {
   local tok seg w
   local -a toks=() words=()
   read -ra toks <<<"${1//,/ }"
-  read -ra words <<<"$2"
+  read -ra words <<<"${2//,/ }"
   for tok in ${toks[@]+"${toks[@]}"}; do
     while [[ "$tok" == ./* ]]; do tok="${tok#./}"; done
     while [[ "$tok" == */ ]]; do tok="${tok%/}"; done
     seg="${tok%%/*}"
     [[ -n "$seg" ]] || continue
     for w in ${words[@]+"${words[@]}"}; do
+      while [[ "$w" == ./* ]]; do w="${w#./}"; done
+      while [[ "$w" == */ ]]; do w="${w%/}"; done
       [[ "$seg" == "$w" ]] && { printf '%s' "$seg"; return 0; }
     done
   done
@@ -822,7 +828,7 @@ write_index() {
     elif [[ -n "$ticket" || -n "$pr" ]]; then
       SEC_TICKETS+=("${grp}"$'\t'"${line}${ticket:+ · $(key_ref "$ticket")}$(pr_refs "$pr")${checked:+ · checked $checked}${comps}")
       continue
-    elif [[ -n "$raise" ]]; then
+    elif [[ -n "$raise" && "$raise" != none ]]; then
       SEC_FINDINGS+=("${line} · ${raise} · ${priority:-P?}${comps}")
       continue
     fi
@@ -1494,7 +1500,7 @@ fi
 # and commit work an external tracker owns.
 if [[ "$ORIGIN" == "sweep" && -n "$WORKLIST" ]]; then
   if [[ -n "$RAISE$REVIEW" || $SET_TICKET -eq 1 ]]; then
-    warn "warning: $ITEM_ID was not appended to worklist/$WL_FILE — ${ROUTED_SEG:+team repo: $ROUTED_SEG}${ROUTED_SEG:-tracked externally}"
+    warn "warning: $ITEM_ID was not appended to worklist/$WL_FILE — $([[ -n "$ROUTED_SEG" ]] && printf 'team repo: %s' "$ROUTED_SEG" || printf 'tracked externally')"
   elif [[ -f "$ROOT/.context/worklists/$WL_FILE" ]]; then
     bash "$REG_DIR/../../conventions/scripts/worklist-advance.sh" "$ROOT/.context/worklists/$WL_FILE" \
       --append "backlog:$ITEM_ID — $(printf '%s' "$TITLE" | tr '\n\r\t' '   ')" >/dev/null \

@@ -40,5 +40,10 @@ push "$(git rev-parse HEAD)" "$BASE" refs/heads/main || fail "version bumped and
 push "$(git rev-parse HEAD)" "$BASE" refs/heads/other || fail "push to a non-main branch refused"
 push "$BASE" "$BASE" refs/heads/main || fail "nothing new: push refused"
 push "$Z" "$BASE" refs/heads/main || fail "branch delete refused"
+# a remote sha this clone has never fetched: a non-main push is scanned over what no remote
+# has (and allowed when clean); main still needs the remote commit to compare versions
+UNK=1111111111111111111111111111111111111111
+push "$(git rev-parse HEAD)" "$UNK" refs/heads/other || fail "non-main push over an unfetched remote sha refused"
+push "$(git rev-parse HEAD)" "$UNK" refs/heads/main && fail "main push over an unfetched remote sha allowed"
 
-[ "$FAIL" -eq 0 ] && echo "ok: pre-push version guard (6 cases)" || { echo "$FAIL failure(s)"; exit 1; }
+[ "$FAIL" -eq 0 ] && echo "ok: pre-push version guard (8 cases)" || { echo "$FAIL failure(s)"; exit 1; }

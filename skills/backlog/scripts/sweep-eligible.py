@@ -221,15 +221,21 @@ def tracker_paths(root):
     prof = profiles.resolve_profile(os.path.join(root, '.context'), 'backlog')
     if not prof:
         return []
-    words = profiles.profile_field(prof, 'tracker_paths').split()
+    # read like touches tokens: commas and whitespace split, `./` and a trailing `/` drop
+    words = [norm_path(w) for w in re.split(r'[,\s]+', profiles.profile_field(prof, 'tracker_paths'))]
     return words if words or profiles.profile_field(prof, 'ticket_pattern') else []
+
+
+def norm_path(tok):
+    """Leading `./` and trailing `/` stripped (register-item.sh tracker_segment rules)."""
+    while tok.startswith('./'):
+        tok = tok[2:]
+    return tok.rstrip('/')
 
 
 def first_segment(tok):
     """`./app/x.ts`, `app/` and `app` all name `app` (register-item.sh tracker_segment rules)."""
-    while tok.startswith('./'):
-        tok = tok[2:]
-    return tok.rstrip('/').split('/', 1)[0]
+    return norm_path(tok).split('/', 1)[0]
 
 
 def team_segments(touches, candidates, words):

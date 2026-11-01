@@ -22,13 +22,17 @@ LIST="${AIDEX_PUBLIC_DENYLIST:-${common:+$(dirname "$common")/../.claude/public-
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/denylist.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
 
-patterns() { grep -vE '^[[:space:]]*(#|$)' "$1" > "$2"; }   # blank line = match-all: drop it
-scan_text() { grep -inE -f "$1"; }                           # stdin; exit 0 = hit
+# CRs dropped first: a CRLF list would otherwise ask for a CR after every term. A blank
+# line is match-all: drop it.
+patterns() { tr -d '\r' < "$1" | grep -vE '^[[:space:]]*(#|$)' > "$2"; }
+scan_text() { grep -inE -f "$1"; }   # stdin; exit 0 = hit, 1 = clean, 2 = grep cannot read the list
 scan_tree() { git -C "$2" grep --untracked -inE -f "$1"; }   # untracked files too
-hit_messages() { # $1 patterns, rest git-log args; exit 0 = hit, 1 = clean, 2 = git failed
-  local p="$1" log; shift
+hit_messages() { # $1 patterns, rest git-log args; exit 0 = hit, 1 = clean, 2 = git failed, 3 = bad list
+  local p="$1" log rc=0; shift
   log="$(git log --format=%B "$@")" || return 2
-  printf '%s\n' "$log" | scan_text "$p" >/dev/null || return 1
+  printf '%s\n' "$log" | scan_text "$p" >/dev/null || rc=$?
+  [[ $rc -eq 1 ]] && return 1
+  [[ $rc -eq 0 ]] || return 3
   for c in $(git rev-list "$@"); do
     git log -1 --format=%B "$c" | scan_text "$p" | sed "s/^/$(git rev-parse --short "$c"): /"
   done
@@ -37,19 +41,24 @@ hit_messages() { # $1 patterns, rest git-log args; exit 0 = hit, 1 = clean, 2 = 
 need_list() {
   [[ -f "$LIST" ]] || { echo "public-denylist: no denylist at ${LIST:-<unresolved>}" >&2; exit 1; }
   patterns "$LIST" "$TMP/p"
+  [[ -s "$TMP/p" ]] || { echo "public-denylist: denylist $LIST has no entries" >&2; exit 1; }
 }
 
 case "${1:-}" in
   --stdin)
     need_list
-    if scan_text "$TMP/p"; then echo "public-denylist: listed term in stdin" >&2; exit 1; fi
-    exit 0 ;;
+    scan_text "$TMP/p"; rc=$?
+    [[ $rc -eq 1 ]] && exit 0
+    if [[ $rc -eq 0 ]]; then echo "public-denylist: listed term in stdin" >&2
+    else echo "public-denylist: grep cannot read the denylist $LIST" >&2; fi
+    exit 1 ;;
   --messages)
     shift; need_list
     hit_messages "$TMP/p" "$@"; rc=$?
     [[ $rc -eq 1 ]] && exit 0
     [[ $rc -eq 0 ]] && echo "public-denylist: listed term in a commit message" >&2
     [[ $rc -eq 2 ]] && echo "public-denylist: git log $* failed" >&2
+    [[ $rc -eq 3 ]] && echo "public-denylist: grep cannot read the denylist $LIST" >&2
     exit 1 ;;
   "") ;;
   *) echo "usage: $0 [--messages <rev-range>|--stdin]" >&2; exit 64 ;;
@@ -89,8 +98,18 @@ push() { printf 'refs/heads/x %s refs/heads/x %s\n' "$1" "$2" | bash "$ROOT/.git
 push "$TIP" "$HIT" || fail "pre-push: clean new commits refused"
 push "$TIP" "$BASE" && fail "pre-push: term in a pushed message allowed"
 push "$TIP" "$Z" && fail "pre-push: first push with a term allowed"
+push "$TIP" 1111111111111111111111111111111111111111 && fail "pre-push: a term over an unfetched remote sha allowed"
 AIDEX_PUBLIC_DENYLIST="$TMP/absent" push "$TIP" "$HIT" && fail "pre-push: missing denylist allowed"
 AIDEX_PUBLIC_DENYLIST="$TMP/absent" bash "$SELF" --stdin </dev/null >/dev/null 2>&1 && fail "stdin mode: missing denylist passed"
+# a list grep cannot read fails closed: a malformed ERE (grep exit 2), no entries, CRLF ends
+printf 'zorblax\nfoo(bar\n' > "$TMP/bad"; printf '# only a comment\n\n' > "$TMP/none"; printf 'zorblax\r\n' > "$TMP/crlf"
+for m in --stdin --messages; do   # exits 1 and names the list as the cause
+  out="$(echo "release notes: zorblax" | AIDEX_PUBLIC_DENYLIST="$TMP/bad" bash "$SELF" $m "$BASE..$TIP" 2>&1)" && fail "$m: malformed list passed"
+  [[ "$out" == *"grep cannot read the denylist"* ]] || fail "$m: malformed list not named: $out"
+done
+AIDEX_PUBLIC_DENYLIST="$TMP/none" bash "$SELF" --messages "$HIT..$TIP" >/dev/null 2>&1 && fail "messages: comments-only list passed"
+echo "release notes: generic" | AIDEX_PUBLIC_DENYLIST="$TMP/none" bash "$SELF" --stdin >/dev/null 2>&1 && fail "stdin mode: comments-only list passed"
+echo "release notes: zorblax" | AIDEX_PUBLIC_DENYLIST="$TMP/crlf" bash "$SELF" --stdin >/dev/null 2>&1 && fail "stdin mode: CRLF list did not flag its term"
 unset AIDEX_PUBLIC_DENYLIST
 cd "$ROOT" || exit 1
 [[ $FAIL -eq 0 ]] || { echo "$FAIL self-test failure(s)"; exit 1; }

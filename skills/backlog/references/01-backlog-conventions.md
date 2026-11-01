@@ -486,10 +486,11 @@ reports PR-state drift (D1: done while a PR is live; D2: a `(#<n>)` squash title
 |---|---|---|
 | R0 | no active profile | today's behaviour; an explicit `--raise` is still accepted |
 | R1 | `--origin issue` with an active profile | `ticket` beside `origin_ref`; a key outside `ticket_pattern` exits 2 |
-| R2 | a `--touches` token (`./` and trailing `/` stripped) whose first segment equals a `tracker_paths` word | `raise: to-raise` and one stderr line `BL-NNN recorded as an unconfirmed team finding …` |
+| R2 | a `--touches` token whose first segment equals a `tracker_paths` word (both split on commas and whitespace, `./` and trailing `/` stripped) | `raise: to-raise` and one stderr line `BL-NNN recorded as an unconfirmed team finding …` |
 | R3 | otherwise | plain item |
 
-Nothing is refused; a false positive is `define-item.sh <BL> --raise none`. An explicit
+Routing refuses nothing (the one refusal is R1's key outside `ticket_pattern`); a false
+positive is `define-item.sh <BL> --raise none`. An explicit
 `--raise`, `--ticket` or `--review` is not routed. Protection is partial: an item with no
 `--touches` and no on-disk backtick path stays sweepable; `sweep-eligible.py` skips the
 rest as `tracked externally` or `team repo: <seg>`.

@@ -108,6 +108,8 @@ fi
 # <ctx>/backlog/[_deferred|_archive/]<file> -> <ctx>.
 PATTERN="" _abs="$(cd "$(dirname "$FILE")" && pwd -P)/$(basename "$FILE")"
 _prof="$(resolve_profile "${_abs%/backlog/*}" backlog)" && PATTERN="$(profile_field "$_prof" ticket_pattern)"
+# a whitespace-only pattern is no pattern; surrounding blanks are not part of one
+PATTERN="${PATTERN#"${PATTERN%%[![:space:]]*}"}"; PATTERN="${PATTERN%"${PATTERN##*[![:space:]]}"}"
 # norm_key <flag> <value>: the key upper-cased, an `issue/` prefix dropped; dies when refused.
 norm_key() {
   local key="${2#[Ii][Ss][Ss][Uu][Ee]/}" rc=0
