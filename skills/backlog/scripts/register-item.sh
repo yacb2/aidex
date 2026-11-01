@@ -21,6 +21,7 @@
 #   --priority <P0|P1|P2|P3>       default: P2 (code only — see references/01-backlog-conventions.md)
 #   --type <bug|improvement|task|idea>  work kind (default: task) — a facet, one queue
 #   --blocked-by "<who/what>"      optional Blocked modifier; priority is kept, item listed under Blocked
+#                                  (with an active profile, an item with a lane stays in it)
 #   --estimate <XS|S|M|L|XL>       default: M
 #   --surface <internal|behaviour|ui|ops>  what the change is visible as (default: internal;
 #                                  ops = no test surface: config, infrastructure, canon, other-repo state);
@@ -515,11 +516,11 @@ if not items:                      # a done/dropped registration is not checked
     sys.exit(0)
 r, ident, path = items[0], sys.argv[1], sys.argv[2]
 err = sys.stderr
-# Tracked work is skipped by sweep-eligible.py before any definition check (its
-# TRACKER_FIELDS, `raise: none` excepted), so its missing list is noise: say what the sweep says.
+# Tracked work is skipped by sweep-eligible.py before any definition check, so its
+# missing list is noise: say what the sweep says, from the predicate the sweep itself uses.
 sys.path.insert(0, sys.argv[3])
 fm = importlib.import_module("define-check").parse(path)["fm"]
-if any(fm.get(k, "") not in ("", "none") if k == "raise" else fm.get(k, "") for k in ("raise", "ticket", "pr", "review")):
+if importlib.import_module("sweep-eligible").tracked(fm):
     print(f"definition: {ident} is tracked externally — not sweep-eligible", file=err)
     sys.exit(0)
 if r["defined"]:

@@ -215,6 +215,14 @@ def queued_elsewhere(root):
 TRACKER_FIELDS = ('raise', 'ticket', 'pr', 'review')
 
 
+def tracked(fm):
+    """Tracker-owned work: a TRACKER_FIELDS field is set. `raise: none` is the owner's
+    "not a team finding" (define-item.sh deletes the line). register-item.sh's
+    definition verdict imports this, so registration and the sweep never disagree."""
+    return any(fm.get(k, '') not in ('', 'none') if k == 'raise' else fm.get(k, '')
+               for k in TRACKER_FIELDS)
+
+
 def tracker_paths(root):
     """The words of `tracker_paths` when the backlog profile is ACTIVE (tracker_paths or
     ticket_pattern non-empty), else []. An inert copy of the template owns nothing."""
@@ -260,9 +268,7 @@ def parse(path):
     return {
         'missing': dc['missing'],
         'cross_repo': dc['cross_repo'],
-        # `raise: none` is the owner's "not a team finding" (define-item.sh deletes the line)
-        'tracked': any(fm.get(k, '') not in ('', 'none') if k == 'raise' else fm.get(k, '')
-                       for k in TRACKER_FIELDS),
+        'tracked': tracked(fm),
         'team': team_segments(fm.get('touches', ''), dc['touches_candidates'], TRACKER_PATHS),
         'awaiting': fm.get('awaiting', ''),
         'file': os.path.basename(path),

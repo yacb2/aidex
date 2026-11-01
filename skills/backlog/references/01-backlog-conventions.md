@@ -97,7 +97,8 @@ _Archived items: see [`_archive/`](_archive/)._
 ```
 
 > **`## Blocked` vs `## Deferred`.** `## Blocked` lists items still in the active
-> queue (root of `backlog/`) that happen to carry a `blocked_by` modifier. `##
+> queue (root of `backlog/`) that happen to carry a `blocked_by` modifier (with an active
+> tracker profile, only those with no lane: see **Lanes** under Tracker coexistence). `##
 > Deferred` lists items physically moved out to `_deferred/` — parked indefinitely,
 > off the active queue. Use `defer` to move an item from Blocked-in-queue to Deferred.
 
@@ -204,7 +205,7 @@ The `priority` field is a **code**, never free text. Four levels plus a `blocked
 | **P2** | Medium | Important non-blocking improvement · scoped tech debt · significant UX issue | Next release |
 | **P3** | Low | Nice-to-have · cosmetic refactor · pull-driven | No date |
 
-**Blocked modifier:** when an item waits on a third party, keep its `priority` (do NOT downgrade) and set `blocked_by`. The auto-generated index surfaces it under "Blocked".
+**Blocked modifier:** when an item waits on a third party, keep its `priority` (do NOT downgrade) and set `blocked_by`. The auto-generated index surfaces it under "Blocked" (with an active tracker profile, an item that has a lane stays in its lane with a `blocked_by` suffix: see **Lanes** under Tracker coexistence).
 
 Re-evaluate priorities every two weeks. If you want `P1.5`, pick one — the taxonomy is intentionally coarse.
 
@@ -473,13 +474,15 @@ writes no trailers and no commit hook goes in under `tracker_paths`.
 checkout directory under the project root. Ticket state is never stored: the tracker is
 the truth; only the PR ladder is cached, with the date it was seen.
 
-**Lanes.** The first field present decides where `00-index.md` lists the item, so it
-appears once: 1 `review` -> `## Reviews`; 2 `ticket` or `pr` -> `## Tickets`; 3 `raise`
--> `## Findings`; 4 none -> Workspace (the P lists, as today). Inside Reviews and Tickets
-items group under the `parent` key, else the `ticket` key. With an active profile a
-blocked item keeps its lane: its row ends `· blocked_by: "<text>"` and it counts in that
-lane and in `**Blocked:**`, not in `**Active:**`; `## Blocked` lists only the blocked items
-with no lane (an item also `awaiting` the owner keeps both of today's lists). The header
+**Lanes.** For an item that is not parked or listed under `## Blocked`, the first field
+present decides where `00-index.md` lists it, so it appears once: 1 `review` ->
+`## Reviews`; 2 `ticket` or `pr` -> `## Tickets`; 3 `raise` -> `## Findings`; 4 none ->
+Workspace (the P lists, as today). Inside Reviews and Tickets items group under the
+`parent` key, else the `ticket` key. With an active profile a blocked item keeps its
+lane: its row ends `· blocked_by: "<text>"` and it counts in that lane and in `**Blocked:**`, not in `**Active:**`; `## Blocked` lists only the blocked items
+with no lane (an item also `awaiting` the owner keeps both of today's lists). An item
+`awaiting` the owner, blocked or not, is parked work: it lists under `## Awaiting owner`
+only, never in its lane or the lane counts, with or without a profile. The header
 counts each lane, `**Active:**` still counts every active item that is not blocked or
 awaiting, the profile's `live_views` print at the top, and `ticket_url`/`pr_url` turn keys
 and `repo#n` into links. `reconcile.sh` category D
