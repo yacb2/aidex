@@ -287,4 +287,7 @@ personal paths, dates or ledgers) into the session context. **Default off.** Swi
 with the plugin option `delegation_rule_core` (`userConfig` in `plugin.json`, boolean);
 Claude Code hands the value to the hook as `CLAUDE_PLUGIN_OPTION_DELEGATION_RULE_CORE`, and
 only the exact value `true` prints. Turn the option off to revert; nothing else changes.
+The recommended vehicle is the rules file instead: `/aidex:aidex doctor` reports a missing
+`<claude-dir>/rules/delegation.md` and, on consent, copies this asset there verbatim; this
+hook is the fallback for whoever does not want a file in their config dir.
 Test: `bash hooks/test-delegation-rule-core.sh`.

@@ -97,8 +97,8 @@ never acted on), the auditor-freshness re-verification loop behind
 The install health check the retired `./install.sh --doctor` gave (BL-404). Run
 `bash ${CLAUDE_PLUGIN_ROOT}/skills/aidex/scripts/doctor.sh` and show its report.
 
-Four checks, one `PASS:`/`FAIL:` line each, exit 0 all clear / 1 on any FAIL / 2 on a
-usage error:
+Four checks print one `PASS:`/`FAIL:` line each, and a fifth prints an `INFO:` line only
+when it has something to say; exit 0 all clear / 1 on any FAIL / 2 on a usage error:
 
 | Check | FAIL means |
 |---|---|
@@ -106,6 +106,7 @@ usage error:
 | Exec bits | a `skills/*/scripts/*.sh` or a hook wired by `hooks/hooks.json` lost its `+x`; the skill that calls it fails with an error naming the caller, not the cause. Also fails when `hooks.json` is missing or names no hook at all — a check that enumerated nothing must not read as clean |
 | `python3` on PATH | the suite's python checkers cannot run |
 | Hooks wired once | a shipped hook is wired by the plugin *and* by hand in `<claude-dir>/settings.json`, so it fires twice per event, silently. Matched on the `/hooks/<path>` component, so the user's own same-named script elsewhere is not a finding |
+| Delegation rule file | never a FAIL. `INFO:` when `<claude-dir>/rules/delegation.md` is absent, with the `mkdir -p … && cp …` that installs `hooks/assets/delegation-rule-core.md` there; silent when the file exists, whatever it holds |
 
 A personal directory whose name merely **equals** a plugin skill (`plan`, `review`…) is
 a `NOTE:` line, not a FAIL: plugin skills are namespaced (`/aidex:plan` vs `/plan`), so
@@ -115,10 +116,15 @@ prescribe nothing.
 **Read-only, and it stays that way.** Every FAIL prints its own fix command
 (`rm -rf …` for a directory, plain `rm …` for a symlink, `chmod +x …`, the settings
 entry to delete); the script runs none of them. Offer to apply them, one at a time, and
-let the user answer. A missing `settings.json` is a PASS, never an error — with or
+let the user answer. For the delegation rule `INFO:`, offer to write the file: a plugin
+cannot install always-on rules, and the rules file is the vehicle that held better than
+the opt-in SessionStart hook (BL-784). Only on consent, create `rules/` if it is absent and
+copy `${CLAUDE_PLUGIN_ROOT}/hooks/assets/delegation-rule-core.md` verbatim; never overwrite
+an existing `rules/delegation.md`. If the user also has the `delegation_rule_core` option
+on, say the hook now duplicates the file and can be switched off. A missing `settings.json` is a PASS, never an error — with or
 without `python3`.
 
-Roots are injectable for testing only: `--claude-dir` (default `~/.claude`) and
+Roots are injectable for testing only: `--claude-dir` (default `${CLAUDE_CONFIG_DIR:-~/.claude}`) and
 `--plugin-root` (default self-located); a `--claude-dir` that does not exist or a
 `--plugin-root` with no `skills/` is exit 2, never a green report. Gate:
 `bash ${CLAUDE_PLUGIN_ROOT}/skills/aidex/tests/test-doctor.sh`.
@@ -174,6 +180,7 @@ Also check inline (no subagent needed):
 - **Link verification**: Extract all markdown links from CLAUDE.md. For each link to a local file (`.context/`, `.claude/`, relative paths), verify the target file exists. Report broken links as WARNING.
 - **Anti-pattern detection**: If CLAUDE.md links to a `README.md` inside `references/` or `docs/`, flag as WARNING — convention says each module has `00-index.md` and CLAUDE.md is the entry point. The README is redundant.
 - Cross-domain: skills referenced in CLAUDE.md exist? References mentioned in skills exist?
+- **Delegation rule file**: if `<claude-dir>/rules/delegation.md` is absent, report INFO and make the same consented offer as the doctor's check 5 (`/aidex:aidex doctor`).
 
 ---
 

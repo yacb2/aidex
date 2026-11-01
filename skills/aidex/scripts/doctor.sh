@@ -3,14 +3,15 @@
 # sub-action of /aidex:aidex (BL-404). Read-only: it reports and prints the fix
 # command, it never runs one.
 #
-# Four checks, the ones a PLUGIN install can still get wrong. The five the plugin
+# Five checks, the ones a PLUGIN install can still get wrong. The five the plugin
 # manager now owns (version, commit drift, the legacy pre-plugin install dir,
-# manifest, symlinked entries) and the rules check (rules retired with the installer) are not ported.
+# manifest, symlinked entries) are not ported.
 #
 #   1. stray skill copies shadowing the plugin's
 #   2. exec bits on skill scripts and on the hooks hooks.json wires
 #   3. python3 on PATH
 #   4. a shipped hook wired twice — once by the plugin, once by hand in settings.json
+#   5. <claude-dir>/rules/delegation.md absent (INFO with its cp command, never a FAIL)
 #
 # Usage:
 #   doctor.sh                       # against ${CLAUDE_CONFIG_DIR:-~/.claude} and the plugin this script lives in
@@ -39,7 +40,7 @@ while [[ $# -gt 0 ]]; do
                    CLAUDE_DIR="$2"; shift 2 ;;
     --plugin-root) [[ $# -ge 2 ]] || { echo "--plugin-root needs a directory" >&2; exit 2; }
                    PLUGIN_ROOT="$2"; shift 2 ;;
-    -h|--help)     sed -n '2,21p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help)     sed -n '2,22p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *)             echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
@@ -245,6 +246,16 @@ PY
       fail_count=$((fail_count + 1))
     fi
   fi
+fi
+
+# ─── 5. Delegation rule file ────────────────────────────────────────────────
+# A plugin cannot install always-on rules; the opt-in SessionStart hook is the only
+# vehicle it has, and the rules file held better (BL-784, BL-887). Absent is INFO,
+# never a FAIL: the rule is optional. Present with any content is the user's own
+# and prints nothing.
+RULE="$CLAUDE_DIR/rules/delegation.md"
+if [[ ! -e "$RULE" ]]; then
+  echo "INFO: no $RULE — the delegation rule loads only through the opt-in hook; to install it: mkdir -p \"$CLAUDE_DIR/rules\" && cp \"$PLUGIN_ROOT/hooks/assets/delegation-rule-core.md\" \"$RULE\""
 fi
 
 echo ""

@@ -320,6 +320,21 @@ OUT="$(HOME="$H" CLAUDE_CONFIG_DIR="relative/dir" bash "$DOCTOR" --plugin-root "
 [[ $RC -eq 0 ]] && grep -q "no stray skill copies in $H/.claude/skills" <<<"$OUT" \
   && ok "BL-893 a relative value falls back to ~/.claude" || bad "BL-893 relative rc=$RC: $OUT"
 
+# ── BL-887: a missing delegation rule file is reported with its copy command ───
+# The rules file is the vehicle that held better than the opt-in SessionStart hook,
+# so the doctor names it when it is absent. INFO only: the exit code is unchanged.
+make_fixture
+OUT="$(run)"; RC=$?
+[[ $RC -eq 0 ]] && ok "BL-887 a missing rule file does not change the exit code" || bad "BL-887 rc=$RC: $OUT"
+grep -q "^INFO: no $C/rules/delegation.md" <<<"$OUT" \
+  && ok "BL-887 the missing rule file is named" || bad "BL-887 missing not named: $OUT"
+grep -qF "cp \"$P/hooks/assets/delegation-rule-core.md\" \"$C/rules/delegation.md\"" <<<"$OUT" \
+  && ok "BL-887 the copy command is printed" || bad "BL-887 no copy command: $OUT"
+mkdir -p "$C/rules"; printf 'anything\n' > "$C/rules/delegation.md"
+OUT="$(run)"
+grep -q 'delegation' <<<"$OUT" && bad "BL-887 a present rule file still printed a line: $OUT" \
+  || ok "BL-887 a present rule file (any content) prints no delegation line"
+
 # ── F1: the shipped tree itself ─────────────────────────────────────────────
 # The one cell that reads outside the fixtures, on purpose: --claude-dir is a fresh
 # empty directory, so only the PLUGIN half of the report can speak. Ten tracked
@@ -348,5 +363,5 @@ run >/dev/null 2>&1
   || bad "6 the failing run changed the fixture tree"
 
 echo
-[[ $FAIL -eq 0 ]] && { echo "OK — doctor: $PASS cells (stray copies, exec bits, python3, double-wired hooks; read-only)"; exit 0; }
+[[ $FAIL -eq 0 ]] && { echo "OK — doctor: $PASS cells (stray copies, exec bits, python3, double-wired hooks, delegation rule file; read-only)"; exit 0; }
 echo "$FAIL failure(s), $PASS ok"; exit 1
