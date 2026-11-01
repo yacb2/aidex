@@ -10,7 +10,7 @@
 #
 # List: $AIDEX_PUBLIC_DENYLIST, else <main checkout>/../.claude/public-denylist.txt resolved
 # from the git COMMON dir, because a relative ../.claude does not exist from a linked worktree.
-# No list: the default mode prints "SKIP: no denylist" and exits 0 (public clones stay green);
+# No list: the default mode prints "SKIP: no denylist" and exits 2, which run-all.sh counts as a SKIP (public clones stay green);
 # --messages and --stdin exit 1, so .githooks/pre-push and the release flow refuse.
 # No \b in any pattern: git grep -E matches nothing with it here; use (^|[^A-Za-z0-9]).
 # Layer: real git grep / grep over throwaway repos and lists; nothing is stubbed.
@@ -116,7 +116,7 @@ cd "$ROOT" || exit 1
 [[ $FAIL -eq 0 ]] || { echo "$FAIL self-test failure(s)"; exit 1; }
 
 # --- the real list -------------------------------------------------------------------------
-[[ -f "$LIST" ]] || { echo "SKIP: no denylist"; exit 0; }
+[[ -f "$LIST" ]] || { echo "SKIP: no denylist"; exit 2; }
 patterns "$LIST" "$TMP/p"
 first="$(head -n 1 "$TMP/p")"
 [[ -n "$first" ]] || { echo "FAIL: denylist $LIST has no entries"; exit 1; }
