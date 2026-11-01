@@ -2,7 +2,7 @@
 """
 mine_errors.py — what is actually FAILING in the field.
 
-Read-only over ~/.claude/projects. For every tool_result marked is_error inside
+Read-only over <config dir>/projects. For every tool_result marked is_error inside
 the window, emit a normalized signature so failures cluster instead of scrolling.
 
 Two views:
@@ -20,7 +20,16 @@ from collections import Counter, defaultdict
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from extract import parse_ts, short_project  # noqa: E402
 
-TX_ROOT = os.environ.get("CLAUDE_PROJECTS_ROOT") or os.path.expanduser("~/.claude/projects")
+CONFIG_DIR = (os.environ.get("CLAUDE_CONFIG_DIR") or "").strip(" \t\n\r\v\f")
+# The session's config dir, as the hooks resolve it: trimmed of surrounding whitespace; a
+# leading ~ or ~/ is the home directory (never ~user); anything still relative means
+# ~/.claude, never a tree under the cwd.
+if CONFIG_DIR == "~" or CONFIG_DIR.startswith("~/"):
+    CONFIG_DIR = os.path.expanduser("~") + CONFIG_DIR[1:]
+CONFIG_DIR = (os.path.normpath(CONFIG_DIR) if os.path.isabs(CONFIG_DIR)
+              else os.path.expanduser("~/.claude"))
+
+TX_ROOT = os.environ.get("CLAUDE_PROJECTS_ROOT") or os.path.join(CONFIG_DIR, "projects")
 
 # scrub volatile bits so the same failure collapses to one signature
 SCRUB = [

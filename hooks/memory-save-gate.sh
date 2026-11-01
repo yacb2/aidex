@@ -50,9 +50,11 @@
 #    a gate earns its retirement. The sibling hook uses `reason` on an ALLOW, where it
 #    does not matter; copying that shape here would have been silently wrong.
 #  * A hook `deny` DOES win over a `permissionDecision: "allow"` returned earlier in
-#    the same matcher block. That matters because `approve-claude-dir-pretooluse.sh`
-#    already matches `/.claude/` — which is every path this gate guards — and allows
-#    it. Verified: same block, allow first, deny second, write refused.
+#    the same matcher block. That mattered because a personal, unshipped sibling,
+#    `approve-claude-dir-pretooluse.sh`, allowed every path containing `/.claude/`:
+#    the `~/.claude` memory root, though not a `~/.claude-work` one (that substring
+#    does not match it). Either way a deny here wins. Verified: same block, allow
+#    first, deny second, write refused.
 #  * A NUDGE never returns `allow`. It returns `additionalContext` and exits 0, so the
 #    write proceeds under whatever permission it would otherwise have had. Returning
 #    `allow` would auto-approve writes this hook has no business approving, and would

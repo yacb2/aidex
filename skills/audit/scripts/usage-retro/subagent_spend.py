@@ -61,12 +61,21 @@ none, and the footer counts them — an unmarked partial sum is indistinguishabl
 a complete one.
 
 Usage:
-  subagent_spend.py [--transcripts-root DIR]     # default ~/.claude/projects
+  subagent_spend.py [--transcripts-root DIR]     # default <config dir>/projects
 """
 import os, sys, glob, json, argparse, collections
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pricing
+
+CONFIG_DIR = (os.environ.get("CLAUDE_CONFIG_DIR") or "").strip(" \t\n\r\v\f")
+# The session's config dir, as the hooks resolve it: trimmed of surrounding whitespace; a
+# leading ~ or ~/ is the home directory (never ~user); anything still relative means
+# ~/.claude, never a tree under the cwd.
+if CONFIG_DIR == "~" or CONFIG_DIR.startswith("~/"):
+    CONFIG_DIR = os.path.expanduser("~") + CONFIG_DIR[1:]
+CONFIG_DIR = (os.path.normpath(CONFIG_DIR) if os.path.isabs(CONFIG_DIR)
+              else os.path.expanduser("~/.claude"))
 
 MAIN = "main"
 
@@ -240,7 +249,7 @@ def fmt(label, n, t, usd, unpriced):
 
 def main():
     ap = argparse.ArgumentParser(description="spend by subagent model and agent type")
-    ap.add_argument("--transcripts-root", default=os.path.expanduser("~/.claude/projects"))
+    ap.add_argument("--transcripts-root", default=os.path.join(CONFIG_DIR, "projects"))
     a = ap.parse_args()
 
     rows, n_files = walk(a.transcripts_root)

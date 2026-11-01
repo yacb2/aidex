@@ -11,7 +11,8 @@ the id it probably meant), 2 on a usage or parse error.
 
   check-skill-overrides.py [--settings <path>] [--skills-dir <dir>]... [--json]
 
-`--skills-dir` is repeatable and ADDS a store to the default `~/.claude/skills`. Those
+`--skills-dir` is repeatable and ADDS a store to the default
+`${CLAUDE_CONFIG_DIR:-~/.claude}/skills`. Those
 stores are also DISCOVERED, which is what makes a bare run trustworthy: a personal skill
 is usually installed per project — a symlink in a project's `.claude/skills/` pointing at
 a store like `~/.myskills/skills/` — and a global override keyed on its bare name is then
@@ -27,7 +28,13 @@ import os
 import sys
 
 HOME = os.path.expanduser("~")
-CLAUDE = os.path.join(HOME, ".claude")
+CLAUDE = (os.environ.get("CLAUDE_CONFIG_DIR") or "").strip(" \t\n\r\v\f")
+# The session's config dir: trimmed of surrounding whitespace; a leading ~ or ~/ is the
+# home directory (never ~user, as in the shell hooks); anything still relative means
+# ~/.claude, never a tree under the cwd.
+if CLAUDE == "~" or CLAUDE.startswith("~/"):
+    CLAUDE = HOME + CLAUDE[1:]
+CLAUDE = os.path.normpath(CLAUDE) if os.path.isabs(CLAUDE) else os.path.join(HOME, ".claude")
 
 
 def personal_skills(roots=None):
@@ -170,7 +177,7 @@ def main(argv):
     ap = argparse.ArgumentParser(add_help=True)
     ap.add_argument("--settings", default=os.path.join(CLAUDE, "settings.json"))
     ap.add_argument("--skills-dir", action="append", default=[],
-                    help="an additional skill store (repeatable); adds to ~/.claude/skills")
+                    help="an additional skill store (repeatable); adds to <config dir>/skills")
     ap.add_argument("--skills-root", help="replace the default store entirely (tests)")
     ap.add_argument("--plugin-cache")
     ap.add_argument("--projects-root",

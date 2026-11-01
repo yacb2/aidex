@@ -11,7 +11,7 @@ down by project and by command shape, which is what decides the remedy:
   concentrated in full-suite unit runs -> affected-test selection is the right lever
   spread evenly                        -> selection buys less than the headline; re-scope
 
-Read-only. Walks ~/.claude/projects/*/*.jsonl directly; touches no project.
+Read-only. Walks <config dir>/projects/*/*.jsonl directly; touches no project.
 
 METHOD
 
@@ -36,7 +36,16 @@ import json, os, glob, re, sys, datetime, argparse
 from collections import defaultdict, Counter
 import statistics as st
 
-TX_ROOT = os.environ.get("CLAUDE_PROJECTS_ROOT") or os.path.expanduser("~/.claude/projects")
+CONFIG_DIR = (os.environ.get("CLAUDE_CONFIG_DIR") or "").strip(" \t\n\r\v\f")
+# The session's config dir, as the hooks resolve it: trimmed of surrounding whitespace; a
+# leading ~ or ~/ is the home directory (never ~user); anything still relative means
+# ~/.claude, never a tree under the cwd.
+if CONFIG_DIR == "~" or CONFIG_DIR.startswith("~/"):
+    CONFIG_DIR = os.path.expanduser("~") + CONFIG_DIR[1:]
+CONFIG_DIR = (os.path.normpath(CONFIG_DIR) if os.path.isabs(CONFIG_DIR)
+              else os.path.expanduser("~/.claude"))
+
+TX_ROOT = os.environ.get("CLAUDE_PROJECTS_ROOT") or os.path.join(CONFIG_DIR, "projects")
 
 # The runner vocabulary is IMPORTED, not copied. It used to be a second copy with a
 # comment claiming it was "kept in sync with mine_verification.py, deliberately" —

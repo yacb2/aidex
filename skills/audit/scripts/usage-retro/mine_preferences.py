@@ -51,7 +51,7 @@ nobody re-derives it: dropping the DELIVERABLE clause raises recall and drowns
 the result in domain chatter.
 
 ROOTS ARE PARAMETERS
-`~/.claude/projects` is where Claude Code puts transcripts for everyone, so
+`<config dir>/projects` (`${CLAUDE_CONFIG_DIR:-~/.claude}`) is where Claude Code puts transcripts, so
 defaulting the transcripts root is sound (this is the same reasoning mine_items.py
 applies, and unlike that miner this one never reads a workspace tree, so there is
 no projects root to require). It stays a flag so the tests can run against a
@@ -64,7 +64,16 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import prompt_kinds
 from mine_items import short_project_dir
 
-TX_ROOT = os.environ.get("CLAUDE_PROJECTS_ROOT") or os.path.expanduser("~/.claude/projects")
+CONFIG_DIR = (os.environ.get("CLAUDE_CONFIG_DIR") or "").strip(" \t\n\r\v\f")
+# The session's config dir, as the hooks resolve it: trimmed of surrounding whitespace; a
+# leading ~ or ~/ is the home directory (never ~user); anything still relative means
+# ~/.claude, never a tree under the cwd.
+if CONFIG_DIR == "~" or CONFIG_DIR.startswith("~/"):
+    CONFIG_DIR = os.path.expanduser("~") + CONFIG_DIR[1:]
+CONFIG_DIR = (os.path.normpath(CONFIG_DIR) if os.path.isabs(CONFIG_DIR)
+              else os.path.expanduser("~/.claude"))
+
+TX_ROOT = os.environ.get("CLAUDE_PROJECTS_ROOT") or os.path.join(CONFIG_DIR, "projects")
 
 # ---------------------------------------------------------------------------
 # The window (BL-164 / decision D5)

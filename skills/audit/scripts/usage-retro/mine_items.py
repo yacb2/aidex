@@ -17,7 +17,7 @@ edits / sessions / user turns / test runs", and it cannot answer wall-clock, thi
 time, or any work done outside a tracked item.
 
 ROOTS ARE PARAMETERS, AND THE PROJECTS ROOT HAS NO DEFAULT
-`~/.claude/projects` is where Claude Code puts transcripts for everyone, so defaulting
+`<config dir>/projects` (`${CLAUDE_CONFIG_DIR:-~/.claude}`) is where Claude Code puts transcripts, so defaulting
 it is sound. The workspace root is per-machine — there is no layout to guess — so it is
 **required**, via `--projects-root` or `AIDEX_PROJECTS_ROOT`. A guessed default would
 silently mine the wrong tree, or nothing, and report either as a result.
@@ -32,8 +32,17 @@ from collections import defaultdict
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import prompt_kinds
 
+CONFIG_DIR = (os.environ.get("CLAUDE_CONFIG_DIR") or "").strip(" \t\n\r\v\f")
+# The session's config dir, as the hooks resolve it: trimmed of surrounding whitespace; a
+# leading ~ or ~/ is the home directory (never ~user); anything still relative means
+# ~/.claude, never a tree under the cwd.
+if CONFIG_DIR == "~" or CONFIG_DIR.startswith("~/"):
+    CONFIG_DIR = os.path.expanduser("~") + CONFIG_DIR[1:]
+CONFIG_DIR = (os.path.normpath(CONFIG_DIR) if os.path.isabs(CONFIG_DIR)
+              else os.path.expanduser("~/.claude"))
+
 PROJ_ROOT = os.environ.get("AIDEX_PROJECTS_ROOT") or ""
-TX_ROOT   = os.environ.get("CLAUDE_PROJECTS_ROOT") or os.path.expanduser("~/.claude/projects")
+TX_ROOT   = os.environ.get("CLAUDE_PROJECTS_ROOT") or os.path.join(CONFIG_DIR, "projects")
 
 
 def add_root_args(ap):

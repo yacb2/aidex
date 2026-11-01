@@ -55,7 +55,7 @@ printf 'Approve this command for this project? [y/N] '
 read -r ANS </dev/tty || ANS=""
 [[ "$ANS" == y || "$ANS" == Y ]] || { echo "not approved"; exit 1; }
 
-ALLOW="$HOME/.claude/aidex/ready-when-allow.txt"
+ALLOW="$HOME/.claude/aidex/ready-when-allow.txt"  # fixed, never CLAUDE_CONFIG_DIR: an env value must not move a trust anchor (BL-893)
 case "$(python3 -I -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$ALLOW")" in
   "$REAL_ROOT"/*) die "the allowlist $ALLOW is inside the project; refusing" ;;
 esac

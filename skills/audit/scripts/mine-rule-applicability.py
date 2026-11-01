@@ -2,7 +2,7 @@
 """mine-rule-applicability.py — Stage A of the `rule-ablation` methodology.
 
 Answers one question per always-on rule: **how often does the situation this rule
-governs actually arise?** Read-only over ~/.claude/projects.
+governs actually arise?** Read-only over <config dir>/projects.
 
 What this does NOT measure
 --------------------------
@@ -30,8 +30,17 @@ arguable.
 """
 import argparse, collections, datetime, glob, json, os, sys
 
-PROJECTS = os.path.expanduser("~/.claude/projects")
-RULES_DIR = os.path.expanduser("~/.claude/rules")
+CONFIG_DIR = (os.environ.get("CLAUDE_CONFIG_DIR") or "").strip(" \t\n\r\v\f")
+# The session's config dir, as the hooks resolve it: trimmed of surrounding whitespace; a
+# leading ~ or ~/ is the home directory (never ~user); anything still relative means
+# ~/.claude, never a tree under the cwd.
+if CONFIG_DIR == "~" or CONFIG_DIR.startswith("~/"):
+    CONFIG_DIR = os.path.expanduser("~") + CONFIG_DIR[1:]
+CONFIG_DIR = (os.path.normpath(CONFIG_DIR) if os.path.isabs(CONFIG_DIR)
+              else os.path.expanduser("~/.claude"))
+
+PROJECTS = os.path.join(CONFIG_DIR, "projects")
+RULES_DIR = os.path.join(CONFIG_DIR, "rules")
 
 # --- signatures ------------------------------------------------------------
 # Each entry: rule-name -> dict(kind=..., ...). `prohibition` marks rules whose

@@ -13,7 +13,7 @@
 #   4. a shipped hook wired twice — once by the plugin, once by hand in settings.json
 #
 # Usage:
-#   doctor.sh                       # against ~/.claude and the plugin this script lives in
+#   doctor.sh                       # against ${CLAUDE_CONFIG_DIR:-~/.claude} and the plugin this script lives in
 #   doctor.sh --claude-dir <dir>    # ...against another Claude Code home
 #   doctor.sh --plugin-root <dir>   # ...against another plugin checkout
 #
@@ -23,7 +23,14 @@ set -uo pipefail   # not -e: a failing check must not abort the report
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
-CLAUDE_DIR="$HOME/.claude"
+# The session's config dir, as the hooks resolve it (hooks/README.md "Config dir"):
+# trimmed of surrounding ASCII whitespace, a leading ~ or ~/ is the home directory
+# (never ~user), anything still relative means ~/.claude. --claude-dir overrides it.
+CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+WS=$(printf ' \t\n\r\v\f.'); WS=${WS%.}
+CLAUDE_DIR="${CLAUDE_DIR#"${CLAUDE_DIR%%[!$WS]*}"}"; CLAUDE_DIR="${CLAUDE_DIR%"${CLAUDE_DIR##*[!$WS]}"}"
+case "$CLAUDE_DIR" in "~"|"~/"*) CLAUDE_DIR="$HOME${CLAUDE_DIR#\~}" ;; esac
+case "$CLAUDE_DIR" in /*) ;; *) CLAUDE_DIR="$HOME/.claude" ;; esac
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd -P)"
 
 while [[ $# -gt 0 ]]; do

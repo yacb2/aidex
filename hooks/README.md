@@ -11,6 +11,14 @@ resolves to them through a symlink (`/tmp/x` and `/private/tmp/x` alike), and lo
 dir's `aidex/memory-gate.jsonl`; its sunset review counts every config dir's `aidex/memory-gate.jsonl`
 (`~/.claude` and `~/.claude-work` alike).
 
+The skill scripts resolve the same way (BL-893): `doctor.sh`, `check-skill-overrides.py`, the
+testing census, the audit miners and usage-retro default to the config dir, and the backlog id
+scripts scan the project memory under both it and `~/.claude`. The post-commit harvester's
+fallback globs `~/.claude*/plugins/cache`, since a git hook has no config dir to read.
+Three sites keep `~/.claude` on purpose, because an env value must not move a trust anchor:
+`ready-when-allow.txt` (`skills/backlog/scripts/sweep-eligible.py`, `approve-ready-when.sh`) and
+`census-trust` (`skills/reference/scripts/docs-census.py`, which takes `AIDEX_CENSUS_TRUST`).
+
 ## context-depth-nudge.sh — context-depth band notice (UserPromptSubmit)
 
 > **Live for every plugin user.** `hooks.json` wires this script under
@@ -66,7 +74,7 @@ reads as 40% and colours green under a percentage scheme.
 > `transcript_path` with the same `max`-over-iterations rule this hook uses, and
 > fall back to `context_window` only when no transcript is available.
 
-**Tests:** `python3 test-context-depth-nudge.py` — 22 checks, self-contained
+**Tests:** `python3 test-context-depth-nudge.py` — 46 checks, self-contained
 (synthetic transcripts, no dependency on real ones). Covers exact band boundaries,
 the max-over-iterations rule, post-compaction depth drops, once-per-band gating
 with escalation, six fail-open paths, and the non-blocking output shape.
@@ -145,7 +153,7 @@ keyed as itself. No `session_id`: allow, no state. State:
 `${CLAUDE_CONFIG_DIR:-~/.claude}/aidex/first-test-write/<session>.tsv`, checked and appended under `flock`, so
 parallel Writes from one context get exactly one deny. Fail-open on any error.
 
-**Tests:** `python3 test-first-test-write-gate.py` — 109 checks, including the pattern
+**Tests:** `python3 test-first-test-write-gate.py` — 128 checks, including the pattern
 table and the Bash command table (with the eval's verbatim commands, in
 `test-first-test-write-gate.eval-commands.json`) run through census.py too.
 
@@ -202,7 +210,7 @@ hook decides as `systemMessage`; it is never an answer of its own. Printing it
 separately and falling through wrote two objects on stdout, which parse as neither —
 and the verdict in the second one was lost.
 
-**Tests:** `python3 test-artifact-open-once.py` — 99 checks, self-contained. The refusal
+**Tests:** `python3 test-artifact-open-once.py` — 114 checks, self-contained. The refusal
 cells are the cheap half; the allow cells are the point (consultation loop, a different
 page, a URL, a non-`open` command, a stale lock, and five fail-open paths). The
 producing half of the lock is `skills/artifact/tests/test-build-lock.sh`.

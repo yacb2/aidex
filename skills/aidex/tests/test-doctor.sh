@@ -299,6 +299,27 @@ OUT="$(run)"; RC=$?
 [[ $RC -eq 0 ]] && ok "F7 a claude-dir without skills/ is a PASS, not a usage error" \
   || bad "F7 no skills dir rc=$RC: $OUT"
 
+# ── BL-893: without --claude-dir the default is the session's config dir ──────
+# HOME holds an empty .claude, so a doctor that ignores CLAUDE_CONFIG_DIR reports a
+# clean store and never sees the ghost in the work profile.
+make_fixture
+mkskill "$C/skills/aidex-ghost"
+H="$TMP/home"; rm -rf "$H"; mkdir -p "$H/.claude"
+OUT="$(HOME="$H" CLAUDE_CONFIG_DIR="$C" bash "$DOCTOR" --plugin-root "$P" 2>&1)"
+grep -q "FAIL: $C/skills/aidex-ghost shadows" <<<"$OUT" \
+  && ok "BL-893 CLAUDE_CONFIG_DIR is the default claude dir" || bad "BL-893 env default: $OUT"
+OUT="$(HOME="$H" CLAUDE_CONFIG_DIR=" ~/.no-such-profile" bash "$DOCTOR" --claude-dir "$C" --plugin-root "$P" 2>&1)"
+grep -q "FAIL: $C/skills/aidex-ghost shadows" <<<"$OUT" \
+  && ok "BL-893 --claude-dir still wins over CLAUDE_CONFIG_DIR" || bad "BL-893 override: $OUT"
+mkdir -p "$H/.claude-work/skills/aidex-ghost2"
+printf -- '---\nname: aidex-ghost2\n---\nbody\n' > "$H/.claude-work/skills/aidex-ghost2/SKILL.md"
+OUT="$(HOME="$H" CLAUDE_CONFIG_DIR=" ~/.claude-work " bash "$DOCTOR" --plugin-root "$P" 2>&1)"
+grep -q "FAIL: $H/.claude-work/skills/aidex-ghost2 shadows" <<<"$OUT" \
+  && ok "BL-893 a ~/ value is trimmed and expanded" || bad "BL-893 tilde: $OUT"
+OUT="$(HOME="$H" CLAUDE_CONFIG_DIR="relative/dir" bash "$DOCTOR" --plugin-root "$P" 2>&1)"; RC=$?
+[[ $RC -eq 0 ]] && grep -q "no stray skill copies in $H/.claude/skills" <<<"$OUT" \
+  && ok "BL-893 a relative value falls back to ~/.claude" || bad "BL-893 relative rc=$RC: $OUT"
+
 # ── F1: the shipped tree itself ─────────────────────────────────────────────
 # The one cell that reads outside the fixtures, on purpose: --claude-dir is a fresh
 # empty directory, so only the PLUGIN half of the report can speak. Ten tracked

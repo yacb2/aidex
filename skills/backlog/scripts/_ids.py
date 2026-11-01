@@ -61,13 +61,25 @@ def find_root(start: Path) -> Path:
     return start.resolve()
 
 
-def memory_dir(root: Path):
+def memory_dirs(root: Path):
+    """The project's memory dir under the session's config dir and under ~/.claude
+    (both, as hooks/memory-save-gate.sh guards both), each at its first matching slug."""
+    cfg = (os.environ.get("CLAUDE_CONFIG_DIR") or "").strip(" \t\n\r\v\f")
+    # Trimmed of surrounding whitespace; a leading ~ or ~/ is the home directory (never
+    # ~user, as in the shell hooks); anything still relative means the default, never a
+    # tree under the cwd.
+    if cfg == "~" or cfg.startswith("~/"):
+        cfg = os.path.expanduser("~") + cfg[1:]
+    cfg = os.path.normpath(cfg) if os.path.isabs(cfg) else os.path.expanduser("~/.claude")
     base = "-" + str(root).lstrip("/").replace("/", "-")
-    for slug in (base, base.replace("_", "-")):
-        d = Path.home() / ".claude" / "projects" / slug / "memory"
-        if d.is_dir():
-            return d
-    return None
+    found = []
+    for c in dict.fromkeys((Path(cfg), Path.home() / ".claude")):
+        for slug in (base, base.replace("_", "-")):
+            d = c / "projects" / slug / "memory"
+            if d.is_dir():
+                found.append(d)
+                break
+    return found
 
 
 def scan_targets(root: Path, ctx: Path):
@@ -76,7 +88,6 @@ def scan_targets(root: Path, ctx: Path):
              and (p.suffix in SCAN_SUFFIXES or p.name in SCAN_NAMES)]
     if (root / "CLAUDE.md").is_file():
         files.append(root / "CLAUDE.md")
-    md = memory_dir(root)
-    if md:
+    for md in memory_dirs(root):
         files.extend(md.rglob("*.md"))
     return files

@@ -11,7 +11,7 @@ someone working on the file. A markdown link is an invitation, not a load. A
 reference that is written, shipped, and never read is documentation debt that
 looks like coverage.
 
-Read-only over ~/.claude/projects.
+Read-only over <config dir>/projects.
 
 Usage:
   sweep-reference-reads.py [--skills-dir DIR] [--projects-root DIR] [--min-fired N] [--json OUT]
@@ -21,7 +21,16 @@ import argparse, collections, glob, json, os, re, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _reference_reads import bare_skill, pulls_into_context, tool_uses
 
-PROJECTS = os.path.expanduser("~/.claude/projects")
+CONFIG_DIR = (os.environ.get("CLAUDE_CONFIG_DIR") or "").strip(" \t\n\r\v\f")
+# The session's config dir, as the hooks resolve it: trimmed of surrounding whitespace; a
+# leading ~ or ~/ is the home directory (never ~user); anything still relative means
+# ~/.claude, never a tree under the cwd.
+if CONFIG_DIR == "~" or CONFIG_DIR.startswith("~/"):
+    CONFIG_DIR = os.path.expanduser("~") + CONFIG_DIR[1:]
+CONFIG_DIR = (os.path.normpath(CONFIG_DIR) if os.path.isabs(CONFIG_DIR)
+              else os.path.expanduser("~/.claude"))
+
+PROJECTS = os.path.join(CONFIG_DIR, "projects")
 # The skills this script ships in: plugin skills no longer live under ~/.claude/skills.
 DEFAULT_SKILLS = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 

@@ -16,7 +16,7 @@ main session loaded does not count for a write the subagent makes. Signals:
   - the skill's isMeta "Base directory for this skill: .../skills/testing" text,
   - a Read of a file under skills/testing/,
   - the subagent's type is an agent whose frontmatter `skills:` names testing
-    (read from --agents-dir, default ~/.claude/agents; --preloaded-agents overrides).
+    (read from --agents-dir, default <config dir>/agents; --preloaded-agents overrides).
 A test file is what the first-test-write hook gates: test_*.py, *_test.py,
 *.{spec,test}.{ts,tsx,js,jsx,mjs,cjs}, test-*.sh, or *.sh under a tests/ dir (not conftest.py,
 fixtures, helpers). The hook's deny is NOT a signal: its reason only points to the
@@ -27,7 +27,8 @@ detector the hook imports); a write whose tool_result is an error (denied) is no
 write — except a Bash result "Exit code N", which ran — and a write event replayed into
 a resumed or forked transcript (same uuid) counts once.
 
-Transcripts are ~/.claude/projects/<project>/<session>.jsonl, with subagents at
+Transcripts are <config dir>/projects/<project>/<session>.jsonl (the config dir is
+${CLAUDE_CONFIG_DIR:-~/.claude}), with subagents at
 <project>/<session>/subagents/*.jsonl, Workflow delegates one level down in
 subagents/workflows/wf_*/ (+ .meta.json carrying agentType). Events are
 windowed by their own timestamp. Experiment copies are skipped (project dirs
@@ -381,9 +382,19 @@ def pct(a, b):
     return f"{a}/{b} ({100 * a // b if b else 0}%)"
 
 
+def config_dir():
+    """The session's config dir: trimmed of surrounding whitespace; a leading ~ or ~/ is
+    the home directory (never ~user, as in the shell hooks); anything still relative
+    means ~/.claude, never a tree under the cwd."""
+    cfg = (os.environ.get("CLAUDE_CONFIG_DIR") or "").strip(" \t\n\r\v\f")
+    if cfg == "~" or cfg.startswith("~/"):
+        cfg = os.path.expanduser("~") + cfg[1:]
+    return os.path.normpath(cfg) if os.path.isabs(cfg) else os.path.expanduser("~/.claude")
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--transcripts", default=os.path.expanduser("~/.claude/projects"))
+    ap.add_argument("--transcripts", default=os.path.join(config_dir(), "projects"))
     ap.add_argument("--since", required=True)
     ap.add_argument("--until", default=datetime.date.today().isoformat())
     ap.add_argument("--agents-dir", action="append")
@@ -393,7 +404,7 @@ def main():
     ap.add_argument("--repos", nargs="*", default=[])
     a = ap.parse_args()
     preloaded = ({x.strip() for x in a.preloaded_agents.split(",") if x.strip()}
-                 or preloaded_agents(a.agents_dir or ["~/.claude/agents"]))
+                 or preloaded_agents(a.agents_dir or [os.path.join(config_dir(), "agents")]))
 
     rows = list(sessions(a.transcripts, a.since, a.until, preloaded, a.include_all))
     if not rows and glob.glob(os.path.join(a.transcripts, "*", "*.jsonl")):

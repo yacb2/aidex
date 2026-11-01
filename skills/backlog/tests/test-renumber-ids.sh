@@ -111,12 +111,23 @@ printf 'mem BL-20260705\n' > "$S/home/.claude/projects/$SLUG/memory/m.md"
 printf 'tmp BL-20260705\n' > .context/_tmp/skipped.md
 printf '{"ref": "BL-20260705"}\n' > .context/refs.json
 printf 'bin BL-20260705\n' > .context/refs.bin
-HOME="$S/home" python3 "$REN" --root "$S" --apply > "$TMP/c05.txt" 2>&1
+HOME="$S/home" CLAUDE_CONFIG_DIR="$S/home/.no-such-profile" python3 "$REN" --root "$S" --apply > "$TMP/c05.txt" 2>&1
 check "CLAUDE.md citation rewritten"       '! grep -q "BL-20260705" CLAUDE.md'
 check "memory-dir citation rewritten"      '! grep -q "BL-20260705" "$S/home/.claude/projects/$SLUG/memory/m.md"'
 check ".json citation rewritten"           '! grep -q "BL-20260705" .context/refs.json'
 check ".context/_tmp file left alone"      'grep -q "BL-20260705" .context/_tmp/skipped.md'
 check "unlisted suffix left alone"         'grep -q "BL-20260705" .context/refs.bin'
+
+echo "== scan targets: the memory dir under CLAUDE_CONFIG_DIR is rewritten too (BL-893) =="
+S="$TMP/c06"; rm -rf "$S"; mkdir -p "$S/.context/backlog" "$S/home"; cd "$S"
+mk . 2026-06-02-legacy.md BL-20260705 "Legacy"
+SLUG="-$(cd "$S" && pwd -P | sed 's#^/##; s#/#-#g')"
+mkdir -p "$S/home/.claude-work/projects/$SLUG/memory" "$S/home/.claude/projects/$SLUG/memory"
+printf 'mem BL-20260705\n' > "$S/home/.claude-work/projects/$SLUG/memory/m.md"
+printf 'mem BL-20260705\n' > "$S/home/.claude/projects/$SLUG/memory/m.md"
+HOME="$S/home" CLAUDE_CONFIG_DIR="$S/home/.claude-work" python3 "$REN" --root "$S" --apply > "$TMP/c06.txt" 2>&1
+check "config-dir memory citation rewritten"   '! grep -q "BL-20260705" "$S/home/.claude-work/projects/$SLUG/memory/m.md"'
+check "~/.claude memory still rewritten"       '! grep -q "BL-20260705" "$S/home/.claude/projects/$SLUG/memory/m.md"'
 
 echo "== linked worktree: the project is the main worktree, not the worktree (find_project_root's hop) =="
 # outside $TMP: this test keeps a .context/ at $TMP, which the upward walk would find first

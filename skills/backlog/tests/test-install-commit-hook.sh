@@ -24,4 +24,15 @@ R2="$TMP/repo2"; git init -q "$R2"; ( cd "$R2" && G commit -q --allow-empty -m i
 [[ $RC -eq 0 && -x "$R2/.git/hooks/post-commit" ]] \
   && ok "linked worktree: the hook is written to the common hooks directory" || bad "worktree: rc=$RC $(ls "$R2/.git/hooks" | tr '\n' ' ')"
 
+# BL-893: when the baked path is gone, the fallback finds the cache of either profile
+# (~/.claude-work as well as ~/.claude), from a plain terminal with no CLAUDE_CONFIG_DIR.
+R3="$TMP/repo3"; git init -q "$R3"; ( cd "$R3" && G commit -q --allow-empty -m init )
+GONE="$TMP/gone/scripts"; mkdir -p "$GONE"; cp "$SCRIPTS/install-commit-hook.sh" "$GONE/"
+( cd "$R3" && bash "$GONE/install-commit-hook.sh" >/dev/null 2>&1 ); rm -rf "$TMP/gone"
+H="$TMP/home"; C="$H/.claude-work/plugins/cache/m/aidex/9.9.9/skills/backlog/scripts"; mkdir -p "$C"
+printf '#!/bin/sh\ntouch "%s"\n' "$TMP/harvested" > "$C/harvest-commit.sh"; chmod +x "$C/harvest-commit.sh"
+( cd "$R3" && HOME="$H" G commit -q --allow-empty -m two )
+[[ -e "$TMP/harvested" ]] && ok "fallback: a ~/.claude-work plugin cache is found" \
+  || bad "fallback: the work profile's cache was not found"
+
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — install-commit-hook: $PASS cells"; exit 0; }; echo "$FAIL failure(s)"; exit 1

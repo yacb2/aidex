@@ -148,6 +148,15 @@ OUT="$(python3 "$CHECK" --settings "$TMP/settings.json" --skills-root "$TMP/skil
 [[ $RC -eq 1 ]] && ok "8d an unreadable projects root degrades to the default store" \
   || bad "8d rc=$RC: $OUT"
 
+# 9 · BL-893: with no --settings / --skills-root the defaults are the session's config dir
+mkdir -p "$TMP/home/.claude" "$TMP/cfg"
+mkskill "$TMP/cfg/skills/work-only"
+printf '%s\n' '{"skillOverrides": {"work-only": "off"}}' > "$TMP/cfg/settings.json"
+OUT="$(HOME="$TMP/home" CLAUDE_CONFIG_DIR="$TMP/cfg" python3 "$CHECK" \
+        --plugin-cache "$TMP/cache" --projects-root "$TMP/projects" 2>&1)"; RC=$?
+[[ $RC -eq 0 ]] && grep -q 'checked 1 skillOverrides key(s)' <<<"$OUT" \
+  && ok "9 settings and skills default to CLAUDE_CONFIG_DIR" || bad "9 rc=$RC: $OUT"
+
 echo
 [[ $FAIL -eq 0 ]] && { echo "OK — skill-overrides check: $PASS cells"; exit 0; }
 echo "$FAIL failure(s), $PASS ok"; exit 1

@@ -77,7 +77,7 @@ def approved(cmd):
     """A cmd: front-matter value is arbitrary shell, and a cloned repo's backlog is not trusted:
     it runs only when the owner put sha256(root \\n cmd) into the local, untracked allowlist
     with approve-ready-when.sh (which needs a terminal, so an agent cannot)."""
-    path = os.path.expanduser('~/.claude/aidex/ready-when-allow.txt')  # fixed: a repo-shipped env cannot move it
+    path = os.path.expanduser('~/.claude/aidex/ready-when-allow.txt')  # fixed, never CLAUDE_CONFIG_DIR: a repo-shipped env cannot move it (BL-893)
     root = os.path.realpath(ROOT)
     real = os.path.realpath(path)
     if real == root or real.startswith(root + os.sep):  # an allowlist inside the project is the project's, not the owner's

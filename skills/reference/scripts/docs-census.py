@@ -57,7 +57,8 @@ import profiles  # noqa: E402  the one profile resolver
 FM_DELIM = re.compile(r"^---\s*$")
 
 # Approvals live under $HOME, never in the project: a repo that ships a profile
-# must not be able to ship its own approval for it.
+# must not be able to ship its own approval for it. Fixed at ~/.claude, never
+# CLAUDE_CONFIG_DIR: a trust anchor an env value could move is none (BL-893).
 TRUST_FILE = Path(
     os.environ.get("AIDEX_CENSUS_TRUST")
     or (Path.home() / ".claude" / "aidex" / "census-trust")

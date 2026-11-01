@@ -2,7 +2,7 @@
 """
 extract.py (v2) — distill Claude Code transcripts into an AIDEX-usage dataset.
 
-Read-only over ~/.claude/projects. For every REAL user prompt in the window it emits
+Read-only over <config dir>/projects. For every REAL user prompt in the window it emits
 one record:
   { session, project, bucket, ts, is_slash, prompt, prior_assistant, prior_skills, skills_fired, agents_fired }
 
@@ -38,7 +38,16 @@ except ImportError as exc:      # refuse rather than silently flat-truncate
 # constant, for one reason that outranks convenience: a fixture corpus cannot be
 # built against a hardcoded home directory, so the tests that pin this file's
 # provenance rules exist only because the root can be pointed elsewhere.
-TX_ROOT = os.environ.get("CLAUDE_PROJECTS_ROOT") or os.path.expanduser("~/.claude/projects")
+CONFIG_DIR = (os.environ.get("CLAUDE_CONFIG_DIR") or "").strip(" \t\n\r\v\f")
+# The session's config dir, as the hooks resolve it: trimmed of surrounding whitespace; a
+# leading ~ or ~/ is the home directory (never ~user); anything still relative means
+# ~/.claude, never a tree under the cwd.
+if CONFIG_DIR == "~" or CONFIG_DIR.startswith("~/"):
+    CONFIG_DIR = os.path.expanduser("~") + CONFIG_DIR[1:]
+CONFIG_DIR = (os.path.normpath(CONFIG_DIR) if os.path.isabs(CONFIG_DIR)
+              else os.path.expanduser("~/.claude"))
+
+TX_ROOT = os.environ.get("CLAUDE_PROJECTS_ROOT") or os.path.join(CONFIG_DIR, "projects")
 
 # The prompt budget, split head+tail instead of head-only (BL-164, decision D5).
 # Same storage cost as the flat `txt[:2000]` this replaces; what changes is WHICH

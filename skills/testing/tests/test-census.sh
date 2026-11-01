@@ -233,6 +233,16 @@ eq "wfsub: the nested .meta.json agentType preloads a Workflow delegate" \
 run --tsv "$TMP/o.tsv" --preloaded-agents impl-opus >/dev/null
 eq "sub: --preloaded-agents overrides the definitions" "$(col sub core_before_first_test_write "$TMP/o.tsv")" y
 
+echo "== default roots follow CLAUDE_CONFIG_DIR (BL-893) =="
+mkdir -p "$TMP/cfg" "$TMP/home/.claude"
+cp -R "$T" "$TMP/cfg/projects"; cp -R "$T-agents-pre" "$TMP/cfg/agents"
+HOME="$TMP/home" CLAUDE_CONFIG_DIR="$TMP/cfg" \
+  python3 "$CENSUS" --since 2026-09-01 --until 2026-09-30 --tsv "$TMP/e.tsv" >/dev/null 2>&1
+eq "default transcripts: <config dir>/projects" \
+   "$(awk -F'\t' 'NR>1{print $2}' "$TMP/e.tsv" 2>/dev/null | sort | tr '\n' ' ')" \
+   "$(awk -F'\t' 'NR>1{print $2}' "$TMP/s.tsv" | sort | tr '\n' ' ')"
+eq "default agents: <config dir>/agents" "$(col sub core_before_first_test_write "$TMP/e.tsv" 2>/dev/null)" y
+
 echo "== fix commits =="
 row="$(printf '%s\n' "$out" | awk -v r="$R" '$1==r{print $2, $3, $4}')"
 eq "fix / with test / with RED, in window only" "$row" "3 2 1"
