@@ -169,7 +169,7 @@ print(" ".join(sorted(f["rule"] for f in d["violations"] + d["warnings"] if f["r
 
 p2() {
   echo "p2: define-item.sh tracker flags (raise, ticket, parent, branch, pr, review, checked)"
-  local N="$TMP/p2n" P="$TMP/p2p" I="$TMP/p2i" a b c f rc before
+  local N="$TMP/p2n" P="$TMP/p2p" I="$TMP/p2i" D a b c f rc before idx
 
   # N: no profile. P: an active profile with ticket_pattern. I: an inert copy of the template.
   mkproj "$N"; mkproj "$P"; mkproj "$I"
@@ -332,6 +332,9 @@ p2() {
   def "$N" "$f" --checked 2026-10-29; rc=$?
   [[ $rc -eq 0 && "$(fm "$f" checked)" == "2026-10-29" && $(grep -c '^checked:' "$f") -eq 1 ]] \
     && ok "--checked alone rewrites checked" || bad "--checked alone: rc=$rc '$(fm "$f" checked)' $(cat "$TMP/def.err")"
+  def "$N" "$f" --checked "$TODAY"; rc=$?
+  [[ $rc -eq 0 && "$(fm "$f" checked)" == "$TODAY" ]] \
+    && ok "--checked today is accepted (the equal case of not-in-the-future)" || bad "--checked today: rc=$rc '$(fm "$f" checked)' $(cat "$TMP/def.err")"
   def "$N" "$f" --pr app#7@merged
   [[ "$(fm "$f" checked)" == "$TODAY" ]] && ok "--pr without --checked still stamps today" || bad "default checked: '$(fm "$f" checked)'"
   cp "$f" "$TMP/p2.before"
@@ -368,6 +371,50 @@ p2() {
   def "$N" "$f" --escalated-to ""; rc=$?
   [[ $rc -eq 0 && "$(fm "$f" escalated_to)" == '""' && $(grep -c '^escalated_to:' "$f") -eq 1 ]] \
     && ok "--escalated-to \"\" clears it" || bad "--escalated-to '': rc=$rc '$(fm "$f" escalated_to)'"
+  awk '!/^escalated_to:/' "$f" > "$f.t" && mv "$f.t" "$f"
+  def "$N" "$f" --escalated-to "plan/2026-11-01-y"
+  [[ "$(fm "$f" escalated_to)" == '"plan/2026-11-01-y"' && $(grep -c '^escalated_to:' "$f") -eq 1 ]] \
+    && ok "--escalated-to inserts the line on an item that predates it" || bad "insert escalated_to: '$(fm "$f" escalated_to)'"
+  def "$N" "$f" --escalated-to ""   # no dangling plan ref for the validator rows below
+
+  # With an active profile a blocked item that has a lane field stays in its lane with the
+  # blocked_by suffix; clearing it drops the suffix.
+  f="$(newitem "$P" "blocked lane item")"
+  def "$P" "$f" --pr app#1@open; def "$P" "$f" --blocked-by vendor
+  idx="$(reindex "$P")"
+  section "$idx" Tickets | grep >/dev/null 'blocked lane item.*· blocked_by: "vendor"' \
+    && ! { section "$idx" Blocked | grep >/dev/null 'blocked lane item'; } \
+    && ok "profiled: --blocked-by keeps a lane item in its lane with the suffix" || bad "profiled blocked: $(cat "$idx")"
+  def "$P" "$f" --blocked-by ""
+  idx="$(reindex "$P")"
+  section "$idx" Tickets | grep 'blocked lane item' | grep >/dev/null -v 'blocked_by' \
+    && ok "profiled: --blocked-by \"\" drops the suffix, the item stays in its lane" || bad "profiled cleared: $(cat "$idx")"
+
+  # --blocked-by / --escalated-to act on an ACTIVE item only: a _deferred/ item's blocked_by
+  # must stay populated and an archived item's close record is kept (own project D, so the
+  # validator rows below see only N and P).
+  D="$TMP/p2d"; mkproj "$D"
+  f="$(newitem "$D" "deferred guard item")"
+  ( cd "$D" && bash "$SKILL/scripts/defer-item.sh" defer "$(basename "$f")" --reason vendor --no-index >/dev/null 2>&1 )
+  f="$D/.context/backlog/_deferred/$(basename "$f")"; cp "$f" "$TMP/p2.before"
+  def "$D" "$f" --blocked-by ""; rc=$?
+  [[ $rc -eq 2 ]] && cmp -s "$f" "$TMP/p2.before" \
+    && ok "--blocked-by \"\" on a _deferred/ item exits 2, item byte-identical" || bad "deferred --blocked-by: rc=$rc $(grep '^blocked_by:' "$f")"
+  ( cd "$D" && bash "$DEF" ".context/backlog/_deferred/$(basename "$f")" --blocked-by x --no-index >/dev/null 2>&1 ); rc=$?
+  [[ $rc -eq 2 ]] && cmp -s "$f" "$TMP/p2.before" \
+    && ok "a relative _deferred/ path is refused too" || bad "relative deferred --blocked-by: rc=$rc"
+  def "$D" "$f" --estimate S; rc=$?
+  [[ $rc -eq 0 && "$(fm "$f" estimate)" == "S" ]] && ok "a triage flag on a _deferred/ item still writes" || bad "deferred --estimate: rc=$rc $(cat "$TMP/def.err")"
+  f="$(newitem "$D" "archived guard item")"
+  ( cd "$D" && bash "$SKILL/scripts/close-item.sh" "$(basename "$f")" --escalated-to plan/x --no-index >/dev/null 2>&1 )
+  f="$D/.context/backlog/_archive/$(basename "$f")"; cp "$f" "$TMP/p2.before"
+  def "$D" "$f" --escalated-to ""; rc=$?
+  [[ $rc -eq 2 ]] && cmp -s "$f" "$TMP/p2.before" \
+    && ok "--escalated-to \"\" on an _archive/ item exits 2, item byte-identical" || bad "archived --escalated-to: rc=$rc $(grep '^escalated_to:' "$f")"
+  # an active item of another project is still active
+  f="$(newitem "$P" "cross project blocked")"
+  def "$D" "$f" --blocked-by vendor; rc=$?
+  [[ $rc -eq 0 && "$(fm "$f" blocked_by)" == '"vendor"' ]] && ok "--blocked-by on another project's active item still writes" || bad "cross-project --blocked-by: rc=$rc $(cat "$TMP/def.err")"
 
   # phase 1's validator accepts everything the writer stored.
   [[ -z "$(ctx_crossref "$N/.context")" ]] && ok "validate.py: no cross-ref finding in the no-profile project" || bad "validate N: $(ctx_crossref "$N/.context")"

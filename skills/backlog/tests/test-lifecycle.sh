@@ -471,6 +471,28 @@ bash "$SCRIPTS/close-item.sh" "$RO_ID" --no-index >/dev/null 2>&1
 RO_SUM="$(cksum < "$RO_ARCH")"
 RO_RC=0; bash "$SCRIPTS/close-item.sh" --reopen "$RO_ID" --status done --no-index >/dev/null 2>&1 || RO_RC=$?
 check "reopen refuses a closing flag beside it, archive untouched" '[[ $RO_RC -eq 2 && "$(cksum < "$RO_ARCH")" == "$RO_SUM" ]]'
+for RO_FLAG in "--commit abc1234" "--superseded-by plan/x" "--escalated-to plan/x" "--sweep"; do
+  RO_RC=0; bash "$SCRIPTS/close-item.sh" --reopen "$RO_ID" $RO_FLAG --no-index >/dev/null 2>&1 || RO_RC=$?
+  check "reopen refuses $RO_FLAG beside it, archive untouched" '[[ $RO_RC -eq 2 && "$(cksum < "$RO_ARCH")" == "$RO_SUM" ]]'
+done
+# an active file with the same name: refused, both files untouched
+cp "$RO_ARCH" "$RO"; printf 'planted\n' >> "$RO"; RO_PSUM="$(cksum < "$RO")"
+RO_RC=0; bash "$SCRIPTS/close-item.sh" --reopen "$RO_ID" --no-index >/dev/null 2>&1 || RO_RC=$?
+check "reopen refuses an active collision, both files untouched" '[[ $RO_RC -eq 2 && "$(cksum < "$RO_ARCH")" == "$RO_SUM" && "$(cksum < "$RO")" == "$RO_PSUM" ]]'
+rm -f "$RO"
+# an existing path outside _archive/ (active, then _deferred/) is refused with a true message
+RO2="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "reopen guard" --priority P2 --no-index 2>/dev/null)"
+RO2_SUM="$(cksum < "$RO2")"
+RO_RC=0; bash "$SCRIPTS/close-item.sh" --reopen "$RO2" --no-index >/dev/null 2>"$TMP/reopen.err" || RO_RC=$?
+check "reopen refuses an active item's absolute path (exit 2), item untouched" '[[ $RO_RC -eq 2 && "$(cksum < "$RO2")" == "$RO2_SUM" ]]'
+check "the refusal says the path is not in _archive/" 'grep >/dev/null "not an archived backlog item" "$TMP/reopen.err"'
+bash "$SCRIPTS/defer-item.sh" defer "$(basename "$RO2")" --reason vendor --no-index >/dev/null 2>&1
+RO2=".context/backlog/_deferred/$(basename "$RO2")"; RO2_SUM="$(cksum < "$RO2")"
+RO_RC=0; bash "$SCRIPTS/close-item.sh" --reopen "$PWD/$RO2" --no-index >/dev/null 2>&1 || RO_RC=$?
+check "reopen refuses a _deferred/ path (exit 2), item untouched" '[[ $RO_RC -eq 2 && "$(cksum < "$RO2")" == "$RO2_SUM" ]]'
+# a relative path to the archived file reopens it
+RO_RC=0; bash "$SCRIPTS/close-item.sh" --reopen "$RO_ARCH" --no-index >/dev/null 2>"$TMP/reopen.err" || RO_RC=$?
+check "reopen takes a relative _archive/ path" '[[ $RO_RC -eq 0 && -f "$RO" && ! -e "$RO_ARCH" ]]'
 cd "$TMP"
 
 echo

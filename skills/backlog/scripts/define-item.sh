@@ -123,6 +123,14 @@ PATTERN="" _abs="$(cd "$(dirname "$FILE")" && pwd -P)/$(basename "$FILE")"
 _prof="$(resolve_profile "${_abs%/backlog/*}" backlog)" && PATTERN="$(profile_field "$_prof" ticket_pattern)"
 # a whitespace-only pattern is no pattern; surrounding blanks are not part of one
 PATTERN="${PATTERN#"${PATTERN%%[![:space:]]*}"}"; PATTERN="${PATTERN%"${PATTERN##*[![:space:]]}"}"
+# blocked_by and escalated_to carry lifecycle invariants: a _deferred/ item's blocked_by is
+# defer-item.sh's and must stay populated, an archived item's escalated_to is its close
+# record. Active means directly under some project's backlog/ (the item may be another
+# project's, so the cwd's BACKLOG_DIR is not the test).
+if [[ $SET_BLOCKED -eq 1 || $SET_ESCALATED -eq 1 ]]; then
+  _dir="${_abs%/*}"
+  [[ "${_dir##*/}" == "backlog" ]] || die "--blocked-by and --escalated-to act on an active item only: $FILE (use defer-item.sh for a deferred one)"
+fi
 # norm_key <flag> <value>: the key upper-cased, an `issue/` prefix dropped; dies when refused.
 norm_key() {
   local key="${2#[Ii][Ss][Ss][Uu][Ee]/}" rc=0

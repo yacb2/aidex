@@ -33,6 +33,7 @@
 #
 # Exit: 0 closed; 2 refused (nothing mutated); 4 archived and index written, but the id guard
 # found a duplicate or nonconforming id (the path is still printed); 1 archived, index stale.
+# --reopen exits the same way, reading "reopened" for "archived".
 #
 # Resolves <BL-id> against active backlog items' front-matter `id:` field.
 
@@ -77,7 +78,11 @@ if [[ $REOPEN -eq 1 ]]; then
     || die "--reopen takes only --reason and --no-index"
   ARCH_DIR="$BACKLOG_DIR/_archive"
   FILE=""; [[ -d "$ARCH_DIR" ]] && FILE="$(resolve_backlog_target "$ARCH_DIR" "$TARGET")"
-  [[ -n "$FILE" && "$(dirname "$FILE")" == "$ARCH_DIR" ]] || die "no archived backlog item $TARGET in $ARCH_DIR"
+  [[ -n "$FILE" ]] || die "no archived backlog item $TARGET in $ARCH_DIR"
+  # a relative or symlinked path names the same file: compare physical directories
+  [[ "$(cd "$(dirname "$FILE")" && pwd -P)" == "$(cd "$ARCH_DIR" && pwd -P)" ]] \
+    || die "not an archived backlog item (not in $ARCH_DIR): $FILE"
+  FILE="$ARCH_DIR/$(basename "$FILE")"
   DEST="$BACKLOG_DIR/$(basename "$FILE")"
   [[ ! -e "$DEST" ]] || die "active collision: $DEST already exists"
   TODAY="$(date +%Y-%m-%d)"
