@@ -153,5 +153,18 @@ bash "$SCRIPT" "$R" --apply >/dev/null
 [[ "$(cd "$R" && git status --porcelain)" == *"R  .context/references/00-profile.md -> .context/profiles/reference.md"* ]] || fail "reference: the move was not a git mv"
 [[ -f "$R/.context/references/topic/01-a.md" ]] || fail "reference: a reference module was touched"
 
+# 8b. its whitelist is the references/ folder, never a per-file line, so no old line matches:
+# the profiles whitelist must still be written or the moved profile lands ignored, silently.
+R="$TMP/reference-wl"; mkdir -p "$R/.context/references"; ( cd "$R" && git init -q && echo p > .context/references/00-profile.md
+  printf '.context/*\n!.context/references/\n!.context/references/**\n' > .gitignore
+  git add -f -A && git -c user.email=a@b -c user.name=n commit -qm init )
+out="$(bash "$SCRIPT" "$R")"
+[[ "$out" == *"would place: !.context/profiles/"* ]] || fail "reference-wl: dry-run did not announce the profiles whitelist: $out"
+bash "$SCRIPT" "$R" --apply >/dev/null
+( cd "$R" && git check-ignore --no-index -q .context/profiles/reference.md ) && fail "reference-wl: moved profile is ignored: $(cat "$R/.gitignore")"
+grep -qx '!\.context/references/\*\*' "$R/.gitignore" || fail "reference-wl: the references/ whitelist was touched"
+cp "$R/.gitignore" "$TMP/rwl.before"; ( cd "$R" && git add -A && git -c user.email=a@b -c user.name=n commit -qm moved )
+bash "$SCRIPT" "$R" --apply >/dev/null; cmp -s "$R/.gitignore" "$TMP/rwl.before" || fail "reference-wl: second --apply changed .gitignore"
+
 if [[ $failures -gt 0 ]]; then printf '%d failure(s)\n' "$failures"; exit 1; fi
 echo "OK — migrate-profiles: dry-run inert, apply git-mv + one whitelist rewrite, dirty refused, deploy gated, BP block untouched"

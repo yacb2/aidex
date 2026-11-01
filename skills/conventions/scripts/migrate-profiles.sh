@@ -57,12 +57,15 @@ fi
 
 # 2. Move the profiles. KEPT = old names that stay at the root (target exists, or the move
 # failed): step 3 must leave their whitelist lines alone or the kept file becomes ignored.
-KEPT=""
+KEPT="" IGNORED_NEW=0
 for pair in $PAIRS; do
   old=".context/${pair%%:*}" new=".context/profiles/${pair##*:}"
   [[ -f "$old" ]] || continue
   if [[ -e "$new" ]]; then echo "skip: $old (target $new already exists)"; KEPT="$KEPT ${pair%%:*}"; continue; fi
   if tracked "$old"; then how="git mv"; else how="mv (untracked or ignored: not in git history)"; fi
+  # a target the current .gitignore ignores owes the profiles whitelist even when no old line
+  # names it (references/00-profile.md is whitelisted through its folder, BL-865)
+  [[ "$in_git" -eq 1 ]] && git check-ignore --no-index -q -- "$new" && IGNORED_NEW=1
   if [[ "$APPLY" -eq 0 ]]; then echo "would move: $old -> $new [$how]"; continue; fi
   if mkdir -p .context/profiles && { if tracked "$old"; then git mv "$old" "$new"; else mv "$old" "$new"; fi; }; then :
   else echo "FAILED to move $old -> $new (left in place)" >&2; KEPT="$KEPT ${pair%%:*}"; continue; fi
@@ -75,8 +78,9 @@ fi
 
 # 3. Rewrite the whitelist lines for the profiles being migrated.
 alts=""; for pair in $PAIRS; do n="${pair%%:*}"; case " $KEPT " in *" $n "*) continue ;; esac; alts="$alts|${n//./\\.}"; done
-# a kept (skipped or failed) pair means profiles/ holds its file: the whitelist is still owed
-force=0; [[ -n "$KEPT" ]] && force=1
+# a kept (skipped or failed) pair means profiles/ holds its file, and an ignored target needs
+# it too: the whitelist is still owed when no old line is rewritten
+force=0; [[ -n "$KEPT" || "$IGNORED_NEW" -eq 1 ]] && force=1
 if [[ -f .gitignore && ( -n "$alts" || "$force" -eq 1 ) ]]; then
   [[ -n "$alts" ]] || alts="|__none__"   # nothing to rewrite: match no line
   OLD_RE="^!\\.context/(${alts#|})$"
@@ -110,7 +114,7 @@ if [[ -f .gitignore && ( -n "$alts" || "$force" -eq 1 ) ]]; then
     END {
       if (force && !done) {
         print "!.context/profiles/"; print "!.context/profiles/**"
-        print "placed: !.context/profiles/ + ** at the end of the file (a kept legacy file left nothing to rewrite)" > "/dev/stderr"
+        print "placed: !.context/profiles/ + ** at the end of the file (no old whitelist line to rewrite)" > "/dev/stderr"
       }
     }
   ' .gitignore > "$tmp" 2> "$tmp.log"
