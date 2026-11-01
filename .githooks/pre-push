@@ -3,14 +3,22 @@
 # version different from the remote's, and its v<version> tag. aidex is an installable
 # plugin; without a bump, installs have nothing to update to (2026-10-06: 276 commits
 # went out under 1.4.0). Enable once per clone: git config core.hooksPath .githooks
+# Every pushed ref (any branch or tag) also passes the public denylist on its new commit
+# messages (tests/test-public-denylist.sh); a missing private denylist refuses the push.
 # Bypass for a deliberate exception: git push --no-verify
 Z=0000000000000000000000000000000000000000
 version_at() { git show "$1:.claude-plugin/plugin.json" 2>/dev/null | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p'; }
 
+DENY="$(dirname "$0")/../tests/test-public-denylist.sh"
+
 while read -r _local_ref local_sha remote_ref remote_sha; do
-  [ "$remote_ref" = refs/heads/main ] || continue
   [ "$local_sha" = "$Z" ] && continue
   [ "$local_sha" = "$remote_sha" ] && continue
+  if [ "$remote_sha" = "$Z" ]; then range=("$local_sha" --not --remotes); else range=("$remote_sha..$local_sha"); fi
+  if ! bash "$DENY" --messages "${range[@]}"; then
+    echo "pre-push: refused — public denylist check failed for $remote_ref (see above)." >&2; exit 1
+  fi
+  [ "$remote_ref" = refs/heads/main ] || continue
   new="$(version_at "$local_sha")"
   if [ "$remote_sha" != "$Z" ]; then
     if ! git cat-file -e "$remote_sha" 2>/dev/null; then

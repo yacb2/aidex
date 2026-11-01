@@ -12,6 +12,9 @@ fail() { echo "FAIL: $*"; FAIL=$((FAIL + 1)); }
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/prepush.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
+# The hook also runs the public denylist gate, which refuses without a list; give it an
+# invented one so this test checks the version guard on any clone.
+printf 'zorblax\n' > "$TMP/deny.txt"; export AIDEX_PUBLIC_DENYLIST="$TMP/deny.txt"
 cd "$TMP" || exit 1
 git init -q -b main repo && cd repo || exit 1
 git config user.email t@t && git config user.name t
