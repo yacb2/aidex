@@ -1450,7 +1450,8 @@ try:
     r = run("decide", st_spec, "--id", "Q1", "--verdict", V, "--retitle", "Q2")
     check("BL-899: decide --retitle Q2 over a stale retitled-ids=\"Q1\" still "
           "refuses Q1's undeclared reword, spec untouched",
-          r.returncode == 1 and "Q1" in r.stdout + r.stderr
+          r.returncode == 1
+          and 'Q1: was "fences o yaml", now "fences o yaml anidado"' in r.stdout + r.stderr
           and "id reused for a different claim" in r.stdout + r.stderr
           and read(st_spec) == stale, r.stdout + r.stderr)
 

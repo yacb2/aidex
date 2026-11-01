@@ -349,8 +349,9 @@ item and rewords another (BL-899), `decide --id Q1 --verdict <label> --retitle <
 the reworded id in the same edit as the verdict and REPLACES `retitled-ids` as `new-round`
 does: over a saved reply decide's rebuild is the one that opens the round (BL-840), so an
 earlier round's id must not survive it. That rebuild already passed the reword, so the
-`new-round` that follows needs no `--retitle` for it. Start every round with `new-round` or
-`decide`; a rebuild by other means keeps the previous declaration. (`new-round` also settles
+`new-round` that follows needs no `--retitle` for it. Start every round with `new-round` (or
+`decide --retitle`); a rebuild by other means, a plain `decide` included, keeps the previous
+declaration. (`new-round` also settles
 the `proposal=yes` items the reader saw on the saved answered page, BL-692, the ones the reply lists as accepted under `## Decidido sin corrección` included, except one the saved
 reply answered (an ask, `[not-now]` or a page defect in any saved paste, a re-pick, Other or a note), which stays an
 open proposal until the writer `decide`s it, BL-711; it changes nothing
