@@ -149,8 +149,8 @@ try:
     for cid, fn in ms.CHECKS.items():
         if fragment and cid != "no-secrets":
             continue                     # a fragment is not the file; see the header
-        if not fragment and is_index != (cid in ms.INDEX_ONLY):
-            continue
+        if not fragment and cid != "no-secrets" and is_index != (cid in ms.INDEX_ONLY):
+            continue                     # no-secrets runs on the index too (BL-891)
         if waived and cid != "no-secrets":
             continue                     # no-secrets is never waivable
         try:

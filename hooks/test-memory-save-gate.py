@@ -301,6 +301,11 @@ rc, out, _ = run(write_ev("MEMORY.md", fat))
 check("an index carrying its content is NOT denied (advisory since 2026-10-04)", decision(out) != "deny", out)
 check("but it is nudged as index-is-an-index", "index-is-an-index" in reason(out), reason(out))
 
+# BL-891: the index is a file too — a full Write of a secret to MEMORY.md must be denied.
+rc, out, _ = run(write_ev("MEMORY.md", TYPED % 'api_key = "Ab3xQ7zL9mNp2Rt5"'))
+check("a secret in a full Write to MEMORY.md is denied", decision(out) == "deny", out)
+check("and the index deny names no-secrets", "no-secrets" in reason(out), reason(out))
+
 print("== fails open on every internal error ==")
 
 rc, out, _ = run(write_ev("s.md", TYPED % 'api_key = "Ab3xQ7zL9mNp2Rt5"'), sweep=None)

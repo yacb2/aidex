@@ -25,7 +25,8 @@ memory:
 | `named-thing-exists` | a path or script file that is not in the tree, nor in a sibling repo the memory names. Paths only — a bare flag like `--porcelain` is not checked |
 | `index-is-an-index` | a `MEMORY.md` line carrying content instead of `- [Title](file.md) — hook` |
 
-The first five run per memory file, the last on the index. `no-secrets` is never
+The first five run per memory file, the last on the index; `no-secrets` runs on the
+index too. `no-secrets` is never
 waivable; everything else can be waived in-file with a `memory-gate: waived — <reason>`
 line, which the sweep and the save gate both honour.
 

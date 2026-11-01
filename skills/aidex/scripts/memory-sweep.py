@@ -538,10 +538,13 @@ INDEX_ONLY = ("index-is-an-index",)
 
 
 def run_checks(path: str, body: str, ctx: Ctx) -> list[dict]:
-    """The rule states it: the first five run per memory file, the last on the index.
+    """The rule states it: the first five run per memory file, the last on the index,
+    and no-secrets runs on both.
 
     Running the per-memory checks over MEMORY.md judged an index of one-line hooks as if
-    it were a memory — 6 pending and 11 named-thing findings on indexes alone.
+    it were a memory — 6 pending and 11 named-thing findings on indexes alone. no-secrets
+    is the exception: a token in the index is read into every session all the same
+    (BL-891: skipping it there let a Write put a secret in MEMORY.md).
     """
     is_index = os.path.basename(path) == "MEMORY.md"
     # A waiver line in the file downgrades everything but no-secrets, which is never
@@ -549,7 +552,7 @@ def run_checks(path: str, body: str, ctx: Ctx) -> list[dict]:
     waived = WAIVER_RX.search(body) is not None
     out = []
     for cid, fn in CHECKS.items():
-        if is_index != (cid in INDEX_ONLY):
+        if cid != "no-secrets" and is_index != (cid in INDEX_ONLY):
             continue
         if waived and cid != "no-secrets":
             continue
