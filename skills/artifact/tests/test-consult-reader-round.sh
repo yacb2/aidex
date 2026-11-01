@@ -207,11 +207,16 @@ Ana opens the list and sees no filter.
 ::: notes {title="Anything else"}
 :::
 SPEC
-SPB="$TMP/reports/blk.html"
+# BL-898: save-reply prints the page's absolute path, and `mktemp -d` draws its suffix from
+# [A-Za-z0-9], so about 1 run in 430 got a $TMP that spells Q1 and failed (f) with rc=0. The page
+# sits under a directory that always spells Q1, so a check over the whole output fails every run;
+# the check reads only the duty line save_reply.py prints for a charge (`<id> [<marker>]: <duty>`).
+mkdir -p "$TMP/tmp.Q1path"
+SPB="$TMP/tmp.Q1path/blk.html"
 python3 "$BUILD" "$SP2" -o "$SPB" >/dev/null 2>&1 || fail "(f) the block-notes spec build failed"
 REPLY_B=$'## G1 \xc2\xb7 One\n\nthis whole block is fine\n\n### Q1 \xc2\xb7 Pick\n\n- Keep it\n\nnot sure yet\n\n## G2 \xc2\xb7 Two\n\n- [show-me]\n\n### Q2 \xc2\xb7 Pick again\n\n- Skip it\n'
 out="$(printf '%s' "$REPLY_B" | bash "$SAVE" "$SPB" - 2>&1)"; rc=$?
-[[ $rc -eq 0 && "$out" != *Q1* ]] \
+[[ $rc -eq 0 && $'\n'"$out" != *$'\nQ1 ['* ]] \
   && ok "(f) a block note with a marker-shaped line is not charged to the item before it" \
   || fail "(f) save-reply charged the G2 note's [show-me] to Q1 (rc=$rc): $out"
 # the reader picked Q2 and asked nothing back: a round that opens must decide it.
