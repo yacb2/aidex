@@ -26,7 +26,7 @@ non-PR change at all:
 |---|---|---|
 | `code-review` plugin | `gh pr diff` on a pull request, comments back on it | yes |
 | `/review` built-in | alias of `/code-review` | see below |
-| `/code-review` built-in | the working diff, **or a `<pr#>`/`<branch>`/`<path>` target** — all resolved to a diff; effort-scaled angle engine | **feature-flag dependent** |
+| `/code-review` built-in | the working diff, **or a `<pr#>`/`<branch>`/`<path>` target** — all resolved to a diff; effort-scaled angle engine | yes since v2.1.246 (feature-flag dependent before); `skillOverrides: user-invocable-only` turns it off |
 | `/simplify` | `git diff @{upstream}...HEAD` with fallbacks; accepts a `<target>` string | yes — **and it applies fixes** |
 | `/security-review` | `git diff origin/HEAD...`, fixed at invocation | yes |
 
@@ -50,6 +50,9 @@ non-PR change at all:
 >   why it appears in the session's skill listing at all — the listing filter drops any
 >   built-in whose flag is set. So availability here is a **machine-and-flag state that
 >   can flip without notice**, not a property of the tool.
+>   *Superseded 2026-10-21:* the docs now say the flag gate was dropped in v2.1.246 and
+>   Claude can start `/code-review` on its own
+>   (https://code.claude.com/docs/en/code-review-local § Let Claude start the review).
 >
 > **`ultra` is not an effort level.** It is `subcommands:{ultra:"ultrareview"}`, a
 > redirect to a separate command of type `local-jsx`/`local`, which the skill gate
