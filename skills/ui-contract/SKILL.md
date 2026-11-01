@@ -59,18 +59,16 @@ today's is written as an open question, not as a decision. The path through the 
 is the **user's path** (list, add, detail, dialog, edit), and that path is the order of the
 consultation rounds, never the plan's technical order (backend, shared component, page).
 
-**One drawn exception: the target-form question for genuinely new content.** When the
-owner must choose page, dialog or panel for a piece whose host screen does not exist yet
-AND none of whose content renders anywhere today, that one question may carry a figure
-from `aidex:figure-sonnet` (one per option, inline SVG in the consultation page). The figure is
-a question aid, never a round or the contract, dropped once the host's skeleton exists. It
-never qualifies when the content exists today (an extraction, a move, a split, a redesign):
-there build the host first, show the BEFORE beside the real AFTER, and put the form options
-as gallery alternatives of real components. Nor does it cover layout, placement, states or
-styling questions. The contract stays a gallery of real components.
-A cross-screen placement question at round 0 (entry point, nav) with no host yet is asked in
-prose with a recommendation and flagged unchecked; it becomes gallery alternatives in the first
-round that has a host.
+**Target form for genuinely new content (one drawn exception).**
+
+1. Read `${CLAUDE_SKILL_DIR}/references/06-target-form-figure-exception.md` before asking the owner
+   page, dialog or panel for a piece whose host screen does not exist yet and none of whose
+   content renders today: it says when one figure may carry the question and when it never may.
+
+Nor does the exception cover layout, placement, states or styling questions. A cross-screen
+placement question at round 0 (entry point, nav) with no host yet is asked in prose with a
+recommendation and flagged unchecked; it becomes gallery alternatives in the first round that
+has a host.
 
 **What a round shows.** A redesign round shows a **real AFTER** — the proposed screen built
 from the project's own components and fixture data — beside the BEFORE (the screen as it

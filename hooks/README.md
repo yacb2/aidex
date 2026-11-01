@@ -11,13 +11,12 @@ dir's `aidex/memory-gate.jsonl`; its sunset review counts every config dir's `ai
 
 ## context-depth-nudge.sh — context-depth band notice (UserPromptSubmit)
 
-> **Opt-in, like every hook here.** `install.sh` copies this file to
-> `~/.claude/hooks/` (it is the one hook in `SHIPPED_HOOKS`) and wires nothing —
-> settings.json is never touched. Installing or
-> updating aidex therefore activates nothing. It runs only if you add it to your
-> own `~/.claude/settings.json` yourself (see Registration below). The thresholds
-> below were tuned on one person's corpus; treat them as a starting point, not a
-> default anyone should inherit.
+> **Live for every plugin user.** `hooks.json` wires this script under
+> `UserPromptSubmit` (`${CLAUDE_PLUGIN_ROOT}/hooks/context-depth-nudge.sh`), so installing
+> the plugin activates it with nothing to register. The pre-plugin
+> opt-in path (a copy into `~/.claude/hooks/` plus a hand-written settings.json entry)
+> is retired (see `docs/retired/`). The thresholds below were tuned on one person's
+> corpus; they report a number and decide nothing.
 
 Surfaces how deep the session's context has grown, once per band, as one line of
 `hookSpecificOutput.additionalContext`. Bands: **200k** warn, **250k** advise,
@@ -51,10 +50,9 @@ occupied the window; using it would fire the 300k band at ~100k of real depth on
 any turn that iterated three times. Reads the last 400 lines only, so cost does not
 grow with transcript size.
 
-**Registration (opt-in, not done by install.sh):** wire it as a `UserPromptSubmit`
-hook in settings.json pointing at `~/.claude/hooks/context-depth-nudge.sh`. Pairs
-with a statusline that colours on absolute depth rather than percent-of-window —
-on a 1M model, 400k reads as 40% and colours green under a percentage scheme.
+**Registration:** none to do; `hooks.json` carries it. It pairs well with a statusline
+that colours on absolute depth rather than percent-of-window — on a 1M model, 400k
+reads as 40% and colours green under a percentage scheme.
 
 > **If you build that statusline, do not use `context_window.total_input_tokens`.**
 > It carries the same iteration-summing inflation as the transcript's top-level
@@ -76,7 +74,7 @@ with escalation, six fail-open paths, and the non-blocking output shape.
 Handoffs already fire at a median depth of 337k on Opus 5, but that depth is not a
 choice: trigger depth tracks session *peak* depth at ~1.0x, so no depth-based
 trigger is operating today at all. There is therefore no evidence a depth cue will
-change timing. Due **2026-09-03**:
+change timing. Review was due **2026-09-03**; no recorded outcome of that re-run was found, and the hook stayed wired (`hooks.json`, since the plugin manifest of 2026-09-12). The criterion stands as written:
 
 > Re-run the predecessor->successor trigger query over Opus 5 sessions started
 > after 2026-08-13. **Keep** if the median trigger depth falls below 300k *and*

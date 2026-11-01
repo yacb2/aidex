@@ -63,14 +63,11 @@ describe('[Component/Feature] - Regression', () => {
 
 ## When NOT to Write Automated Tests
 
-Some bugs are genuinely hard to test automatically:
+A purely visual or CSS bug (spacing, alignment, colors) needs no automated test; document it in the commit message. Every other bug gets a regression test.
 
-- **Pure CSS visual bugs** (spacing, alignment, colors) — document in commit message
-- **Browser-specific rendering** — note the browser in the commit
-- **Timing/race conditions** that are inherently flaky — consider architectural fix
-- **Third-party library bugs** — upstream fix is better than a workaround test
+For a timing or race failure, read `${CLAUDE_PLUGIN_ROOT}/skills/coverage/references/15-green-that-proves-nothing.md` § 9 before deciding a test is not possible.
 
-Even for these, consider: can any ASPECT be tested? A CSS bug might have a testable component (e.g., the class is applied correctly even if the visual rendering can't be tested).
+Even then, consider: can any ASPECT be tested? A CSS bug might have a testable component (e.g., the class is applied correctly even if the visual rendering can't be tested).
 
 ## Multi-Stack Projects
 

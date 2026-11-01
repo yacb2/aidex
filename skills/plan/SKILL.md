@@ -220,6 +220,14 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/conventions/scripts/validate.py --type plan
 If the project carries a ratchet baseline (`.context/.validate-baseline.json`),
 a non-zero exit means you introduced a NEW violation — fix it before closing.
 
+Then read the plan text once more and fix before closing:
+
+1. **pair-table**: one row per pair of tasks that share a file or interface, naming what
+   the earlier phase produces and what the later one consumes, in the order the phases run.
+2. Each task against its own phase spec and the non-goals: nothing contradicts either.
+3. A step that defers a decision ("or keep it if stated generically"): decide it now.
+4. An acceptance that never runs the changed state: add the run that does.
+
 ## Closing a plan
 
 When a plan completes (or is superseded/dropped), close it atomically rather than

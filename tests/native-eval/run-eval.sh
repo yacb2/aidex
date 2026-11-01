@@ -35,7 +35,11 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 MODEL="${EVAL_MODEL:-claude-sonnet-5}"
-JUDGE="${EVAL_JUDGE_MODEL:-haiku}"
+# Full model ID, not the `haiku` alias: the alias moves under you when the default
+# changes, and a sidecar that says "haiku" cannot reproduce the run. This is the
+# alias's target in claude 2.1.316. `--judge-model` takes any model string `--model`
+# takes (README, "Pinning the judge").
+JUDGE="${EVAL_JUDGE_MODEL:-claude-haiku-5-5}"
 MIN_DELTA="${EVAL_MIN_DELTA:-0.30}"
 MAX_COST="${EVAL_MAX_COST:-8}"
 JOBS="${EVAL_JOBS:-1}"
@@ -61,6 +65,19 @@ OUT="$REPO/_tmp/native-eval-$(date +%Y-%m-%dT%H-%M-%S).json"
 # The plugin under test is the repo root as it ships — skills/, hooks/hooks.json
 # and .claude-plugin/plugin.json all load exactly as an installed user gets them.
 cd "$REPO"
+# Sidecar: what produced this result, so two results can be compared honestly.
+# `dirty` counts untracked files too - an uncommitted skill edit is the usual cause.
+GIT_SHA="$(git -C "$REPO" rev-parse HEAD 2>/dev/null || echo unknown)"
+GIT_DIRTY=false
+[ -n "$(git -C "$REPO" status --porcelain 2>/dev/null)" ] && GIT_DIRTY=true
+GIT_SHA="$GIT_SHA" GIT_DIRTY="$GIT_DIRTY" CLAUDE_VERSION="$(claude --version 2>/dev/null || echo unknown)" \
+  MODEL="$MODEL" JUDGE="$JUDGE" python3 - "${OUT%.json}.meta.json" <<'PYMETA'
+import json, os, sys
+json.dump({"git_sha": os.environ["GIT_SHA"], "dirty": os.environ["GIT_DIRTY"] == "true",
+           "claude_version": os.environ["CLAUDE_VERSION"], "model": os.environ["MODEL"],
+           "judge_model": os.environ["JUDGE"]}, open(sys.argv[1], "w"), indent=2)
+PYMETA
+
 TOOLS=(Write Edit)
 if [ "${EVAL_BASH:-0}" = 1 ]; then
   [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] || { echo "EVAL_BASH=1 needs CLAUDE_CODE_OAUTH_TOKEN exported (claude setup-token)" >&2; exit 2; }
@@ -92,7 +109,7 @@ claude plugin eval . \
   --json "$OUT"
 eval_status=$?
 set -e
-[ -s "$OUT" ] || { echo "eval produced no JSON (exit $eval_status)" >&2; exit "$eval_status"; }
+[ -s "$OUT" ] || { echo "eval produced no JSON (exit $eval_status)" >&2; exit "$(( eval_status ? eval_status : 1 ))"; }
 # The HTML report lands under plugin-evals/results/, which collect-cases.sh
 # rm -rf's on the NEXT run — a report you did not copy out is gone (lost the
 # 2026-09-12 batch-2 report that way). Keep it next to the JSON.
@@ -110,7 +127,7 @@ fi
 # too. Gating those on delta marked 6 of 19 correct cases as failures, which is
 # how an operator learns to ignore a gate. They are asserted on the fired
 # indicator instead - the property they actually measure.
-MIN_DELTA="$MIN_DELTA" RUNS="$RUNS" REPO="$REPO" python3 - "$OUT" <<'PY'
+EVAL_STATUS="$eval_status" MIN_DELTA="$MIN_DELTA" RUNS="$RUNS" REPO="$REPO" python3 - "$OUT" <<'PY'
 import json, os, sys
 
 d = json.load(open(sys.argv[1]))
@@ -135,6 +152,15 @@ def fired_only(case):
     return False
 
 failed = []
+# Whole-result invalidity: `partial` (cost ceiling, interrupt, auth failure) or the
+# eval's exit 2 means cases are missing or unjudged; a green table over that is a lie.
+whole_invalid = []
+if d.get("partial"):
+    whole_invalid.append(f"result is partial ({d.get('partialReason') or 'no reason given'})")
+if os.environ.get("EVAL_STATUS") == "2":
+    whole_invalid.append("claude plugin eval exited 2 (cost ceiling hit, partial results)")
+elif os.environ.get("EVAL_STATUS") not in ("0", "1"):
+    whole_invalid.append(f"claude plugin eval exited {os.environ.get('EVAL_STATUS')} (only 0 and 1 are normal)")
 for c in d["cases"]:
     a = c["aggregates"]
     # Past --max-cost-usd the eval skips the remaining llm judges and drops
@@ -176,13 +202,26 @@ for c in d["cases"]:
                 print(f"    {arm} run {i}: {r['error']} ({r['turns']} turns) -- score invalid")
             elif any("cost ceiling" in (g.get("explanation") or "") for g in r["graders"]):
                 print(f"    {arm} run {i}: judge skipped at the cost ceiling -- score invalid")
+    def run_invalid(r):
+        return bool(r.get("error")) or bool(r.get("skippedPaidGraders")) or any(
+            "cost ceiling" in (g.get("explanation") or "") for g in r["graders"])
+    bad_runs = sum(run_invalid(r) for arm in c["arms"].values() for r in arm)
+    if bad_runs:
+        print(f"    INVALID: {bad_runs} run(s) timed out, errored or lost their judge -- "
+              f"re-run this case; its verdict above is not a verdict")
+        ok = False
     if not ok:
-        failed.append(c["name"])
+        failed.append(c["name"] + (" (INVALID)" if bad_runs else ""))
+for why in whole_invalid:
+    print(f"\nINVALID RUN: {why}")
 if runs < 3:
     print("\nNOTE: 1 run per arm is for grader iteration. Use --verdict before deciding anything.")
 if failed:
     print(f"\nFAILED: {', '.join(failed)}")
     print(f"(delta cases need delta >= {min_delta}; fired-only cases need "
           f"their indicator to fire in every run)")
+if whole_invalid and not failed:
+    print(f"\nFAILED: (whole result INVALID: {'; '.join(whole_invalid)})")
+if failed or whole_invalid:
     sys.exit(1)
 PY

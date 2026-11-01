@@ -539,8 +539,12 @@ section at the bottom of the plan (single-file) or of `00-index.md` (modular):
 
 - 2026-07-19 · Phase 1 green (`pytest …` 14 passed) · commit `abc1234`
 - 2026-07-19 · Bifurcation: send helper raises instead of returning bool —
-  pre-existing test reconciled (do+document)
+  pre-existing test reconciled (do+document) · cost if wrong: one caller to revert
 ```
+
+Every `Bifurcation:` line carries `cost if wrong`; a review verdict overruled or
+abandoned is logged as one. Close-out copies them all into the final summary
+(`plan-exec/references/02-close-out.md` step 8b).
 
 Do **not** scatter execution notes into header blockquotes, front-matter prose,
 or per-task appendices: one carrier, because three drift apart.

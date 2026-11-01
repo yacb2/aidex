@@ -101,9 +101,14 @@ fi
 # on it can reach `testing` only through its definition's `skills:` preload (measured
 # honoured 12/12 with Read-only tools, 2026-09-25). Step 7 is the only place that says
 # what such a definition carries.
+# The tier-definition paragraph lives in references/06 (moved out of SKILL.md for the rendered-size
+# gate). SKILL.md step 7 must still point at it, and the reference must carry the preload.
+REF06="$ROOT/skills/plan-exec/references/06-restricted-tier-agent-definition.md"
 step7="$(awk '/^7\. \*\*Set the run.s spend/{g=1} /^8\. /{g=0} g' "$ROOT/skills/plan-exec/SKILL.md" | tr '\n' ' ')"
 [[ -n "$step7" ]] || { echo "FAIL: could not find Orient step 7 in plan-exec/SKILL.md"; failures=$((failures+1)); }
-grep -qE '`skills: \[[^]]*aidex:testing' <<<"$step7" \
-  || { echo "FAIL: plan-exec Orient step 7 does not make the tier definition preload skills: [aidex:testing]"; failures=$((failures+1)); }
+grep -qF 'references/06-restricted-tier-agent-definition.md' <<<"$step7" \
+  || { echo "FAIL: plan-exec Orient step 7 does not point at references/06-restricted-tier-agent-definition.md"; failures=$((failures+1)); }
+[[ -f "$REF06" ]] && grep -qE '`skills: \[[^]]*aidex:testing' "$REF06" \
+  || { echo "FAIL: references/06-restricted-tier-agent-definition.md does not make the tier definition preload skills: [aidex:testing]"; failures=$((failures+1)); }
 
 [[ $failures -eq 0 ]] && echo "PASS: every agent definition sets model:, and all 3 batch scripts forward agentType (omitting the key when unset) and name aidex:testing in every working prompt" || exit 1
