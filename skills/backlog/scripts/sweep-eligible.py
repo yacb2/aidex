@@ -222,7 +222,7 @@ def tracker_paths(root):
     if not prof:
         return []
     # read like touches tokens: commas and whitespace split, `./` and a trailing `/` drop
-    words = [norm_path(w) for w in re.split(r'[,\s]+', profiles.profile_field(prof, 'tracker_paths'))]
+    words = [w for w in (norm_path(x) for x in re.split(r'[,\s]+', profiles.profile_field(prof, 'tracker_paths'))) if w]
     return words if words or profiles.profile_field(prof, 'ticket_pattern') else []
 
 

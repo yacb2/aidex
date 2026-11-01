@@ -22,9 +22,9 @@ LIST="${AIDEX_PUBLIC_DENYLIST:-${common:+$(dirname "$common")/../.claude/public-
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/denylist.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
 
-# CRs dropped first: a CRLF list would otherwise ask for a CR after every term. A blank
+# CRs and trailing blanks dropped first: a CRLF list would otherwise ask for a CR after every term. A blank
 # line is match-all: drop it.
-patterns() { tr -d '\r' < "$1" | grep -vE '^[[:space:]]*(#|$)' > "$2"; }
+patterns() { tr -d '\r' < "$1" | sed -E 's/[[:space:]]+$//' | grep -vE '^[[:space:]]*(#|$)' > "$2"; }
 scan_text() { grep -inE -f "$1"; }   # stdin; exit 0 = hit, 1 = clean, 2 = grep cannot read the list
 scan_tree() { git -C "$2" grep --untracked -inE -f "$1"; }   # untracked files too
 hit_messages() { # $1 patterns, rest git-log args; exit 0 = hit, 1 = clean, 2 = git failed, 3 = bad list
@@ -102,7 +102,7 @@ push "$TIP" 1111111111111111111111111111111111111111 && fail "pre-push: a term o
 AIDEX_PUBLIC_DENYLIST="$TMP/absent" push "$TIP" "$HIT" && fail "pre-push: missing denylist allowed"
 AIDEX_PUBLIC_DENYLIST="$TMP/absent" bash "$SELF" --stdin </dev/null >/dev/null 2>&1 && fail "stdin mode: missing denylist passed"
 # a list grep cannot read fails closed: a malformed ERE (grep exit 2), no entries, CRLF ends
-printf 'zorblax\nfoo(bar\n' > "$TMP/bad"; printf '# only a comment\n\n' > "$TMP/none"; printf 'zorblax\r\n' > "$TMP/crlf"
+printf 'zorblax\nfoo(bar\n' > "$TMP/bad"; printf '# only a comment\n\n' > "$TMP/none"; printf 'zorblax\r\n' > "$TMP/crlf"; printf 'zorblax  \n' > "$TMP/trail"
 for m in --stdin --messages; do   # exits 1 and names the list as the cause
   out="$(echo "release notes: zorblax" | AIDEX_PUBLIC_DENYLIST="$TMP/bad" bash "$SELF" $m "$BASE..$TIP" 2>&1)" && fail "$m: malformed list passed"
   [[ "$out" == *"grep cannot read the denylist"* ]] || fail "$m: malformed list not named: $out"
@@ -110,6 +110,7 @@ done
 AIDEX_PUBLIC_DENYLIST="$TMP/none" bash "$SELF" --messages "$HIT..$TIP" >/dev/null 2>&1 && fail "messages: comments-only list passed"
 echo "release notes: generic" | AIDEX_PUBLIC_DENYLIST="$TMP/none" bash "$SELF" --stdin >/dev/null 2>&1 && fail "stdin mode: comments-only list passed"
 echo "release notes: zorblax" | AIDEX_PUBLIC_DENYLIST="$TMP/crlf" bash "$SELF" --stdin >/dev/null 2>&1 && fail "stdin mode: CRLF list did not flag its term"
+echo "x zorblax." | AIDEX_PUBLIC_DENYLIST="$TMP/trail" bash "$SELF" --stdin >/dev/null 2>&1 && fail "stdin mode: trailing blanks narrowed a term"
 unset AIDEX_PUBLIC_DENYLIST
 cd "$ROOT" || exit 1
 [[ $FAIL -eq 0 ]] || { echo "$FAIL self-test failure(s)"; exit 1; }
