@@ -302,9 +302,12 @@ check("an index carrying its content is NOT denied (advisory since 2026-10-04)",
 check("but it is nudged as index-is-an-index", "index-is-an-index" in reason(out), reason(out))
 
 # BL-891: the index is a file too — a full Write of a secret to MEMORY.md must be denied.
-rc, out, _ = run(write_ev("MEMORY.md", TYPED % 'api_key = "Ab3xQ7zL9mNp2Rt5"'))
+# The shape is a well-formed hook line, so the deny cannot come from the index nudge.
+rc, out, _ = run(write_ev("MEMORY.md", '- [Deploy](deploy.md) — api_key = "Ab3xQ7zL9mNp2Rt5"\n'))
 check("a secret in a full Write to MEMORY.md is denied", decision(out) == "deny", out)
 check("and the index deny names no-secrets", "no-secrets" in reason(out), reason(out))
+check("and not index-is-an-index (the hook line is well formed)",
+      "index-is-an-index" not in reason(out), reason(out))
 
 print("== fails open on every internal error ==")
 

@@ -330,21 +330,6 @@ grep -q "hard.md" <<<"$WOUT" \
   && pass "no-secrets ignores the waiver, as the rule states" \
   || fail "a waiver silenced no-secrets, which the rule declares non-waivable"
 
-# --- 8b. no-secrets runs on the index too (BL-891) ---------------------------------
-mkdir -p "$TMP/idxsecret/secret-idx/memory"
-printf -- '- [A](a.md) — hook\napi_key = "Ab3xQ7zL9mNp2Rt5"\n' \
-  > "$TMP/idxsecret/secret-idx/memory/MEMORY.md"
-AIDEX_MEMORY_ROOT="$TMP/idxsecret" AIDEX_MEMORY_PROJECT_ROOT="$TMP/trees" \
-  python3 "$SCRIPT" --json "$TMP/idxsecret.json" >/dev/null 2>&1
-python3 - "$TMP/idxsecret.json" <<'PY' \
-  && pass "no-secrets reports a secret in MEMORY.md" \
-  || fail "no-secrets skipped the index (MEMORY.md carries a credential-shaped token)"
-import json, sys
-d = json.load(open(sys.argv[1]))
-sys.exit(0 if any(f["rule"] == "no-secrets" and f["path"].endswith("/MEMORY.md")
-                  for f in d["findings"]) else 1)
-PY
-
 # --- 9. the sweep is read-only, by construction ------------------------------------
 BEFORE="$(find "$FIX" -type f -exec shasum {} \; | shasum)"
 AIDEX_MEMORY_ROOT="$FIX/projects" AIDEX_MEMORY_PROJECT_ROOT="$FIX/trees" \

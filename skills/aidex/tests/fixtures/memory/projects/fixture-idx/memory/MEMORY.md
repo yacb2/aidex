@@ -1,1 +1,2 @@
 - [Tables, not paragraphs](ok_only.md) — >3 facts of one shape — table, list or figure: never a paragraph
+- [Deploy](ok_only.md) — follow-up on `scripts/gone.sh`

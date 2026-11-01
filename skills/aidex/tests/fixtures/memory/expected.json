@@ -20,5 +20,8 @@
  "fixture-proj/ok_clean.md": [],
  "fixture-proj/pass_named_thing_sibling.md": [],
  "fixture-proj/pass_pending_with_bl.md": [],
- "fixture-proj/pass_secret_placeholder.md": []
+ "fixture-proj/pass_secret_placeholder.md": [],
+ "fixture-secret-idx/MEMORY.md": [
+  "no-secrets"
+ ]
 }
