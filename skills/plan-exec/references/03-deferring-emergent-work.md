@@ -16,6 +16,8 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/backlog/scripts/register-item.sh --origin plan
   --priority <P0|P1|P2|P3> --type <bug|improvement|task|idea>
 ```
 
+Add `--touches "<path, …>"` with the paths the deferred work changes: a sweep clusters items by it, and under a backlog profile it routes team-owned work to Findings.
+
 `--plan` takes the plan's filename or its modular folder, and accepts a path for
 convenience — what lands in the item is always the marker `plan/<slug>`, never a path
 (D-03). Then fill the new item's `## Context` with the **justification**: what the phase

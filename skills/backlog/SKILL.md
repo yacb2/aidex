@@ -27,7 +27,7 @@ Create and manage consistent, machine-readable entries in `.context/backlog/` wi
 | `bash scripts/sweep-gate.sh [--only <leg>] [--worklist <path\|slug>] [--json]` | [scripts/sweep-gate.sh](scripts/sweep-gate.sh) | **The boundary gate**, from `profiles/testing.md`'s `*_suite_cmd`/`build_cmd` (a profile pinning only `suite_cmd` binds that one leg): raw exit + spec count per leg; a countless leg is FAIL, never PASS; a detached E2E leg is printed, not run (`--from-log` scores it). Not `sweep.sh`, the D-10 archiver |
 | `bash scripts/sweep-report.sh <worklist>` | [scripts/sweep-report.sh](scripts/sweep-report.sh) | **The run's one artifact**, generated from disk as the work-list's companion (`worklists/_archive/<worklist>-report.md`), anchored `worklist/<file>`: closed items + rows, the owner rows aggregated, NEEDS-DECISION unchanged, deferrals, emergent growth (flagged > 25 %), gate rows verbatim, metrics. Writes only the markdown; the page is built from it right away through `/aidex:artifact` Route S. A page that asks (needs-decision, unanswered owner rows) opens before `worklist-close.sh` and the run waits for the answers; one that asks nothing opens once after the close (policy stage 6) |
 | `python3 scripts/define-check.py [--json] [BL-NNN …]` | [scripts/define-check.py](scripts/define-check.py) | Read-only: open items below the definition contract, what each lacks, what the body already tells a script. Exit 1 while any is underdefined |
-| `bash scripts/define-item.sh <BL-id> [--estimate] [--surface] [--verify] [--touches] [--depends]` | [scripts/define-item.sh](scripts/define-item.sh) | The writer: a definition verdict INTO the item (`triage.sh` stays read-only) |
+| `bash scripts/define-item.sh <BL-id> [--estimate] [--surface] [--verify] [--touches] [--depends] [--raise] [--ticket] [--parent] [--branch] [--pr] [--review]` | [scripts/define-item.sh](scripts/define-item.sh) | The writer: a definition verdict or a tracker field INTO the item (`triage.sh` stays read-only) |
 | `/aidex:backlog --list` | same | List open entries grouped by priority (P0 → P3 + Blocked) |
 | `/aidex:backlog --check-ids` | same | Read-only id guard: duplicate or non-`BL-NNN` ids. Exit 1 on any. Unlike `--reindex`, writes nothing |
 | `bash scripts/start-item.sh <BL-id\|slug>` | [scripts/start-item.sh](scripts/start-item.sh) | Open the item for work: `status` → `doing` → stamp `updated` → rebuild index. **When the item carries `type: bug`, it prints the RED→GREEN route** — that front-matter field, not any bug-report phrasing, is what enters the procedure |
@@ -144,6 +144,8 @@ The complete front-matter schema is the single-source **15-field table** in
 (`id` and `commits` are machine-required — the lifecycle breaks without them; `surface`
 and `verify` say how the item will be proven, and a sweep cannot close it otherwise). Don't
 re-copy the schema here; author entries via the script or straight from that table.
+
+**With a backlog profile** (`.context/profiles/backlog.md`), read its body before filing: work an external tracker owns stays one item with tracker fields, routed and laned by script — [references/01-backlog-conventions.md](references/01-backlog-conventions.md#tracker-coexistence-backlog-profile).
 
 ---
 

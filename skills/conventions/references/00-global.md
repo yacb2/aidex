@@ -84,7 +84,8 @@ Some targets do not live in this `.context/` at all. They are **stable identifie
 
 | Form | Means | Written by |
 |---|---|---|
-| `issue/<id>` | an item in an external tracker | `register-item.sh --origin issue` |
+| `issue/<id>` | an item in an external tracker | `register-item.sh --origin issue`; the backlog `ticket`/`parent` fields (`--ticket`, `--parent`) |
+| `pr/<repo>#<n>[@state]` | a pull request; `<repo>` is the checkout dir under the root; the state ladder depends on the field (backlog `pr`, `review`) | `define-item.sh --pr`, `--review` |
 | `<repo>/BL-NNN` | a backlog counterpart in another repo | `register-item.sh --escalate-to` (both sides of the handshake) |
 
 A `<type>/…` ref is **never** external: the eleven local types stay fully resolvable, so a typo in one is still caught. That is also why `<repo>/BL-NNN` is only recognised when the prefix is not a known type — `plan/BL-206` remains a broken local ref, not a cross-repo one.
@@ -284,6 +285,7 @@ refuses the write).
 | A log or readout of a running experiment | next to the experiment, in `experiments/<dated-slug>/` |
 | The state of a feature or repo, catalogued | an audit run (`audit-conventions.md`) |
 | Something to do later | a backlog item; the write-up above is its `origin_ref` |
+| A problem in code an external tracker owns | a backlog item with `raise` (routed from `--touches` under the backlog profile's `tracker_paths`); aidex files no ticket |
 | A choice that was made | a decision (ADR) |
 | A finding that changes how a settled part works | update the module in `references/<topic>/` and stamp `updated`; the dated write-up stays in `research/` |
 
@@ -450,6 +452,7 @@ these names and no others:
 | `testing.md` | `testing-profile.md` | coverage, testing, backlog sweep gate, audit |
 | `deploy.md` | `deploy-profile.md` | the dashboard boilerplate's bp-ops (listed for completeness; aidex skills do not read it) |
 | `ui-contract.md` | `ui-contract.md` | ui-contract, plan |
+| `backlog.md` | none (new; no root fallback) | backlog: routing, tracker fields, index lanes, sweep skips. Active only when `tracker_paths` or `ticket_pattern` is non-empty |
 
 A project may keep its own extra profiles in the folder (for example a `glitchtip.md`);
 the canon fixes only the names skills read. The folder is whitelisted in `.gitignore` as

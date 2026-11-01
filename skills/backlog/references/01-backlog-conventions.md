@@ -17,6 +17,7 @@ Rules for entries in `.context/backlog/`.
 - [The deferred layer (`_deferred/`)](#the-deferred-layer-_deferred)
 - [Promoting to a plan](#promoting-to-a-plan)
 - [Cross-project routing](#cross-project-routing)
+- [Tracker coexistence (backlog profile)](#tracker-coexistence-backlog-profile)
 - [When NOT to create a backlog entry](#when-not-to-create-a-backlog-entry)
 - [Anti-patterns](#anti-patterns)
 - [Related](#related)
@@ -134,7 +135,9 @@ human-optional (no lifecycle script branches on it; `validate.py` checks it as a
 cross-ref). An item with an empty `estimate` or `verify` is not sweep-eligible
 (`define-check.py` lists both in `MIN_FIELDS`): without `--size`, `sweep-eligible.py`
 routes it to NEEDS-DECISION; under `--size` (the kickoff default) an empty `estimate`
-drops it before the partition, so it shows in no list.
+drops it before the partition, so it shows in no list. The optional tracker fields
+(`raise`, `ticket`, `parent`, `branch`, `pr`, `review`, `checked`) are not part of the 15:
+see [Tracker coexistence](#tracker-coexistence-backlog-profile).
 
 | Field | Values / format | Notes |
 |---|---|---|
@@ -442,6 +445,96 @@ bash scripts/register-item.sh --escalate-to /path/to/template-repo \
 bash scripts/register-item.sh --escalate-to /path/to/aidex \
   --source-id BL-172 --title "…"
 ```
+
+---
+
+## Tracker coexistence (backlog profile)
+
+A project whose code is partly owned by a team with an external tracker declares it in
+`.context/profiles/backlog.md` (template: `assets/templates/backlog.md.template`; never
+created automatically). The profile is **active** when the file exists and `tracker_paths`
+or `ticket_pattern` is non-empty; absent or inert, everything in this file holds unchanged.
+With one, **read its body before filing**. The backlog stays the one concept: a BL item
+covers a piece of team work from discovery to merge through optional fields, and aidex
+records and never performs an outward step (no ticket, PR, push or fetch). The sweep
+writes no trailers and no commit hook goes in under `tracker_paths`.
+
+| Field | Shape | Written by |
+|---|---|---|
+| `raise` | `to-raise` · `raised` (absent = not a finding) | R2 routing, `register-item.sh --raise`, `define-item.sh --raise` (`none` deletes the line) |
+| `ticket` | `issue/<KEY>`, upper-case | `define-item.sh --ticket`, `register-item.sh --ticket`, `--origin issue` (active profile only) |
+| `parent` | `issue/<KEY>` | `--parent` on either script; a re-parent edits one field |
+| `branch` | `[<repo>:]<branch>[, …]` | `define-item.sh --branch` (repeatable, sets the list); bare names stay valid |
+| `pr` | `pr/<repo>#<n>@<state>[, …]`, `draft·open·approved·merged·closed` | `define-item.sh --pr` (same `<repo>#<n>` replaced, else appended) |
+| `review` | same shape, `requested·changes·approved` | `register-item.sh --review <repo>#<n>`, `define-item.sh --review` |
+| `checked` | `YYYY-MM-DD` | stamped by every `--pr` or `--review` write |
+
+`--ticket` and `--pr` clear `raise`, even in the same call as `--raise`. `<repo>` is the
+checkout directory under the project root. Ticket state is never stored: the tracker is
+the truth; only the PR ladder is cached, with the date it was seen.
+
+**Lanes.** The first field present decides where `00-index.md` lists the item, so it
+appears once: 1 `review` -> `## Reviews`; 2 `ticket` or `pr` -> `## Tickets`; 3 `raise`
+-> `## Findings`; 4 none -> Workspace (the P lists, as today). Inside Reviews and Tickets
+items group under the `parent` key, else the `ticket` key. The header counts each lane,
+`**Active:**` still counts every active item, the profile's `live_views` print at the top,
+and `ticket_url`/`pr_url` turn keys and `repo#n` into links. `reconcile.sh` category D
+reports PR-state drift (D1: done while a PR is live; D2: a `(#<n>)` squash title in
+`git log --remotes` while the item still says otherwise). It reads no forge.
+
+| Routing (`register-item.sh`) | Condition | Result |
+|---|---|---|
+| R0 | no active profile | today's behaviour; an explicit `--raise` is still accepted |
+| R1 | `--origin issue` with an active profile | `ticket` beside `origin_ref`; a key outside `ticket_pattern` exits 2 |
+| R2 | a `--touches` token (`./` and trailing `/` stripped) whose first segment equals a `tracker_paths` word | `raise: to-raise` and one stderr line `BL-NNN recorded as an unconfirmed team finding …` |
+| R3 | otherwise | plain item |
+
+Nothing is refused; a false positive is `define-item.sh <BL> --raise none`. An explicit
+`--raise`, `--ticket` or `--review` is not routed. Protection is partial: an item with no
+`--touches` and no on-disk backtick path stays sweepable; `sweep-eligible.py` skips the
+rest as `tracked externally` or `team repo: <seg>`.
+
+| Step | Recorded as | Command |
+|---|---|---|
+| to-raise | `raise: to-raise` | R2, or `register-item.sh --raise to-raise` |
+| raised | `raise: raised` + a Notes line `raised <date> via <channel>: communication/<entry>` | `define-item.sh <BL> --raise raised` |
+| ticket | `ticket`, `raise` cleared | `define-item.sh <BL> --ticket <KEY>` |
+| fixed without a ticket | `pr`, `raise` cleared | `define-item.sh <BL> --pr <repo>#<n>@<state>` |
+| to backlog (personal after all) | `raise` deleted | `define-item.sh <BL> --raise none` |
+| done | status done, squash sha | `close-item.sh <BL> --commit <sha>` |
+| dropped | status dropped, one-line reason | `close-item.sh <BL> --status dropped --reason "<role>, <date>: <why>"` |
+
+**Naming.** An item registered with `--ticket` starts its title with the key, so the slug
+carries it; one that gets a ticket later gains the prefix in its title and the file is
+never renamed. A review item is titled `Review <repo>#<n> (<KEY>)`. Plans, worklists and
+research notes serving one ticket start the slug with the key (`2026-11-05-abc-1-…`); no
+worklist per ticket by default. **BL ids never go on the team side:** not in branches, PR
+titles or bodies, commits or tracker comments; links go one way, BL to ticket and PR.
+
+| Tracker shape | Backlog shape |
+|---|---|
+| one issue | one item |
+| an issue listing several problems | one item with a checklist |
+| a parent whose sub-issues you work | one item per sub-issue, each with `parent` |
+| stacked PRs or an epic | a plan named by the parent key, one phase per sub-issue |
+| a session over several items | a worklist, as today |
+| a cycle or sprint | nothing (the tracker owns it) |
+
+One item per thing that enters, never more: a review change request is 0 new items (a
+checklist line), a follow-up ticket requested in review is 1, a new finding while working
+another ticket is 1.
+
+**Commits.** After the merge: `git -C <repo> log --remotes -E -i --grep
+'(^|[^A-Za-z0-9])KEY([^0-9]|$)' --format='%h %s'`, or the `(#<n>)` in the squash title.
+Before it, with no base: `git -C <repo> log --oneline <branch> --not
+--exclude=origin/<branch> --remotes` (`origin/<branch>` as the tip with no local branch).
+A tracker state can be set before the event its name suggests; trust the forge for a PR.
+
+**Read the live version before working.** Before working an item that carries `ticket`,
+`pr` or `review`, open the live ticket, the documents it links and the PR (read-only, with
+whatever access the session has; with none, ask the owner or name the link), and write into
+the item body only context that changes the work. The BL body is a local note; the tracker
+is the truth.
 
 ---
 
