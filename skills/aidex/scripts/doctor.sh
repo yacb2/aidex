@@ -255,7 +255,7 @@ fi
 # and prints nothing. A dangling symlink is not absent: a cp would write through it.
 RULE="$CLAUDE_DIR/rules/delegation.md"
 if [[ -L "$RULE" && ! -e "$RULE" ]]; then
-  echo "INFO: $RULE is a dangling symlink — the delegation rule does not load; repoint or remove the link"
+  echo "INFO: $RULE is a dangling symlink — the delegation rule does not load from it; repoint or remove the link"
 elif [[ ! -e "$RULE" ]]; then
   echo "INFO: no $RULE — the delegation rule loads only through the opt-in hook; to install it: mkdir -p \"$CLAUDE_DIR/rules\" && cp \"$PLUGIN_ROOT/hooks/assets/delegation-rule-core.md\" \"$RULE\""
 fi
