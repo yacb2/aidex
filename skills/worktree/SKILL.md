@@ -111,7 +111,7 @@ prompt reading an error and deciding what to do, so **you** hold the state and
 1. **Read the state before acting, every time.**
    ```bash
    bash "${CLAUDE_SKILL_DIR}/scripts/worktree.sh" list --porcelain
-   # slug <TAB> slot <TAB> branch <TAB> stack(up:N|down) <TAB> dirty(YES|no) <TAB> dir
+   # slug <TAB> slot <TAB> branch <TAB> stack(up:N|down|?) <TAB> dirty(YES|no) <TAB> dir
    ```
    Never assume a worktree is up because you created it, or gone because you
    tore it down. A `MISSING-DIR` row is a claim whose directory vanished — clear
@@ -119,7 +119,10 @@ prompt reading an error and deciding what to do, so **you** hold the state and
    with neither a git worktree nor a slot claim, which means something recreated
    it after the teardown (a dev server rewriting `frontend/.vite/deps/` does
    exactly this). Do not `up` it — there is no worktree there. Find what is
-   holding it with `down <slug>`, which reports the processes by PID.
+   holding it with `down <slug>`, which reports the processes by PID. A STACK
+   of `?` means docker is not on PATH (on macOS, Docker Desktop installs it in
+   `/usr/local/bin`): the stack may be running, and `down` refuses until docker
+   resolves.
 
 2. **Every state has a way out. Use it instead of improvising.**
 

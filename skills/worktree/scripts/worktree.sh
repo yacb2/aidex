@@ -345,6 +345,9 @@ IS_DIRTY() {  # dest -> 0 when any participant has uncommitted or untracked work
 
 if [[ "$cmd" == "list" ]]; then
   found=0
+  HAVE_DOCKER=true
+  command -v docker >/dev/null 2>&1 \
+    || { HAVE_DOCKER=false; warn "docker is not on PATH — STACK shows '?' (unknown), not down"; }
   hdr() { $PORCELAIN && return 0; [[ "$found" -eq 0 ]] && printf '%-20s %-5s %-28s %-9s %-7s %s\n' SLUG SLOT BRANCH STACK DIRTY DIR; }
   for d in "$ROOT"/../"$PROJECT"-wt-*; do
     [[ -d "$d" ]] || continue
@@ -395,8 +398,12 @@ if [[ "$cmd" == "list" ]]; then
     VALID_SLOT "$slot" || slot='-'
     br="$(git -C "$d/$(basename "$(echo "$WT_PARTICIPANTS" | awk '{print $1}')")" branch --show-current 2>/dev/null)"
     [[ -n "$br" ]] || br='-'
-    n_up="$(docker ps -q --filter "label=com.docker.compose.project=$(PROJ_FOR "$sg")" 2>/dev/null | wc -l | tr -d ' ')"
-    stack="down"; [[ "${n_up:-0}" -gt 0 ]] && stack="up:$n_up"
+    if $HAVE_DOCKER; then
+      n_up="$(docker ps -q --filter "label=com.docker.compose.project=$(PROJ_FOR "$sg")" 2>/dev/null | wc -l | tr -d ' ')"
+      stack="down"; [[ "${n_up:-0}" -gt 0 ]] && stack="up:$n_up"
+    else
+      stack="?"   # unknown, never `down`: the stack may be running (BL-890)
+    fi
     dirty=no; IS_DIRTY "$d" && dirty=YES
     if $PORCELAIN; then
       printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$sg" "$slot" "$br" "$stack" "$dirty" "$d"
@@ -1326,6 +1333,15 @@ if [[ "$cmd" == "down" ]]; then
   CLAIM_SEEN=""
   if [[ -n "$SLOT" && "$(awk '{print $2}' "$(SLOTDIR_FOR)/slot-$SLOT" 2>/dev/null)" == "$SLUG" ]]; then
     CLAIM_SEEN="$(cat "$(SLOTDIR_FOR)/slot-$SLOT" 2>/dev/null)"
+  fi
+
+  # docker that cannot be run is not a daemon down on purpose (BL-890). Going on
+  # left the stack running and then removed the directory, and with it the
+  # compose file a later teardown needs. A tree with a slot has a stack; a
+  # --no-infra tree has none and still goes. Refused before anything is touched.
+  if [[ -n "$SLOT" ]] && ! command -v docker >/dev/null 2>&1; then
+    err "docker is not on PATH (Docker Desktop installs it in /usr/local/bin); nothing was torn down or removed"
+    exit 2
   fi
 
   build_envs "$SLOT"

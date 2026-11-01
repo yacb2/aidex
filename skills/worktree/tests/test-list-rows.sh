@@ -18,6 +18,8 @@
 #                 18446744073709551617 wrapped into range.
 #   BL-804        a claim with no directory (MISSING-DIR) printed its filename's
 #                 number raw: a planted slot-abc showed SLOT abc.
+#   BL-890        with docker not on PATH, `docker ps` failed silently and STACK
+#                 read `down` for a stack that was running; it is `?` now.
 #
 # Behavioural, no daemon: docker is a stub that exits 0.
 # Run with: bash skills/worktree/tests/test-list-rows.sh
@@ -156,6 +158,23 @@ mrow="$(row_for "$m" mt)"
 [[ -n "$mrow" ]] || fail "c05: no row for the worktree under a path with [ ] (its slug was not derived)"
 grep -q 'STRAY-DIR' <<<"$mrow" \
   && fail "c05: a live worktree under a path with [ ] was reported as STRAY-DIR: $mrow"
+
+# --- BL-890. docker not on PATH: STACK is unknown (`?`), never `down` ---------
+# A PATH with every directory that holds a `docker` dropped, the stub's included.
+NODOCKER_PATH="$(printf '%s\n' "$BIN:$PATH" | tr ':' '\n' \
+  | while IFS= read -r d; do [[ -n "$d" && ! -x "$d/docker" ]] && printf '%s:' "$d"; done)"
+NODOCKER_PATH="${NODOCKER_PATH%:}"   # a trailing ':' would put the cwd on PATH
+[[ "$(row_for "$n" nb | awk -F'\t' '{print $4}')" == "down" ]] \
+  || fail "BL-890 control: with docker available and no container up, STACK must be down: $(row_for "$n" nb)"
+nd_out="$( cd "$n" && PATH="$NODOCKER_PATH" "$BASH" "$WT" list --porcelain 2>"$TMP/nd.err" )"
+nd_row="$(awk -F'\t' '$1 == "nb"' <<<"$nd_out")"
+check_row "BL-890 no docker" "$nd_row"
+[[ "$(awk -F'\t' '{print $4}' <<<"$nd_row")" == "?" ]] \
+  || fail "BL-890: with docker not on PATH, the porcelain STACK must be '?', got: $nd_row"
+grep -q 'docker is not on PATH' "$TMP/nd.err" \
+  || fail "BL-890: list must warn on stderr that docker is not on PATH, got: $(cat "$TMP/nd.err")"
+nd_human="$( cd "$n" && PATH="$NODOCKER_PATH" "$BASH" "$WT" list 2>/dev/null | awk '$1 == "nb" {print $4}' )"
+[[ "$nd_human" == "?" ]] || fail "BL-890: with docker not on PATH, the human STACK must be '?', got: '$nd_human'"
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — list rows: a root-only worktree is registered, a nested participant shows its branch, no row has an empty field"

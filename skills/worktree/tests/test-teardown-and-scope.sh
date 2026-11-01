@@ -469,16 +469,19 @@ mk_claimed() {  # mk_claimed <project-dir> <slug>: a worktree holding slot 3
 }
 # With no claim held (a --no-infra tree, or a slug whose claim is already gone)
 # there is nothing to withhold: an unverifiable teardown keeps the warning and
-# exits 0 (noinfra: daemon down). claimnodocker: docker not on PATH at all while
-# a claim IS held -- compose down exits 127, and that is unverified, not clean.
+# exits 0 (noinfra: daemon down). claimnodocker (BL-890): docker not on PATH at
+# all while a claim IS held. That is not a daemon down on purpose: compose down
+# exits 127 and leaves the stack running, and removing the directory then took
+# the compose file a later teardown needs. down refuses with exit 2 and touches
+# nothing. noinfranodocker: a --no-infra tree has no stack, so it still goes.
 # A PATH with every directory that holds a `docker` dropped, the stub's included.
 NODOCKER_PATH="$(printf '%s\n' "$PATH" | tr ':' '\n' \
   | while IFS= read -r d; do [[ -n "$d" && ! -x "$d/docker" ]] && printf '%s:' "$d"; done)"
 NODOCKER_PATH="${NODOCKER_PATH%:}"   # a trailing ':' would put the cwd on PATH
-for cell in daemon composefail residue keepdir clean noinfra claimnodocker; do
+for cell in daemon composefail residue keepdir clean noinfra claimnodocker noinfranodocker; do
   P="$TMP/pc02$cell"; C="$TMPDIR/aidex-wt-slots-pc02$cell/slot-3"
   case "$cell" in
-    noinfra) mk_branch_fixture "$P" td >/dev/null 2>&1 ;;
+    noinfra|noinfranodocker) mk_branch_fixture "$P" td >/dev/null 2>&1 ;;
     *)                mk_claimed "$P" td >/dev/null 2>&1 ;;
   esac
   case "$cell" in
@@ -499,7 +502,7 @@ exit 0' ;;
 exit 1' ;;
   esac
   flags=(--force); [[ "$cell" == keepdir ]] && flags+=(--keep-dir)
-  if [[ "$cell" == claimnodocker ]]; then
+  if [[ "$cell" == *nodocker ]]; then
     out="$( cd "$P" && PATH="$NODOCKER_PATH" "$BASH" "$S/worktree.sh" down td "${flags[@]}" 2>&1 )"; rc=$?
   else
     out="$( cd "$P" && PATH="$BIN:$PATH" bash "$S/worktree.sh" down td "${flags[@]}" 2>&1 )"; rc=$?
@@ -512,7 +515,13 @@ exit 1' ;;
     clean)
       [[ $rc -eq 0 && ! -e "$C" && ! -d "$P-wt-td" ]] \
         || fail "c02 control: a verified teardown must exit 0, remove the dir and release slot 3 (rc=$rc): $out" ;;
-    noinfra)
+    claimnodocker)
+      [[ $rc -eq 2 ]] || fail "BL-890: down with docker not on PATH over a claimed slot must refuse with exit 2 (rc=$rc): $out"
+      [[ -d "$P-wt-td" ]] || fail "BL-890: down removed the directory although docker could not be run: $out"
+      [[ -e "$C" ]] || fail "BL-890: down released the slot although docker could not be run: $out"
+      grep -q 'docker is not on PATH' <<<"$out" || fail "BL-890: the refusal must say docker is not on PATH, got: $out"
+      grep -q 'tearing down' <<<"$out" && fail "BL-890: down started the teardown before refusing: $out" ;;
+    noinfra|noinfranodocker)
       [[ $rc -eq 0 && ! -d "$P-wt-td" ]] \
         || fail "c02 $cell: with no claim to withhold, an unverifiable teardown must remove the dir and exit 0 (rc=$rc): $out"
       grep -q 'stays claimed' <<<"$out" && fail "c02 $cell: no claim exists, yet down says one stays claimed: $out" ;;
