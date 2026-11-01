@@ -17,7 +17,7 @@
 #                   [--depends "<BL-NNN[, BL-NNN…]>"]
 #                   [--raise to-raise|raised|none] [--ticket <KEY>] [--parent <KEY>]
 #                   [--branch [<repo>:]<branch>]… [--pr <repo>#<n>@<state>]… [--review <repo>#<n>@<state>]…
-#                   [--no-index]
+#                   [--keep-title] [--no-index]
 #
 #   --touches   files or modules the item will change; comma-separated. Items sharing a
 #               token cluster adjacently in the queue (sweep-kickoff.sh).
@@ -37,6 +37,8 @@
 #   --review    a teammate's PR to review, same shape, state requested|changes|approved.
 #               Stamps `checked`.
 #   --ticket and --pr clear `raise` (the ticket or PR arrived), whatever --raise says.
+#   --keep-title  with --ticket, leave the title and heading alone: register-item.sh
+#               --review passes it, because a review title names the key in parentheses.
 #
 # Only the fields given are written; each is inserted if the item predates it. Every
 # value is validated the way register-item.sh validates it, and `updated` is stamped.
@@ -47,7 +49,7 @@ set -euo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/_backlog-lib.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
-TARGET="" ESTIMATE="" SURFACE="" VERIFY="" TOUCHES="" DEPENDS="" NO_INDEX=0
+TARGET="" ESTIMATE="" SURFACE="" VERIFY="" TOUCHES="" DEPENDS="" NO_INDEX=0 KEEP_TITLE=0
 SET_VERIFY=0 SET_TOUCHES=0 SET_DEPENDS=0
 RAISE="" TICKET="" PARENT="" SET_TICKET=0 SET_PARENT=0 BRANCHES=() PRS=() REVIEWS=()
 while [[ $# -gt 0 ]]; do
@@ -63,6 +65,7 @@ while [[ $# -gt 0 ]]; do
     --branch)   BRANCHES+=("$2"); shift 2 ;;
     --pr)       PRS+=("$2"); shift 2 ;;
     --review)   REVIEWS+=("$2"); shift 2 ;;
+    --keep-title) KEEP_TITLE=1; shift ;;
     --no-index) NO_INDEX=1; shift ;;
     -h|--help)  usage_from_header "$0"; exit 0 ;;
     -*)         die "unknown option: $1" ;;
@@ -165,7 +168,7 @@ DEL_RAISE=0
 # kept, and a re-ticket replaces the old key's prefix). The first `#` heading follows only
 # when it IS the item's title line.
 SET_TITLE=0 OLD_TITLE="" NEW_TITLE=""
-if [[ $SET_TICKET -eq 1 ]]; then
+if [[ $SET_TICKET -eq 1 && $KEEP_TITLE -eq 0 ]]; then
   OLD_TITLE="$(fm_raw title)"
   _old_key="$(fm_raw ticket)"; _old_key="${_old_key#issue/}"
   # starts_with_key <title> <key>: the title begins with the key, then a non-alphanumeric or the end.

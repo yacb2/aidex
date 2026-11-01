@@ -8,7 +8,9 @@
 # Fixtures use generic names only: keys ABC-1, repos app and api, hosts tracker.example
 # and git.example (aidex is public).
 #
-# Run with: bash skills/backlog/tests/test-backlog-profile.sh [p1|p2]
+# Run with: bash skills/backlog/tests/test-backlog-profile.sh [p1|p2|p3]
+# Re-record the p3 no-profile golden (only against the pre-change register-item.sh):
+#   P3_RECORD_GOLDEN=1 bash skills/backlog/tests/test-backlog-profile.sh p3
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 SKILL="$(cd "$HERE/.." && pwd -P)"
@@ -314,11 +316,182 @@ p2() {
   [[ -z "$(ctx_crossref "$P/.context")" ]] && ok "validate.py: no cross-ref finding in the profiled project" || bad "validate P: $(ctx_crossref "$P/.context")"
 }
 
+# --- p3 helpers -------------------------------------------------------------------------
+# reg <project> <register args...>: one registration from <project> with no index; sets RF
+# (the printed path, empty on failure) and RC; stderr lands in $TMP/reg.err.
+reg() { local p="$1"; shift; RC=0; RF="$( cd "$p" && bash "$REG" --no-index "$@" 2>"$TMP/reg.err" | sed -n '$p' )" || RC=$?; }
+# routed_lines: how many routing lines the last reg printed.
+routed_lines() { grep -c 'recorded as an unconfirmed team finding' "$TMP/reg.err"; }
+# nitems <project>: item files in the active folder and _archive (the index excluded).
+nitems() { find "$1/.context/backlog" -name '*.md' ! -name 00-index.md | wc -l | tr -d ' '; }
+# golden <project> <register args...>: one registration WITH its index, as a normalised
+# transcript (stdout, stderr, the item file, the index); the date -> DATE, the project -> PROJ.
+golden() {
+  local p="$1" phys out f; shift
+  phys="$(cd "$p" && pwd -P)"
+  out="$(cd "$p" && bash "$REG" "$@" 2>"$TMP/g.err")"
+  f="$(printf '%s\n' "$out" | sed -n '$p')"
+  { printf '== stdout\n%s\n== stderr\n' "$out"; cat "$TMP/g.err"; printf '== item\n'; cat "$f" 2>/dev/null
+    printf '== index\n'; cat "$p/.context/backlog/00-index.md" 2>/dev/null; } \
+    | sed -e "s|$phys|PROJ|g" -e "s|$p|PROJ|g" -e "s|$TODAY|DATE|g"
+}
+GOLDEN_PLAIN=(--origin manual --title "Fix the app lane" --touches "app/x.ts, ./api/" --verify "a unit test")
+GOLDEN_ISSUE=(--origin issue --issue abc-1 --title "Follow the ticket")
+
+p3() {
+  echo "p3: register-item.sh routing, --raise, --ticket, --parent, --review, sweep-append skip"
+  local N="$TMP/p3n" I="$TMP/p3i" P="$TMP/p3p" T="$TMP/p3t" c g id n wl
+
+  # R0 golden: with no profile, and with an inert copy of the template, a registration is
+  # byte-identical to the pre-change script's (recorded from it: P3_RECORD_GOLDEN=1).
+  for c in plain issue; do
+    g="$SKILL/tests/fixtures/p3-golden-$c.txt"
+    if [[ -n "${P3_RECORD_GOLDEN:-}" ]]; then
+      mkproj "$N"
+      if [[ $c == plain ]]; then golden "$N" "${GOLDEN_PLAIN[@]}" > "$g"; else golden "$N" "${GOLDEN_ISSUE[@]}" > "$g"; fi
+      echo "  recorded $g"; continue
+    fi
+    for p in "$N" "$I"; do
+      mkproj "$p"
+      [[ $p == "$I" ]] && { mkdir -p "$I/.context/profiles"; cp "$TEMPLATE" "$I/.context/profiles/backlog.md"; }
+      if [[ $c == plain ]]; then golden "$p" "${GOLDEN_PLAIN[@]}" > "$TMP/g.out"; else golden "$p" "${GOLDEN_ISSUE[@]}" > "$TMP/g.out"; fi
+      if cmp -s "$g" "$TMP/g.out"; then ok "golden $c ($( [[ $p == "$N" ]] && echo no profile || echo inert template )): byte-identical"
+      else bad "golden $c differs ($( [[ $p == "$N" ]] && echo no profile || echo inert template ))"; diff "$g" "$TMP/g.out" | head -20 >&2; fi
+    done
+  done
+  [[ -n "${P3_RECORD_GOLDEN:-}" ]] && return 0
+
+  # R0: no routing without an active profile; an explicit --raise is still accepted.
+  for p in "$N" "$I"; do
+    c="$( [[ $p == "$N" ]] && echo no profile || echo inert template )"
+    reg "$p" --origin manual --title "touches the app" --touches app/x.ts
+    [[ $RC -eq 0 ]] && ! hasfm "$RF" raise && [[ $(routed_lines) -eq 0 ]] && ok "R0 ($c): --touches app/x.ts is not routed" || bad "R0 routed: rc=$RC raise='$(fm "$RF" raise)'"
+    reg "$p" --origin manual --title "explicit finding" --raise to-raise
+    [[ $RC -eq 0 && "$(fm "$RF" raise)" == "to-raise" && $(routed_lines) -eq 0 ]] && ok "R0 ($c): --raise to-raise is written, no routing line" || bad "R0 raise: rc=$RC raise='$(fm "$RF" raise)' $(cat "$TMP/reg.err")"
+    reg "$p" --origin issue --issue abc-2 --title "issue item"
+    ! hasfm "$RF" ticket && [[ "$(fm "$RF" title)" == '"issue item"' ]] && ok "R0 ($c): --origin issue forwards no ticket" || bad "R0 issue: ticket='$(fm "$RF" ticket)'"
+  done
+  n="$(nitems "$N")"
+  for c in none bogus; do
+    reg "$N" --origin manual --title "bad raise" --raise "$c"
+    [[ $RC -eq 2 ]] && ok "--raise $c at registration exits 2" || bad "--raise $c rc=$RC"
+  done
+  [[ "$(nitems "$N")" == "$n" ]] && ok "a refused --raise writes no item" || bad "refused --raise wrote an item"
+
+  # Active profiles. P: tracker_paths app, a ticket pattern. T: two words, no pattern.
+  mkproj "$P"; mkproj "$T"; mkdir -p "$P/.context/profiles" "$T/.context/profiles"
+  printf -- '---\ntracker_paths: "app"   # the team repo\nticket_pattern: "ABC-[0-9]+"\n---\n# Backlog profile\n' > "$P/.context/profiles/backlog.md"
+  printf -- '---\ntracker_paths: "web app"\nticket_pattern: ""\n---\n# Backlog profile\n' > "$T/.context/profiles/backlog.md"
+
+  # R2: any --touches token whose first segment is a tracker_paths word routes.
+  for c in "app/x.ts" "./app/" "app/" "app" "api/x.ts, app/y.ts" "api/x.ts app/y.ts" "api/x.ts,app/y.ts" $'lib/z.ts,\tapp/q.ts'; do
+    reg "$P" --origin manual --title "routed item" --touches "$c"
+    id="$(fm "$RF" id)"
+    [[ $RC -eq 0 && "$(fm "$RF" raise)" == "to-raise" ]] && ok "R2: --touches '$c' -> raise: to-raise" || bad "R2 '$c': rc=$RC raise='$(fm "$RF" raise)' $(cat "$TMP/reg.err")"
+    [[ $(routed_lines) -eq 1 ]] && grep -qxF "$id recorded as an unconfirmed team finding (see the profile's Raise section)" "$TMP/reg.err" \
+      && ok "R2: exactly one routing line for '$c', naming $id" || bad "R2 line for '$c': $(routed_lines) lines: $(cat "$TMP/reg.err")"
+  done
+  reg "$P" --origin manual --title "routed keeps touches" --touches "./app/"
+  [[ "$(fm "$RF" touches)" == '"./app/"' ]] && ok "R2: the touches value is stored as given" || bad "touches stored: '$(fm "$RF" touches)'"
+  for c in "web/z.ts" "app/x.ts"; do
+    reg "$T" --origin manual --title "two words" --touches "$c"
+    [[ "$(fm "$RF" raise)" == "to-raise" && $(routed_lines) -eq 1 ]] && ok "R2: '$c' routes on a two-word tracker_paths" || bad "R2 T '$c': raise='$(fm "$RF" raise)'"
+  done
+  # R3: segment equality, not prefix; no --touches is not routed.
+  for c in "application/x.ts" "api/x.ts" "lib/app/x.ts" "apps" ".app/x" "/app/x"; do
+    reg "$P" --origin manual --title "not routed" --touches "$c"
+    [[ $RC -eq 0 ]] && ! hasfm "$RF" raise && [[ $(routed_lines) -eq 0 ]] && ok "R3: --touches '$c' is not routed" || bad "R3 '$c' routed: rc=$RC raise='$(fm "$RF" raise)'"
+  done
+  reg "$P" --origin manual --title "plain item"
+  [[ $RC -eq 0 ]] && ! hasfm "$RF" raise && ! hasfm "$RF" ticket && [[ $(routed_lines) -eq 0 ]] && ok "R3: no --touches -> a plain item" || bad "R3 plain"
+  # an explicit --raise wins over routing and prints no routing line
+  reg "$P" --origin manual --title "already raised" --touches app/x.ts --raise raised
+  [[ "$(fm "$RF" raise)" == "raised" && $(routed_lines) -eq 0 ]] && ok "an explicit --raise raised on a tracker path stays raised, no routing line" || bad "explicit raise: '$(fm "$RF" raise)' lines $(routed_lines)"
+  # a routed item closed on arrival is written under _archive/ and still gets raise
+  reg "$P" --origin manual --title "routed and done" --touches app/x.ts --status done
+  [[ $RC -eq 0 && "$RF" == */_archive/* && "$(fm "$RF" raise)" == "to-raise" ]] && ok "--status done: the routed item in _archive/ carries raise" || bad "archived routed: rc=$RC $RF raise='$(fm "$RF" raise)' $(cat "$TMP/reg.err")"
+
+  # R1: with an active profile --origin issue writes ticket (key upper-cased, title prefixed,
+  # so the slug carries it) and is not routed; a key outside ticket_pattern exits 2.
+  reg "$P" --origin issue --issue abc-1 --title "follow the ticket" --touches app/x.ts
+  [[ $RC -eq 0 && "$(fm "$RF" ticket)" == '"issue/ABC-1"' && "$(fm "$RF" origin_ref)" == "issue/abc-1" ]] \
+    && ok "R1: --origin issue --issue abc-1 writes ticket: \"issue/ABC-1\" beside origin_ref" || bad "R1: rc=$RC ticket='$(fm "$RF" ticket)' ref='$(fm "$RF" origin_ref)' $(cat "$TMP/reg.err")"
+  [[ "$(fm "$RF" title)" == '"ABC-1 follow the ticket"' && "$RF" == *-abc-1-follow-the-ticket.md ]] && ok "R1: the title and the filename slug carry the key" || bad "R1 title: '$(fm "$RF" title)' $RF"
+  ! hasfm "$RF" raise && [[ $(routed_lines) -eq 0 ]] && ok "R1: an issue item on a tracker path is not routed" || bad "R1 routed"
+  n="$(nitems "$P")"
+  reg "$P" --origin issue --issue XYZ-9 --title "foreign key"
+  [[ $RC -eq 2 && "$(nitems "$P")" == "$n" ]] && ok "R1: --issue XYZ-9 outside ticket_pattern exits 2 and leaves no item" || bad "R1 mismatch: rc=$RC items $(nitems "$P") vs $n"
+  reg "$T" --origin issue --issue foo-9 --title "no pattern"
+  [[ $RC -eq 0 && "$(fm "$RF" ticket)" == '"issue/FOO-9"' ]] && ok "R1: an active profile with no ticket_pattern takes any key" || bad "R1 T: rc=$RC '$(fm "$RF" ticket)'"
+
+  # --ticket: key prefixed on the title before the slug, not doubled, validated, no routing.
+  reg "$P" --origin manual --ticket abc-3 --title "fix the lane" --touches app/x.ts
+  [[ $RC -eq 0 && "$(fm "$RF" ticket)" == '"issue/ABC-3"' && "$(fm "$RF" title)" == '"ABC-3 fix the lane"' && "$RF" == *-abc-3-fix-the-lane.md ]] \
+    && ok "--ticket abc-3: ticket, title prefix and slug" || bad "--ticket: rc=$RC '$(fm "$RF" ticket)' '$(fm "$RF" title)' $RF $(cat "$TMP/reg.err")"
+  [[ "$(heading "$RF")" == "# ABC-3 fix the lane" ]] && ! hasfm "$RF" raise && [[ $(routed_lines) -eq 0 ]] && ok "--ticket: heading prefixed, not routed" || bad "--ticket heading '$(heading "$RF")' raise '$(fm "$RF" raise)'"
+  reg "$P" --origin manual --ticket ABC-4 --title "ABC-4 already keyed"
+  [[ "$(fm "$RF" title)" == '"ABC-4 already keyed"' ]] && ok "--ticket: a title already starting with the key is not doubled" || bad "doubled: '$(fm "$RF" title)'"
+  n="$(nitems "$P")"
+  reg "$P" --origin manual --ticket XYZ-1 --title "foreign ticket"
+  [[ $RC -eq 2 && "$(nitems "$P")" == "$n" ]] && ok "--ticket XYZ-1 outside ticket_pattern exits 2, no item" || bad "--ticket mismatch rc=$RC"
+  reg "$N" --origin manual --ticket xyz-1 --title "no profile ticket"
+  [[ $RC -eq 0 && "$(fm "$RF" ticket)" == '"issue/XYZ-1"' && "$(fm "$RF" title)" == '"XYZ-1 no profile ticket"' ]] && ok "--ticket works with no profile" || bad "N ticket: rc=$RC $(cat "$TMP/reg.err")"
+  reg "$P" --origin manual --ticket ABC-5 --raise to-raise --title "ticket clears raise"
+  ! hasfm "$RF" raise && [[ "$(fm "$RF" ticket)" == '"issue/ABC-5"' ]] && ok "--ticket with --raise ends with no raise" || bad "ticket+raise: raise='$(fm "$RF" raise)'"
+
+  # --parent without --ticket is accepted; with --ticket both land.
+  reg "$P" --origin manual --parent abc-1 --title "child work"
+  [[ $RC -eq 0 && "$(fm "$RF" parent)" == '"issue/ABC-1"' && "$(fm "$RF" title)" == '"child work"' ]] && ! hasfm "$RF" ticket \
+    && ok "--parent alone: parent written, no ticket, title untouched" || bad "--parent: rc=$RC '$(fm "$RF" parent)' $(cat "$TMP/reg.err")"
+  reg "$P" --origin manual --ticket ABC-6 --parent ABC-1 --title "sub issue"
+  [[ "$(fm "$RF" ticket)" == '"issue/ABC-6"' && "$(fm "$RF" parent)" == '"issue/ABC-1"' ]] && ok "--ticket with --parent writes both" || bad "ticket+parent"
+
+  # --review: generated title, requested state, checked stamped, not routed.
+  reg "$P" --origin manual --review app#12 --ticket ABC-1 --touches app/x.ts
+  [[ $RC -eq 0 && "$(fm "$RF" review)" == '"pr/app#12@requested"' && "$(fm "$RF" ticket)" == '"issue/ABC-1"' ]] \
+    && ok "--review app#12 --ticket ABC-1: review and ticket written" || bad "--review: rc=$RC '$(fm "$RF" review)' '$(fm "$RF" ticket)' $(cat "$TMP/reg.err")"
+  [[ "$(fm "$RF" title)" == '"Review app#12 (ABC-1)"' && "$(heading "$RF")" == "# Review app#12 (ABC-1)" ]] \
+    && ok "--review: title Review app#12 (ABC-1), not key-prefixed" || bad "review title: '$(fm "$RF" title)' / '$(heading "$RF")'"
+  [[ "$(fm "$RF" checked)" == "$TODAY" ]] && ! hasfm "$RF" raise && [[ $(routed_lines) -eq 0 ]] && ok "--review: checked stamped, not routed" || bad "review checked '$(fm "$RF" checked)' raise '$(fm "$RF" raise)'"
+  reg "$N" --origin manual --review api#3
+  [[ $RC -eq 0 && "$(fm "$RF" title)" == '"Review api#3"' && "$(fm "$RF" review)" == '"pr/api#3@requested"' ]] && ok "--review api#3 with no ticket: title Review api#3" || bad "review no ticket: rc=$RC '$(fm "$RF" title)'"
+  reg "$N" --origin manual --review api#4 --title "check the migration"
+  [[ "$(fm "$RF" title)" == '"check the migration"' ]] && ok "--review with an explicit --title keeps that title" || bad "review title override: '$(fm "$RF" title)'"
+  n="$(nitems "$N")"
+  for c in app "app#x" "#12" "app#12@changes"; do
+    reg "$N" --origin manual --review "$c"
+    [[ $RC -eq 2 ]] && ok "--review '$c' exits 2" || bad "--review '$c' rc=$RC"
+  done
+  [[ "$(nitems "$N")" == "$n" ]] && ok "a refused --review writes no item" || bad "refused --review wrote an item"
+
+  # --escalate-to refuses the tracker flags instead of dropping them.
+  mkproj "$TMP/p3other"
+  for c in "--raise to-raise" "--ticket ABC-1" "--parent ABC-1" "--review app#1"; do
+    reg "$N" --origin manual --title "escalated" --escalate-to "$TMP/p3other" $c
+    [[ $RC -eq 2 ]] && grep -q "plain registration" "$TMP/reg.err" && ok "--escalate-to refuses $c" || bad "--escalate-to $c rc=$RC $(cat "$TMP/reg.err")"
+  done
+
+  # Sweep append: a plain mid-sweep item is appended; a routed or tracked one is not, with
+  # a warning on stderr.
+  mkdir -p "$P/.context/worklists"; wl="$P/.context/worklists/2026-11-01-run.md"
+  printf -- '---\ntitle: "Run"\nstatus: doing\ncreated: 2026-11-01\nupdated: 2026-11-01\nmode: sweep\n---\n\n## Queue (in execution order)\n1. [ ] BL-999 — seed   <!-- ref: backlog -->\n' > "$wl"
+  reg "$P" --origin sweep --worklist 2026-11-01-run --title "plain found"
+  id="$(fm "$RF" id)"
+  [[ $RC -eq 0 && $(grep -c " $id " "$wl") -eq 1 ]] && ok "sweep: a plain item is appended to the queue" || bad "sweep plain not appended: rc=$RC $(cat "$TMP/reg.err")"
+  for c in "--touches app/x.ts" "--raise to-raise" "--ticket ABC-7" "--review app#4"; do
+    reg "$P" --origin sweep --worklist 2026-11-01-run --title "tracked found" $c
+    id="$(fm "$RF" id)"
+    [[ $RC -eq 0 && -f "$RF" && $(grep -c " $id " "$wl") -eq 0 ]] && grep -q "$id.*not appended" "$TMP/reg.err" \
+      && ok "sweep: $c is registered, not appended, and warned" || bad "sweep $c: rc=$RC in-queue=$(grep -c " $id " "$wl") $(cat "$TMP/reg.err")"
+  done
+}
+
 case "${1:-all}" in
   p1) p1 ;;
   p2) p2 ;;
-  all) p1; p2 ;;
-  *) echo "usage: $0 [p1|p2]" >&2; exit 2 ;;
+  p3) p3 ;;
+  all) p1; p2; p3 ;;
+  *) echo "usage: $0 [p1|p2|p3]" >&2; exit 2 ;;
 esac
 echo "test-backlog-profile: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]

@@ -31,6 +31,20 @@
 #                                  validation, delegated); a registrar who has the paths in
 #                                  hand writes them now, not at the next kickoff (BL-273)
 #   --depends "<BL-NNN[, …]>"      ids that must close first (`merge:BL-NNN` = same change)
+#   --raise <to-raise|raised>      an unconfirmed team finding, written by define-item.sh
+#                                  (`--raise none` is define-item.sh's, never a registration's)
+#   --ticket <KEY>                 `ticket: "issue/<KEY>"` (define-item.sh validates the key);
+#                                  the title starts with the key, so the filename slug carries it
+#   --parent <KEY>                 `parent: "issue/<KEY>"`; the title is left alone
+#   --review <repo>#<n>            a teammate's PR to review: `review: "pr/<repo>#<n>@requested"`,
+#                                  title `Review <repo>#<n> (<KEY>)` (the key from --ticket) unless
+#                                  --title is given
+#                                  With an ACTIVE backlog profile (.context/profiles/backlog.md
+#                                  with tracker_paths or ticket_pattern set): a --touches token
+#                                  whose first path segment is a tracker_paths word routes the
+#                                  item to `raise: to-raise` (one stderr line says so), unless
+#                                  --raise, --ticket or --review is given; and --origin issue
+#                                  writes the --issue key as `ticket`. Nothing is refused.
 #   --context "<prose>"            the ## Context body, replacing the template prompt
 #   --acceptance "<criterion>"     one ## Acceptance bullet; repeat the flag for more
 #                                  Every registration ends by printing define-check.py's
@@ -519,6 +533,38 @@ if body:
 ' "$id" "$file" || true
 }
 
+# active_backlog_profile <ctx>: print the project's backlog profile when it is ACTIVE (it
+# exists and tracker_paths or ticket_pattern is non-empty); rc 1 for none or an inert copy.
+# Takes the .context/ dir, never $ROOT: an index regenerated through --escalate-to is
+# another repo's.
+active_backlog_profile() {
+  local prof
+  prof="$(resolve_profile "$1" backlog)" || return 1
+  [[ -n "$(profile_field "$prof" tracker_paths)$(profile_field "$prof" ticket_pattern)" ]] || return 1
+  printf '%s' "$prof"
+}
+
+# tracker_segment <touches> <tracker_paths>: print the first --touches token's first path
+# segment that EQUALS a tracker_paths word (a segment, never a string prefix: `application/`
+# is not `app`); rc 1 when none does. Tokens split on commas and whitespace, with leading
+# `./` and trailing `/` stripped, so `./app/`, `app/` and a bare `app` all name `app`.
+tracker_segment() {
+  local tok seg w
+  local -a toks=() words=()
+  read -ra toks <<<"${1//,/ }"
+  read -ra words <<<"$2"
+  for tok in ${toks[@]+"${toks[@]}"}; do
+    while [[ "$tok" == ./* ]]; do tok="${tok#./}"; done
+    while [[ "$tok" == */ ]]; do tok="${tok%/}"; done
+    seg="${tok%%/*}"
+    [[ -n "$seg" ]] || continue
+    for w in ${words[@]+"${words[@]}"}; do
+      [[ "$seg" == "$w" ]] && { printf '%s' "$seg"; return 0; }
+    done
+  done
+  return 1
+}
+
 # --- dispatcher: strip leading "backlog" if present ---
 if [[ "${1:-}" == "backlog" ]]; then shift; fi
 
@@ -540,6 +586,7 @@ SURFACE="internal"
 VERIFY=""
 TOUCHES="" DEPENDS="" CONTEXT="" ACCEPTANCE=""
 SET_TOUCHES=0 SET_DEPENDS=0
+RAISE="" TICKET="" PARENT="" REVIEW="" SET_TICKET=0 SET_PARENT=0
 STATUS="open"
 SLUG_OVERRIDE=""
 ESCALATE_TO=""
@@ -568,6 +615,10 @@ while [[ $# -gt 0 ]]; do
     --verify)      VERIFY="$2"; shift 2 ;;
     --touches)     TOUCHES="$2"; SET_TOUCHES=1; shift 2 ;;
     --depends)     DEPENDS="$2"; SET_DEPENDS=1; shift 2 ;;
+    --raise)       RAISE="$2"; shift 2 ;;
+    --ticket)      TICKET="$2"; SET_TICKET=1; shift 2 ;;
+    --parent)      PARENT="$2"; SET_PARENT=1; shift 2 ;;
+    --review)      REVIEW="$2"; shift 2 ;;
     --context)     CONTEXT="$2"; shift 2 ;;
     --acceptance)  ACCEPTANCE="${ACCEPTANCE:+$ACCEPTANCE
 }- $2"; shift 2 ;;
@@ -950,6 +1001,27 @@ case "$ORIGIN" in
   *) die "invalid --origin: $ORIGIN (must be manual, audit, issue, request, communication, plan, or sweep)" ;;
 esac
 
+# --- tracker flags (backlog profile) ---
+# Shapes are checked before an id is claimed; the values are written by define-item.sh after
+# the entry exists (the one writer and validator of those fields), so a key outside
+# ticket_pattern rolls the entry back like a malformed --depends. The profile is the target
+# backlog's project's (dirname of the backlog dir), which for this path is $ROOT's.
+BACKLOG_PROFILE="$(active_backlog_profile "$(dirname "$BACKLOG_DIR")")" || BACKLOG_PROFILE=""
+case "$RAISE" in ""|to-raise|raised) ;; *) die "invalid --raise: $RAISE (to-raise|raised at registration; \`--raise none\` is define-item.sh's)" ;; esac
+[[ -z "$REVIEW" || "$REVIEW" =~ ^[A-Za-z0-9._-]+#[0-9]+$ ]] || die "invalid --review '$REVIEW' (<repo>#<n>; the state starts at requested)"
+# R1: with an active profile, --origin issue records its key as the item's ticket. Without
+# one nothing is forwarded, so the output stays byte-identical. An explicit --ticket wins.
+ISSUE_TICKET=0
+if [[ "$ORIGIN" == "issue" && -n "$ISSUE" && $SET_TICKET -eq 0 && -n "$BACKLOG_PROFILE" ]]; then
+  TICKET="$ISSUE" SET_TICKET=1 ISSUE_TICKET=1
+fi
+# The key as define-item.sh stores it (an issue/ prefix dropped, upper-cased), for the title.
+TICKET_KEY=""
+[[ $SET_TICKET -eq 0 ]] || TICKET_KEY="$(printf '%s' "${TICKET#[Ii][Ss][Ss][Uu][Ee]/}" | tr '[:lower:]' '[:upper:]')"
+if [[ -n "$REVIEW" && -z "$TITLE" ]]; then
+  TITLE="Review $REVIEW${TICKET_KEY:+ ($TICKET_KEY)}"
+fi
+
 if [[ -z "$TITLE" && -t 0 ]]; then
   printf 'Title: ' >&2
   read -r TITLE
@@ -1096,8 +1168,11 @@ fi
 # EXTERNAL ref: validate.py accepts <repo>/BL-NNN on format and skips the existence
 # check, since the target is not on this filesystem tree (BL-070, 00-global §3.1).
 if [[ -n "$ESCALATE_TO" ]]; then
-  [[ $SET_TOUCHES -eq 0 && $SET_DEPENDS -eq 0 && -z "$CONTEXT$ACCEPTANCE" ]] \
-    || die "--touches/--depends/--context/--acceptance apply to a plain registration, not --escalate-to"
+  # The tracker flags too: this path writes stubs and never calls define-item.sh, so they
+  # would be dropped. A ticket derived from --origin issue is not a flag and is not refused.
+  [[ $SET_TOUCHES -eq 0 && $SET_DEPENDS -eq 0 && -z "$CONTEXT$ACCEPTANCE$RAISE$REVIEW" && $SET_PARENT -eq 0 \
+     && ( $SET_TICKET -eq 0 || $ISSUE_TICKET -eq 1 ) ]] \
+    || die "--touches/--depends/--context/--acceptance/--raise/--ticket/--parent/--review apply to a plain registration, not --escalate-to"
   TARGET_ROOT="$ESCALATE_TO"
   [[ -d "$TARGET_ROOT" ]]           || die "--escalate-to: target repo not found: $TARGET_ROOT"
   [[ -d "$TARGET_ROOT/.context" ]]  || die "--escalate-to: target has no .context/: $TARGET_ROOT"
@@ -1214,6 +1289,15 @@ if [[ -n "$ESCALATE_TO" ]]; then
   exit 0
 fi
 
+# --ticket: the title starts with the key, so the filename slug carries it. Not doubled when
+# the title already starts with it; not on a review, whose title names the key in parentheses.
+if [[ $SET_TICKET -eq 1 && -z "$REVIEW" ]]; then
+  _ut="$(printf '%s' "$TITLE" | tr '[:lower:]' '[:upper:]')"
+  if [[ -z "$TICKET_KEY" || "${_ut:0:${#TICKET_KEY}}" != "$TICKET_KEY" || "${_ut:${#TICKET_KEY}:1}" =~ [A-Z0-9] ]]; then
+    TITLE="$TICKET_KEY${TITLE:+ $TITLE}"
+  fi
+fi
+
 # --- compute slug ---
 if [[ -n "$SLUG_OVERRIDE" ]]; then
   [[ "$SLUG_OVERRIDE" =~ ^[a-z0-9-]+$ ]] || die "--slug must match [a-z0-9-]+ (got: $SLUG_OVERRIDE)"
@@ -1275,18 +1359,34 @@ emit_backlog_entry "$OUT_FILE" "$ITEM_ID" "$TITLE" "$STATUS" "$ORIGIN" "${ORIGIN
      Why is this worth doing? What problem does it solve? Keep to 2-5 sentences. -->}" \
   "$NOTES_BLOCK" "$SURFACE" "$VERIFY" "$ACCEPTANCE"
 
-# --touches / --depends go through define-item.sh — the one writer and the one validator
-# of those fields (BL-273). It runs on the written entry, so a rejected value (a malformed
-# --depends) removes the entry again: the number stays spent, the file does not survive.
-if [[ $SET_TOUCHES -eq 1 || $SET_DEPENDS -eq 1 ]]; then
+# R2 routing, decided once, here: with an active profile, a --touches token whose first
+# segment is a tracker_paths word makes the item an unconfirmed team finding. An explicit
+# --raise, a ticket or a review already says what the item is, so they are not routed.
+ROUTED_SEG=""
+if [[ -n "$BACKLOG_PROFILE" && $SET_TOUCHES -eq 1 && -z "$RAISE$REVIEW" && $SET_TICKET -eq 0 ]]; then
+  ROUTED_SEG="$(tracker_segment "$TOUCHES" "$(profile_field "$BACKLOG_PROFILE" tracker_paths)")" || ROUTED_SEG=""
+fi
+[[ -z "$ROUTED_SEG" ]] || RAISE="to-raise"
+
+# --touches / --depends and the tracker fields go through define-item.sh — the one writer
+# and the one validator of those fields (BL-273). It runs on the written entry (by its path:
+# a done/dropped entry is under _archive/, where an id lookup does not look), so a rejected
+# value (a malformed --depends, a key outside ticket_pattern) removes the entry again: the
+# number stays spent, the file does not survive.
+if [[ $SET_TOUCHES -eq 1 || $SET_DEPENDS -eq 1 || -n "$RAISE$REVIEW" || $SET_TICKET -eq 1 || $SET_PARENT -eq 1 ]]; then
   _def=()
   [[ $SET_TOUCHES -eq 1 ]] && _def+=(--touches "$TOUCHES")
   [[ $SET_DEPENDS -eq 1 ]] && _def+=(--depends "$DEPENDS")
+  [[ -n "$RAISE" ]] && _def+=(--raise "$RAISE")
+  [[ $SET_TICKET -eq 1 ]] && _def+=(--ticket "$TICKET")
+  [[ $SET_PARENT -eq 1 ]] && _def+=(--parent "$PARENT")
+  [[ -n "$REVIEW" ]] && _def+=(--review "$REVIEW@requested" --keep-title)
   if ! _err="$(bash "$REG_DIR/define-item.sh" "$OUT_FILE" "${_def[@]}" --no-index 2>&1 >/dev/null)"; then
     rm -f "$OUT_FILE"
     die "registration rolled back — ${_err#error: }"
   fi
 fi
+[[ -z "$ROUTED_SEG" ]] || log "$ITEM_ID recorded as an unconfirmed team finding (see the profile's Raise section)"
 
 # --origin sweep --worklist: append the item to the run's queue (class b, emergent). The
 # report reads only the queue, so an item that was registered but never appended was
@@ -1294,8 +1394,13 @@ fi
 # Only an ACTIVE work-list is appended to; stdout stays the entry path alone. The title
 # is flattened like body_title: a raw newline split the queue line in two, and in sweep
 # mode it broke the append's awk so the item never reached the queue.
+# A routed or tracked item (raise, ticket, review) is NOT appended: this append is the one
+# way a mid-sweep item reaches the queue without sweep-eligible.py, and a sweep must not fix
+# and commit work an external tracker owns.
 if [[ "$ORIGIN" == "sweep" && -n "$WORKLIST" ]]; then
-  if [[ -f "$ROOT/.context/worklists/$WL_FILE" ]]; then
+  if [[ -n "$RAISE$REVIEW" || $SET_TICKET -eq 1 ]]; then
+    warn "warning: $ITEM_ID was not appended to worklist/$WL_FILE — ${ROUTED_SEG:+team repo: $ROUTED_SEG}${ROUTED_SEG:-tracked externally}"
+  elif [[ -f "$ROOT/.context/worklists/$WL_FILE" ]]; then
     bash "$REG_DIR/../../conventions/scripts/worklist-advance.sh" "$ROOT/.context/worklists/$WL_FILE" \
       --append "backlog:$ITEM_ID — $(printf '%s' "$TITLE" | tr '\n\r\t' '   ')" >/dev/null \
       || warn "warning: $ITEM_ID was registered but NOT appended to worklist/$WL_FILE — append it with worklist-advance.sh --append"
