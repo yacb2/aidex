@@ -324,6 +324,51 @@ p2() {
     && ok "old flags: the Triaged line is unchanged" || bad "old output: '$(cat "$TMP/def.err")'"
   ! grep -qE '^(raise|ticket|parent|branch|pr|review|checked):' "$f" && ok "old flags write no tracker field" || bad "tracker field written by old flags"
 
+  # --checked: a state seen on an earlier day; today stays the default of --pr/--review.
+  f="$(newitem "$N" "checked item")"
+  def "$N" "$f" --pr app#7@open --checked 2026-10-30; rc=$?
+  [[ $rc -eq 0 && "$(fm "$f" checked)" == "2026-10-30" && "$(fm "$f" pr)" == '"pr/app#7@open"' ]] \
+    && ok "--pr with --checked 2026-10-30 backdates checked" || bad "--checked with --pr: rc=$rc checked '$(fm "$f" checked)' $(cat "$TMP/def.err")"
+  def "$N" "$f" --checked 2026-10-29; rc=$?
+  [[ $rc -eq 0 && "$(fm "$f" checked)" == "2026-10-29" && $(grep -c '^checked:' "$f") -eq 1 ]] \
+    && ok "--checked alone rewrites checked" || bad "--checked alone: rc=$rc '$(fm "$f" checked)' $(cat "$TMP/def.err")"
+  def "$N" "$f" --pr app#7@merged
+  [[ "$(fm "$f" checked)" == "$TODAY" ]] && ok "--pr without --checked still stamps today" || bad "default checked: '$(fm "$f" checked)'"
+  cp "$f" "$TMP/p2.before"
+  for c in 2026-13-01 2026-02-30 26-10-30 "$(python3 -c 'import datetime; print(datetime.date.today() + datetime.timedelta(days=1))')" ""; do
+    def "$N" "$f" --checked "$c"; rc=$?
+    [[ $rc -eq 2 ]] && ok "--checked '$c' exits 2" || bad "--checked '$c' rc=$rc"
+  done
+  cmp -s "$f" "$TMP/p2.before" && ok "refused --checked values leave the item byte-identical" || bad "refused --checked changed the item"
+
+  # --blocked-by: sets the Blocked modifier on an active item; "" clears it.
+  f="$(newitem "$N" "blocked flag item")"
+  def "$N" "$f" --blocked-by 'a "test" number'; rc=$?
+  [[ $rc -eq 0 && "$(fm "$f" blocked_by)" == '"a \"test\" number"' && $(grep -c '^blocked_by:' "$f") -eq 1 ]] \
+    && ok "--blocked-by sets one escaped blocked_by line" || bad "--blocked-by: rc=$rc '$(fm "$f" blocked_by)' $(cat "$TMP/def.err")"
+  ( cd "$N" && bash "$REG" --reindex >/dev/null 2>&1 )
+  awk '/^## /{s=($0=="## Blocked")} s' "$N/.context/backlog/00-index.md" | grep >/dev/null 'blocked flag item' \
+    && ok "the index lists the item under ## Blocked" || bad "not under Blocked: $(cat "$N/.context/backlog/00-index.md")"
+  def "$N" "$f" --blocked-by ""; rc=$?
+  [[ $rc -eq 0 && "$(fm "$f" blocked_by)" == '""' && $(grep -c '^blocked_by:' "$f") -eq 1 ]] \
+    && ok "--blocked-by \"\" clears it to the schema's empty value" || bad "--blocked-by '': rc=$rc '$(fm "$f" blocked_by)'"
+  ( cd "$N" && bash "$REG" --reindex >/dev/null 2>&1 )
+  awk '/^## /{s=($0=="## Blocked")} s' "$N/.context/backlog/00-index.md" | grep >/dev/null 'blocked flag item' \
+    && bad "a cleared item is still under ## Blocked" || ok "a cleared item leaves ## Blocked"
+  grep >/dev/null 'blocked flag item' "$N/.context/backlog/00-index.md" && ok "the cleared item is back in the active lists" || bad "cleared item missing from the index"
+  awk '!/^blocked_by:/' "$f" > "$f.t" && mv "$f.t" "$f"
+  def "$N" "$f" --blocked-by "vendor"
+  [[ "$(fm "$f" blocked_by)" == '"vendor"' ]] && ok "--blocked-by inserts the line on an item that predates it" || bad "insert blocked_by: '$(fm "$f" blocked_by)'"
+
+  # --escalated-to: set or clear on an active item, which stays open and active.
+  f="$(newitem "$N" "escalated flag item")"
+  def "$N" "$f" --escalated-to "plan/2026-11-01-x"; rc=$?
+  [[ $rc -eq 0 && "$(fm "$f" escalated_to)" == '"plan/2026-11-01-x"' && "$(fm "$f" status)" == "open" && -f "$f" ]] \
+    && ok "--escalated-to sets the field; the item stays open and active" || bad "--escalated-to: rc=$rc '$(fm "$f" escalated_to)' $(cat "$TMP/def.err")"
+  def "$N" "$f" --escalated-to ""; rc=$?
+  [[ $rc -eq 0 && "$(fm "$f" escalated_to)" == '""' && $(grep -c '^escalated_to:' "$f") -eq 1 ]] \
+    && ok "--escalated-to \"\" clears it" || bad "--escalated-to '': rc=$rc '$(fm "$f" escalated_to)'"
+
   # phase 1's validator accepts everything the writer stored.
   [[ -z "$(ctx_crossref "$N/.context")" ]] && ok "validate.py: no cross-ref finding in the no-profile project" || bad "validate N: $(ctx_crossref "$N/.context")"
   [[ -z "$(ctx_crossref "$P/.context")" ]] && ok "validate.py: no cross-ref finding in the profiled project" || bad "validate P: $(ctx_crossref "$P/.context")"

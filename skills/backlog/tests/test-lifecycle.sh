@@ -448,6 +448,31 @@ G_RC=0; bash "$SCRIPTS/defer-item.sh" defer fix-the-parser-two --reason x --no-i
 check "defer-item: the exact slug still defers" '[[ $G_RC -eq 0 && -f ".context/backlog/_deferred/$(basename "$DS")" ]]'
 cd "$TMP"
 
+echo "== reopen an archived item =="
+# its own project: an id planted above makes every reindex in $TMP exit 4
+mkdir -p "$TMP/reopen/.context/backlog"; cd "$TMP/reopen"
+RO="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "reopen me" --priority P2 --no-index 2>/dev/null)"
+RO_ID="$(awk '/^---/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2}' "$RO")"
+sed -i.bak 's/^commits: .*/commits: "r0r0r0r"/' "$RO" && rm -f "$RO.bak"
+bash "$SCRIPTS/close-item.sh" "$RO_ID" --status dropped --reason "moved elsewhere" --no-index >/dev/null 2>&1
+RO_ARCH=".context/backlog/_archive/$(basename "$RO")"
+sed -i.bak 's/^updated: .*/updated: 2000-01-01/' "$RO_ARCH" && rm -f "$RO_ARCH.bak"
+RO_RC=0; RO_OUT="$(bash "$SCRIPTS/close-item.sh" --reopen "$RO_ID" --reason "the move did not cover it" 2>/dev/null)" || RO_RC=$?
+check "reopen exits 0 and prints the active path" '[[ $RO_RC -eq 0 && "$RO_OUT" == *".context/backlog/$(basename "$RO")" && -f "$RO" && ! -e "$RO_ARCH" ]]'
+check "reopen sets status open and stamps updated" 'grep -q "^status: open$" "$RO" && grep -q "^updated: $(date +%Y-%m-%d)$" "$RO"'
+check "reopen keeps the resolving fields (commits)" 'grep -q "^commits: \"r0r0r0r\"$" "$RO"'
+check "reopen appends a dated note line with the old status" '[[ "$(tail -n 1 "$RO")" == "- Reopened $(date +%Y-%m-%d) (was dropped): the move did not cover it" ]]'
+check "reopen rebuilds the index with the item active" 'awk "/^## Closed/{exit} {print}" .context/backlog/00-index.md | grep >/dev/null "reopen me"'
+RO_RC=0; bash "$SCRIPTS/close-item.sh" --reopen "$RO_ID" --no-index >/dev/null 2>&1 || RO_RC=$?
+check "reopen refuses an id that is not in _archive/ (exit 2)" '[[ $RO_RC -eq 2 && -f "$RO" ]]'
+RO_RC=0; bash "$SCRIPTS/close-item.sh" --reopen BL-999 --no-index >/dev/null 2>&1 || RO_RC=$?
+check "reopen refuses an unknown id (exit 2)" '[[ $RO_RC -eq 2 ]]'
+bash "$SCRIPTS/close-item.sh" "$RO_ID" --no-index >/dev/null 2>&1
+RO_SUM="$(cksum < "$RO_ARCH")"
+RO_RC=0; bash "$SCRIPTS/close-item.sh" --reopen "$RO_ID" --status done --no-index >/dev/null 2>&1 || RO_RC=$?
+check "reopen refuses a closing flag beside it, archive untouched" '[[ $RO_RC -eq 2 && "$(cksum < "$RO_ARCH")" == "$RO_SUM" ]]'
+cd "$TMP"
+
 echo
 echo "lifecycle: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]

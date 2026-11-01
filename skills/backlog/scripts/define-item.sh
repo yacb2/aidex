@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # define-item.sh — write optional front-matter fields into a backlog item: the triage
 # VERDICT (estimate, surface, verify, touches, depends) and the tracker fields (raise,
-# ticket, parent, branch, pr, review, checked).
+# ticket, parent, branch, pr, review, checked) and the lifecycle fields a migration
+# corrects (blocked_by, escalated_to).
 #
 # Kickoff triage confirms or corrects what registration only hypothesised, and the
 # verdict lives in the ITEM — the work-list is gitignored and per-run, so a verdict
@@ -17,6 +18,7 @@
 #                   [--depends "<BL-NNN[, BL-NNN…]>"]
 #                   [--raise to-raise|raised|none] [--ticket <KEY>] [--parent <KEY>]
 #                   [--branch [<repo>:]<branch>]… [--pr <repo>#<n>@<state>]… [--review <repo>#<n>@<state>]…
+#                   [--checked YYYY-MM-DD] [--blocked-by "<who/what>"] [--escalated-to "<ref>"]
 #                   [--keep-title] [--no-index]
 #
 #   --touches   files or modules the item will change; comma-separated. Items sharing a
@@ -36,6 +38,12 @@
 #               <repo>#<n> is replaced, a new one appended. Stamps `checked`.
 #   --review    a teammate's PR to review, same shape, state requested|changes|approved.
 #               Stamps `checked`.
+#   --checked   the day a PR or review state was seen (YYYY-MM-DD, not in the future);
+#               alone it rewrites `checked`, beside --pr/--review it replaces today's stamp.
+#   --blocked-by  SETS the Blocked modifier on an active item (priority kept; defer-item.sh
+#               --reason appends instead); "" clears it to `blocked_by: ""`.
+#   --escalated-to  SETS the field on an active item without closing it (register-item.sh
+#               --escalate-to accumulates); "" clears it. Shape is validate.py's to judge.
 #   --ticket and --pr clear `raise` (the ticket or PR arrived), whatever --raise says.
 #   --keep-title  with --ticket, leave the title and heading alone: register-item.sh
 #               --review passes it, because a review title names the key in parentheses.
@@ -52,6 +60,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 TARGET="" ESTIMATE="" SURFACE="" VERIFY="" TOUCHES="" DEPENDS="" NO_INDEX=0 KEEP_TITLE=0
 SET_VERIFY=0 SET_TOUCHES=0 SET_DEPENDS=0
 RAISE="" TICKET="" PARENT="" SET_TICKET=0 SET_PARENT=0 BRANCHES=() PRS=() REVIEWS=()
+CHECKED_AT="" SET_CHECKED=0 BLOCKED="" SET_BLOCKED=0 ESCALATED="" SET_ESCALATED=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --estimate) ESTIMATE="$2"; shift 2 ;;
@@ -65,6 +74,9 @@ while [[ $# -gt 0 ]]; do
     --branch)   BRANCHES+=("$2"); shift 2 ;;
     --pr)       PRS+=("$2"); shift 2 ;;
     --review)   REVIEWS+=("$2"); shift 2 ;;
+    --checked)  CHECKED_AT="$2"; SET_CHECKED=1; shift 2 ;;
+    --blocked-by)   BLOCKED="$2"; SET_BLOCKED=1; shift 2 ;;
+    --escalated-to) ESCALATED="$2"; SET_ESCALATED=1; shift 2 ;;
     --keep-title) KEEP_TITLE=1; shift ;;
     --no-index) NO_INDEX=1; shift ;;
     -h|--help)  usage_from_header "$0"; exit 0 ;;
@@ -74,7 +86,8 @@ while [[ $# -gt 0 ]]; do
 done
 [[ -n "$TARGET" ]] || die "target required: <BL-id | slug | filename | path>"
 [[ -n "$ESTIMATE$SURFACE$RAISE" || $SET_VERIFY -eq 1 || $SET_TOUCHES -eq 1 || $SET_DEPENDS -eq 1 \
-   || $SET_TICKET -eq 1 || $SET_PARENT -eq 1 || ${#BRANCHES[@]} -gt 0 || ${#PRS[@]} -gt 0 || ${#REVIEWS[@]} -gt 0 ]] \
+   || $SET_TICKET -eq 1 || $SET_PARENT -eq 1 || ${#BRANCHES[@]} -gt 0 || ${#PRS[@]} -gt 0 || ${#REVIEWS[@]} -gt 0 \
+   || $SET_CHECKED -eq 1 || $SET_BLOCKED -eq 1 || $SET_ESCALATED -eq 1 ]] \
   || die "nothing to write — give at least one field flag"
 
 [[ -z "$ESTIMATE" ]] || case "$ESTIMATE" in XS|S|M|L|XL) ;; *) die "invalid estimate: $ESTIMATE" ;; esac
@@ -155,6 +168,14 @@ SET_PR=0 SET_REVIEW=0 PR_LIST="" REVIEW_LIST="" BRANCH_LIST="" CHECKED=""
 if [[ ${#PRS[@]} -gt 0 ]]; then PR_LIST="$(merge_prs pr "draft open approved merged closed" "${PRS[@]}")" || exit 2; SET_PR=1; fi
 if [[ ${#REVIEWS[@]} -gt 0 ]]; then REVIEW_LIST="$(merge_prs review "requested changes approved" "${REVIEWS[@]}")" || exit 2; SET_REVIEW=1; fi
 [[ $SET_PR -eq 0 && $SET_REVIEW -eq 0 ]] || CHECKED="$(date +%Y-%m-%d)"
+if [[ $SET_CHECKED -eq 1 ]]; then
+  python3 -c '
+import datetime, re, sys
+v = sys.argv[1]
+sys.exit(0 if re.fullmatch(r"\d{4}-\d{2}-\d{2}", v) and datetime.date.fromisoformat(v) <= datetime.date.today() else 1)' "$CHECKED_AT" 2>/dev/null \
+    || die "invalid --checked '$CHECKED_AT' (YYYY-MM-DD, not in the future)"
+  CHECKED="$CHECKED_AT"
+fi
 for _b in ${BRANCHES[@]+"${BRANCHES[@]}"}; do
   [[ "$_b" =~ ^([A-Za-z0-9._-]+:)?[^[:space:],:\"\\]+$ ]] || die "invalid --branch '$_b' ([<repo>:]<branch>, no spaces or commas)"
   BRANCH_LIST="${BRANCH_LIST:+$BRANCH_LIST, }$_b"
@@ -198,19 +219,19 @@ TMPF="$(mktemp "$(dirname "$FILE")/.$(basename "$FILE").XXXXXX")" && cp -p "$FIL
 DI_VER="$(yaml_escape "$VERIFY")" DI_TOU="$(yaml_escape "$TOUCHES")" DI_DEP="$(yaml_escape "$DEPENDS")" \
 DI_TIT="$(yaml_escape "$NEW_TITLE")" DI_OLDT="$OLD_TITLE" DI_NEWT="$NEW_TITLE" \
 DI_TIC="$(yaml_escape "$TICKET")" DI_PAR="$(yaml_escape "$PARENT")" DI_BRA="$(yaml_escape "$BRANCH_LIST")" \
-DI_PR="$PR_LIST" DI_REV="$REVIEW_LIST" \
+DI_PR="$PR_LIST" DI_REV="$REVIEW_LIST" DI_BLK="$(yaml_escape "$BLOCKED")" DI_ESC="$(yaml_escape "$ESCALATED")" \
 awk -v today="$TODAY" \
     -v est="$ESTIMATE" -v sur="$SURFACE" \
     -v setver="$SET_VERIFY" -v settou="$SET_TOUCHES" -v setdep="$SET_DEPENDS" \
     -v rai="$RAISE" -v delrai="$DEL_RAISE" -v settit="$SET_TITLE" -v settic="$SET_TICKET" \
     -v setpar="$SET_PARENT" -v setbra="$SET_BRANCH" -v setpr="$SET_PR" -v setrev="$SET_REVIEW" \
-    -v chk="$CHECKED" '
+    -v chk="$CHECKED" -v setblk="$SET_BLOCKED" -v setesc="$SET_ESCALATED" '
   BEGIN { d=0; s_est=0; s_sur=0; s_ver=0; s_tou=0; s_dep=0
-          s_rai=0; s_tic=0; s_par=0; s_bra=0; s_pr=0; s_rev=0; s_chk=0; head=0
+          s_rai=0; s_tic=0; s_par=0; s_bra=0; s_pr=0; s_rev=0; s_chk=0; s_blk=0; s_esc=0; head=0
           ver=ENVIRON["DI_VER"]; tou=ENVIRON["DI_TOU"]; dep=ENVIRON["DI_DEP"]
           tit=ENVIRON["DI_TIT"]; oldt=ENVIRON["DI_OLDT"]; newt=ENVIRON["DI_NEWT"]
           tic=ENVIRON["DI_TIC"]; par=ENVIRON["DI_PAR"]; bra=ENVIRON["DI_BRA"]
-          prl=ENVIRON["DI_PR"]; rev=ENVIRON["DI_REV"] }
+          prl=ENVIRON["DI_PR"]; rev=ENVIRON["DI_REV"]; blk=ENVIRON["DI_BLK"]; esc=ENVIRON["DI_ESC"] }
   /^---[[:space:]]*$/ && d<2 {
     d++
     if (d==2) {
@@ -226,6 +247,8 @@ awk -v today="$TODAY" \
       if (setpr && !s_pr) print "pr: \"" prl "\""
       if (setrev && !s_rev) print "review: \"" rev "\""
       if (chk!="" && !s_chk) print "checked: " chk
+      if (setblk && !s_blk) print "blocked_by: \"" blk "\""
+      if (setesc && !s_esc) print "escalated_to: \"" esc "\""
     }
     print; next
   }
@@ -243,11 +266,13 @@ awk -v today="$TODAY" \
   d==1 && setpr && /^pr:/         { print "pr: \"" prl "\""; s_pr=1; next }
   d==1 && setrev && /^review:/    { print "review: \"" rev "\""; s_rev=1; next }
   d==1 && chk!="" && /^checked:/  { print "checked: " chk; s_chk=1; next }
+  d==1 && setblk && /^blocked_by:/ { print "blocked_by: \"" blk "\""; s_blk=1; next }
+  d==1 && setesc && /^escalated_to:/ { print "escalated_to: \"" esc "\""; s_esc=1; next }
   d==1 && /^updated:/             { print "updated: " today; next }
   d==2 && !head && /^# / { head=1; if (settit && substr($0, 3)==oldt) { print "# " newt; next } }
   { print }
 ' "$FILE" > "$TMPF" && [[ -s "$TMPF" ]] && mv -f "$TMPF" "$FILE" || { rm -f "$TMPF"; die "could not rewrite $FILE"; }
 
-ok "Triaged $(read_id "$FILE"): ${ESTIMATE:+estimate=$ESTIMATE }${SURFACE:+surface=$SURFACE }$([[ $SET_VERIFY -eq 1 ]] && printf 'verify ')$([[ $SET_TOUCHES -eq 1 ]] && printf 'touches ')$([[ $SET_DEPENDS -eq 1 ]] && printf 'depends')$([[ -n "$RAISE" ]] && printf ' raise=%s' "$RAISE")$([[ $DEL_RAISE -eq 1 ]] && printf ' raise-cleared')$([[ $SET_TICKET -eq 1 ]] && printf ' ticket=%s' "$TICKET")$([[ $SET_PARENT -eq 1 ]] && printf ' parent=%s' "$PARENT")$([[ $SET_BRANCH -eq 1 ]] && printf ' branch')$([[ $SET_PR -eq 1 ]] && printf ' pr')$([[ $SET_REVIEW -eq 1 ]] && printf ' review')"
+ok "Triaged $(read_id "$FILE"): ${ESTIMATE:+estimate=$ESTIMATE }${SURFACE:+surface=$SURFACE }$([[ $SET_VERIFY -eq 1 ]] && printf 'verify ')$([[ $SET_TOUCHES -eq 1 ]] && printf 'touches ')$([[ $SET_DEPENDS -eq 1 ]] && printf 'depends')$([[ -n "$RAISE" ]] && printf ' raise=%s' "$RAISE")$([[ $DEL_RAISE -eq 1 ]] && printf ' raise-cleared')$([[ $SET_TICKET -eq 1 ]] && printf ' ticket=%s' "$TICKET")$([[ $SET_PARENT -eq 1 ]] && printf ' parent=%s' "$PARENT")$([[ $SET_BRANCH -eq 1 ]] && printf ' branch')$([[ $SET_PR -eq 1 ]] && printf ' pr')$([[ $SET_REVIEW -eq 1 ]] && printf ' review')$([[ $SET_CHECKED -eq 1 ]] && printf ' checked=%s' "$CHECKED")$([[ $SET_BLOCKED -eq 1 ]] && { [[ -n "$BLOCKED" ]] && printf ' blocked_by' || printf ' blocked_by-cleared'; })$([[ $SET_ESCALATED -eq 1 ]] && { [[ -n "$ESCALATED" ]] && printf ' escalated_to' || printf ' escalated_to-cleared'; })"
 [[ $NO_INDEX -eq 1 ]] || bash "$SCRIPT_DIR/register-item.sh" --reindex >/dev/null 2>&1 || true
 printf '%s\n' "$FILE"

@@ -5,6 +5,7 @@
 #
 # Usage:
 #   close-item.sh <BL-id | filename | path> [options]
+#   close-item.sh --reopen <BL-id | filename | path> [--reason "<text>"] [--no-index]
 #
 # Options:
 #   --status <done|dropped>     default: done
@@ -23,6 +24,12 @@
 #                               nothing mutated, nothing archived. An owner row that is
 #                               empty or a placeholder PARKS the item. Outside sweep
 #                               mode the type: bug warning below is all there is.
+#   --reopen                    the reverse move for an item in _archive/ only: back to the
+#                               active root, `status: open`, `updated` stamped, a line
+#                               `- Reopened <date> (was <status>): <reason>` appended, index
+#                               rebuilt. Every other field (commits, superseded_by,
+#                               escalated_to) is kept as the record of the earlier close;
+#                               correct one with define-item.sh. Takes only --reason/--no-index.
 #
 # Exit: 0 closed; 2 refused (nothing mutated); 4 archived and index written, but the id guard
 # found a duplicate or nonconforming id (the path is still printed); 1 archived, index stale.
@@ -40,10 +47,11 @@ set -euo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/_backlog-lib.sh"
 
 TARGET="" STATUS="done" SUPERSEDED="" ESCALATED="" REASON="" NO_INDEX=0 SWEEP=0
-COMMITS=()
+COMMITS=() REOPEN=0 STATUS_SET=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --status)        STATUS="$2"; shift 2 ;;
+    --status)        STATUS="$2"; STATUS_SET=1; shift 2 ;;
+    --reopen)        REOPEN=1; shift ;;
     --commit)        COMMITS+=("$2"); shift 2 ;;
     --superseded-by) SUPERSEDED="$2"; shift 2 ;;
     --escalated-to)  ESCALATED="$2"; shift 2 ;;
@@ -62,6 +70,30 @@ case "$STATUS" in done|dropped) ;; *) die "invalid --status: $STATUS (done|dropp
 ROOT="$(find_project_root)"
 BACKLOG_DIR="$ROOT/.context/backlog"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# --- reopen: _archive/ -> active root, the one way back from a close ---
+if [[ $REOPEN -eq 1 ]]; then
+  [[ $STATUS_SET -eq 0 && ${#COMMITS[@]} -eq 0 && -z "$SUPERSEDED$ESCALATED" && $SWEEP -eq 0 ]] \
+    || die "--reopen takes only --reason and --no-index"
+  ARCH_DIR="$BACKLOG_DIR/_archive"
+  FILE=""; [[ -d "$ARCH_DIR" ]] && FILE="$(resolve_backlog_target "$ARCH_DIR" "$TARGET")"
+  [[ -n "$FILE" && "$(dirname "$FILE")" == "$ARCH_DIR" ]] || die "no archived backlog item $TARGET in $ARCH_DIR"
+  DEST="$BACKLOG_DIR/$(basename "$FILE")"
+  [[ ! -e "$DEST" ]] || die "active collision: $DEST already exists"
+  TODAY="$(date +%Y-%m-%d)"
+  OLD_STATUS="$(awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="status:"{gsub(/"/,"",$2); print $2; exit}' "$FILE")"
+  TMPF="$(mktemp "$ARCH_DIR/.$(basename "$FILE").XXXXXX")" && cp -p "$FILE" "$TMPF" \
+    && awk -v today="$TODAY" '/^---[[:space:]]*$/{d++} d==1 && /^status:/{print "status: open"; next}
+         d==1 && /^updated:/{print "updated: " today; next} {print}' "$FILE" > "$TMPF" \
+    && printf -- '\n- Reopened %s (was %s)%s\n' "$TODAY" "${OLD_STATUS:-?}" "${REASON:+: $REASON}" >> "$TMPF" \
+    && mv -f "$TMPF" "$DEST" && rm -f "$FILE" || { rm -f "$TMPF"; die "could not reopen $FILE"; }
+  ok "Reopened $(basename "$DEST") → open · active (was ${OLD_STATUS:-?})"
+  RC=0
+  [[ $NO_INDEX -eq 1 ]] || bash "$SCRIPT_DIR/register-item.sh" --reindex >/dev/null || RC=$?
+  [[ $RC -eq 0 || $RC -eq 4 ]] || echo "close-item: $(basename "$DEST") was reopened but the index is stale; rebuild it with: bash $SCRIPT_DIR/register-item.sh --reindex" >&2
+  printf '%s\n' "$DEST"
+  exit "$RC"
+fi
 
 # --- resolve target to an active backlog file ---
 FILE="$(resolve_backlog_target "$BACKLOG_DIR" "$TARGET")"

@@ -156,10 +156,10 @@ see [Tracker coexistence](#tracker-coexistence-backlog-profile).
 | `touches` | comma-separated paths or modules, or absent | What the item will change. Written at registration when the registrar has the paths in hand (`register-item.sh --touches`, which delegates to `define-item.sh`'s validation), otherwise as a *sweep triage verdict* (`define-item.sh`). Items sharing a token are **clustered** adjacently in the queue — one review per cluster, one context build per file. |
 | `depends` | `BL-NNN[, …]`, `merge:BL-NNN`, or absent | Ids that must close before this one (`A→B` written on B), written at registration (`--depends`) or as a *sweep triage verdict*. `merge:BL-NNN` marks the same change seen twice — a **MERGE** pair that closes in one commit carrying both `Backlog:` trailers. |
 | `verify` | one free line | The **hypothesis** of how this will be proven, by whoever registers it — corrected at triage, made concrete as rows in `## Verification` before close. An item nobody could say how to prove is an item nobody can close in a sweep. |
-| `blocked_by` | Free text or `<type>/<filename>` | Non-empty means parked waiting on third party; priority stays. |
+| `blocked_by` | Free text or `<type>/<filename>` | Non-empty means parked waiting on third party; priority stays. On an active item `define-item.sh --blocked-by "<text>"` sets it and `--blocked-by ""` clears it. |
 | `ready_when` | `date:YYYY-MM-DD` or `cmd:<shell command>`, or absent | When a parked item may come back. `date:` is met on or after that day; `cmd:` is met when the command exits 0 (run from the project root, 10 s cap) **and only if the command is approved**: a backlog item is not trusted code, so `sweep-eligible.py` runs a `cmd:` only when `sha256(project-root + "\n" + command)` is a line of the local, untracked allowlist `~/.claude/aidex/ready-when-allow.txt`. Approval is the owner's alone: `defer-item.sh` writes the field but **never** the allowlist, and agents never approve. The terminal check is advisory: a pseudo-terminal wrapper (`script`, `expect`) can satisfy it, so an install that runs agents unattended should also deny `Bash(*approve-ready-when*)` in its permission rules. The owner runs `bash scripts/approve-ready-when.sh <BL-id>` in a terminal; it prints the root and the exact command (control characters escaped), asks on `/dev/tty` and refuses (exit 2) without a terminal. The allowlist path is fixed at `~/.claude/aidex/ready-when-allow.txt` (no override) and is ignored if it resolves inside the project. A `cmd:` holding a tab, CR or LF is refused. A hand-written or pulled-in `cmd:` is shown as `NEEDS APPROVAL` (deferred) or `waiting: needs approval: <cmd>` (active), never run. Written by `defer-item.sh defer --ready-when`, cleared by `reactivate`. **Date and count waits use `ready_when` in `_deferred/`; human-event waits (an owner answer, a vendor) keep only `blocked_by`.** `sweep-eligible.py` lists every deferred item as READY / WAITING / ASK OWNER (no `ready_when`), and shows an active item with an unmet `ready_when` under REVIEW as `waiting:`, never ELIGIBLE. |
 | `awaiting` | `owner` or absent | **Written by `close-item.sh --sweep`, never by hand.** Every mechanical row is proven and an `owner` row still has an empty proof: the item is parked — not `done`, not archived, listed under `## Awaiting owner` in the index, out of every queue — until the owner fills the cell and it is closed again. Exists because a closed-looking item gets archived by mistake. |
-| `escalated_to` | `<type>/<filename>` (D-03) or empty | Set when work moves to a plan (typically combined with `status: doing`). A cross-repo escalation carries `<target-repo>/<id>` — see [Cross-project routing](#cross-project-routing). |
+| `escalated_to` | `<type>/<filename>` (D-03) or empty | Set when work moves to a plan (typically combined with `status: doing`). A cross-repo escalation carries `<target-repo>/<id>` — see [Cross-project routing](#cross-project-routing). `define-item.sh --escalated-to "<ref>"` sets it on an active item without closing it; `""` clears it. |
 | `commits` | space-separated SHAs, or empty | **Machine-required (D-09):** `harvest-commit.sh` appends resolved SHAs here so closure is verifiable, not just asserted. |
 
 ### How an id is claimed
@@ -362,6 +362,10 @@ Entry represents completed work. Per D-10, archive to `_archive/` **on close** �
 
 Sweep only. `close-item.sh --sweep` with every mechanical row proven and an `owner` row unanswered writes `awaiting: owner` and stops: the item stays where it is, under `## Awaiting owner` in the index. The owner fills the proof cell; closing again drops the field, sets `done` and archives. Never archive a parked item by hand.
 
+### archived → open (reopen)
+
+`close-item.sh --reopen <BL>` moves an item from `_archive/` back to the active root, sets `status: open`, stamps `updated`, appends `- Reopened <date> (was <status>): <reason>` and reindexes; `commits`, `superseded_by` and `escalated_to` stay as the record of the earlier close.
+
 ### * → dropped
 
 Set `status: dropped` and document the reason in Notes:
@@ -407,7 +411,8 @@ bash scripts/defer-item.sh reactivate BL-018
 ```
 
 Always use the `defer` / `reactivate` sub-actions — never move the file or edit
-`blocked_by` by hand (the index regen and `updated` stamp would drift).
+`blocked_by` by hand (the index regen and `updated` stamp would drift). On an active item
+the modifier is set and cleared with `define-item.sh --blocked-by`.
 
 ---
 
@@ -468,7 +473,7 @@ writes no trailers and no commit hook goes in under `tracker_paths`.
 | `branch` | `[<repo>:]<branch>[, …]` | `define-item.sh --branch` (repeatable, sets the list); bare names stay valid |
 | `pr` | `pr/<repo>#<n>@<state>[, …]`, `draft·open·approved·merged·closed` | `define-item.sh --pr` (same `<repo>#<n>` replaced, else appended) |
 | `review` | same shape, `requested·changes·approved` | `register-item.sh --review <repo>#<n>`, `define-item.sh --review` |
-| `checked` | `YYYY-MM-DD` | stamped by every `--pr` or `--review` write |
+| `checked` | `YYYY-MM-DD` | stamped by every `--pr` or `--review` write (today, or the earlier day `define-item.sh --checked <date>` gives) |
 
 `--ticket` and `--pr` clear `raise`, even in the same call as `--raise`. `<repo>` is the
 checkout directory under the project root. Ticket state is never stored: the tracker is
