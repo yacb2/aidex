@@ -11,8 +11,10 @@
 #
 # The predecessor's cell list (docs/retired/tests/test-doctor.sh, scenarios a-j) is
 # the reference; only the cells of the four kept checks are ported — version, drift,
-# legacy dir, manifest and rules belong to the plugin manager now. Cells marked F2-F8
-# are the adversarial review's findings, each written red before its fix.
+# legacy dir and manifest belong to the plugin manager now, and the installer's rules
+# check retired with it. The fifth check, the delegation rule file (BL-887), is new
+# and has its own cells. Cells marked F2-F8 are the adversarial review's findings,
+# each written red before its fix.
 #
 # Run with: bash skills/aidex/tests/test-doctor.sh
 
@@ -323,17 +325,38 @@ OUT="$(HOME="$H" CLAUDE_CONFIG_DIR="relative/dir" bash "$DOCTOR" --plugin-root "
 # ── BL-887: a missing delegation rule file is reported with its copy command ───
 # The rules file is the vehicle that held better than the opt-in SessionStart hook,
 # so the doctor names it when it is absent. INFO only: the exit code is unchanged.
+# The exit code half is the criterion-5 cell above: that fixture has no rules/ either.
 make_fixture
-OUT="$(run)"; RC=$?
-[[ $RC -eq 0 ]] && ok "BL-887 a missing rule file does not change the exit code" || bad "BL-887 rc=$RC: $OUT"
+OUT="$(run)"
 grep -q "^INFO: no $C/rules/delegation.md" <<<"$OUT" \
   && ok "BL-887 the missing rule file is named" || bad "BL-887 missing not named: $OUT"
 grep -qF "cp \"$P/hooks/assets/delegation-rule-core.md\" \"$C/rules/delegation.md\"" <<<"$OUT" \
   && ok "BL-887 the copy command is printed" || bad "BL-887 no copy command: $OUT"
-mkdir -p "$C/rules"; printf 'anything\n' > "$C/rules/delegation.md"
-OUT="$(run)"
-grep -q 'delegation' <<<"$OUT" && bad "BL-887 a present rule file still printed a line: $OUT" \
-  || ok "BL-887 a present rule file (any content) prints no delegation line"
+# A present file is the user's own, whatever it holds — an empty one included. The
+# report must have run to its summary, or an early abort would pass as silence.
+mkdir -p "$C/rules"
+for content in 'anything\n' ''; do
+  printf "$content" > "$C/rules/delegation.md"; label="${content:+with content}"; label="${label:-empty}"
+  OUT="$(run)"; RC=$?
+  if [[ $RC -ne 0 ]] || ! grep -qx 'aidex doctor: all checks passed' <<<"$OUT"; then
+    bad "BL-887 present rule file ($label): report did not complete rc=$RC: $OUT"
+  elif grep -q 'delegation' <<<"$OUT"; then
+    bad "BL-887 a present rule file ($label) still printed a line: $OUT"
+  else
+    ok "BL-887 a present rule file ($label) prints no delegation line"
+  fi
+done
+# A dangling symlink is not a missing file: the printed cp would write through it,
+# to wherever it points. It gets its own line and no copy command.
+rm -f "$C/rules/delegation.md"; ln -s "$TMP/nowhere/delegation.md" "$C/rules/delegation.md"
+OUT="$(run)"; RC=$?
+if [[ $RC -ne 0 ]] || grep -q '^INFO: no ' <<<"$OUT" || grep -q 'cp ' <<<"$OUT"; then
+  bad "BL-887 dangling link reported as absent or offered a cp rc=$RC: $OUT"
+elif grep -q "^INFO: $C/rules/delegation.md is a dangling symlink" <<<"$OUT"; then
+  ok "BL-887 a dangling rule symlink is named, with no copy command"
+else
+  bad "BL-887 dangling link not named: $OUT"
+fi
 
 # ── F1: the shipped tree itself ─────────────────────────────────────────────
 # The one cell that reads outside the fixtures, on purpose: --claude-dir is a fresh
@@ -344,6 +367,14 @@ FRESH="$TMP/fresh-home"; mkdir -p "$FRESH"
 OUT="$(bash "$DOCTOR" --claude-dir "$FRESH" --plugin-root "$REAL_ROOT" 2>&1)"; RC=$?
 [[ $RC -eq 0 ]] && ok "F1 the doctor is green against this repo's own plugin root" \
   || bad "F1 rc=$RC: $OUT"
+# The fresh dir has no rules/, so the INFO line prints a cp; its source must be a
+# file this repo ships, or a renamed asset leaves the doctor printing a dead command.
+ASSET="$REAL_ROOT/hooks/assets/delegation-rule-core.md"
+if grep -qF "cp \"$ASSET\" " <<<"$OUT" && [[ -f "$ASSET" ]]; then
+  ok "F1 the printed rule cp names a source the repo ships"
+else
+  bad "F1 rule cp source missing or not printed: $OUT"
+fi
 
 # ── criterion 6: the run writes nothing ─────────────────────────────────────
 # Both a healthy tree and a failing one: a "fix" that slipped in would most likely

@@ -252,9 +252,11 @@ fi
 # A plugin cannot install always-on rules; the opt-in SessionStart hook is the only
 # vehicle it has, and the rules file held better (BL-784, BL-887). Absent is INFO,
 # never a FAIL: the rule is optional. Present with any content is the user's own
-# and prints nothing.
+# and prints nothing. A dangling symlink is not absent: a cp would write through it.
 RULE="$CLAUDE_DIR/rules/delegation.md"
-if [[ ! -e "$RULE" ]]; then
+if [[ -L "$RULE" && ! -e "$RULE" ]]; then
+  echo "INFO: $RULE is a dangling symlink — the delegation rule does not load; repoint or remove the link"
+elif [[ ! -e "$RULE" ]]; then
   echo "INFO: no $RULE — the delegation rule loads only through the opt-in hook; to install it: mkdir -p \"$CLAUDE_DIR/rules\" && cp \"$PLUGIN_ROOT/hooks/assets/delegation-rule-core.md\" \"$RULE\""
 fi
 

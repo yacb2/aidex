@@ -106,7 +106,7 @@ when it has something to say; exit 0 all clear / 1 on any FAIL / 2 on a usage er
 | Exec bits | a `skills/*/scripts/*.sh` or a hook wired by `hooks/hooks.json` lost its `+x`; the skill that calls it fails with an error naming the caller, not the cause. Also fails when `hooks.json` is missing or names no hook at all — a check that enumerated nothing must not read as clean |
 | `python3` on PATH | the suite's python checkers cannot run |
 | Hooks wired once | a shipped hook is wired by the plugin *and* by hand in `<claude-dir>/settings.json`, so it fires twice per event, silently. Matched on the `/hooks/<path>` component, so the user's own same-named script elsewhere is not a finding |
-| Delegation rule file | never a FAIL. `INFO:` when `<claude-dir>/rules/delegation.md` is absent, with the `mkdir -p … && cp …` that installs `hooks/assets/delegation-rule-core.md` there; silent when the file exists, whatever it holds |
+| Delegation rule file | never a FAIL. `INFO:` when `<claude-dir>/rules/delegation.md` is absent, with the `mkdir -p … && cp …` that installs `hooks/assets/delegation-rule-core.md` there; silent when the file exists, whatever it holds; a dangling symlink there gets its own `INFO:` and no copy command |
 
 A personal directory whose name merely **equals** a plugin skill (`plan`, `review`…) is
 a `NOTE:` line, not a FAIL: plugin skills are namespaced (`/aidex:plan` vs `/plan`), so
@@ -180,7 +180,7 @@ Also check inline (no subagent needed):
 - **Link verification**: Extract all markdown links from CLAUDE.md. For each link to a local file (`.context/`, `.claude/`, relative paths), verify the target file exists. Report broken links as WARNING.
 - **Anti-pattern detection**: If CLAUDE.md links to a `README.md` inside `references/` or `docs/`, flag as WARNING — convention says each module has `00-index.md` and CLAUDE.md is the entry point. The README is redundant.
 - Cross-domain: skills referenced in CLAUDE.md exist? References mentioned in skills exist?
-- **Delegation rule file**: if `<claude-dir>/rules/delegation.md` is absent, report INFO and make the same consented offer as the doctor's check 5 (`/aidex:aidex doctor`).
+- **Delegation rule file**: if `${CLAUDE_CONFIG_DIR:-~/.claude}/rules/delegation.md` is absent (the session's config dir, not always `~/.claude`), report INFO and make the same consented offer as the doctor's check 5 (`/aidex:aidex doctor`).
 
 ---
 
