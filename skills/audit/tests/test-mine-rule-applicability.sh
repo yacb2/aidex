@@ -3,8 +3,10 @@
 # and only on those (artifacts-local-first: the Artifact tool or an .html write). The six
 # signatures of retired rule files were deleted (Q8, audit-s09); this fixture used the autonomy rule.
 #
-# Layer: script over a synthetic HOME (the miner reads ~/.claude/projects and
-# ~/.claude/rules); the failure is a silent 0.0% rate, observable only by running it.
+# Layer: script over a synthetic HOME and config dir (the miner reads <config dir>/projects
+# and <config dir>/rules, the config dir being CLAUDE_CONFIG_DIR or ~/.claude), both pinned
+# to the fixture so a session's own CLAUDE_CONFIG_DIR never reaches the real profile; the
+# failure is a silent 0.0% rate, observable only by running it.
 # Run with: bash skills/audit/tests/test-mine-rule-applicability.sh
 set -uo pipefail
 MINER="$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts" && pwd -P)/mine-rule-applicability.py"
@@ -26,7 +28,7 @@ sess("b", "Artifact", {})                                  # Artifact tool
 sess("c", "Write", {"file_path": "/tmp/p/notes.txt"})      # neither: not this rule
 sess("d", "Skill", {"skill": "aidex:plan-exec"})           # what the deleted autonomy signature counted
 PY
-out="$(HOME="$W" python3 "$MINER" 2>&1)"
+out="$(HOME="$W" CLAUDE_CONFIG_DIR="$W/.claude" python3 "$MINER" 2>&1)"
 line="$(grep -E '^artifacts-local-first ' <<<"$out")"
 # 4 sessions: a and b fire the signature, c does not -> 2 events
 auto="$(grep -E '^autonomy ' <<<"$out")"

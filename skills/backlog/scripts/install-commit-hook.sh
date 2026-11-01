@@ -6,8 +6,9 @@
 # Usage:
 #   install-commit-hook.sh [--remove]
 #
-# Idempotent. If a non-aidex post-commit hook already exists, it is left untouched
-# and the line to add manually is printed.
+# Idempotent; re-running refreshes an aidex block written by an older version. If a
+# non-aidex post-commit hook already exists, it is left untouched and the line to add
+# manually is printed.
 
 set -euo pipefail
 
@@ -20,7 +21,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # when that path is gone (a plugin update moves the cache dir per version), falls
 # back to the newest cached copy of the plugin, in either profile's config dir
 # (~/.claude, ~/.claude-work): a git hook fired from a plain terminal has no
-# CLAUDE_CONFIG_DIR to say which one.
+# CLAUDE_CONFIG_DIR to say which one. `.claude*` matches any ~/.claude-prefixed
+# directory, so a harvest-commit.sh under such a sibling path is a candidate too.
 HARVEST="h=\"$SCRIPT_DIR/harvest-commit.sh\"; [ -x \"\$h\" ] || h=\$(ls -t \"\$HOME\"/.claude*/plugins/cache/*/aidex/*/skills/backlog/scripts/harvest-commit.sh 2>/dev/null | sed -n 1p); [ -n \"\$h\" ] && \"\$h\" >/dev/null 2>&1 || true"
 
 REMOVE=0
@@ -58,7 +60,19 @@ if [[ ! -f "$HOOK" ]]; then
   chmod +x "$HOOK"
   echo "installed post-commit hook at $HOOK"
 elif grep -qF "$MARK" "$HOOK"; then
-  echo "aidex hook already present in $HOOK — nothing to do"
+  # Replace the block in place, so a hook written by an older version picks up the
+  # current HARVEST line; the hook's other lines are kept. ENVIRON, not -v: awk -v would
+  # unescape the backslashes in HARVEST.
+  HARVEST="$HARVEST" awk -v a="$MARK" -v b="$END_MARK" '
+    $0==a {print; print ENVIRON["HARVEST"]; skip=1; next} $0==b {skip=0} !skip {print}
+  ' "$HOOK" > "$HOOK.tmp"
+  if cmp -s "$HOOK" "$HOOK.tmp"; then
+    rm -f "$HOOK.tmp"
+    echo "aidex hook already present in $HOOK — nothing to do"
+  else
+    mv "$HOOK.tmp" "$HOOK"; chmod +x "$HOOK"
+    echo "updated the aidex block in $HOOK"
+  fi
 else
   echo "WARN: $HOOK exists and is not aidex-managed." >&2
   echo "Add this line to it manually to enable commit harvesting:" >&2

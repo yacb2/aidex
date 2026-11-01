@@ -72,12 +72,16 @@ def memory_dirs(root: Path):
         cfg = os.path.expanduser("~") + cfg[1:]
     cfg = os.path.normpath(cfg) if os.path.isabs(cfg) else os.path.expanduser("~/.claude")
     base = "-" + str(root).lstrip("/").replace("/", "-")
-    found = []
-    for c in dict.fromkeys((Path(cfg), Path.home() / ".claude")):
+    found, seen = [], set()
+    for c in (Path(cfg), Path.home() / ".claude"):
         for slug in (base, base.replace("_", "-")):
             d = c / "projects" / slug / "memory"
             if d.is_dir():
-                found.append(d)
+                # one dir reached by two spellings (a config dir symlinked to ~/.claude)
+                # is scanned once, or every citation in it is counted and written twice
+                if d.resolve() not in seen:
+                    seen.add(d.resolve())
+                    found.append(d)
                 break
     return found
 

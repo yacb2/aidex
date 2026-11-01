@@ -14,7 +14,9 @@ dir's `aidex/memory-gate.jsonl`; its sunset review counts every config dir's `ai
 The skill scripts resolve the same way (BL-893): `doctor.sh`, `check-skill-overrides.py`, the
 testing census, the audit miners and usage-retro default to the config dir, and the backlog id
 scripts scan the project memory under both it and `~/.claude`. The post-commit harvester's
-fallback globs `~/.claude*/plugins/cache`, since a git hook has no config dir to read.
+fallback globs `~/.claude*/plugins/cache`, since a git hook has no config dir to read; a repo
+wired before that picks the glob up when `install-commit-hook.sh` is run again, which replaces
+the aidex block in place.
 Three sites keep `~/.claude` on purpose, because an env value must not move a trust anchor:
 `ready-when-allow.txt` (`skills/backlog/scripts/sweep-eligible.py`, `approve-ready-when.sh`) and
 `census-trust` (`skills/reference/scripts/docs-census.py`, which takes `AIDEX_CENSUS_TRUST`).

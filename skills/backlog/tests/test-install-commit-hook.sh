@@ -35,4 +35,32 @@ printf '#!/bin/sh\ntouch "%s"\n' "$TMP/harvested" > "$C/harvest-commit.sh"; chmo
 [[ -e "$TMP/harvested" ]] && ok "fallback: a ~/.claude-work plugin cache is found" \
   || bad "fallback: the work profile's cache was not found"
 
+# The original side of that glob: a cache only under ~/.claude is still found, and with both
+# profiles cached the newest copy runs (ls -t), here the ~/.claude one.
+H2="$TMP/home2"; P="$H2/.claude/plugins/cache/m/aidex/9.9.9/skills/backlog/scripts"; mkdir -p "$P"
+printf '#!/bin/sh\ntouch "%s"\n' "$TMP/personal" > "$P/harvest-commit.sh"; chmod +x "$P/harvest-commit.sh"
+( cd "$R3" && HOME="$H2" G commit -q --allow-empty -m three )
+[[ -e "$TMP/personal" ]] && ok "fallback: a ~/.claude plugin cache is still found" \
+  || bad "fallback: the ~/.claude cache was not found"
+rm -f "$TMP/personal"; W="$H2/.claude-work/plugins/cache/m/aidex/9.9.8/skills/backlog/scripts"; mkdir -p "$W"
+printf '#!/bin/sh\ntouch "%s"\n' "$TMP/work" > "$W/harvest-commit.sh"; chmod +x "$W/harvest-commit.sh"
+touch -t 202601010000 "$W/harvest-commit.sh"; touch -t 202602010000 "$P/harvest-commit.sh"
+( cd "$R3" && HOME="$H2" G commit -q --allow-empty -m four )
+[[ -e "$TMP/personal" && ! -e "$TMP/work" ]] && ok "fallback: with both profiles cached the newest copy runs" \
+  || bad "fallback: newest-copy pick wrong (personal=$([[ -e "$TMP/personal" ]] && echo y) work=$([[ -e "$TMP/work" ]] && echo y))"
+
+# A repo wired before the glob widened is upgraded by re-running the installer: the aidex
+# block is replaced, the rest of the hook kept, and a third run changes nothing.
+R4="$TMP/repo4"; git init -q "$R4"; HK="$R4/.git/hooks/post-commit"; mkdir -p "$R4/.git/hooks"
+{ printf '#!/usr/bin/env bash\necho mine\n'
+  printf '%s\n' '# >>> aidex commit-trailer harvester (D-09) >>>' \
+    'h=/gone/harvest-commit.sh; [ -x "$h" ] || h=$(ls -t "$HOME"/.claude/plugins/cache/*/aidex/*/skills/backlog/scripts/harvest-commit.sh 2>/dev/null | sed -n 1p); [ -n "$h" ] && "$h" >/dev/null 2>&1 || true' \
+    '# <<< aidex commit-trailer harvester <<<'; } > "$HK"; chmod +x "$HK"
+( cd "$R4" && bash "$SCRIPTS/install-commit-hook.sh" >/dev/null 2>&1 )
+grep -qF '.claude*/plugins/cache' "$HK" && ! grep -qF '/gone/' "$HK" && grep -qx 'echo mine' "$HK" \
+  && [[ "$(grep -cF 'aidex commit-trailer harvester (D-09)' "$HK")" == 1 ]] \
+  && ok "re-install: an old aidex block is replaced, the user's lines kept" || bad "re-install: $(cat "$HK")"
+cp "$HK" "$TMP/hk.before"; ( cd "$R4" && bash "$SCRIPTS/install-commit-hook.sh" >/dev/null 2>&1 )
+cmp -s "$HK" "$TMP/hk.before" && ok "re-install: a current block is left byte-identical" || bad "re-install: a current block changed"
+
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — install-commit-hook: $PASS cells"; exit 0; }; echo "$FAIL failure(s)"; exit 1

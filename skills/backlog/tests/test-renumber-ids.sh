@@ -129,6 +129,15 @@ HOME="$S/home" CLAUDE_CONFIG_DIR="$S/home/.claude-work" python3 "$REN" --root "$
 check "config-dir memory citation rewritten"   '! grep -q "BL-20260705" "$S/home/.claude-work/projects/$SLUG/memory/m.md"'
 check "~/.claude memory still rewritten"       '! grep -q "BL-20260705" "$S/home/.claude/projects/$SLUG/memory/m.md"'
 
+echo "== scan targets: a config dir that is a symlink to ~/.claude is scanned once (BL-893 review) =="
+S="$TMP/c07"; rm -rf "$S"; mkdir -p "$S/.context/backlog" "$S/home"; cd "$S"
+mk . 2026-06-02-legacy.md BL-20260705 "Legacy"
+SLUG="-$(cd "$S" && pwd -P | sed 's#^/##; s#/#-#g')"
+mkdir -p "$S/home/.claude/projects/$SLUG/memory"; ln -s "$S/home/.claude" "$S/home/.claude-work"
+printf 'mem BL-20260705\n' > "$S/home/.claude/projects/$SLUG/memory/m.md"
+HOME="$S/home" CLAUDE_CONFIG_DIR="$S/home/.claude-work" python3 "$REN" --root "$S" > "$TMP/c07.txt" 2>&1
+check "item id + one memory file: 2 files"     'grep -q "citations of replaced codes: 2 across 2 file(s)" "$TMP/c07.txt"'
+
 echo "== linked worktree: the project is the main worktree, not the worktree (find_project_root's hop) =="
 # outside $TMP: this test keeps a .context/ at $TMP, which the upward walk would find first
 WTBASE="$(mktemp -d "${TMPDIR:-/tmp}/w19.XXXXXX")"; WTMAIN="$WTBASE/main"; WTLINK="$WTBASE/linked"
