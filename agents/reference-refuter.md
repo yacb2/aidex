@@ -36,7 +36,7 @@ finding, not a pass. Do not extend the benefit of the doubt; the author already 
 ## The attack, in order
 
 1. **Reachability first — the cheapest kills live here.** For every capability the module
-   describes, find its entry point (the project's `.context/references/00-profile.md` lists
+   describes, find its entry point (the project's `.context/profiles/reference.md` lists
    the kinds that exist here). A capability reachable from none of them is **dead code
    documented as a feature**, or a capability whose entry point the author did not find. Say
    which you believe and why. Watch for the inverse: something named by a *string* (a

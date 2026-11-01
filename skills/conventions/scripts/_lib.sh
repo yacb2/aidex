@@ -552,7 +552,7 @@ proof_is_placeholder() {
 # resolve_profile <context-dir> <name> — path of a per-project profile, or empty + return 1.
 # New path .context/profiles/<name>.md first, the legacy root file second (canon:
 # 00-global.md "Profiles"). Names: artifact communication testing deploy ui-contract
-# backlog (backlog has no legacy root file). Python twin: profiles.py. Writers never use
+# reference (legacy under references/) backlog (backlog has no legacy root file). Python twin: profiles.py. Writers never use
 # the legacy path: profile_write_path.
 profile_write_path() { printf '%s/profiles/%s.md\n' "$1" "$2"; }
 resolve_profile() {
@@ -563,6 +563,7 @@ resolve_profile() {
     testing)       legacy="testing-profile.md" ;;
     deploy)        legacy="deploy-profile.md" ;;
     ui-contract)   legacy="ui-contract.md" ;;
+    reference)     legacy="references/00-profile.md" ;;
     backlog)       legacy="" ;;
     *) return 1 ;;
   esac

@@ -19,7 +19,7 @@ Three failure classes, all reported:
 
 Trust model
 -----------
-Axis commands are shell strings from `.context/references/00-profile.md` and
+Axis commands are shell strings from `.context/profiles/reference.md` and
 they run as you. This tool is installed machine-wide and is meant to be run
 against arbitrary projects, so a cloned repo can ship a profile -- and
 `find_root()` walks up parents, so merely being *inside* such a tree is enough.
@@ -50,6 +50,9 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "conventions", "scripts"))
+import profiles  # noqa: E402  the one profile resolver
 
 FM_DELIM = re.compile(r"^---\s*$")
 
@@ -170,6 +173,14 @@ def parse_frontmatter(text: str) -> dict[str, str]:
 
 
 # ---------- profile ----------
+def profile_path(context_dir: Path) -> Path:
+    """The reference profile: .context/profiles/reference.md, else the read-only legacy
+    .context/references/00-profile.md (BL-865). When neither exists, the canon path, so the
+    missing-profile error names where to create it."""
+    found = profiles.resolve_profile(str(context_dir), "reference")
+    return Path(found or profiles.profile_write_path(str(context_dir), "reference"))
+
+
 
 class Axis:
     def __init__(self, name: str, label: str, command: str, paths: str = "") -> None:
@@ -603,7 +614,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Documentation coverage census")
     ap.add_argument("--root", type=Path, default=Path.cwd())
     ap.add_argument("--profile", type=Path, default=None,
-                    help="default: <root>/.context/references/00-profile.md")
+                    help="default: <root>/.context/profiles/reference.md, "
+                         "else <root>/.context/references/00-profile.md")
     ap.add_argument("--dry-run", action="store_true",
                     help="print axis commands without executing them")
     ap.add_argument("--json", action="store_true")
@@ -627,7 +639,7 @@ def main() -> int:
         print(f"no {refs}", file=sys.stderr)
         return 2
 
-    profile = (args.profile or (refs / "00-profile.md")).resolve()
+    profile = (args.profile or profile_path(root / ".context")).resolve()
     axes, problems, block = load_profile(profile)
     topics, topic_problems = load_topics(profile)
     problems = problems + topic_problems

@@ -19,7 +19,8 @@ py_resolve() { python3 "$HERE/profiles.py" "$1" "$2"; }
 
 # name:legacy file — the canon table (00-global.md §12)
 for pair in artifact:artifact-style.md communication:communication-style.md \
-            testing:testing-profile.md deploy:deploy-profile.md ui-contract:ui-contract.md; do
+            testing:testing-profile.md deploy:deploy-profile.md ui-contract:ui-contract.md \
+            reference:references/00-profile.md; do
   name="${pair%%:*}" legacy="${pair##*:}"
   rm -rf "$CTX"; mkdir -p "$CTX"
 
@@ -28,7 +29,7 @@ for pair in artifact:artifact-style.md communication:communication-style.md \
     [[ $rc -ne 0 && -z "$out" ]] || fail "$fn $name: neither file must give empty output and a non-zero exit (rc=$rc out=$out)"
   done
 
-  printf 'old\n' > "$CTX/$legacy"
+  mkdir -p "$(dirname "$CTX/$legacy")"; printf 'old\n' > "$CTX/$legacy"   # reference's legacy is in a subdirectory
   for fn in sh_resolve py_resolve; do
     out="$($fn "$CTX" "$name")" || fail "$fn $name: the legacy root file must resolve"
     [[ "$out" == "$CTX/$legacy" ]] || fail "$fn $name: legacy fallback gave '$out', want $CTX/$legacy"
@@ -41,7 +42,7 @@ for pair in artifact:artifact-style.md communication:communication-style.md \
   done
 done
 
-# backlog: the sixth name, with NO legacy root file. It cannot join the loop above, whose
+# backlog: the seventh name, with NO legacy root file. It cannot join the loop above, whose
 # legacy step writes "$CTX/$legacy" (for an empty name, the directory itself).
 rm -rf "$CTX"; mkdir -p "$CTX"
 for fn in sh_resolve py_resolve; do
@@ -69,4 +70,4 @@ w="$(. "$HERE/_lib.sh"; profile_write_path "$CTX" artifact)"
 [[ "$w" == "$CTX/profiles/artifact.md" ]] || fail "profile_write_path gave '$w'"
 
 if [[ $failures -gt 0 ]]; then printf '%d failure(s)\n' "$failures"; exit 1; fi
-echo "OK — profile resolver: 5 names x (none, legacy, new wins) plus backlog (none, new) in bash and python, unknown name refused"
+echo "OK — profile resolver: 6 names x (none, legacy, new wins) plus backlog (none, new) in bash and python, unknown name refused"

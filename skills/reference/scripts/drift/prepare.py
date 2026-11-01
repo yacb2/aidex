@@ -6,8 +6,8 @@ references, tokens_est; `skipped`: covered units too large or data-like to extra
 unit, references, reason) and <work_dir>/units/<slug>.txt (the unit's file list; the root unit `.` is `_root`) and units/<slug>.refs.txt (its covering references). Both are
 replaced on every run. The Workflow gets its unit slugs from the manifest, never recomputes them. Stdlib only.
 
-Every `.md` under <root>/.context/references/ is a reference, except `00-profile.md`, the
-root `00-index.md` and any reference whose front-matter says `status: dropped`. A reference covers a unit when it:
+Every `.md` under <root>/.context/references/ is a reference, except `00-profile.md` (the
+legacy profile location), the root `00-index.md` and any reference whose front-matter says `status: dropped`. A reference covers a unit when it:
   - cites the path of one of the unit's files, or the unit's directory path, either from the
     project root or relative to the unit's own git repo (that form needs a `/`, so a bare
     `types` never matches), or as the `@/` alias of a `src/` path. A top-level directory
@@ -88,7 +88,7 @@ def read_references(root):
 def declared_paths(root, refs):
     """reference -> paths its `covers:` header names (templated through the profile, and as written)."""
     base = Path(root) / ".context" / "references"
-    axes, problems, _ = census.load_profile(base / "00-profile.md")
+    axes, problems, _ = census.load_profile(census.profile_path(Path(root) / ".context"))
     template = {a.name: a.paths for a in axes if a.paths}
     owners, _, _, more = census.load_ownership(base)
     for line in problems + more:

@@ -452,6 +452,7 @@ these names and no others:
 | `testing.md` | `testing-profile.md` | coverage, testing, backlog sweep gate, audit |
 | `deploy.md` | `deploy-profile.md` | the dashboard boilerplate's bp-ops (listed for completeness; aidex skills do not read it) |
 | `ui-contract.md` | `ui-contract.md` | ui-contract, plan |
+| `reference.md` | `references/00-profile.md` (not at the root) | reference, docs-census, drift |
 | `backlog.md` | none (new; no root fallback) | backlog: routing, tracker fields, index lanes, sweep skips. Active only when `tracker_paths` or `ticket_pattern` is non-empty |
 
 A project may keep its own extra profiles in the folder (for example a `glitchtip.md`);
@@ -459,7 +460,7 @@ the canon fixes only the names skills read. The folder is whitelisted in `.gitig
 one entry (`!.context/profiles/` and `!.context/profiles/**`), not per file.
 
 **Resolution.** Every reader takes `.context/profiles/<name>.md` first and falls back to
-the old root path while projects migrate; the fallback is read-only, nothing writes the
+the old path while projects migrate; the fallback is read-only, nothing writes the
 old path. Scripts share one resolver: `resolve_profile <context-dir> <name>` in
 `skills/conventions/scripts/_lib.sh`, with its Python twin `profiles.py` beside it
 (`resolve_profile(context_dir, name)`, `profile_write_path(context_dir, name)`).

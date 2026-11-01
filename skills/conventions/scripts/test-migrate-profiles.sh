@@ -140,5 +140,18 @@ out="$(bash "$SCRIPT" "$R" --apply 2>&1)"
 [[ "$out" != *UNTRACKED-MOVED* ]] || fail "failed mv reported as UNTRACKED-MOVED: $out"
 [[ -f "$R/.context/ui-contract.md" ]] && grep -q '^!\.context/ui-contract\.md$' "$R/.gitignore" || fail "failed mv: legacy file or its whitelist line lost: $(cat "$R/.gitignore")"
 
+# 8. reference's profile lives in a subdirectory (BL-865): references/00-profile.md moves to
+# profiles/reference.md — announced by a dry-run, a git mv on --apply, its siblings untouched.
+R="$TMP/reference"; mkdir -p "$R/.context/references/topic"; ( cd "$R" && git init -q
+  echo p > .context/references/00-profile.md; echo m > .context/references/topic/01-a.md
+  git add -f -A && git -c user.email=a@b -c user.name=n commit -qm init )
+out="$(bash "$SCRIPT" "$R")"
+[[ "$out" == *"would move: .context/references/00-profile.md -> .context/profiles/reference.md [git mv]"* ]] || fail "reference: dry-run did not announce the move: $out"
+[[ -f "$R/.context/references/00-profile.md" && ! -e "$R/.context/profiles" ]] || fail "reference: dry-run moved the file"
+bash "$SCRIPT" "$R" --apply >/dev/null
+[[ -f "$R/.context/profiles/reference.md" && ! -e "$R/.context/references/00-profile.md" ]] || fail "reference: --apply did not move the profile"
+[[ "$(cd "$R" && git status --porcelain)" == *"R  .context/references/00-profile.md -> .context/profiles/reference.md"* ]] || fail "reference: the move was not a git mv"
+[[ -f "$R/.context/references/topic/01-a.md" ]] || fail "reference: a reference module was touched"
+
 if [[ $failures -gt 0 ]]; then printf '%d failure(s)\n' "$failures"; exit 1; fi
 echo "OK — migrate-profiles: dry-run inert, apply git-mv + one whitelist rewrite, dirty refused, deploy gated, BP block untouched"

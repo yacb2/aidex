@@ -146,6 +146,20 @@ class PrepareTest(unittest.TestCase):
             budget=150)
         self.assertEqual(list(self.kept(m)), ["code/apps/billing"])
 
+    def test_profile_at_canon_path_is_read_and_wins_over_the_legacy_one(self):
+        # BL-865: .context/profiles/reference.md first, references/00-profile.md the fallback.
+        def prof(tpl):
+            return f"```census\naxis: apps\nlabel: apps\ncommand: echo billing\npaths: {tpl}\n```\n"
+        code = {"code/apps/billing/pay.py": PAD, "code/apps/auth/login.py": PAD,
+                "other/billing/x.py": PAD, "other/auth/y.py": PAD,
+                ".context/profiles/reference.md": prof("code/apps/{item}")}
+        for name, refs in (("canon only", {}), ("both", {"00-profile.md": prof("other/{item}")})):
+            with self.subTest(name):
+                self.fresh()
+                m = self.run_prepare(code, {**refs, "a.md": '---\ncovers: "apps:billing"\n---\nBody.\n'},
+                                     budget=150)
+                self.assertEqual(list(self.kept(m)), ["code/apps/billing"])
+
     def test_repo_relative_cite_and_covers_item_need_a_slash_and_match_nested_repo(self):
         code = {"code/backend/apps/x/m.py": PAD, "code/backend/apps/y/n.py": PAD,
                 "code/backend/top.py": PAD}

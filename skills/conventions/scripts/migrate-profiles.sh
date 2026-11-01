@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# migrate-profiles.sh — move a project's profiles from the .context/ root into
-# .context/profiles/ under the canon names (00-global.md §12), and rewrite the
-# .gitignore whitelist lines that name the old paths.
+# migrate-profiles.sh — move a project's profiles from the .context/ root (and
+# references/00-profile.md) into .context/profiles/ under the canon names (00-global.md
+# §12), and rewrite the .gitignore whitelist lines that name the old paths.
 #
 # Usage: migrate-profiles.sh <project-root> [--apply] [--include-deploy]
 #
@@ -33,7 +33,8 @@ done
 cd "$ROOT" || exit 2
 
 # old name -> new name (the canon table, 00-global.md §12)
-PAIRS="artifact-style.md:artifact.md communication-style.md:communication.md testing-profile.md:testing.md ui-contract.md:ui-contract.md"
+# reference's old file is the one under a subdirectory (BL-865); the steps below take it as is.
+PAIRS="artifact-style.md:artifact.md communication-style.md:communication.md testing-profile.md:testing.md ui-contract.md:ui-contract.md references/00-profile.md:reference.md"
 [[ "$DEPLOY" -eq 1 ]] && PAIRS="$PAIRS deploy-profile.md:deploy.md"
 
 in_git=0; git rev-parse --git-dir >/dev/null 2>&1 && in_git=1

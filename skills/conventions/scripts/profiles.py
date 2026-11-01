@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resolve a per-project profile: .context/profiles/<name>.md, else the legacy root file.
+"""Resolve a per-project profile: .context/profiles/<name>.md, else the legacy file.
 
 Canon: skills/conventions/references/00-global.md, "Profiles". The bash twin is
 `resolve_profile` in _lib.sh; tests/test-profile-resolver.sh pins that both agree.
@@ -16,6 +16,7 @@ LEGACY = {
     "testing": "testing-profile.md",
     "deploy": "deploy-profile.md",
     "ui-contract": "ui-contract.md",
+    "reference": "references/00-profile.md",  # the one legacy path under a subdirectory (BL-865)
     "backlog": "",  # no legacy root file: join(ctx, "") is the directory, never a file
 }
 

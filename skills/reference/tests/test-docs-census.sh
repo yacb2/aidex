@@ -134,6 +134,21 @@ P4="$TMP/p4"; mkdir -p "$P4/.context/references"
 rc_is "missing profile exits 2" 2 "00-profile.md.template" -- python3 "$CENSUS" --root "$P4"
 out4="$(python3 "$CENSUS" --root "$P4" 2>&1)"
 check "missing profile points at the template" "$out4" "00-profile.md.template"
+check "missing profile names the canon path" "$out4" "no profile at $(cd "$P4" && pwd -P)/.context/profiles/reference.md"
+
+# ---------------------------------------------------------------- 6b. canon path .context/profiles/reference.md (BL-865)
+# The profile lives in profiles/ like every other one; references/00-profile.md is the read-only
+# fallback (sections above), and the canon path wins when both exist.
+P4b="$TMP/p4b"
+mkproject "$P4b" 'axis: things
+label: things
+command: printf "alpha\n"'
+mkdir -p "$P4b/.context/profiles"; mv "$P4b/.context/references/00-profile.md" "$P4b/.context/profiles/reference.md"
+mkmodule "$P4b/.context/references/topic/01-a.md" "things:alpha"
+approve "$P4b"
+rc_is "profile only at profiles/reference.md exits 0" 0 "1/1 covered" -- python3 "$CENSUS" --root "$P4b"
+printf -- '```census\naxis: things\nlabel: things\ncommand: printf "bravo\\n"\n```\n' > "$P4b/.context/references/00-profile.md"
+rc_is "profiles/reference.md wins over references/00-profile.md" 0 "1/1 covered" -- python3 "$CENSUS" --root "$P4b"
 
 # ---------------------------------------------------------------- 7. zero adoption NOTE
 P5="$TMP/p5"

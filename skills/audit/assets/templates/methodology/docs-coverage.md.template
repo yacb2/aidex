@@ -31,7 +31,7 @@ of its workflow. Same script, two entry points: an author runs it to avoid missi
 
 ## Preparation
 
-**1. The profile must exist.** `.context/references/00-profile.md` declares the census axes
+**1. The profile must exist.** `.context/profiles/reference.md` declares the census axes
 and their enumeration commands. If it is missing, this audit cannot run — create it via
 `/aidex:reference profile`, which seeds it from the shared template.
 
@@ -141,7 +141,7 @@ where the next run will not re-raise it as new.
 
 ## Output artifacts
 
-- `.context/references/00-profile.md` — the keystone, **maintained** by hand (assisted on
+- `.context/profiles/reference.md` — the keystone, **maintained** by hand (assisted on
   first run).
 - `coverage-matrix.md` — **generated**, never hand-edited (carries the `GENERATED` header).
 - Findings — rows in the rolling `00-inventory.md`; this run's `findings.md` is a filtered

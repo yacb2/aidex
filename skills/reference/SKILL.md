@@ -26,7 +26,7 @@ forked here. **The discipline lives in this skill's `references/`.**
 | *(none)* or a topic | Author or update a module — the full workflow below |
 | `census` | Run the coverage census only; report gap / phantom / contested |
 | `census --stale` | Also flag items whose SOURCE moved after their owning module did |
-| `profile` | Create or update `.context/references/00-profile.md` |
+| `profile` | Create or update `.context/profiles/reference.md` |
 | `refute <path>` | Run the adversarial close-gate on an existing module |
 | `drift` | Report which existing references no longer match the code; never edits |
 
@@ -34,8 +34,11 @@ forked here. **The discipline lives in this skill's `references/`.**
 
 ## 0 · Profile — once per project
 
-Read `.context/references/00-profile.md`. **If it does not exist, create it** from
-`assets/templates/00-profile.md.template` and confirm the axes with the user before continuing.
+Read `.context/profiles/reference.md` (the old `.context/references/00-profile.md` is read
+when the new one is absent; never write it). **If neither exists, create
+`.context/profiles/reference.md`** from `assets/templates/00-profile.md.template` and confirm
+the axes with the user before continuing. An old file is moved by
+`${CLAUDE_PLUGIN_ROOT}/skills/conventions/scripts/migrate-profiles.sh <root>`.
 It declares the census commands, the entry-point kinds, the observation instrument and the
 environment values, and everything downstream reads it.
 
@@ -49,7 +52,7 @@ ${CLAUDE_PLUGIN_ROOT}/skills/reference/scripts/docs-census.sh --advisory
 ```
 
 **First run in a project refuses and prints the axis commands.** They are shell strings from
-`00-profile.md`, which can arrive with a clone, so consent is enforced rather than assumed: read
+the profile, which can arrive with a clone, so consent is enforced rather than assumed: read
 them, then `--trust` to approve that exact block (`--dry-run` inspects without approving).
 Editing the block revokes approval. Approvals live under `$HOME`, so a repo cannot ship its own.
 **Never `--trust` a profile you have not read** — and if the user did not write it, show it to
