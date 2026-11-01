@@ -8,7 +8,7 @@
 # Fixtures use generic names only: keys ABC-1, repos app and api, hosts tracker.example
 # and git.example (aidex is public).
 #
-# Run with: bash skills/backlog/tests/test-backlog-profile.sh [p1]
+# Run with: bash skills/backlog/tests/test-backlog-profile.sh [p1|p2]
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 SKILL="$(cd "$HERE/.." && pwd -P)"
@@ -126,10 +126,199 @@ EOF
   done
 }
 
+# --- p2 helpers -------------------------------------------------------------------------
+DEF="$SKILL/scripts/define-item.sh" REG="$SKILL/scripts/register-item.sh"
+TODAY="$(date +%Y-%m-%d)"
+# fm <file> <key>: the raw front-matter text after "key: " (quotes kept), empty when absent.
+fm() { awk -v k="$2" '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && index($0, k":")==1 {v=substr($0, length(k)+2); sub(/^ /,"",v); print v; exit}' "$1"; }
+# hasfm <file> <key>: the key has a front-matter line.
+hasfm() { awk -v k="$2" '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && index($0, k":")==1 {f=1} END{exit !f}' "$1"; }
+# setfm <file> <key> <raw value>: rewrite one front-matter line (to age `updated`/`checked`).
+setfm() { awk -v k="$2" -v v="$3" '/^---[[:space:]]*$/{c++} c==1 && index($0, k":")==1 {print k": " v; next} {print}' "$1" > "$1.t" && mv "$1.t" "$1"; }
+heading() { awk '/^---[[:space:]]*$/{c++; next} c>=2 && /^# /{print; exit}' "$1"; }
+mkproj() { rm -rf "$1"; mkdir -p "$1/.context/backlog/_archive"; }
+# newitem <project> <title> [register flags...]: register one item, print its path.
+newitem() { local p="$1" t="$2"; shift 2; ( cd "$p" && bash "$REG" --origin manual --no-index --title "$t" "$@" 2>/dev/null ) | sed -n '$p'; }
+# def <project> <args...>: define-item.sh run from <project>; stderr to $TMP/def.err, rc kept.
+def() { local p="$1"; shift; ( cd "$p" && bash "$DEF" "$@" --no-index >/dev/null 2>"$TMP/def.err" ); }
+# The cross-ref rules validate.py reports for a whole .context/, space-joined; empty when clean.
+ctx_crossref() {
+  python3 "$CONV/validate.py" "$1" --type backlog --json 2>/dev/null | python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except ValueError:
+    sys.exit(print("validate-crashed"))
+print(" ".join(sorted(f["rule"] for f in d["violations"] + d["warnings"] if f["rule"].startswith("cross-ref"))))'
+}
+
+p2() {
+  echo "p2: define-item.sh tracker flags (raise, ticket, parent, branch, pr, review, checked)"
+  local N="$TMP/p2n" P="$TMP/p2p" I="$TMP/p2i" a b c f rc before
+
+  # N: no profile. P: an active profile with ticket_pattern. I: an inert copy of the template.
+  mkproj "$N"; mkproj "$P"; mkproj "$I"
+  mkdir -p "$P/.context/profiles" "$I/.context/profiles"
+  printf -- '---\ntracker_paths: "app api"\nticket_pattern: "ABC-[0-9]+"  # keys\n---\n# Backlog profile\n' > "$P/.context/profiles/backlog.md"
+  cp "$TEMPLATE" "$I/.context/profiles/backlog.md"
+
+  # --ticket: upper-cased, quoted field, title and own heading prefixed, updated stamped,
+  # file not renamed.
+  a="$(newitem "$N" "fix the lane")"; setfm "$a" updated 2000-01-01
+  before="$(ls "$N/.context/backlog")"
+  def "$N" BL-001 --ticket abc-1; rc=$?
+  [[ $rc -eq 0 ]] && ok "--ticket abc-1 exits 0" || bad "--ticket rc=$rc $(cat "$TMP/def.err")"
+  [[ "$(fm "$a" ticket)" == '"issue/ABC-1"' ]] && ok "ticket: \"issue/ABC-1\" (upper-cased)" || bad "ticket: '$(fm "$a" ticket)'"
+  [[ "$(fm "$a" title)" == '"ABC-1 fix the lane"' ]] && ok "title gains the key prefix" || bad "title: '$(fm "$a" title)'"
+  [[ "$(heading "$a")" == "# ABC-1 fix the lane" ]] && ok "the item's own heading gains the prefix" || bad "heading: '$(heading "$a")'"
+  [[ "$(fm "$a" updated)" == "$TODAY" ]] && ok "updated stamped" || bad "updated: '$(fm "$a" updated)'"
+  [[ "$(ls "$N/.context/backlog")" == "$before" && -f "$a" ]] && ok "the file is not renamed" || bad "files: $(ls "$N/.context/backlog")"
+  ! hasfm "$a" checked && ok "--ticket alone stamps no checked" || bad "checked written by --ticket"
+  def "$N" BL-001 --ticket ABC-1
+  [[ "$(fm "$a" title)" == '"ABC-1 fix the lane"' && "$(heading "$a")" == "# ABC-1 fix the lane" ]] \
+    && ok "a second --ticket with the same key does not double the prefix" || bad "doubled: '$(fm "$a" title)' / '$(heading "$a")'"
+  [[ $(grep -c '^ticket:' "$a") -eq 1 ]] && ok "the ticket line is rewritten, not duplicated" || bad "ticket lines: $(grep -c '^ticket:' "$a")"
+  # a key that only shares a prefix with the title's first word is a different key
+  b="$(newitem "$N" "ABC-12 shows the bug")"
+  def "$N" "$b" --ticket ABC-1
+  [[ "$(fm "$b" title)" == '"ABC-1 ABC-12 shows the bug"' ]] && ok "ABC-1 is not taken as already present in 'ABC-12 ...'" || bad "prefix boundary: '$(fm "$b" title)'"
+  # a re-ticket replaces the old key prefix instead of stacking keys
+  def "$N" BL-001 --ticket ABC-2
+  [[ "$(fm "$a" title)" == '"ABC-2 fix the lane"' && "$(heading "$a")" == "# ABC-2 fix the lane" && "$(fm "$a" ticket)" == '"issue/ABC-2"' ]] \
+    && ok "a new key replaces the old key's prefix" || bad "re-ticket: '$(fm "$a" title)' / '$(heading "$a")' / $(fm "$a" ticket)"
+  # escaped title: quotes survive the rewrite; a heading that is not the title stays as is
+  c="$(newitem "$N" 'say "hi" now')"
+  def "$N" "$c" --ticket ABC-3
+  [[ "$(fm "$c" title)" == '"ABC-3 say \"hi\" now"' && "$(heading "$c")" == '# ABC-3 say "hi" now' ]] \
+    && ok "a quoted title is re-escaped and its heading matched unescaped" || bad "escaped title: '$(fm "$c" title)' / '$(heading "$c")'"
+  f="$(newitem "$N" "plain title")"
+  awk '/^# plain title$/{print "# an owner heading"; next} {print}' "$f" > "$f.t" && mv "$f.t" "$f"
+  def "$N" "$f" --ticket ABC-4
+  [[ "$(fm "$f" title)" == '"ABC-4 plain title"' && "$(heading "$f")" == "# an owner heading" ]] \
+    && ok "a first heading that is not the item's title is left alone" || bad "foreign heading: '$(heading "$f")'"
+
+  # key pattern: anchored, case-insensitive, only when the item's profile sets one.
+  a="$(newitem "$P" "pattern item")"; cp "$a" "$TMP/p2.before"
+  def "$P" BL-001 --ticket XYZ-9; rc=$?
+  [[ $rc -eq 2 ]] && ok "active pattern: --ticket XYZ-9 exits 2" || bad "XYZ-9 rc=$rc"
+  def "$P" BL-001 --ticket ABC-1X; rc=$?
+  [[ $rc -eq 2 ]] && ok "active pattern: --ticket ABC-1X exits 2 (anchored)" || bad "ABC-1X rc=$rc"
+  def "$P" BL-001 --ticket XABC-1; rc=$?
+  [[ $rc -eq 2 ]] && ok "active pattern: --ticket XABC-1 exits 2 (anchored at the start)" || bad "XABC-1 rc=$rc"
+  cmp -s "$a" "$TMP/p2.before" && ok "a refused key leaves the item byte-identical" || bad "refused key changed the item"
+  def "$P" BL-001 --parent XYZ-9; rc=$?
+  [[ $rc -eq 2 ]] && ok "active pattern: --parent XYZ-9 exits 2" || bad "parent XYZ-9 rc=$rc"
+  def "$P" BL-001 --ticket abc-7 --parent abc-1; rc=$?
+  [[ $rc -eq 0 && "$(fm "$a" ticket)" == '"issue/ABC-7"' && "$(fm "$a" parent)" == '"issue/ABC-1"' ]] \
+    && ok "active pattern: abc-7 / parent abc-1 accepted case-insensitively, stored upper-case" || bad "pattern ok: rc=$rc $(fm "$a" ticket) $(fm "$a" parent) $(cat "$TMP/def.err")"
+  [[ "$(fm "$a" title)" == '"ABC-7 pattern item"' ]] && ok "--parent leaves the title to --ticket" || bad "parent title: '$(fm "$a" title)'"
+  # the profile is the item's project's, not the cwd's
+  b="$(newitem "$P" "second pattern item")"
+  def "$N" "$b" --ticket XYZ-9; rc=$?
+  [[ $rc -eq 2 ]] && ok "the pattern of the item's project applies when run from another project" || bad "cwd profile used: rc=$rc"
+  c="$(newitem "$N" "free key item")"
+  def "$P" "$c" --ticket XYZ-9; rc=$?
+  [[ $rc -eq 0 && "$(fm "$c" ticket)" == '"issue/XYZ-9"' ]] && ok "a profiled cwd does not impose its pattern on another project's item" || bad "cwd pattern imposed: rc=$rc"
+
+  # no active profile: any non-empty key (and every flag) is accepted; an empty key is not.
+  f="$(newitem "$I" "inert item")"
+  def "$I" "$f" --ticket XYZ-9 --parent foo-1; rc=$?
+  [[ $rc -eq 0 && "$(fm "$f" ticket)" == '"issue/XYZ-9"' && "$(fm "$f" parent)" == '"issue/FOO-1"' ]] \
+    && ok "inert template: any key accepted" || bad "inert: rc=$rc $(cat "$TMP/def.err")"
+  def "$N" "$c" --ticket ""; rc=$?
+  [[ $rc -eq 2 ]] && ok "an empty --ticket exits 2" || bad "empty ticket rc=$rc"
+  def "$N" "$c" --ticket "ABC 1"; rc=$?
+  [[ $rc -eq 2 ]] && ok "a key with a space exits 2" || bad "spaced key rc=$rc"
+
+  # --pr: replace-or-append on <repo>#<n>, quoted comma list, checked stamped each time.
+  a="$(newitem "$N" "pr item")"
+  def "$N" "$a" --pr app#12@open
+  [[ "$(fm "$a" pr)" == '"pr/app#12@open"' && "$(fm "$a" checked)" == "$TODAY" ]] && ok "--pr app#12@open writes pr and checked" || bad "pr: '$(fm "$a" pr)' checked '$(fm "$a" checked)' $(cat "$TMP/def.err")"
+  setfm "$a" checked 2000-01-01
+  def "$N" "$a" --pr app#12@merged
+  [[ "$(fm "$a" pr)" == '"pr/app#12@merged"' ]] && ok "--pr app#12@merged replaces the app#12 entry" || bad "replace: '$(fm "$a" pr)'"
+  [[ "$(fm "$a" checked)" == "$TODAY" ]] && ok "each --pr write re-stamps checked" || bad "checked: '$(fm "$a" checked)'"
+  def "$N" "$a" --pr api#3@draft
+  [[ "$(fm "$a" pr)" == '"pr/app#12@merged, pr/api#3@draft"' ]] && ok "--pr api#3@draft appends" || bad "append: '$(fm "$a" pr)'"
+  def "$N" "$a" --pr api#3@open --pr app#40@approved
+  [[ "$(fm "$a" pr)" == '"pr/app#12@merged, pr/api#3@open, pr/app#40@approved"' ]] && ok "repeated --pr replaces in place and appends in order" || bad "repeat: '$(fm "$a" pr)'"
+  [[ $(grep -c '^pr:' "$a") -eq 1 && $(grep -c '^checked:' "$a") -eq 1 ]] && ok "one pr line, one checked line" || bad "pr/checked line count"
+  def "$N" "$a" --pr app#1@closed --pr app#1@merged
+  [[ "$(fm "$a" pr)" == '"pr/app#12@merged, pr/api#3@open, pr/app#40@approved, pr/app#1@merged"' ]] && ok "the same PR twice in one call keeps the last state" || bad "same twice: '$(fm "$a" pr)'"
+  cp "$a" "$TMP/p2.before"
+  for f in app#12@requested app#12@changes app#12 app@open '#12@open' app#x@open app#12@OPEN; do
+    def "$N" "$a" --pr "$f"; rc=$?
+    [[ $rc -eq 2 ]] && ok "--pr $f exits 2" || bad "--pr $f rc=$rc"
+  done
+  cmp -s "$a" "$TMP/p2.before" && ok "refused --pr values leave the item byte-identical" || bad "refused --pr changed the item"
+
+  # --review: same shape, ladder requested|changes|approved.
+  b="$(newitem "$N" "review item")"
+  def "$N" "$b" --review app#5@requested
+  [[ "$(fm "$b" review)" == '"pr/app#5@requested"' && "$(fm "$b" checked)" == "$TODAY" ]] && ok "--review app#5@requested writes review and checked" || bad "review: '$(fm "$b" review)' $(cat "$TMP/def.err")"
+  def "$N" "$b" --review app#5@changes
+  [[ "$(fm "$b" review)" == '"pr/app#5@changes"' ]] && ok "--review replaces its entry" || bad "review replace: '$(fm "$b" review)'"
+  for f in app#5@merged app#5@open app#5@draft app#5@closed; do
+    def "$N" "$b" --review "$f"; rc=$?
+    [[ $rc -eq 2 ]] && ok "--review $f exits 2" || bad "--review $f rc=$rc"
+  done
+
+  # --branch: repeatable, sets the whole list, bare name valid.
+  def "$N" "$b" --branch app:fix/x --branch api:fix/y
+  [[ "$(fm "$b" branch)" == '"app:fix/x, api:fix/y"' ]] && ok "--branch twice sets the list" || bad "branch: '$(fm "$b" branch)' $(cat "$TMP/def.err")"
+  def "$N" "$b" --branch fix/z
+  [[ "$(fm "$b" branch)" == '"fix/z"' ]] && ok "a later --branch replaces the list; a bare name is valid" || bad "branch set: '$(fm "$b" branch)'"
+  for f in "bad name" "app:fix/x,api:fix/y" "app:" ""; do
+    def "$N" "$b" --branch "$f"; rc=$?
+    [[ $rc -eq 2 ]] && ok "--branch '$f' exits 2" || bad "--branch '$f' rc=$rc"
+  done
+
+  # --raise and the raise-clearing order.
+  c="$(newitem "$N" "raise item")"
+  def "$N" "$c" --raise to-raise
+  [[ "$(fm "$c" raise)" == "to-raise" ]] && ok "--raise to-raise sets it" || bad "raise: '$(fm "$c" raise)' $(cat "$TMP/def.err")"
+  def "$N" "$c" --raise raised
+  [[ "$(fm "$c" raise)" == "raised" && $(grep -c '^raise:' "$c") -eq 1 ]] && ok "--raise raised rewrites it" || bad "raised: '$(fm "$c" raise)'"
+  def "$N" "$c" --raise none
+  ! hasfm "$c" raise && ok "--raise none deletes the line" || bad "raise none kept: '$(fm "$c" raise)'"
+  def "$N" "$c" --raise none; rc=$?
+  [[ $rc -eq 0 ]] && ! hasfm "$c" raise && ok "--raise none on an item without raise is a no-op" || bad "raise none twice rc=$rc"
+  def "$N" "$c" --raise bogus; rc=$?
+  [[ $rc -eq 2 ]] && ok "--raise bogus exits 2" || bad "raise bogus rc=$rc"
+  def "$N" "$c" --raise to-raise; def "$N" "$c" --ticket ABC-5
+  ! hasfm "$c" raise && ok "--ticket on a to-raise item removes raise" || bad "ticket kept raise"
+  f="$(newitem "$N" "raise pr item")"
+  def "$N" "$f" --raise raised; def "$N" "$f" --pr app#2@open
+  ! hasfm "$f" raise && ok "--pr on a raised item removes raise" || bad "pr kept raise"
+  f="$(newitem "$N" "raise and ticket item")"
+  def "$N" "$f" --raise to-raise --ticket ABC-6
+  ! hasfm "$f" raise && [[ "$(fm "$f" ticket)" == '"issue/ABC-6"' ]] && ok "--raise to-raise --ticket ABC-6 in one call ends with no raise" || bad "clearing order: raise='$(fm "$f" raise)'"
+  f="$(newitem "$N" "ticket and raise item")"
+  def "$N" "$f" --ticket ABC-8 --raise raised
+  ! hasfm "$f" raise && ok "flag order does not matter: --ticket then --raise ends with no raise" || bad "clearing order reversed: raise='$(fm "$f" raise)'"
+  f="$(newitem "$N" "review raise item")"
+  def "$N" "$f" --raise to-raise --review api#9@requested
+  [[ "$(fm "$f" raise)" == "to-raise" ]] && ok "--review does not clear raise" || bad "review cleared raise"
+
+  # the "nothing to write" check knows the new flags; old flags print what they printed.
+  f="$(newitem "$N" "old flags item")"
+  def "$N" "$f"; rc=$?
+  [[ $rc -eq 2 ]] && grep >/dev/null "nothing to write" "$TMP/def.err" && ok "a bare call still says nothing to write" || bad "bare call rc=$rc"
+  def "$N" "$f" --estimate S --surface ui; rc=$?
+  [[ $rc -eq 0 && "$(cat "$TMP/def.err")" == "Triaged $(fm "$f" id): estimate=S surface=ui " ]] \
+    && ok "old flags: the Triaged line is unchanged" || bad "old output: '$(cat "$TMP/def.err")'"
+  ! grep -qE '^(raise|ticket|parent|branch|pr|review|checked):' "$f" && ok "old flags write no tracker field" || bad "tracker field written by old flags"
+
+  # phase 1's validator accepts everything the writer stored.
+  [[ -z "$(ctx_crossref "$N/.context")" ]] && ok "validate.py: no cross-ref finding in the no-profile project" || bad "validate N: $(ctx_crossref "$N/.context")"
+  [[ -z "$(ctx_crossref "$P/.context")" ]] && ok "validate.py: no cross-ref finding in the profiled project" || bad "validate P: $(ctx_crossref "$P/.context")"
+}
+
 case "${1:-all}" in
   p1) p1 ;;
-  all) p1 ;;
-  *) echo "usage: $0 [p1]" >&2; exit 2 ;;
+  p2) p2 ;;
+  all) p1; p2 ;;
+  *) echo "usage: $0 [p1|p2]" >&2; exit 2 ;;
 esac
 echo "test-backlog-profile: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]
