@@ -208,17 +208,20 @@ Ana opens the list and sees no filter.
 :::
 SPEC
 # BL-898: save-reply prints the page's absolute path, and `mktemp -d` draws its suffix from
-# [A-Za-z0-9], so about 1 run in 430 got a $TMP that spells Q1 and failed (f) with rc=0. The page
-# sits under a directory that always spells Q1, so a check over the whole output fails every run;
-# the check reads only the duty line save_reply.py prints for a charge (`<id> [<marker>]: <duty>`).
+# [A-Za-z0-9], so a $TMP that spells Q1 would fail a whole-output check with rc=0 (about 1 run in
+# 430; inferred from the output format, no failing $out was captured). The page sits under a
+# directory that always spells Q1, so a whole-output check fails every run; the check reads only
+# the duty line save_reply.py prints for a charge (`<id> [<marker>]: <duty>`), and nothing is owed
+# here (Q2 has an option, no item has a marker), so the no-duty line must be there too: a charge
+# of the note to any id, or a drift of the duty format, fails it.
 mkdir -p "$TMP/tmp.Q1path"
 SPB="$TMP/tmp.Q1path/blk.html"
 python3 "$BUILD" "$SP2" -o "$SPB" >/dev/null 2>&1 || fail "(f) the block-notes spec build failed"
 REPLY_B=$'## G1 \xc2\xb7 One\n\nthis whole block is fine\n\n### Q1 \xc2\xb7 Pick\n\n- Keep it\n\nnot sure yet\n\n## G2 \xc2\xb7 Two\n\n- [show-me]\n\n### Q2 \xc2\xb7 Pick again\n\n- Skip it\n'
 out="$(printf '%s' "$REPLY_B" | bash "$SAVE" "$SPB" - 2>&1)"; rc=$?
-[[ $rc -eq 0 && $'\n'"$out" != *$'\nQ1 ['* ]] \
-  && ok "(f) a block note with a marker-shaped line is not charged to the item before it" \
-  || fail "(f) save-reply charged the G2 note's [show-me] to Q1 (rc=$rc): $out"
+[[ $rc -eq 0 && $'\n'"$out" != *$'\nQ1 ['* && "$out" == *"no marked items"* ]] \
+  && ok "(f) a block note with a marker-shaped line is not charged to any item" \
+  || fail "(f) save-reply charged the G2 note's [show-me] to an item, or owed a duty (rc=$rc): $out"
 # the reader picked Q2 and asked nothing back: a round that opens must decide it.
 # Q1 (option + note) stays open so G2's [show-me] could still be wrongly charged to it.
 sed -i.bak 's/{#Q2 title="Pick again"}/{#Q2 title="Pick again" decided="Skip it"}/' "$SP2"
