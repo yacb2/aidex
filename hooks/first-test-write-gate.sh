@@ -53,9 +53,12 @@ try:
     session = "".join(c for c in str(ev.get("session_id") or "") if c.isalnum() or c in "-_")
     if not session:
         sys.exit(0)
-    cfg = os.path.expanduser(os.environ.get("CLAUDE_CONFIG_DIR") or "~/.claude")
-    # A leading ~ is the home directory; anything still relative means the default,
-    # never a tree under the cwd.
+    cfg = (os.environ.get("CLAUDE_CONFIG_DIR") or "").strip(" \t\n\r\v\f")
+    # Trimmed of surrounding whitespace; a leading ~ or ~/ is the home directory (never
+    # ~user, as in the shell hooks); anything still relative means the default, never a
+    # tree under the cwd.
+    if cfg == "~" or cfg.startswith("~/"):
+        cfg = os.path.expanduser("~") + cfg[1:]
     cfg = os.path.normpath(cfg) if os.path.isabs(cfg) else os.path.expanduser("~/.claude")
     # An agent whose definition preloads the testing skill (`skills: [aidex:testing]`)
     # already has the core in context: denying it costs a turn and teaches nothing.

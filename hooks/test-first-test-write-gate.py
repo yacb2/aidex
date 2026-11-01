@@ -123,17 +123,20 @@ check("an agent type with no definition found is still denied",
 
 # State and the user agents directory follow CLAUDE_CONFIG_DIR, never a hard-coded
 # ~/.claude: a session started with CLAUDE_CONFIG_DIR=~/.claude-work wrote its state into
-# the personal ~/.claude. A leading ~ is the home directory; unset, empty or relative
-# means $HOME/.claude, never a tree under the cwd.
+# the personal ~/.claude. Surrounding whitespace is trimmed (BL-892). A leading ~ or ~/
+# is the home directory; unset, empty, relative or ~user means $HOME/.claude, never a
+# tree under the cwd.
 for label, cfg, where in [("set", tempfile.mkdtemp(), None), ("empty", "", ".claude"),
-                          ("tilde", "~/x", "x"), ("relative", "rel", ".claude")]:
+                          ("padded", " %s \t" % tempfile.mkdtemp(), None),
+                          ("tilde", "~/x", "x"), ("relative", "rel", ".claude"),
+                          ("tilde-user", "~nobody/x", ".claude")]:
     cfg_home = tempfile.mkdtemp()
-    root = cfg if where is None else os.path.join(cfg_home, where)
+    root = cfg.strip() if where is None else os.path.join(cfg_home, where)
     call(cfg_home, new("tests/test_cfg.py"), session="cfg1", cfg=cfg)
     check(f"CLAUDE_CONFIG_DIR {label}: state lands under the config dir",
           os.path.isfile(os.path.join(root, "aidex", "first-test-write", "cfg1.tsv")))
     check(f"CLAUDE_CONFIG_DIR {label}: nothing created in the cwd", os.listdir(CWD) == [])
-    if label in ("set", "tilde"):
+    if label in ("set", "padded", "tilde"):
         check(f"CLAUDE_CONFIG_DIR {label}: nothing written under $HOME/.claude",
               not os.path.exists(os.path.join(cfg_home, ".claude")))
     if label == "set":

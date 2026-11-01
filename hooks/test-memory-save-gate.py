@@ -356,22 +356,29 @@ print("== the guarded root and the log follow CLAUDE_CONFIG_DIR, never a hard-co
 # A session started with CLAUDE_CONFIG_DIR=~/.claude-work keeps its memory under that
 # directory, so a gate rooted at ~/.claude/projects let every write there through
 # unchecked. Any spelling of the directory counts: the path the tool writes is
-# normalised, so the root must be too. A leading ~ is the home directory; unset, empty
-# or relative means $HOME/.claude (a relative value is never resolved against the cwd).
+# normalised, so the root must be too. Surrounding whitespace is trimmed, and a path
+# reached through a symlink matches its real spelling (BL-892). A leading ~ or ~/ is the
+# home directory; unset, empty, relative or ~user means $HOME/.claude, as in the shell
+# hooks (a relative value is never resolved against the cwd).
 CFG_CASES = {
-    "set":      lambda real: real,
-    "dot":      lambda real: real + "/.",
-    "dslash":   lambda real: os.path.dirname(real) + "//" + os.path.basename(real),
-    "dotdot":   lambda real: os.path.dirname(real) + "/zz/../" + os.path.basename(real),
-    "tilde":    lambda real: "~/cfgdir",
-    "empty":    lambda real: "",
-    "relative": lambda real: "cfgdir",
+    "set":        lambda real: real,
+    "dot":        lambda real: real + "/.",
+    "dslash":     lambda real: os.path.dirname(real) + "//" + os.path.basename(real),
+    "dotdot":     lambda real: os.path.dirname(real) + "/zz/../" + os.path.basename(real),
+    "tilde":      lambda real: "~/cfgdir",
+    "padded":     lambda real: " %s \t" % real,
+    "symlink":    lambda real: real + "-link",
+    "empty":      lambda real: "",
+    "relative":   lambda real: "cfgdir",
+    "tilde-user": lambda real: "~nobody/cfgdir",
 }
 for label, spell in CFG_CASES.items():
     c_home = tempfile.mkdtemp(prefix="memgate-cfghome-")
     real = os.path.join(c_home, "cfgdir")
     cfg = spell(real)
-    root = os.path.join(c_home, ".claude") if label in ("empty", "relative") else real
+    if label == "symlink":
+        os.symlink(real, cfg)
+    root = os.path.join(c_home, ".claude") if label in ("empty", "relative", "tilde-user") else real
     c_mem = os.path.join(root, "projects", "-cfg-proj", "memory")
     os.makedirs(c_mem)
     ev = {"tool_name": "Write", "tool_input": {

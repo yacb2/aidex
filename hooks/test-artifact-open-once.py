@@ -117,27 +117,29 @@ def wrap_post(home, tr, page, **extra):
 def cfg_cells():
     """State follows CLAUDE_CONFIG_DIR, never a hard-coded ~/.claude: a session started
     with CLAUDE_CONFIG_DIR=~/.claude-work wrote its state into the personal ~/.claude.
-    A leading ~ is the home directory; unset, empty or relative means $HOME/.claude,
-    never a tree under the cwd."""
+    Surrounding whitespace is trimmed (BL-892). A leading ~ or ~/ is the home directory;
+    unset, empty, relative or ~user means $HOME/.claude, never a tree under the cwd."""
     here = os.path.dirname(os.path.abspath(__file__))
     with tempfile.TemporaryDirectory() as root, \
             tempfile.TemporaryDirectory(dir=here) as pages:
         page = os.path.join(pages, "wrapped.html")
         open(page, "w").write("<p>x</p>")
         for label, cfg, sub in [("set", os.path.join(root, "cfg"), None), ("empty", "", ".claude"),
-                                ("tilde", "~/x", "x"), ("relative", "rel", ".claude")]:
+                                ("padded", " %s \t" % os.path.join(root, "cfg-padded"), None),
+                                ("tilde", "~/x", "x"), ("relative", "rel", ".claude"),
+                                ("tilde-user", "~nobody/x", ".claude")]:
             home = os.path.join(root, "h-" + label)
             os.makedirs(home)
             tr = os.path.join(home, "t.jsonl")
             transcript(tr, 1)
             wrap_post(home, tr, page, session="cfg1", cfg=cfg)
-            where = os.path.join(cfg if sub is None else os.path.join(home, sub), "aidex", "open-once")
+            where = os.path.join(cfg.strip() if sub is None else os.path.join(home, sub), "aidex", "open-once")
             check("CLAUDE_CONFIG_DIR %s: wrap state lands under the config dir" % label,
                   os.path.isfile(os.path.join(where, "cfg1.wraps.tsv")), True)
             # The hook runs from the event's cwd (here: home), so look in both.
             check("CLAUDE_CONFIG_DIR %s: nothing created in the cwd" % label,
                   os.listdir(CWD) + [n for n in os.listdir(home) if n in ("~", "rel")], [])
-            if label in ("set", "tilde"):
+            if label in ("set", "padded", "tilde"):
                 check("CLAUDE_CONFIG_DIR %s: nothing written under $HOME/.claude" % label,
                       os.path.exists(os.path.join(home, ".claude")), False)
 

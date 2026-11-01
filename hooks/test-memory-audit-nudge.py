@@ -295,16 +295,17 @@ print("== memory, state and stamp follow CLAUDE_CONFIG_DIR, never a hard-coded ~
 # directory: the hook looked for it, and kept its state, under the personal ~/.claude.
 # The stamp is written by the sweep and read by the hook, so both ends are exercised:
 # the sweep runs with no AIDEX_MEMORY_ROOT, finding the project from the config dir.
-# A leading ~ is the home directory; unset, empty or relative means $HOME/.claude, never
-# a tree under the cwd.
+# Surrounding whitespace is trimmed on both ends (BL-892). A leading ~ or ~/ is the home
+# directory; unset, empty, relative or ~user means $HOME/.claude, never a tree under the cwd.
 for label, cfg, sub in [("set", tempfile.mkdtemp(prefix="memnudge-cfg-"), None),
+                        ("padded", " %s \t" % tempfile.mkdtemp(prefix="memnudge-cfg-"), None),
                         ("empty", "", ".claude"), ("tilde", "~/x", "x"), ("tilde-alone", "~", ""),
-                        ("relative", "rel", ".claude")]:
+                        ("relative", "rel", ".claude"), ("tilde-user", "~nobody/x", ".claude")]:
     c_home = tempfile.mkdtemp(prefix="memnudge-cfghome-")
     c_proj = os.path.join(c_home, "Documents", "projects", "cfg-ws")
     os.makedirs(c_proj)
     c_slug = c_proj.replace("/", "-")
-    root = cfg if sub is None else os.path.join(c_home, sub)
+    root = cfg.strip() if sub is None else os.path.join(c_home, sub)
     c_mem = os.path.join(root, "projects", c_slug, "memory")
     os.makedirs(c_mem)
     with open(os.path.join(c_mem, "fact.md"), "w") as fh:
@@ -324,11 +325,11 @@ for label, cfg, sub in [("set", tempfile.mkdtemp(prefix="memnudge-cfg-"), None),
                                                        c_slug + ".json")), out)
     check("CLAUDE_CONFIG_DIR %s: nothing created in the cwd" % label, os.listdir(CWD) == [],
           os.listdir(CWD))
-    if label in ("set", "tilde", "tilde-alone"):
+    if label in ("set", "padded", "tilde", "tilde-alone"):
         check("CLAUDE_CONFIG_DIR %s: nothing written under $HOME/.claude" % label,
               not os.path.exists(os.path.join(c_home, ".claude")))
-    if label == "set":
-        shutil.rmtree(cfg, ignore_errors=True)
+    if sub is None:
+        shutil.rmtree(cfg.strip(), ignore_errors=True)
     shutil.rmtree(c_home, ignore_errors=True)
 
 print("== fails open and silent ==")

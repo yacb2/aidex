@@ -41,9 +41,12 @@ import time
 # fixture set is now real, at tests/fixtures/memory/, run by tests/test-memory-sweep.sh.
 # AIDEX_MEMORY_PROJECT_ROOT resolves slugs to trees the same way, for the checks that
 # read the project.
-CONFIG_DIR = os.path.expanduser(os.environ.get("CLAUDE_CONFIG_DIR") or "~/.claude")
-# A leading ~ is the home directory; anything still relative means the default, never a
+CONFIG_DIR = (os.environ.get("CLAUDE_CONFIG_DIR") or "").strip(" \t\n\r\v\f")
+# Trimmed of surrounding whitespace; a leading ~ or ~/ is the home directory (never
+# ~user, as in the shell hooks); anything still relative means the default, never a
 # tree under the cwd.
+if CONFIG_DIR == "~" or CONFIG_DIR.startswith("~/"):
+    CONFIG_DIR = os.path.expanduser("~") + CONFIG_DIR[1:]
 CONFIG_DIR = (os.path.normpath(CONFIG_DIR) if os.path.isabs(CONFIG_DIR)
               else os.path.expanduser("~/.claude"))
 PROJECTS = os.environ.get("AIDEX_MEMORY_ROOT") or os.path.join(CONFIG_DIR, "projects")

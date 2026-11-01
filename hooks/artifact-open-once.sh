@@ -153,9 +153,12 @@ def user_turn(transcript):
 def state_files(data):
     session = str(data.get("session_id") or data.get("sessionId") or "unknown")
     session = "".join(c for c in session if c.isalnum() or c in "-_") or "unknown"
-    cfg = os.path.expanduser(os.environ.get("CLAUDE_CONFIG_DIR") or "~/.claude")
-    # A leading ~ is the home directory; anything still relative means the default,
-    # never a tree under the cwd.
+    cfg = (os.environ.get("CLAUDE_CONFIG_DIR") or "").strip(" \t\n\r\v\f")
+    # Trimmed of surrounding whitespace; a leading ~ or ~/ is the home directory (never
+    # ~user, as in the shell hooks); anything still relative means the default, never a
+    # tree under the cwd.
+    if cfg == "~" or cfg.startswith("~/"):
+        cfg = os.path.expanduser("~") + cfg[1:]
     cfg = os.path.normpath(cfg) if os.path.isabs(cfg) else os.path.expanduser("~/.claude")
     state_dir = os.path.join(cfg, "aidex", "open-once")
     return state_dir, os.path.join(state_dir, session + ".tsv"), \

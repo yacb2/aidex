@@ -87,8 +87,9 @@ fi
 # One notice per band per session. Without this it speaks on every prompt for the
 # rest of the session, which is how a useful signal becomes noise that gets muted.
 CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-# A leading ~ is the home directory; anything still relative means the default, never a
-# tree under the cwd.
+# Trimmed of surrounding whitespace; a leading ~ or ~/ is the home directory (never ~user);
+# anything still relative means the default, never a tree under the cwd.
+CFG="${CFG#"${CFG%%[![:space:]]*}"}"; CFG="${CFG%"${CFG##*[![:space:]]}"}"
 case "$CFG" in "~"|"~/"*) CFG="$HOME${CFG#\~}" ;; esac
 case "$CFG" in /*) ;; *) CFG="$HOME/.claude" ;; esac
 STATE_DIR="$CFG/tmp"

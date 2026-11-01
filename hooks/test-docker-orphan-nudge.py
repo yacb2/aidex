@@ -156,9 +156,12 @@ try:
 
     print("== the summary is read from CLAUDE_CONFIG_DIR, never a hard-coded ~/.claude ==")
     # A session started with CLAUDE_CONFIG_DIR=~/.claude-work read and stamped the personal
-    # ~/.claude. A leading ~ is the home directory; unset, empty or relative means
-    # $HOME/.claude, never a tree under the cwd.
+    # ~/.claude. Surrounding whitespace is trimmed (BL-892). A leading ~ or ~/ is the home
+    # directory; unset, empty, relative or ~user means $HOME/.claude, never a tree under the cwd.
     for label, cfg, where in [("set", os.path.join(ROOT, "cfg"), os.path.join(ROOT, "cfg")),
+                              ("padded", " %s \t" % os.path.join(ROOT, "cfg-padded"),
+                               os.path.join(ROOT, "cfg-padded")),
+                              ("tilde-user", "~nobody/x", ".claude"),
                               ("empty", "", ".claude"), ("tilde", "~/x", "x"),
                               ("relative", "rel", ".claude")]:
         home = os.path.join(ROOT, "h-" + label)
@@ -171,7 +174,7 @@ try:
               "cfg-" + label in (message(p) or ""), p.stdout)
         check("CLAUDE_CONFIG_DIR %s: nothing created in the cwd" % label, os.listdir(CWD) == [],
               os.listdir(CWD))
-        if label in ("set", "tilde"):
+        if label in ("set", "padded", "tilde"):
             check("CLAUDE_CONFIG_DIR %s: nothing written under $HOME/.claude" % label,
                   not os.path.exists(os.path.join(home, ".claude")))
 

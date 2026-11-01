@@ -91,19 +91,26 @@ GATE_BLOCKING = ("no-secrets",)
 if tool not in ("Write", "Edit", "MultiEdit"):
     allow()
 
-cfg = os.path.expanduser(os.environ.get("CLAUDE_CONFIG_DIR") or "~/.claude")
-# A leading ~ is the home directory; anything still relative means the default,
-# never a tree under the cwd.
+cfg = (os.environ.get("CLAUDE_CONFIG_DIR") or "").strip(" \t\n\r\v\f")
+# Trimmed of surrounding whitespace; a leading ~ or ~/ is the home directory (never
+# ~user, as in the shell hooks); anything still relative means the default, never a
+# tree under the cwd.
+if cfg == "~" or cfg.startswith("~/"):
+    cfg = os.path.expanduser("~") + cfg[1:]
 cfg = os.path.normpath(cfg) if os.path.isabs(cfg) else os.path.expanduser("~/.claude")
 # Both roots: the config dir's memory, and the personal one a CLAUDE_CONFIG_DIR session
 # can still write into. Equal when the variable is unset.
-roots = dict.fromkeys((os.path.join(cfg, "projects"),
-                       os.path.join(os.path.expanduser("~"), ".claude", "projects")))
+roots = [os.path.join(c, "projects") for c in (cfg, os.path.join(os.path.expanduser("~"), ".claude"))]
+# Each spelling also matches through symlinks (/tmp/x vs /private/tmp/x): the root and the
+# written file's directory are resolved too, while the literal spelling is tried first.
+roots = list(dict.fromkeys(roots + [os.path.realpath(r) for r in roots]))
 try:
     ap = os.path.abspath(os.path.expanduser(path))
+    cands = dict.fromkeys((ap, os.path.join(os.path.realpath(os.path.dirname(ap)),
+                                            os.path.basename(ap))))
 except Exception:
     allow()
-memroot = next((r for r in roots if ap.startswith(r + os.sep)), None)
+ap, memroot = next(((a, r) for a in cands for r in roots if a.startswith(r + os.sep)), (ap, None))
 # <root>/<slug>/memory/<file>.md — exactly that depth, nothing below it.
 parts = ap[len(memroot) + 1:].split(os.sep) if memroot else []
 if len(parts) != 3 or parts[1] != "memory" or not parts[2].endswith(".md"):

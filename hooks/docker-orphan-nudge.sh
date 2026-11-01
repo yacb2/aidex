@@ -20,8 +20,9 @@ cat >/dev/null
 command -v jq >/dev/null 2>&1 || exit 0
 
 CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-# A leading ~ is the home directory; anything still relative means the default, never a
-# tree under the cwd.
+# Trimmed of surrounding whitespace; a leading ~ or ~/ is the home directory (never ~user);
+# anything still relative means the default, never a tree under the cwd.
+CFG="${CFG#"${CFG%%[![:space:]]*}"}"; CFG="${CFG%"${CFG##*[![:space:]]}"}"
 case "$CFG" in "~"|"~/"*) CFG="$HOME${CFG#\~}" ;; esac
 case "$CFG" in /*) ;; *) CFG="$HOME/.claude" ;; esac
 DIR="$CFG/tmp/docker-orphans"

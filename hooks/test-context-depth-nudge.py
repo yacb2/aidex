@@ -212,9 +212,14 @@ clean(sid)
 
 print("\n=== 9. state follows CLAUDE_CONFIG_DIR, never a hard-coded ~/.claude ===")
 # A session started with CLAUDE_CONFIG_DIR=~/.claude-work wrote its band markers into the
-# personal ~/.claude (fired 10 times at work). A leading ~ is the home directory; unset,
-# empty or relative means $HOME/.claude, never a tree under the cwd.
+# personal ~/.claude (fired 10 times at work). Surrounding whitespace is trimmed (BL-892).
+# A leading ~ or ~/ is the home directory; unset, empty, relative or ~user means
+# $HOME/.claude, never a tree under the cwd.
 for label, cfg_value, where in [("set", os.path.join(TMP, "cfg"), os.path.join(TMP, "cfg", "tmp")),
+                                ("padded", " %s \t" % os.path.join(TMP, "cfg-padded"),
+                                 os.path.join(TMP, "cfg-padded", "tmp")),
+                                ("tilde-user", "~nobody/x",
+                                 os.path.join(TMP, "h-tilde-user", ".claude", "tmp")),
                                 ("empty", "", os.path.join(TMP, "h-empty", ".claude", "tmp")),
                                 ("tilde", "~/x", os.path.join(TMP, "h-tilde", "x", "tmp")),
                                 ("relative", "rel", os.path.join(TMP, "h-relative", ".claude", "tmp"))]:
@@ -229,7 +234,7 @@ for label, cfg_value, where in [("set", os.path.join(TMP, "cfg"), os.path.join(T
           os.path.isfile(os.path.join(where, "ctx-band-TEST-cfg")),
           f"$HOME/.claude exists={os.path.exists(os.path.join(h, '.claude'))}")
     check(f"CLAUDE_CONFIG_DIR {label}: nothing created in the cwd", os.listdir(CWD) == [], os.listdir(CWD))
-    if label in ("set", "tilde"):
+    if label in ("set", "padded", "tilde"):
         check(f"CLAUDE_CONFIG_DIR {label}: nothing written under $HOME/.claude",
               not os.path.exists(os.path.join(h, ".claude")))
 
