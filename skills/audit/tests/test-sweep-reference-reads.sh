@@ -68,11 +68,11 @@ grep -qE '^1 unparseable' <<<"$out_e" || fail "(e2) expected '1 unparseable' bef
   || fail "(e2) --json lacks skipped == 1"
 
 #   (f) mine-reference-reads: the Skill tool records `aidex:alpha`; --when-skill alpha must match it.
-#       Its corpus root is <config dir>/projects, so HOME and CLAUDE_CONFIG_DIR both point at
-#       the fixture (a session's own CLAUDE_CONFIG_DIR would otherwise win over HOME).
-mkdir -p "$W/home/.claude/projects"
-cp -R "$W/tx/-Users-u-Documents-projects-p" "$W/home/.claude/projects/"
-out_f="$(HOME="$W/home" CLAUDE_CONFIG_DIR="$W/home/.claude" python3 "$TESTS_DIR/../scripts/mine-reference-reads.py" alpha/references/shared.md --when-skill alpha 2>&1)"
+#       Its corpus root is <config dir>/projects: the fixture is under CLAUDE_CONFIG_DIR=$W/cfg
+#       and HOME=$W/home has no .claude, so a miner reading ~/.claude finds no session.
+mkdir -p "$W/cfg/projects" "$W/home"
+cp -R "$W/tx/-Users-u-Documents-projects-p" "$W/cfg/projects/"
+out_f="$(HOME="$W/home" CLAUDE_CONFIG_DIR="$W/cfg" python3 "$TESTS_DIR/../scripts/mine-reference-reads.py" alpha/references/shared.md --when-skill alpha 2>&1)"
 grep -q 'no sessions in scope' <<<"$out_f" \
   && fail "(f) --when-skill alpha found no session although aidex:alpha fired: $out_f"
 grep -qE '^alpha +2 +1$' <<<"$out_f" \

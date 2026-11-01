@@ -34,14 +34,26 @@ HOOKS_DIR="$(git rev-parse --git-path hooks 2>/dev/null || true)"
 [[ -n "$HOOKS_DIR" ]] || { echo "error: not inside a git repository" >&2; exit 2; }
 HOOK="$HOOKS_DIR/post-commit"
 
+# True when the hook holds a whole aidex block: the start marker as an exact line, then
+# the end marker. A block without its end would make the rewrite below drop every line
+# after the start, and .git/hooks is not versioned; a CRLF hook matches neither line.
+has_block() {
+  awk -v a="$MARK" -v b="$END_MARK" '$0==a {m=1} m && $0==b {f=1} END {exit !f}' "$HOOK"
+}
+# Write through the path, so a symlinked hook stays a symlink and its target changes.
+replace_hook() { cat "$HOOK.tmp" > "$HOOK"; rm -f "$HOOK.tmp"; }
+
 if [[ $REMOVE -eq 1 ]]; then
   [[ -f "$HOOK" ]] || { echo "no post-commit hook to clean"; exit 0; }
-  if grep -qF "$MARK" "$HOOK"; then
+  if has_block; then
     awk -v a="$MARK" -v b="$END_MARK" '
       $0==a {skip=1; next} $0==b {skip=0; next} !skip {print}
-    ' "$HOOK" > "$HOOK.tmp" && mv "$HOOK.tmp" "$HOOK"
+    ' "$HOOK" > "$HOOK.tmp" && replace_hook
     chmod +x "$HOOK"
     echo "removed aidex block from $HOOK"
+  elif grep -qF "$MARK" "$HOOK"; then
+    echo "WARN: the aidex block in $HOOK is incomplete (no end marker line, or CRLF line endings) — left untouched; edit it by hand" >&2
+    exit 1
   else
     echo "post-commit hook is not aidex-managed — left untouched"
   fi
@@ -59,7 +71,7 @@ if [[ ! -f "$HOOK" ]]; then
   { printf '#!/usr/bin/env bash\n'; block; } > "$HOOK"
   chmod +x "$HOOK"
   echo "installed post-commit hook at $HOOK"
-elif grep -qF "$MARK" "$HOOK"; then
+elif has_block; then
   # Replace the block in place, so a hook written by an older version picks up the
   # current HARVEST line; the hook's other lines are kept. ENVIRON, not -v: awk -v would
   # unescape the backslashes in HARVEST.
@@ -70,11 +82,15 @@ elif grep -qF "$MARK" "$HOOK"; then
     rm -f "$HOOK.tmp"
     echo "aidex hook already present in $HOOK — nothing to do"
   else
-    mv "$HOOK.tmp" "$HOOK"; chmod +x "$HOOK"
+    replace_hook; chmod +x "$HOOK"
     echo "updated the aidex block in $HOOK"
   fi
 else
-  echo "WARN: $HOOK exists and is not aidex-managed." >&2
+  if grep -qF "$MARK" "$HOOK"; then
+    echo "WARN: the aidex block in $HOOK is incomplete (no end marker line, or CRLF line endings) — left untouched." >&2
+  else
+    echo "WARN: $HOOK exists and is not aidex-managed." >&2
+  fi
   echo "Add this line to it manually to enable commit harvesting:" >&2
   echo "  $HARVEST" >&2
   exit 1
