@@ -101,20 +101,29 @@ cfg = os.path.normpath(cfg) if os.path.isabs(cfg) else os.path.expanduser("~/.cl
 # Both roots: the config dir's memory, and the personal one a CLAUDE_CONFIG_DIR session
 # can still write into. Equal when the variable is unset.
 roots = [os.path.join(c, "projects") for c in (cfg, os.path.join(os.path.expanduser("~"), ".claude"))]
-# Each spelling also matches through symlinks (/tmp/x vs /private/tmp/x): the root and the
-# written file's directory are resolved too, while the literal spelling is tried first.
+# Each spelling also matches through symlinks (/tmp/x vs /private/tmp/x): the roots and
+# the written path are resolved too (its directory alone, then the whole path, which
+# follows a file link), while the literal spelling is tried first.
 roots = list(dict.fromkeys(roots + [os.path.realpath(r) for r in roots]))
 try:
     ap = os.path.abspath(os.path.expanduser(path))
-    cands = dict.fromkeys((ap, os.path.join(os.path.realpath(os.path.dirname(ap)),
-                                            os.path.basename(ap))))
+    cands = list(dict.fromkeys((ap, os.path.join(os.path.realpath(os.path.dirname(ap)),
+                                                 os.path.basename(ap)), os.path.realpath(ap))))
 except Exception:
     allow()
-ap, memroot = next(((a, r) for a in cands for r in roots if a.startswith(r + os.sep)), (ap, None))
-# <root>/<slug>/memory/<file>.md — exactly that depth, nothing below it.
-parts = ap[len(memroot) + 1:].split(os.sep) if memroot else []
-if len(parts) != 3 or parts[1] != "memory" or not parts[2].endswith(".md"):
+
+def memory_file(a, r):
+    # <root>/<slug>/memory/<file>.md — exactly that depth, nothing below it.
+    parts = a[len(r) + 1:].split(os.sep) if a.startswith(r + os.sep) else []
+    return len(parts) == 3 and parts[1] == "memory" and parts[2].endswith(".md")
+
+# The first spelling that IS a memory file wins, not the first under a root: a literal
+# path one level too deep (memory/loop/a.md, loop -> .) may resolve to one.
+hit = next(((a, r) for a in cands for r in roots if memory_file(a, r)), None)
+if hit is None:
     allow()
+ap, memroot = hit
+parts = ap[len(memroot) + 1:].split(os.sep)
 memdir = os.path.join(memroot, parts[0], "memory")
 
 if tool == "Write":

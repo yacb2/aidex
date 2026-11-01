@@ -3,7 +3,7 @@
 The wired hooks are listed in `hooks.json`. The retired router and durability hooks (and their README) live in `docs/retired/hooks/`.
 
 **Config dir.** Every hook keeps its state under the session's config dir, `${CLAUDE_CONFIG_DIR:-~/.claude}`:
-surrounding whitespace is trimmed, a leading `~` or `~/` is the home directory, and a relative value falls
+surrounding ASCII whitespace (space, tab, newline, CR, VT, FF) is trimmed, a leading `~` or `~/` is the home directory, and a relative value falls
 back to `~/.claude` (never a tree under the cwd). `~user` is not supported and falls back to `~/.claude`
 too, in the Python hooks as in the shell ones. Only an absolute (or `~`) value is supported: Claude Code resolves a relative one against
 several folders, so with a relative value the gate below guards only `~/.claude`. `memory-save-gate.sh` guards the memory of both that dir and `~/.claude`, under any spelling that

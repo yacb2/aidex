@@ -300,7 +300,10 @@ print("== memory, state and stamp follow CLAUDE_CONFIG_DIR, never a hard-coded ~
 for label, cfg, sub in [("set", tempfile.mkdtemp(prefix="memnudge-cfg-"), None),
                         ("padded", " %s \t" % tempfile.mkdtemp(prefix="memnudge-cfg-"), None),
                         ("empty", "", ".claude"), ("tilde", "~/x", "x"), ("tilde-alone", "~", ""),
-                        ("relative", "rel", ".claude"), ("tilde-user", "~nobody/x", ".claude")]:
+                        ("relative", "rel", ".claude"), ("tilde-user", "~root/x", ".claude"),
+                        # Only ASCII whitespace is trimmed: a UTF-8 [:space:] also matched
+                        # U+00A0, so the hook read one dir while the sweep stamped another.
+                        ("nbsp", "\u00a0" + tempfile.mkdtemp(prefix="memnudge-cfg-"), ".claude")]:
     c_home = tempfile.mkdtemp(prefix="memnudge-cfghome-")
     c_proj = os.path.join(c_home, "Documents", "projects", "cfg-ws")
     os.makedirs(c_proj)
@@ -310,7 +313,7 @@ for label, cfg, sub in [("set", tempfile.mkdtemp(prefix="memnudge-cfg-"), None),
     os.makedirs(c_mem)
     with open(os.path.join(c_mem, "fact.md"), "w") as fh:
         fh.write("---\nname: x\nmetadata:\n  type: project\n---\n\na durable fact\n")
-    c_env = {"HOME": c_home, "CLAUDE_CONFIG_DIR": cfg}
+    c_env = {"HOME": c_home, "CLAUDE_CONFIG_DIR": cfg, "LC_ALL": "en_US.UTF-8"}
     rc, out, _ = run(cwd=c_proj, session="cfg-a", **c_env)
     check("CLAUDE_CONFIG_DIR %s: memory found there, so it speaks" % label, message(out) != "", out)
     check("CLAUDE_CONFIG_DIR %s: the once-per-session marker is under it" % label,
@@ -328,7 +331,7 @@ for label, cfg, sub in [("set", tempfile.mkdtemp(prefix="memnudge-cfg-"), None),
     if label in ("set", "padded", "tilde", "tilde-alone"):
         check("CLAUDE_CONFIG_DIR %s: nothing written under $HOME/.claude" % label,
               not os.path.exists(os.path.join(c_home, ".claude")))
-    if sub is None:
+    if os.path.isabs(cfg.strip()):
         shutil.rmtree(cfg.strip(), ignore_errors=True)
     shutil.rmtree(c_home, ignore_errors=True)
 

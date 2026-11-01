@@ -161,7 +161,10 @@ try:
     for label, cfg, where in [("set", os.path.join(ROOT, "cfg"), os.path.join(ROOT, "cfg")),
                               ("padded", " %s \t" % os.path.join(ROOT, "cfg-padded"),
                                os.path.join(ROOT, "cfg-padded")),
-                              ("tilde-user", "~nobody/x", ".claude"),
+                              ("tilde-user", "~root/x", ".claude"),
+                              # Only ASCII whitespace is trimmed (a UTF-8 [:space:] also
+                              # matched U+00A0, unlike the Python hooks).
+                              ("nbsp", "\u00a0" + os.path.join(ROOT, "cfg-nbsp"), ".claude"),
                               ("empty", "", ".claude"), ("tilde", "~/x", "x"),
                               ("relative", "rel", ".claude")]:
         home = os.path.join(ROOT, "h-" + label)
@@ -169,7 +172,7 @@ try:
         os.makedirs(CWD)
         summary(candidates=1, names="cfg-" + label,
                 d=os.path.join(home, where, "tmp", "docker-orphans"))
-        p, _ = run(HOME=home, CLAUDE_CONFIG_DIR=cfg)
+        p, _ = run(HOME=home, CLAUDE_CONFIG_DIR=cfg, LC_ALL="en_US.UTF-8")
         check("CLAUDE_CONFIG_DIR %s: speaks from that summary" % label,
               "cfg-" + label in (message(p) or ""), p.stdout)
         check("CLAUDE_CONFIG_DIR %s: nothing created in the cwd" % label, os.listdir(CWD) == [],

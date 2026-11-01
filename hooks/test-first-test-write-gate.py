@@ -129,7 +129,7 @@ check("an agent type with no definition found is still denied",
 for label, cfg, where in [("set", tempfile.mkdtemp(), None), ("empty", "", ".claude"),
                           ("padded", " %s \t" % tempfile.mkdtemp(), None),
                           ("tilde", "~/x", "x"), ("relative", "rel", ".claude"),
-                          ("tilde-user", "~nobody/x", ".claude")]:
+                          ("tilde-user", "~root/x", ".claude")]:
     cfg_home = tempfile.mkdtemp()
     root = cfg.strip() if where is None else os.path.join(cfg_home, where)
     call(cfg_home, new("tests/test_cfg.py"), session="cfg1", cfg=cfg)

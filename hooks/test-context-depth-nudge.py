@@ -213,18 +213,23 @@ clean(sid)
 print("\n=== 9. state follows CLAUDE_CONFIG_DIR, never a hard-coded ~/.claude ===")
 # A session started with CLAUDE_CONFIG_DIR=~/.claude-work wrote its band markers into the
 # personal ~/.claude (fired 10 times at work). Surrounding whitespace is trimmed (BL-892).
-# A leading ~ or ~/ is the home directory; unset, empty, relative or ~user means
-# $HOME/.claude, never a tree under the cwd.
+# A leading ~ or ~/ is the home directory; unset, empty, relative or ~user (~root: it
+# exists on every POSIX host) means $HOME/.claude, never a tree under the cwd.
 for label, cfg_value, where in [("set", os.path.join(TMP, "cfg"), os.path.join(TMP, "cfg", "tmp")),
                                 ("padded", " %s \t" % os.path.join(TMP, "cfg-padded"),
                                  os.path.join(TMP, "cfg-padded", "tmp")),
-                                ("tilde-user", "~nobody/x",
+                                ("tilde-user", "~root/x",
                                  os.path.join(TMP, "h-tilde-user", ".claude", "tmp")),
+                                # Only ASCII whitespace is trimmed, as in the Python hooks: a
+                                # UTF-8 [:space:] also matched U+00A0, so the shell read
+                                # <TMP>/cfg-nbsp where the Python hooks fell back.
+                                ("nbsp", "\u00a0" + os.path.join(TMP, "cfg-nbsp"),
+                                 os.path.join(TMP, "h-nbsp", ".claude", "tmp")),
                                 ("empty", "", os.path.join(TMP, "h-empty", ".claude", "tmp")),
                                 ("tilde", "~/x", os.path.join(TMP, "h-tilde", "x", "tmp")),
                                 ("relative", "rel", os.path.join(TMP, "h-relative", ".claude", "tmp"))]:
     h = os.path.join(TMP, "h-" + label)
-    env = dict(ENV, HOME=h, CLAUDE_CONFIG_DIR=cfg_value)
+    env = dict(ENV, HOME=h, CLAUDE_CONFIG_DIR=cfg_value, LC_ALL="en_US.UTF-8")
     CWD = os.path.join(TMP, "cwd-" + label)
     os.makedirs(CWD)
     subprocess.run(["/bin/sh", HOOK], input=json.dumps({

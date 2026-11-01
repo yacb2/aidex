@@ -152,6 +152,17 @@ grep -q '^candidates=3$' "$S" && pass "CLAUDE_CONFIG_DIR relative: summary under
   || fail "CLAUDE_CONFIG_DIR relative: summary: $(cat "$S")"
 [[ ! -e "$TMP/~" && ! -e "$TMP/rel" ]] && pass "CLAUDE_CONFIG_DIR ~/x and relative: nothing created in the cwd" \
   || fail "CLAUDE_CONFIG_DIR ~/x or relative: a tree was created in the cwd"
+# Surrounding ASCII whitespace is trimmed, as in the hook that reads the summary (BL-892);
+# U+00A0 is not whitespace there (a UTF-8 [:space:] matched it), so that value is relative.
+printf 'sentinel\n' > "$S"
+( cd "$TMP" && HOME="$H" CLAUDE_CONFIG_DIR=" $TMP/cfg-padded $T" FIX="$TMP" DLOG="$DLOG" PATH="$TMP/bin:$PATH" bash "$SCRIPT" --all --write-summary >/dev/null 2>&1 )
+grep -q '^candidates=3$' "$TMP/cfg-padded/tmp/docker-orphans/summary" 2>/dev/null \
+  && pass "CLAUDE_CONFIG_DIR padded: summary under the trimmed dir" || fail "CLAUDE_CONFIG_DIR padded: no summary under the trimmed dir"
+[[ "$(cat "$S")" == sentinel ]] && pass "CLAUDE_CONFIG_DIR padded: nothing written under \$HOME/.claude" \
+  || fail "CLAUDE_CONFIG_DIR padded: \$HOME/.claude summary was rewritten"
+( cd "$TMP" && HOME="$H" LC_ALL=en_US.UTF-8 CLAUDE_CONFIG_DIR=$'\xc2\xa0'"$TMP/cfg-nbsp" FIX="$TMP" DLOG="$DLOG" PATH="$TMP/bin:$PATH" bash "$SCRIPT" --all --write-summary >/dev/null 2>&1 )
+grep -q '^candidates=3$' "$S" && [[ ! -e "$TMP/cfg-nbsp" ]] && pass "CLAUDE_CONFIG_DIR U+00A0-prefixed: summary under \$HOME/.claude" \
+  || fail "CLAUDE_CONFIG_DIR U+00A0-prefixed: summary: $(cat "$S")"
 run --write-summary >/dev/null   # the rows below read the last good summary
 
 echo "== docker not running =="

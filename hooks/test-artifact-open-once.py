@@ -127,7 +127,7 @@ def cfg_cells():
         for label, cfg, sub in [("set", os.path.join(root, "cfg"), None), ("empty", "", ".claude"),
                                 ("padded", " %s \t" % os.path.join(root, "cfg-padded"), None),
                                 ("tilde", "~/x", "x"), ("relative", "rel", ".claude"),
-                                ("tilde-user", "~nobody/x", ".claude")]:
+                                ("tilde-user", "~root/x", ".claude")]:
             home = os.path.join(root, "h-" + label)
             os.makedirs(home)
             tr = os.path.join(home, "t.jsonl")

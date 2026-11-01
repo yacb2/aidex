@@ -44,9 +44,11 @@ case "$CWD" in /*) ;; *) exit 0 ;; esac
 # nudge about the user-level memory. An exact cwd of $HOME still matches, because the
 # exact form is tried before the walk begins.
 CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-# Trimmed of surrounding whitespace; a leading ~ or ~/ is the home directory (never ~user);
-# anything still relative means the default, never a tree under the cwd.
-CFG="${CFG#"${CFG%%[![:space:]]*}"}"; CFG="${CFG%"${CFG##*[![:space:]]}"}"
+# Trimmed of surrounding ASCII whitespace (never [:space:], which in a UTF-8 locale also
+# matches U+00A0, unlike the Python hooks); a leading ~ or ~/ is the home directory (never
+# ~user); anything still relative means the default, never a tree under the cwd.
+WS=$(printf ' \t\n\r\v\f.'); WS=${WS%.}
+CFG="${CFG#"${CFG%%[!$WS]*}"}"; CFG="${CFG%"${CFG##*[!$WS]}"}"
 case "$CFG" in "~"|"~/"*) CFG="$HOME${CFG#\~}" ;; esac
 case "$CFG" in /*) ;; *) CFG="$HOME/.claude" ;; esac
 MEMDIR=""

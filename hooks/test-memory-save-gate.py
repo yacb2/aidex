@@ -359,7 +359,8 @@ print("== the guarded root and the log follow CLAUDE_CONFIG_DIR, never a hard-co
 # normalised, so the root must be too. Surrounding whitespace is trimmed, and a path
 # reached through a symlink matches its real spelling (BL-892). A leading ~ or ~/ is the
 # home directory; unset, empty, relative or ~user means $HOME/.claude, as in the shell
-# hooks (a relative value is never resolved against the cwd).
+# hooks (a relative value is never resolved against the cwd). ~root, because root exists
+# on every POSIX host: with a missing user the old expanduser returned the text unchanged.
 CFG_CASES = {
     "set":        lambda real: real,
     "dot":        lambda real: real + "/.",
@@ -370,7 +371,7 @@ CFG_CASES = {
     "symlink":    lambda real: real + "-link",
     "empty":      lambda real: "",
     "relative":   lambda real: "cfgdir",
-    "tilde-user": lambda real: "~nobody/cfgdir",
+    "tilde-user": lambda real: "~root/cfgdir",
 }
 for label, spell in CFG_CASES.items():
     c_home = tempfile.mkdtemp(prefix="memgate-cfghome-")
@@ -391,16 +392,44 @@ for label, spell in CFG_CASES.items():
           os.path.isfile(os.path.join(root, "aidex", "memory-gate.jsonl")))
     check("CLAUDE_CONFIG_DIR %s: nothing created in the cwd" % label, os.listdir(CWD) == [],
           os.listdir(CWD))
+    at = lambda path: dict(ev, tool_input=dict(ev["tool_input"], file_path=path))
+    if label in ("set", "symlink"):
+        # The refused side of the boundary, under the literal and the linked spelling alike:
+        # matching through symlinks must not widen the guard past <root>/<slug>/memory/*.md.
+        for sib in (real + "-x", cfg + "-x"):
+            rc, out, _ = run(at(os.path.join(sib, "projects", "-cfg-proj", "memory", "s.md")),
+                             home=c_home, cfg=cfg)
+            check("CLAUDE_CONFIG_DIR %s: a sibling dir sharing its prefix is not guarded (%s)"
+                  % (label, os.path.basename(sib)), decision(out) != "deny", out)
+        rc, out, _ = run(at(os.path.join(c_mem, "sub", "deep.md")), home=c_home, cfg=cfg)
+        check("CLAUDE_CONFIG_DIR %s: a file below memory/ is not guarded" % label,
+              decision(out) != "deny", out)
+    if label == "symlink":
+        # The other direction: the config dir named by its real path, the file written
+        # through the link.
+        rc, out, _ = run(at(os.path.join(cfg, "projects", "-cfg-proj", "memory", "s.md")),
+                         home=c_home, cfg=real)
+        check("CLAUDE_CONFIG_DIR real, file written through a link to it: denied",
+              decision(out) == "deny", out)
+        # A link inside memory/ back to itself: the literal spelling is one level too deep,
+        # the resolved one is <root>/<slug>/memory/<file>.md. Both spelled canonically (the
+        # temp dir itself can sit behind a link, /var -> /private/var), so the literal
+        # spelling does match a root, at the wrong depth.
+        os.symlink(".", os.path.join(c_mem, "loop"))
+        rc, out, _ = run(at(os.path.join(os.path.realpath(c_mem), "loop", "s.md")),
+                         home=c_home, cfg=os.path.realpath(real))
+        check("CLAUDE_CONFIG_DIR symlink: a write through memory/loop -> . is denied",
+              decision(out) == "deny", out)
+        # A file link outside every root that points into memory: Write follows it.
+        os.makedirs(os.path.join(c_home, "elsewhere"))
+        open(os.path.join(c_mem, "b.md"), "w").write("x\n")
+        os.symlink(os.path.join(c_mem, "b.md"), os.path.join(c_home, "elsewhere", "note.md"))
+        rc, out, _ = run(at(os.path.join(c_home, "elsewhere", "note.md")), home=c_home, cfg=cfg)
+        check("CLAUDE_CONFIG_DIR symlink: a file link from outside into memory is denied",
+              decision(out) == "deny", out)
     if label == "set":
         check("CLAUDE_CONFIG_DIR set: nothing written under $HOME/.claude",
               not os.path.exists(os.path.join(c_home, ".claude")))
-        at = lambda path: dict(ev, tool_input=dict(ev["tool_input"], file_path=path))
-        rc, out, _ = run(at(os.path.join(real + "-x", "projects", "-cfg-proj", "memory", "s.md")),
-                         home=c_home, cfg=cfg)
-        check("CLAUDE_CONFIG_DIR set: a sibling dir sharing its prefix is not guarded",
-              decision(out) != "deny", out)
-        rc, out, _ = run(at(os.path.join(c_mem, "sub", "deep.md")), home=c_home, cfg=cfg)
-        check("CLAUDE_CONFIG_DIR set: a file below memory/ is not guarded", decision(out) != "deny", out)
         # The personal memory stays guarded too: moving the config dir must not turn the
         # gate off for $HOME/.claude/projects, which a work session can still write into.
         p_mem = os.path.join(c_home, ".claude", "projects", "-cfg-proj", "memory")
