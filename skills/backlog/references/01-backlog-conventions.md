@@ -493,7 +493,9 @@ Routing refuses nothing (the one refusal is R1's key outside `ticket_pattern`); 
 positive is `define-item.sh <BL> --raise none`. An explicit
 `--raise`, `--ticket` or `--review` is not routed. Protection is partial: an item with no
 `--touches` and no on-disk backtick path stays sweepable; `sweep-eligible.py` skips the
-rest as `tracked externally` or `team repo: <seg>`.
+rest as `tracked externally` or `team repo: <seg>`. Registration says the same: an item
+with `raise`, `ticket`, `pr` or `review` prints `definition: BL-NNN is tracked externally —
+not sweep-eligible` instead of a missing list, so `touches` is never asked of it.
 
 | Step | Recorded as | Command |
 |---|---|---|

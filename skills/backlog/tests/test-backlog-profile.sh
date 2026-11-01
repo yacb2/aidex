@@ -519,6 +519,21 @@ p3() {
     [[ $RC -eq 0 && -f "$RF" && $(grep -c " $id " "$wl") -eq 0 ]] && grep -q "$id.*not appended.* — ${c#*|}\$" "$TMP/reg.err" \
       && ok "sweep: ${c%|*} is registered, not appended, and warned: ${c#*|}" || bad "sweep ${c%|*}: rc=$RC in-queue=$(grep -c " $id " "$wl") $(cat "$TMP/reg.err")"
   done
+
+  # The definition verdict agrees with sweep-eligible.py: a tracked item (raise, ticket, pr or
+  # review) reads "tracked externally" and is never asked for touches; a plain one is unchanged.
+  for c in "--ticket ABC-8" "--review app#5" "--touches app/x.ts" "--raise raised"; do
+    reg "$P" --origin manual --title "tracked verdict" $c
+    id="$(fm "$RF" id)"
+    grep -qxF "definition: $id is tracked externally — not sweep-eligible" "$TMP/reg.err" && ! grep -q 'UNDERDEFINED\|define-item.sh' "$TMP/reg.err" \
+      && ok "verdict: $c reads tracked externally, no missing list" || bad "verdict $c: $(cat "$TMP/reg.err")"
+  done
+  reg "$N" --origin manual --ticket abc-9 --title "no profile tracked"
+  grep -qxF "definition: $(fm "$RF" id) is tracked externally — not sweep-eligible" "$TMP/reg.err" \
+    && ok "verdict: a ticket item with no profile reads tracked externally too (the field skip needs none)" || bad "verdict N: $(cat "$TMP/reg.err")"
+  reg "$P" --origin manual --title "plain verdict"
+  grep -q "definition: $(fm "$RF" id) is UNDERDEFINED — missing: .*touches" "$TMP/reg.err" \
+    && ok "verdict: a plain item is still asked for touches" || bad "verdict plain: $(cat "$TMP/reg.err")"
 }
 
 # --- p4 helpers -------------------------------------------------------------------------

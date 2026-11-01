@@ -509,12 +509,19 @@ print_define_verdict() {
   json="$(cd "$(dirname "$file")" && python3 "$REG_DIR/define-check.py" --json "$id" 2>/dev/null)" || true
   [[ -n "$json" ]] || return 0
   printf '%s' "$json" | python3 -c '
-import json, sys
+import importlib, json, sys
 items = json.load(sys.stdin).get("items", [])
 if not items:                      # a done/dropped registration is not checked
     sys.exit(0)
 r, ident, path = items[0], sys.argv[1], sys.argv[2]
 err = sys.stderr
+# Tracked work is skipped by sweep-eligible.py before any definition check (its
+# TRACKER_FIELDS, `raise: none` excepted), so its missing list is noise: say what the sweep says.
+sys.path.insert(0, sys.argv[3])
+fm = importlib.import_module("define-check").parse(path)["fm"]
+if any(fm.get(k, "") not in ("", "none") if k == "raise" else fm.get(k, "") for k in ("raise", "ticket", "pr", "review")):
+    print(f"definition: {ident} is tracked externally — not sweep-eligible", file=err)
+    sys.exit(0)
 if r["defined"]:
     print(f"definition: {ident} is defined — sweep-eligible", file=err)
     sys.exit(0)
@@ -532,7 +539,7 @@ if fields:
     print(f"  define-item.sh {ident} " + " ".join(flags), file=err)
 if body:
     print("  edit " + " and ".join("## " + b for b in body) + f" in {path}", file=err)
-' "$id" "$file" || true
+' "$id" "$file" "$REG_DIR" || true
 }
 
 # active_backlog_profile <ctx>: print the project's backlog profile when it is ACTIVE (it
