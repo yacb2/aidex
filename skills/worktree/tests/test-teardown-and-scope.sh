@@ -47,7 +47,7 @@ WT_LINKS=""
 WT_PORT_VARS="DB_PORT=6400"
 WT_PRE_DOWN_CMD='echo PRE_DB=$DB_PORT CP=$COMPOSE_PROJECT_NAME SUF=$WT_SUFFIX'
 ENV
-( cd "$TMP/p5/backend" && /usr/bin/git init -q . && /usr/bin/git config user.email t@e.com \
+( cd "$TMP/p5/backend" && /usr/bin/git init -q . && /usr/bin/git config user.email t@example.com \
   && /usr/bin/git config user.name t && echo x > f && /usr/bin/git add -A && /usr/bin/git commit -qm i ) >/dev/null 2>&1
 ( cd "$TMP/p5" && bash "$S/worktree.sh" new blank --branch wt/blank --no-infra ) >/dev/null 2>&1
 : > "$TMP/p5-wt-blank/.wt-slot"          # exactly what --no-infra leaves
@@ -81,7 +81,7 @@ down_case() {
   { printf '%s\n' 'WT_PARTICIPANTS="backend"' 'WT_LINKS=""' 'WT_PORT_VARS="WEB_PORT=8000"' \
       "WT_PRE_DOWN_CMD='echo PRE_WEB=\${WEB_PORT:-none}'"
     [[ -n "$max" ]] && printf 'WT_MAX_SLOTS=%s\n' "$max"; } > "$P/.context/worktrees/config.env"
-  ( cd "$P/backend" && /usr/bin/git init -q . && /usr/bin/git config user.email t@e.com \
+  ( cd "$P/backend" && /usr/bin/git init -q . && /usr/bin/git config user.email t@example.com \
     && /usr/bin/git config user.name t && echo x > f && /usr/bin/git add -A && /usr/bin/git commit -qm i ) >/dev/null 2>&1
   ( cd "$P" && bash "$S/worktree.sh" new z --branch wt/z --no-infra ) >/dev/null 2>&1
   printf '%s\n' "$file" > "$P-wt-z/.wt-slot"
@@ -118,7 +118,7 @@ mk_branch_fixture() {  # mk_branch_fixture <dir> <slug>
   mkdir -p "$1/.context/worktrees" "$1/backend"
   printf 'WT_PARTICIPANTS="backend"\nWT_LINKS=""\nWT_PORT_VARS="DB_PORT=6400"\n' \
     > "$1/.context/worktrees/config.env"
-  ( cd "$1/backend" && /usr/bin/git init -q . && /usr/bin/git config user.email t@e.com \
+  ( cd "$1/backend" && /usr/bin/git init -q . && /usr/bin/git config user.email t@example.com \
     && /usr/bin/git config user.name t && echo x > f && /usr/bin/git add -A \
     && /usr/bin/git commit -qm i ) >/dev/null 2>&1
   ( cd "$1" && bash "$S/worktree.sh" new "$2" --branch "wt/$2" --no-infra ) >/dev/null 2>&1
@@ -311,7 +311,7 @@ WT_COPIES="extra.txt backend/extra.txt"
 WT_PORT_VARS="DB_PORT=6400"
 ENV
 printf 'services:\n  backend:\n    image: nginx\n' > "$TMP/prb/docker-compose.yml"
-( cd "$TMP/prb/backend" && /usr/bin/git init -q . && /usr/bin/git config user.email t@e.com \
+( cd "$TMP/prb/backend" && /usr/bin/git init -q . && /usr/bin/git config user.email t@example.com \
   && /usr/bin/git config user.name t && echo x > f && /usr/bin/git add -A && /usr/bin/git commit -qm i ) >/dev/null 2>&1
 echo extra > "$TMP/prb/backend/extra.txt"   # untracked in backend, so the copy is too
 echo x > "$TMP/prb/extra.txt"                # a root-level copy: only a --copy arg removes it
@@ -336,7 +336,7 @@ WT_PORT_VARS="DB_PORT=6400"
 ENV
 printf 'services:\n  app:\n    image: nginx\n' > "$TMP/penv/docker-compose.yml"
 printf 'FOO=bar\n' > "$TMP/penv/.env"
-( cd "$TMP/penv" && /usr/bin/git init -q . && /usr/bin/git config user.email t@e.com \
+( cd "$TMP/penv" && /usr/bin/git init -q . && /usr/bin/git config user.email t@example.com \
   && /usr/bin/git config user.name t && /usr/bin/git add -A && /usr/bin/git commit -qm i ) >/dev/null 2>&1
 mk_docker '#!/bin/sh
 exit 0'
@@ -357,7 +357,7 @@ mkdir -p "$TMP/porder/.context/worktrees" "$TMP/porder/backend"
 printf 'WT_PARTICIPANTS="backend"\nWT_LINKS=""\nWT_PORT_VARS="DB_PORT=6400"\n' \
   > "$TMP/porder/.context/worktrees/config.env"
 printf 'services:\n  backend:\n    image: nginx\n' > "$TMP/porder/docker-compose.yml"
-( cd "$TMP/porder/backend" && /usr/bin/git init -q . && /usr/bin/git config user.email t@e.com \
+( cd "$TMP/porder/backend" && /usr/bin/git init -q . && /usr/bin/git config user.email t@example.com \
   && /usr/bin/git config user.name t && echo x > f && /usr/bin/git add -A && /usr/bin/git commit -qm i ) >/dev/null 2>&1
 mk_docker "#!/bin/sh
 case \" \$* \" in
@@ -393,9 +393,9 @@ ENV
   # backend/ is ignored by the root repo: it is a repo of its own, and an
   # untracked directory would make every root checkout read as dirty.
   [[ "${2:-}" == noignore ]] || printf 'backend/\n' > "$P/.gitignore"
-  ( cd "$P" && /usr/bin/git init -q . && /usr/bin/git config user.email t@e.com \
+  ( cd "$P" && /usr/bin/git init -q . && /usr/bin/git config user.email t@example.com \
     && /usr/bin/git config user.name t && /usr/bin/git add -A && /usr/bin/git commit -qm i )
-  ( cd "$P/backend" && /usr/bin/git init -q . && /usr/bin/git config user.email t@e.com \
+  ( cd "$P/backend" && /usr/bin/git init -q . && /usr/bin/git config user.email t@example.com \
     && /usr/bin/git config user.name t && echo x > f && /usr/bin/git add -A && /usr/bin/git commit -qm i )
   ( cd "$P" && bash "$S/worktree.sh" new rootco --branch wt/rootco --no-infra )
   mv "$D" "$D.stage"
@@ -491,7 +491,7 @@ mk_portless() {  # mk_portless <project-dir> <slug>: `new` with a stack and no s
   mkdir -p "$1/.context/worktrees" "$1/backend"
   printf 'WT_PARTICIPANTS="backend"\nWT_LINKS=""\n' > "$1/.context/worktrees/config.env"
   printf 'services:\n  web:\n    image: busybox\n' > "$1/backend/compose.yaml"
-  ( cd "$1/backend" && /usr/bin/git init -q . && /usr/bin/git config user.email t@e.com \
+  ( cd "$1/backend" && /usr/bin/git init -q . && /usr/bin/git config user.email t@example.com \
     && /usr/bin/git config user.name t && echo x > f && /usr/bin/git add -A \
     && /usr/bin/git commit -qm i ) >/dev/null 2>&1
   mk_docker '#!/bin/sh
@@ -502,7 +502,7 @@ mk_noinfraslot() {  # mk_noinfraslot <project-dir> <slug>: --no-infra with an ex
   mkdir -p "$1/.context/worktrees" "$1/backend"
   printf 'WT_PARTICIPANTS="backend"\nWT_LINKS=""\nWT_PORT_VARS="DB_PORT=6400"\n' \
     > "$1/.context/worktrees/config.env"
-  ( cd "$1/backend" && /usr/bin/git init -q . && /usr/bin/git config user.email t@e.com \
+  ( cd "$1/backend" && /usr/bin/git init -q . && /usr/bin/git config user.email t@example.com \
     && /usr/bin/git config user.name t && echo x > f && /usr/bin/git add -A \
     && /usr/bin/git commit -qm i ) >/dev/null 2>&1
   ( cd "$1" && bash "$S/worktree.sh" new "$2" --branch "wt/$2" --no-infra --slot 3 ) >/dev/null 2>&1
