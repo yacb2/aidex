@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """PreToolUse/Bash: refuse sleep-polling loops inside subagents.
 
+Claude Code also runs this Bash-matched hook for Monitor, whose payload carries a command
+too; Monitor is notification-based, so any tool_name other than Bash is let through (BL-907).
+
 A delegate that runs `until ...; do sleep N; done` (or the `while`/`for` form) sits on the Bash
 timeout and reads as a hung run; most mid-run stalls of delegates come from the delegate
 blocked on its own Bash call. The guard denies such a command when the call comes from a
@@ -116,7 +119,7 @@ def polls(cmd, in_loop=False):
 
 
 def decide(data):
-    if not data.get("agent_id"):
+    if not data.get("agent_id") or data.get("tool_name", "Bash") != "Bash":
         return None
     if polls(data.get("tool_input", {}).get("command", "")):
         return REASON

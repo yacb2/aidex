@@ -98,6 +98,11 @@ cases = [
     ("loop words in a single-quoted message are allowed", sub("git commit -m 'while waiting; do sleep work'"), False),
     ("hash inside a word is not a comment", sub("for x in a b; do echo ${#x}; done; sleep 5"), False),
     ("quoted until then sleep is allowed", sub("grep -c 'until' log; sleep 5"), False),
+    # Claude Code also runs the Bash-matched hook for Monitor, which is notification-based (BL-907).
+    ("Monitor poll in a subagent is allowed",
+     {**SUB, "tool_name": "Monitor", "tool_input": {"command": "until grep -q done f; do sleep 2; done"}}, False),
+    ("Bash poll with tool_name set is denied",
+     {**SUB, "tool_name": "Bash", "tool_input": {"command": "until grep -q done f; do sleep 2; done"}}, True),
 ]
 
 R = mod.REASON
@@ -113,7 +118,7 @@ else:
     main_guard = {"__name__": "main_guard"}
     exec(compile(shown.stdout, "main:hooks/subagent-poll-guard.py", "exec"), main_guard)
     rows += [(f"main parity: {n}", lambda d=d: (decide(d) is not None, "main denies, now allowed"))
-             for n, d, _ in cases if main_guard["decide"](d)]
+             for n, d, _ in cases if d.get("tool_name", "Bash") == "Bash" and main_guard["decide"](d)]
 rows += [
     ("REASON holds 'Never poll'", lambda: ("Never poll" in R, "missing")),
     ("REASON holds 'running in the background'", lambda: ("running in the background" in R, "missing")),
