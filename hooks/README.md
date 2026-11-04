@@ -151,12 +151,14 @@ a path still holding a `$` is unknown and is never denied (the census still coun
 2026-09-25 eval wrote its first test through Bash in 4 of 12 runs. `sed -i`, test runs,
 reads and anything unparseable pass.
 Edit/MultiEdit, a write over an existing file and non-test paths pass and write no state.
+So does a throwaway probe outside a repo (BL-909): a path whose real path is under `/tmp` or
+`/private/tmp`, or has a segment named `scratchpad`; the census still counts it.
 Main is keyed by the ABSENT `agent_id` (what main sends); a present value, even `""`, is
 keyed as itself. No `session_id`: allow, no state. State:
 `${CLAUDE_CONFIG_DIR:-~/.claude}/aidex/first-test-write/<session>.tsv`, checked and appended under `flock`, so
 parallel Writes from one context get exactly one deny. Fail-open on any error.
 
-**Tests:** `python3 test-first-test-write-gate.py` — 128 checks, including the pattern
+**Tests:** `python3 test-first-test-write-gate.py` — 146 checks, including the pattern
 table and the Bash command table (with the eval's verbatim commands, in
 `test-first-test-write-gate.eval-commands.json`) run through census.py too.
 

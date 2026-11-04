@@ -12,10 +12,12 @@ without an error.
 
 Run: python3 hooks/test-first-test-write-gate.py
 """
+import atexit
 import importlib.util
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -24,6 +26,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 HOOK = os.path.join(HERE, "first-test-write-gate.sh")
 CENSUS = os.path.join(HERE, "..", "skills", "testing", "scripts", "census.py")
 
+# Every temp dir below sits under one root in HOME, never TMPDIR: a fixture repo under
+# /tmp or a scratchpad would fall in the BL-909 exemption and flip every deny row.
+tempfile.tempdir = tempfile.mkdtemp(prefix=".ftg-test-", dir=os.path.expanduser("~"))
+atexit.register(shutil.rmtree, tempfile.tempdir, True)
 fails = []
 total = 0
 # Hooks run from a temp cwd: a config dir that resolves to a relative path (an empty
@@ -75,6 +81,11 @@ home = tempfile.mkdtemp()
 repo = tempfile.mkdtemp()
 state_dir = os.path.join(home, ".claude", "aidex", "first-test-write")
 new = lambda rel: os.path.join(repo, rel)  # never created on disk
+# The fixture repo must sit outside the BL-909 exemption, or every deny row below turns
+# into an allow (TMPDIR is under /tmp on Linux and in sandboxes).
+check("fixture repo is outside the exemption",
+      not os.path.realpath(repo).startswith(("/tmp/", "/private/tmp/"))
+      and "scratchpad" not in os.path.realpath(repo).split(os.sep))
 
 # ---- deny once, then release ----
 code, d, reason = call(home, new("tests/test_a.py"))
@@ -307,7 +318,6 @@ check("... neither wrote state", not os.path.exists(os.path.join(state_dir, "cd5
 
 # The hook imports the detector from ../skills/testing/scripts/census.py: in a copy of the
 # shipped layout it denies, and without census.py it fails open (so the import is load-bearing).
-import shutil
 root = tempfile.mkdtemp()
 os.makedirs(os.path.join(root, "hooks"))
 shutil.copy(HOOK, os.path.join(root, "hooks"))
@@ -339,6 +349,46 @@ check("_py_writes resolves each open() against the assignment in effect",
 check("... also one statement per line",
       census.bash_writes("python3 - <<'EOF'\np='pricing.py'\nopen(p,'w')\np='tests/test_a.py'\n"
                          "print(open(p).read())\nEOF") == ["pricing.py"])
+
+# ---- throwaway probes outside a repo are not gated (BL-909) ----
+# A fresh subagent that wrote <scratchpad>/test_probe.py lost a turn to the deny (31 in a
+# week); the 6-of-6 effect was measured on files that land in a repo. Exempt: a real path
+# under /tmp or /private/tmp, or with a segment named exactly "scratchpad". These paths
+# stay is_test for the census, so they are not in POSITIVE/NEGATIVE.
+uniq = os.path.basename(tempfile.mkdtemp())  # a name only: these /tmp dirs never exist
+tmpdir = tempfile.mkdtemp(dir="/tmp")  # holds the symlink rows
+atexit.register(shutil.rmtree, tmpdir, True)
+os.symlink(repo, os.path.join(tmpdir, "torepo"))
+os.symlink("/tmp", os.path.join(repo, "tmplink"))
+os.makedirs(os.path.join(repo, "notes", "scratchpad"))
+os.symlink(os.path.join(repo, "notes", "scratchpad"), os.path.join(repo, "splink"))
+SP = f"/private/tmp/claude-501/{uniq}/sess/scratchpad"
+for label, path in [("the session scratchpad", f"{SP}/test_probe.py"),
+                    ("/tmp, parent absent", f"/tmp/{uniq}/deep/test_probe.py"),
+                    ("/private/tmp", f"/private/tmp/{uniq}/tests/test_x.py"),
+                    ("a scratchpad segment outside /tmp", new("scratchpad/test_probe.py")),
+                    ("a repo symlink resolving into /tmp", new(f"tmplink/{uniq}/test_a.py")),
+                    ("a repo symlink resolving into a scratchpad", new("splink/test_a.py"))]:
+    check(f"new test under {label} is allowed",
+          call(home, path, session=f"tmp-{label}", agent="a1")[1] == "allow")
+check("Bash touch of a new test under /tmp is allowed",
+      bash(f"touch /tmp/{uniq}/test_a.py", session="tmp-bash1", agent="a1") == "allow")
+check("Bash relative write with a scratchpad cwd is allowed",
+      bash("cat > test_probe.py <<'EOF'\nx\nEOF", session="tmp-bash2", agent="a1", cwd=SP) == "allow")
+check("... none of them wrote state",
+      not os.path.isdir(state_dir) or not any(f.startswith("tmp-") for f in os.listdir(state_dir)))
+check("... so the agent's first repo test is still denied",
+      call(home, new("tests/test_tmp1.py"), session="tmp-bash2", agent="a1")[1] == "deny")
+check("Bash writing a /tmp probe and a repo test in one command is denied",
+      bash(f"touch /tmp/{uniq}/test_a.py tests/test_both.py", session="tmp2") == "deny")
+for i, (label, path) in enumerate([
+        ("a file name holding tmp", new("tests/test_tmpdir.py")),
+        ("a repo dir named tmp", new("tmp/test_a.py")),
+        ("a /tmp prefix that is not the /tmp dir", f"/tmpx{uniq}/test_a.py"),
+        ("a segment that only contains scratchpad", new("my_scratchpad/test_a.py")),
+        ("a wrong-case Scratchpad segment", new("Scratchpad/test_a.py")),
+        ("a /tmp symlink resolving into the repo", os.path.join(tmpdir, "torepo", "tests", "test_a.py"))]):
+    check(f"new test at {label} is still denied", call(home, path, session=f"tmpn{i}")[1] == "deny")
 
 # ---- fail open ----
 check("garbage stdin fails open", run(home, "not json") == (0, ""))

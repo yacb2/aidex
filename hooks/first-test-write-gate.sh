@@ -48,6 +48,10 @@ try:
                  if "$" not in p]
     else:
         sys.exit(0)
+    # A throwaway probe outside any repo (BL-909): a real path under /tmp, or with a
+    # segment named scratchpad (the session scratchpad), is never gated.
+    paths = [p for p in paths if not os.path.realpath(p).startswith(("/tmp/", "/private/tmp/"))
+             and "scratchpad" not in os.path.realpath(p).split(os.sep)]
     if not any(is_test(p) and not os.path.exists(p) for p in paths):
         sys.exit(0)
     session = "".join(c for c in str(ev.get("session_id") or "") if c.isalnum() or c in "-_")
