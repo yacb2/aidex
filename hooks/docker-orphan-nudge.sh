@@ -1,7 +1,10 @@
 #!/bin/sh
-# SessionStart hook (matcher: startup) — say, at most once a day per config dir, that
-# compose projects whose working directory no longer exists still have containers
-# (BL-810, BL-811).
+# SessionStart hook (matcher: startup) — say, at most once a day per project and config
+# dir, that compose projects whose working directory no longer exists still have
+# containers (BL-810, BL-811). Only the session's own project is shown (BL-903): the
+# stdin cwd resolves, as the worktree skill does (find_project_root, compose_project_name),
+# to <project>; a candidate is shown when it is <project> or <project>-wt-*. The scan
+# stays machine-wide; only the display parses names.
 #
 # It reports; it deletes nothing and prints no removal command. Its only pointer is the
 # read-only `orphan-sweep.sh --all` listing, never `/aidex:worktree status`: that runs the
@@ -16,7 +19,7 @@
 # Fails open and silent: no jq, no summary, zero candidates -> exit 0. A docker-less or
 # failed scan writes no summary (the last good one stays).
 
-cat >/dev/null
+IN=$(cat)
 command -v jq >/dev/null 2>&1 || exit 0
 
 CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
@@ -30,7 +33,8 @@ case "$CFG" in /*) ;; *) CFG="$HOME/.claude" ;; esac
 DIR="$CFG/tmp/docker-orphans"
 SUMMARY="$DIR/summary"
 LOCK="$DIR/scan.lock"
-SWEEP="$(cd "$(dirname "$0")/.." && pwd -P)/skills/worktree/scripts/orphan-sweep.sh"
+PLUGIN="$(cd "$(dirname "$0")/.." && pwd -P)"
+SWEEP="$PLUGIN/skills/worktree/scripts/orphan-sweep.sh"
 mkdir -p "$DIR" 2>/dev/null || exit 0
 
 if [ ! -f "$SUMMARY" ] || [ -n "$(find "$SUMMARY" -mmin +1200 2>/dev/null)" ]; then
@@ -53,14 +57,25 @@ get() { sed -n "s/^$1=//p" "$SUMMARY" | head -n 1; }
 N=$(get candidates)
 case "$N" in ''|0|*[!0-9]*) exit 0 ;; esac
 
+# The stamp is per project: a session that shows nothing, or another project's notice,
+# must not silence this project's notice for the day.
+PROJ=$(bash -c 'cd "$1" && . "$2" && compose_project_name "$(basename "$(find_project_root)")"' \
+  _ "$(printf '%s' "$IN" | jq -r '.cwd // empty' 2>/dev/null)" \
+  "$PLUGIN/skills/conventions/scripts/_lib.sh" 2>/dev/null)
+N=0 NAMES=""
+for p in $(get candidate_projects); do
+  case "$p" in "$PROJ"|"$PROJ"-wt-*) N=$((N + 1)); NAMES="$NAMES $p" ;; esac
+done
+[ "$N" -gt 0 ] || exit 0
+
 TODAY=$(date +%Y-%m-%d)
-STAMP="$DIR/nudged"
+STAMP="$DIR/nudged-$PROJ"
 LAST_DAY=""
 [ -f "$STAMP" ] && read -r LAST_DAY < "$STAMP"
 [ "$LAST_DAY" = "$TODAY" ] && exit 0
 printf '%s\n' "$TODAY" > "$STAMP" 2>/dev/null
 
 WHEN=$(date -r "$(get scanned_at)" '+%Y-%m-%d %H:%M' 2>/dev/null)
-jq -n --arg m "Docker: $N compose project(s) whose working directory no longer exists still have containers ($(get candidate_projects)), scanned ${WHEN:-recently}. Nothing was deleted; verify by hand before removing anything. Read-only listing: bash \"$SWEEP\" --all" \
+jq -n --arg m "Docker: $N compose project(s) whose working directory no longer exists still have containers (${NAMES# }), scanned ${WHEN:-recently}. Nothing was deleted; verify by hand before removing anything. Read-only listing: bash \"$SWEEP\" --all" \
   '{systemMessage: $m}'
 exit 0

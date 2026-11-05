@@ -5,8 +5,9 @@ Layer: the hook as a process, fed SessionStart stdin, under a temp HOME. The hoo
 copied into a temp plugin tree whose orphan-sweep.sh is a fake that logs its argv and
 PATH, so no test ever reaches a Docker daemon.
 
-Protects: silence unless the last complete scan found a candidate orphan; once a day at
-most; no removal command in the message, which says to verify by hand and points only at
+Protects: silence unless the last complete scan found a candidate orphan of the session's
+own project (BL-903: the stdin cwd, resolved like the worktree skill, names it); once a
+day at most per project; no removal command in the message, which says to verify by hand and points only at
 the read-only `orphan-sweep.sh --all` listing; the scan is launched
 detached, with docker's directories on PATH, only when the summary is stale.
 
@@ -37,6 +38,10 @@ SWEEP_DIR = os.path.join(PLUGIN, "skills", "worktree", "scripts")
 os.makedirs(SWEEP_DIR)
 HOOK = os.path.join(PLUGIN, "hooks", "docker-orphan-nudge.sh")
 shutil.copy(HOOK_SRC, HOOK)
+# The real shared library: the hook resolves the session's project with it.
+os.makedirs(os.path.join(PLUGIN, "skills", "conventions", "scripts"))
+shutil.copy(os.path.join(REPO, "skills", "conventions", "scripts", "_lib.sh"),
+            os.path.join(PLUGIN, "skills", "conventions", "scripts", "_lib.sh"))
 SWEEP_LOG = os.path.join(ROOT, "sweep.log")
 # The hook runs from its own empty cwd, so a config dir resolved against the cwd shows.
 CWD = os.path.join(ROOT, "cwd")
@@ -45,9 +50,20 @@ with open(os.path.join(SWEEP_DIR, "orphan-sweep.sh"), "w") as fh:
     # Sleeps so a hook that waited for it would be measurably slow.
     fh.write('echo "$* | PATH=$PATH | CLAUDE_CONFIG_DIR=$CLAUDE_CONFIG_DIR" >> "%s"\nsleep 2\n' % SWEEP_LOG)
 
+# Session projects (BL-903). A split workspace: recomed_ws holds .context/, its nested
+# repo backend/ a .git and no .context/; the workspace root is the project.
+PROJECTS = os.path.join(ROOT, "projects")
+# "My Shop.WS" is not a compose name: it normalises to myshopws, as compose names do.
+for name in ("shop_ws", "recomed_ws", "recomed", "travel_ws", "My Shop.WS"):
+    os.makedirs(os.path.join(PROJECTS, name, ".context"))
+SHOP = os.path.join(PROJECTS, "shop_ws")
+RECOMED = os.path.join(PROJECTS, "recomed_ws")
+os.makedirs(os.path.join(RECOMED, "backend", "app"))
+subprocess.run(["git", "init", "-q", os.path.join(RECOMED, "backend")], check=True)
+
 DIR = os.path.join(HOME, ".claude", "tmp", "docker-orphans")
 SUMMARY = os.path.join(DIR, "summary")
-STAMP = os.path.join(DIR, "nudged")
+STAMP = os.path.join(DIR, "nudged-shop_ws")
 LOCK = os.path.join(DIR, "scan.lock")
 TODAY = time.strftime("%Y-%m-%d")
 
@@ -67,10 +83,13 @@ def summary(status="ok", candidates=0, names="", at=1760000000, age_h=0, d=DIR):
     os.utime(path, (t, t))
 
 
-def run(**extra):
+def run(cwd=SHOP, **extra):
     env = {"HOME": HOME, "PATH": os.environ["PATH"], **extra}
     t0 = time.time()
-    p = subprocess.run(["bash", HOOK], input=json.dumps({"hook_event_name": "SessionStart", "source": "startup"}),
+    stdin = {"hook_event_name": "SessionStart", "source": "startup"}
+    if cwd is not None:
+        stdin["cwd"] = cwd
+    p = subprocess.run(["bash", HOOK], input=json.dumps(stdin),
                        capture_output=True, text=True, env=env, timeout=10, cwd=CWD)
     return p, time.time() - t0
 
@@ -113,11 +132,11 @@ try:
 
     print("== candidates: one line, no command, once a day ==")
     reset()
-    summary(candidates=2, names="bpsync-check shop_ws-wt-gone")
+    summary(candidates=3, names="bpsync-check shop_ws-wt-gone shop_ws-wt-old")
     p, _ = run()
     m = message(p) or ""
     check("candidates: speaks", "2 compose project(s)" in m, p.stdout)
-    check("candidates: names the projects", "bpsync-check shop_ws-wt-gone" in m, m)
+    check("candidates: names the projects", "(shop_ws-wt-gone shop_ws-wt-old)" in m, m)
     check("candidates: says nothing was deleted", "Nothing was deleted" in m, m)
     check("candidates: says verify by hand", "verify by hand before removing anything" in m, m)
     check("candidates: no removal command in the message", "docker " not in m and "rm " not in m and "down" not in m, m)
@@ -148,11 +167,43 @@ try:
 
     print("== a stale summary is still read, and refreshed ==")
     reset()
-    summary(candidates=1, names="old", age_h=21)
+    summary(candidates=1, names="shop_ws-wt-old", age_h=21)
     p, _ = run()
-    check("stale: speaks from the last summary", "old" in (message(p) or ""), p.stdout)
+    check("stale: speaks from the last summary", "shop_ws-wt-old" in (message(p) or ""), p.stdout)
     check("stale: scan relaunched", wait_for(SWEEP_LOG))
     wait_for(LOCK, present=False)
+
+    print("== only the session's own project is shown (BL-903) ==")
+    # A travel_ws session showed recomed_ws-wt-bl210-p5: the hook discarded its stdin and
+    # the once-a-day stamp went to whichever project started first.
+    BL210 = "recomed_ws-wt-bl210-p5"
+    for label, cwd, names, want in [
+            ("unrelated project", os.path.join(PROJECTS, "travel_ws"), BL210, None),
+            ("owning project", RECOMED, BL210, ["1 compose project(s)", "containers (%s)," % BL210]),
+            ("subdirectory of a nested repo", os.path.join(RECOMED, "backend", "app"), BL210,
+             ["containers (%s)," % BL210]),
+            ("the project's own compose project", RECOMED, "recomed_ws", ["containers (recomed_ws),"]),
+            ("other projects dropped from count and list", RECOMED,
+             "bpsync-check recomed-wt-x %s shop_ws-wt-gone" % BL210,
+             ["1 compose project(s)", "containers (%s)," % BL210]),
+            ("prefix project does not take the longer name", os.path.join(PROJECTS, "recomed"), BL210, None),
+            ("longer project does not take the prefix name", RECOMED, "recomed-wt-x recomed_wsx-wt-x", None),
+            ("uppercase, space and dot normalised like compose", os.path.join(PROJECTS, "My Shop.WS"),
+             "myshopws-wt-a other_ws-wt-b", ["1 compose project(s)", "containers (myshopws-wt-a),"]),
+            ("no cwd in stdin", None, BL210, None)]:
+        reset()
+        summary(candidates=len(names.split()), names=names)
+        m = message(run(cwd=cwd)[0])
+        check("%s: %s" % (label, "silent" if want is None else "names it"),
+              m is None if want is None else all(w in (m or "") for w in want), m)
+    reset()
+    summary(candidates=1, names=BL210)
+    run(cwd=os.path.join(PROJECTS, "travel_ws"))
+    check("same day: an unrelated project first does not silence the owner",
+          BL210 in (message(run(cwd=RECOMED)[0]) or ""))
+    summary(candidates=2, names=BL210 + " shop_ws-wt-gone")
+    check("same day: one project's notice does not silence another's",
+          "shop_ws-wt-gone" in (message(run()[0]) or ""))
 
     print("== the summary is read from CLAUDE_CONFIG_DIR, never a hard-coded ~/.claude ==")
     # A session started with CLAUDE_CONFIG_DIR=~/.claude-work read and stamped the personal
@@ -170,7 +221,7 @@ try:
         home = os.path.join(ROOT, "h-" + label)
         shutil.rmtree(CWD)
         os.makedirs(CWD)
-        summary(candidates=1, names="cfg-" + label,
+        summary(candidates=1, names="shop_ws-wt-cfg-" + label,
                 d=os.path.join(home, where, "tmp", "docker-orphans"))
         p, _ = run(HOME=home, CLAUDE_CONFIG_DIR=cfg, LC_ALL="en_US.UTF-8")
         check("CLAUDE_CONFIG_DIR %s: speaks from that summary" % label,

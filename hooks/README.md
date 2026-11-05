@@ -246,11 +246,16 @@ without a readable `main` the parity rows are skipped with a `SKIP main parity` 
 
 ## docker-orphan-nudge.sh — compose projects whose working directory is gone (SessionStart, startup)
 
-At most once a day per config dir, one `systemMessage` line when the last complete
-`orphan-sweep.sh --all` scan found a candidate orphan (BL-810, BL-811): a compose project
-with containers, every one labelled with `com.docker.compose.project.working_dir`, none of
-those directories existing (under `$HOME`, parent listable without it). Names are never
-parsed. The line names the count and projects, says nothing was deleted and to verify by
+At most once a day per project and config dir, one `systemMessage` line when the last
+complete `orphan-sweep.sh --all` scan found a candidate orphan (BL-810, BL-811): a compose
+project with containers, every one labelled with `com.docker.compose.project.working_dir`,
+none of those directories existing (under `$HOME`, parent listable without it). The scan
+never parses names; the display does (BL-903): the stdin `cwd` resolves as the worktree
+skill resolves it (`find_project_root`, `compose_project_name`) to `<project>`, and only a
+candidate named `<project>` or `<project>-wt-*` is shown, so another project's orphan, or
+an ad-hoc project such as `bpsync-check`, is never shown in a session (the `--all`
+listing still prints it). The stamp is per project, so one project's session never
+silences another's notice. The line names the count and projects, says nothing was deleted and to verify by
 hand before removing anything, and points only to the read-only listing
 `bash "<plugin>/skills/worktree/scripts/orphan-sweep.sh" --all`; neither carries a removal
 command. It never points to `/aidex:worktree status`: that runs the default,
