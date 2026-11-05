@@ -50,5 +50,9 @@ done
 # An exported AIDEX_PROBE_ARGS_ONLY must not turn the probe into a no-op: a page with a
 # defect still exits 1.
 AIDEX_PROBE_ARGS_ONLY=1 bash "$SKILL/scripts/render-probe.sh" "$SKILL/tests/fixtures/render-probe/cut-and-spill.html" >/dev/null 2>&1; rc=$?
-[[ $rc -eq 1 ]] && echo "ok   render-probe ignores an inherited AIDEX_PROBE_ARGS_ONLY" || { echo "FAIL render-probe with AIDEX_PROBE_ARGS_ONLY=1 exited $rc, expected 1"; failures=$((failures+1)); }
+# Exit 3 is the probe's own "Playwright or its Chromium missing": this row cannot run,
+# as test-render-probe.sh skips it; any other code is still a failure.
+if [[ $rc -eq 3 ]]; then echo "skip render-probe AIDEX_PROBE_ARGS_ONLY row: Playwright not found (exit 3)"
+else [[ $rc -eq 1 ]] && echo "ok   render-probe ignores an inherited AIDEX_PROBE_ARGS_ONLY" || { echo "FAIL render-probe with AIDEX_PROBE_ARGS_ONLY=1 exited $rc, expected 1"; failures=$((failures+1)); }
+fi
 [[ $failures -eq 0 ]] && echo "PASS: misuse replay" || { echo "FAILED: $failures"; exit 1; }
