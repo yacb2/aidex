@@ -60,7 +60,12 @@ PROBE
   for wf in "$WF"/*.workflow.js; do
     [[ -e "$wf" ]] || continue
     name="${wf##*/}"
-    node --check "$wf" >/dev/null 2>&1 || { printf 'FAIL: %s does not parse (node --check)\n' "$name"; failures=$((failures+1)); continue; }
+    # Parsed as the Workflow runtime runs it: the body of an async function, meta not
+    # exported. A bare `node --check` reads `export` as ESM, where the script's top-level
+    # `return` is illegal (Node 22+ syntax detection), and fails a valid script.
+    chk="$probe_dir/${name%.js}.check.mjs"
+    { printf '(async () => {\n'; sed 's/^export const meta/const meta/' "$wf"; printf '\n})()\n'; } > "$chk"
+    node --check "$chk" >/dev/null 2>&1 || { printf 'FAIL: %s does not parse (node --check)\n' "$name"; failures=$((failures+1)); continue; }
     out="$(node "$probe" "$wf" "$WITH" 2>&1)" || { printf 'FAIL: %s probe (carrier set) errored: %s\n' "$name" "$out"; failures=$((failures+1)); continue; }
     grep -q '=impl-restricted' <<<"$out" \
       || { printf 'FAIL: %s does not pass agentType to its working agent call: %s\n' "$name" "$out"; failures=$((failures+1)); }
