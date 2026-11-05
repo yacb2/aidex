@@ -89,7 +89,13 @@ STATE_FILE="$STATE_DIR/mem-nudge-${SESSION:-unknown}-$SLUG"
 DIGEST=$(find "$MEMDIR" -maxdepth 1 -name '*.md' -type f -exec stat -f '%m %z' {} + 2>/dev/null \
   | awk '{n++; s+=$2; if ($1>m) m=$1} END {printf "%d:%d:%d", n+0, m+0, s+0}')
 case "$DIGEST" in ''|0:0:0) exit 0 ;; esac          # empty directory: nothing to nudge
-COUNT=${DIGEST%%:*}
+# The digest keeps MEMORY.md (it must match the one the sweep stamps), but the index is
+# not a memory: the count and the directory's age come from the notes alone.
+NOTES=$(find "$MEMDIR" -maxdepth 1 -name '*.md' ! -name 'MEMORY.md' -type f -exec stat -f '%m' {} + 2>/dev/null \
+  | awk '{n++; if (NR==1 || $1<o) o=$1} END {printf "%d %d", n+0, o+0}')
+COUNT=${NOTES%% *}
+OLDEST=${NOTES#* }
+[ "$COUNT" -gt 0 ] || exit 0                        # only the index: nothing to review
 
 STAMP="$CFG/aidex/memory-audit-stamp/$SLUG.json"
 NOW=$(date +%s)
@@ -104,9 +110,11 @@ if [ -f "$STAMP" ]; then
   [ "$DIGEST" = "$STAMP_DIGEST" ] && exit 0         # stale stamp, unchanged: silent
   WHEN="last audited ${AGE_DAYS}d ago"
 else
-  # An absent stamp over a non-empty directory counts as stale — it has never been
-  # audited — but it still has to have changed to be worth a line, and with no stamp
-  # there is nothing to compare against, so first sight is the drift.
+  # An absent stamp is not drift on first sight: a directory started this week, or one
+  # holding a single note, has nothing to review yet (BL-904). It speaks once it holds
+  # two notes and its oldest has aged past the same 30-day window a stamp gets.
+  [ "$COUNT" -lt 2 ] && exit 0
+  [ $(( (NOW - OLDEST) / 86400 )) -lt 30 ] && exit 0
   WHEN="never audited"
 fi
 

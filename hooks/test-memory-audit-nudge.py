@@ -47,6 +47,12 @@ os.makedirs(STAMPDIR, exist_ok=True)
 DAY = 86400
 
 
+def age(path, days=40):
+    """Backdate a fixture: with no stamp the hook speaks only for a dir past the window."""
+    t = time.time() - days * DAY
+    os.utime(path, (t, t))
+
+
 def memory(name, body="a durable fact"):
     with open(os.path.join(MEMDIR, name), "w") as fh:
         fh.write("---\nname: x\nmetadata:\n  type: project\n---\n\n%s\n" % body)
@@ -110,6 +116,8 @@ fresh_session.n = 0
 
 memory("one.md")
 memory("two.md")
+age(os.path.join(MEMDIR, "one.md"))
+age(os.path.join(MEMDIR, "two.md"))
 
 print("== the four cells of stamp-age x directory-changed ==")
 
@@ -147,7 +155,55 @@ print("== absent stamp, empty directory ==")
 
 unstamp()
 rc, out, _ = run(session=fresh_session())
-check("never audited + files present speaks", "never audited" in message(out), message(out))
+check("never audited + an aged directory speaks", "never audited" in message(out), message(out))
+
+print("== absent stamp, young directory: MEMORY.md is an index, not a memory (BL-904) ==")
+
+young_proj = os.path.join(HOME, "Documents", "projects", "young-ws")
+os.makedirs(young_proj, exist_ok=True)
+young_slug = young_proj.replace("/", "-")
+young_mem = os.path.join(HOME, ".claude", "projects", young_slug, "memory")
+os.makedirs(young_mem, exist_ok=True)
+
+
+def young(name, days=0):
+    path = os.path.join(young_mem, name)
+    open(path, "w").write("---\nmetadata:\n  type: project\n---\nx\n")
+    age(path, days)
+
+
+young("MEMORY.md")
+rc, out, _ = run(cwd=young_proj, session=fresh_session())
+check("MEMORY.md alone, no stamp, is silent", out is None, out)
+young("MEMORY.md", 40)
+rc, out, _ = run(cwd=young_proj, session=fresh_session())
+check("an aged MEMORY.md alone, no stamp, is silent", out is None, out)
+young("note.md")
+rc, out, _ = run(cwd=young_proj, session=fresh_session())
+check("MEMORY.md + 1 fresh note, no stamp, is silent", out is None, out)
+young("note.md", 40)
+rc, out, _ = run(cwd=young_proj, session=fresh_session())
+check("MEMORY.md + 1 aged note, no stamp, is silent", out is None, out)
+young("b.md")                                 # two notes: from here only the age decides
+young("note.md", 29)
+rc, out, _ = run(cwd=young_proj, session=fresh_session())
+check("a dir whose oldest note is 29 days old is still young", out is None, out)
+young("note.md", 30 + 60.0 / DAY)
+rc, out, _ = run(cwd=young_proj, session=fresh_session())
+check("a dir whose oldest note is 30 days old speaks", "never audited" in message(out), out)
+young("c.md")
+rc, out, _ = run(cwd=young_proj, session=fresh_session())
+check("and the count excludes MEMORY.md", "Memory: 3 file(s)" in message(out), message(out))
+for f in ("b.md", "c.md"):
+    os.remove(os.path.join(young_mem, f))
+json.dump({"at": int(time.time()) - 40 * DAY, "digest": "0:0:0"},
+          open(os.path.join(STAMPDIR, young_slug + ".json"), "w"))
+rc, out, _ = run(cwd=young_proj, session=fresh_session())
+check("the minimum is for the never-audited line: a stale stamp over 1 changed note speaks",
+      "Memory: 1 file(s) in this project, last audited" in message(out), message(out))
+os.remove(os.path.join(young_mem, "note.md"))
+rc, out, _ = run(cwd=young_proj, session=fresh_session())
+check("a stale stamp over MEMORY.md alone is silent", out is None, out)
 
 empty_proj = os.path.join(HOME, "Documents", "projects", "empty-ws")
 os.makedirs(empty_proj, exist_ok=True)
@@ -182,12 +238,14 @@ os.makedirs(u_proj, exist_ok=True)
 u_slug = u_proj.replace("_", "-").replace("/", "-")
 u_mem = os.path.join(HOME, ".claude", "projects", u_slug, "memory")
 os.makedirs(u_mem, exist_ok=True)
-open(os.path.join(u_mem, "a.md"), "w").write("---\nmetadata:\n  type: project\n---\nx\n")
+for f in ("a.md", "b.md", "c.md"):             # 3: distinct from demo-ws's 2
+    open(os.path.join(u_mem, f), "w").write("---\nmetadata:\n  type: project\n---\nx\n")
+    age(os.path.join(u_mem, f))
 rc, out, _ = run(cwd=u_proj, session=fresh_session())
 check("an underscored project path resolves to its dashed slug", message(out) != "", out)
 
 check("and it did NOT resolve to some other project's directory",
-      "1 file(s)" in message(out), message(out))
+      "Memory: 3 file(s)" in message(out), message(out))
 
 print("== cwd is not always the project root ==")
 
@@ -206,7 +264,9 @@ check("and reports the project's file count (%d), not the subdirectory's" % nfil
 home_slug = HOME.replace("/", "-")
 home_mem = os.path.join(HOME, ".claude", "projects", home_slug, "memory")
 os.makedirs(home_mem, exist_ok=True)
-open(os.path.join(home_mem, "u.md"), "w").write("---\nmetadata:\n  type: user\n---\nx\n")
+for f in ("u.md", "v.md"):
+    open(os.path.join(home_mem, f), "w").write("---\nmetadata:\n  type: user\n---\nx\n")
+    age(os.path.join(home_mem, f))
 
 stray = os.path.join(HOME, "Downloads", "scratch")
 os.makedirs(stray, exist_ok=True)
@@ -311,8 +371,10 @@ for label, cfg, sub in [("set", tempfile.mkdtemp(prefix="memnudge-cfg-"), None),
     root = cfg.strip() if sub is None else os.path.join(c_home, sub)
     c_mem = os.path.join(root, "projects", c_slug, "memory")
     os.makedirs(c_mem)
-    with open(os.path.join(c_mem, "fact.md"), "w") as fh:
-        fh.write("---\nname: x\nmetadata:\n  type: project\n---\n\na durable fact\n")
+    for f in ("fact.md", "fact2.md"):
+        with open(os.path.join(c_mem, f), "w") as fh:
+            fh.write("---\nname: x\nmetadata:\n  type: project\n---\n\na durable fact\n")
+        age(os.path.join(c_mem, f))
     c_env = {"HOME": c_home, "CLAUDE_CONFIG_DIR": cfg, "LC_ALL": "en_US.UTF-8"}
     rc, out, _ = run(cwd=c_proj, session="cfg-a", **c_env)
     check("CLAUDE_CONFIG_DIR %s: memory found there, so it speaks" % label, message(out) != "", out)
