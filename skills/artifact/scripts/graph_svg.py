@@ -35,6 +35,20 @@ What this module does to Graphviz's SVG, and nothing else:
     plain `translate`, so `check_artifact`'s svg-text rule measures the labels
     instead of skipping them as transformed.
 
+Refused on Graphviz's own parse of the DOT (`dot -Tjson0`, so every spelling
+and level Graphviz accepts is read as Graphviz reads it; BL-905): `fixedsize`
+turned on anywhere (`true`/`yes` in any case, a number other than 0, or
+`shape`), or FIXEDSIZE="true" on an HTML label's table or cell — it keeps a
+box at its width x height whatever its label, and the page draws the label in a
+wider mono stack than Graphviz measured, so the text runs past the box; and a `nodesep` or `ranksep` under `MIN_SEP` inches (the
+diagram engine's 32 px GAP at 72 dpi), or one that is not a number. The floor
+is dot's, so a root `layout=` other than `dot` (neato, circo, fdp, osage,
+patchwork ignore nodesep and ranksep and can place boxes touching) and a root
+`pack`/`packmode` (the parts end up a pack margin apart, 8 points by default)
+are refused too. An UNSET
+nodesep gets `MIN_SEP` as a default: Graphviz's own 0.25 in is the near-zero
+gap, and the author did not ask for it, so there is nothing to refuse.
+
 Refused, each by name: a class other than `acc`/`mut`/`flg` (Graphviz's own
 `graph`/`node`/`edge`/`cluster` stay), a link (`URL=`/`href=`), an image, a
 `style=` attribute, a font other than the kit's `--mono`, and — checked on the
@@ -47,6 +61,7 @@ only a headless-Chrome probe showed it. `dot` gets `TIMEOUT` seconds.
 """
 
 import html
+import json
 import os
 import re
 import shutil
@@ -71,6 +86,13 @@ KIT_CLASSES = ("acc", "mut", "flg")
 GENERATOR_CLASSES = ("graph", "node", "edge", "cluster")
 # Defaults passed on the command line; a DOT that sets its own wins.
 FONT = "monospace"
+# Inches between two boxes, in a rank (nodesep) and across ranks (ranksep): the
+# diagram engine's GAP (32 px) at Graphviz's 72 points per inch, 0.444, rounded
+# down. Graphviz's own ranksep (0.5) is above it; its nodesep (0.25) is not.
+MIN_SEP = 0.44
+# An HTML label's FIXEDSIZE: Graphviz reads "true" in any case as on and warns
+# on anything else but "false" (a 1 or yes is ignored, unlike the attribute).
+HTML_FIXED = re.compile(r"""fixedsize\s*=\s*["']true["']""", re.I)
 DEFAULTS = ["-Gfontname=" + FONT, "-Nfontname=" + FONT, "-Efontname=" + FONT,
             "-Gfontsize=%g" % dl.TITLE_FS, "-Nfontsize=%g" % dl.FS,
             "-Efontsize=%g" % dl.TITLE_FS]
@@ -116,8 +138,23 @@ def render(dot_text, first_line=None):
     if not exe:
         raise GraphError("`graph` needs Graphviz's `dot` on PATH and there is "
                          "none — " + INSTALL)
+    # strict=False: Graphviz writes a label's raw control character into its
+    # JSON as is; the SVG check below refuses it by name.
+    parsed = json.loads(_dot(exe, ["-Tjson0"], dot_text, first_line),
+                        strict=False)
+    _vet_layout(parsed)
+    # Only when the DOT leaves nodesep unset: a -G value OVERRIDES the DOT's
+    # own graph attribute (graphviz 16.1.0, measured 2026-11-04), not a default.
+    floor = [] if "nodesep" in parsed else ["-Gnodesep=%g" % MIN_SEP]
+    out = _dot(exe, ["-Tsvg"] + floor, dot_text, first_line)
+    m = VERSION.search(out)
+    return clean(out), (m.group(1) if m else "unknown")
+
+
+def _dot(exe, flags, dot_text, first_line):
+    """`dot <flags>`'s stdout for the DOT, or raise `GraphError`."""
     try:
-        proc = subprocess.run([exe, "-Tsvg"] + DEFAULTS,
+        proc = subprocess.run([exe] + flags + DEFAULTS,
                               input=dot_text.encode("utf-8"),
                               capture_output=True, timeout=TIMEOUT)
     except subprocess.TimeoutExpired:
@@ -132,9 +169,77 @@ def render(dot_text, first_line=None):
                 % (m.group(1), first_line + int(m.group(1)) - 1), said)
         raise GraphError("Graphviz refused the DOT: " + (said or "exit %d"
                                                          % proc.returncode))
-    out = proc.stdout.decode("utf-8")
-    m = VERSION.search(out)
-    return clean(out), (m.group(1) if m else "unknown")
+    return proc.stdout.decode("utf-8")
+
+
+def _on(value):
+    """Graphviz's reading of a `fixedsize` value: `shape` (case-sensitive),
+    or its mapbool — true/yes in any case, a leading number other than 0."""
+    if value == "shape" or value.lower() in ("true", "yes"):
+        return True
+    digits = re.match(r"\d+", value)
+    return bool(digits) and int(digits.group(0)) != 0
+
+
+def _fixed(obj):
+    """The fixedsize Graphviz reads as on in one object of its parse: the
+    attribute, or an HTML label's <TABLE>/<TD> FIXEDSIZE="true" (the parse
+    gives an HTML label as a plain string, so every string value of the
+    object is searched, and a plain string that spells it is refused too)."""
+    if _on(obj.get("fixedsize", "")):
+        return "fixedsize=" + obj["fixedsize"]
+    for value in obj.values():
+        m = isinstance(value, str) and HTML_FIXED.search(value)
+        if m:
+            return m.group(0)
+    return None
+
+
+def _vet_layout(parsed):
+    """Refuse fixedsize, another engine and a tight separation, on Graphviz's
+    parse (BL-905)."""
+    engine = parsed.get("layout")
+    if engine is not None and engine != "dot":
+        raise GraphError(
+            "the DOT sets layout=%s — a graph is laid out by dot, whose "
+            "nodesep and ranksep keep a gap between its boxes; %s ignores "
+            "them and can place boxes touching or overlapping; drop layout= "
+            "or set layout=dot" % (engine, engine))
+    for attr in ("pack", "packmode"):
+        if attr in parsed:
+            raise GraphError(
+                "the DOT sets %s=%s — dot then lays out each unconnected part "
+                "on its own and sets the parts a pack margin apart (8 points "
+                "by default), under the %g inch gap; drop pack and packmode"
+                % (attr, parsed[attr], MIN_SEP))
+    # A graph attribute named `objects` or `edges` lands on these keys as a
+    # string when the graph has no node or edge to overwrite it.
+    parts = [parsed.get(k) for k in ("objects", "edges")]
+    for obj in [parsed] + [o for p in parts if isinstance(p, list) for o in p]:
+        found = _fixed(obj)
+        if found:
+            raise GraphError(
+                "the DOT sets %s — a fixed box does not grow to its "
+                "label, which then runs past it; drop fixedsize (width= and "
+                "height= are minimums without it), or draw a linear flow as "
+                "`::: diagram shape=row`, which sizes and wraps its boxes"
+                % found)
+    for attr in ("nodesep", "ranksep"):
+        value = parsed.get(attr)
+        if value is None:
+            continue
+        # The first word, as `ranksep="0.5 equally"` writes it. No number is
+        # refused: Graphviz would fall back to its own default, 0.25 for nodesep.
+        try:
+            sep = float(value.split()[0])
+        except (IndexError, ValueError):
+            sep = None
+        if sep is None or not sep >= MIN_SEP:    # `not >=` also refuses nan
+            raise GraphError(
+                "the DOT sets %s=%r — a graph keeps at least %g inch (32 px, "
+                "the diagram engine's gap) between its boxes; set %s=%g or "
+                "more, or leave it unset" % (attr, value, MIN_SEP, attr,
+                                             MIN_SEP))
 
 
 def clean(raw):

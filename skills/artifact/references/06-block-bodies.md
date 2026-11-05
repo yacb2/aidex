@@ -373,7 +373,9 @@ A film enters the page through the spec route with no post-build step. It has **
 
 The third data body, and the one engine the spec route calls out to: rung 2 of the
 figure ladder, for boxes and edges that `diagram`'s three shapes cannot place — a star, a
-layered mapping, labelled edges, two edge kinds, a box that contains others. The body is
+layered mapping, labelled edges, two edge kinds, a box that contains others. A linear
+flow is `::: diagram shape=row`, which wraps by itself; `graph` is for branching or
+non-linear topologies and is never a workaround for a row's wrapping (BL-905). The body is
 a DOT graph, passed verbatim to `dot -Tsvg` (`scripts/graph_svg.py`, called from
 `emit_graph`). Graphviz is **optional**: install it with `brew install graphviz`
 (macOS) or `apt install graphviz` (Debian/Ubuntu). A spec with a `graph` block and no
@@ -403,5 +405,9 @@ monospace advance.
 Refused at the fence's line: an empty body; no `dot` on PATH (the message carries the
 install line); DOT that Graphviz rejects (its message, with the DOT line); a colour
 (`color=`, `fillcolor=`, `fontcolor=`, `bgcolor=`); a `class=` other than `acc`, `mut`,
-`flg`; a link or image (`URL=`, `href=`, `image=`); a `fontname=`; any markup outside
-the cleaned SVG's whitelist; a `dot` that runs past 30 s.
+`flg`; a link or image (`URL=`, `href=`, `image=`); a `fontname=`; `fixedsize` turned
+on at any level, `FIXEDSIZE="true"` on an HTML label's table or cell included (a fixed box does not grow to its label, which then runs past it; without
+it `width=`/`height=` are minimums); a `nodesep=` or `ranksep=` under 0.44 inch (32 px,
+the `diagram` gap; an unset `nodesep` gets 0.44); a `layout=` other than `dot` and a
+`pack=`/`packmode=` on the graph (both drop that gap); any markup outside the cleaned SVG's
+whitelist; a `dot` that runs past 30 s.

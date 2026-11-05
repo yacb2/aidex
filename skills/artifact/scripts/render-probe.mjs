@@ -9,6 +9,8 @@
 //                     11 px, references/05-visual-review.md row 5; one line per svg)
 //   outline-over-text an unfilled stroked rect whose stroke crosses an svg text of the same svg
 //                     (not one sitting on a filled rect drawn after it: the tree badge pill)
+//   graph-label-outside-its-node a label of a Graphviz node (`figure svg g.node`) runs more than
+//                     1 svg unit past the polygon, ellipse or path of its own node (BL-905)
 //   content-spills    a box whose content spills out of it (visible overflow)
 //   content-cut       a box whose content is cut by it (hidden overflow)
 //   table-cut         a table of 1-3 columns wider than the box it scrolls in
@@ -203,6 +205,26 @@ const check = () => {
         return pb.left <= b.left + 1 && pb.right >= b.right - 1 && pb.top <= b.top + 1 && pb.bottom >= b.bottom - 1;
       });
       if (touches && !inside && !padded) { out.push({ kind: 'outline-over-text', a: name(r), b: name(t), y: Math.round(b.top + sy) }); break; }
+    }
+  }
+  // 2d. a Graphviz node's label past the shape it labels (BL-905): `fixedsize` held a box at
+  // its width while the label, drawn in the page's mono stack, ran past it (by more than 1 px).
+  // Paired by markup: each text of a figure's `g.node` against the box of that group's own
+  // first polygon, ellipse or path (Graphviz draws the node's outline first). Only a text whose
+  // centre lies inside that box is the node's label: an xlabel shares the group and
+  // sits outside the node on purpose. A diagram draws its rects and texts flat, with nothing
+  // that pairs them; its rects are svg-label-outside-its-box's. Measured in the svg's own
+  // units (getBBox: text and shape share the group's space), so a wide graph the column
+  // shrinks does not shrink its overflow under the tolerance.
+  for (const g of document.querySelectorAll('figure svg g.node')) {
+    const shape = g.querySelector(':scope > polygon, :scope > ellipse, :scope > path');
+    if (!shape) continue;
+    const s = shape.getBBox();
+    for (const t of g.querySelectorAll('text')) {
+      const b = t.getBBox(), cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+      if (cx < s.x || cx > s.x + s.width || cy < s.y || cy > s.y + s.height) continue;
+      if (b.x < s.x - 1 || b.x + b.width > s.x + s.width + 1 || b.y < s.y - 1 || b.y + b.height > s.y + s.height + 1)
+        out.push({ kind: 'graph-label-outside-its-node', a: name(t), msg: `in figure #${t.closest('figure').id}: x ${Math.round(b.x)}..${Math.round(b.x + b.width)} y ${Math.round(b.y)}..${Math.round(b.y + b.height)} past its node x ${Math.round(s.x)}..${Math.round(s.x + s.width)} y ${Math.round(s.y)}..${Math.round(s.y + s.height)} (svg units)`, y: Math.round(t.getBoundingClientRect().top + sy) });
     }
   }
   // 3. a box whose content spills out of it (visible overflow) or is cut by it (hidden

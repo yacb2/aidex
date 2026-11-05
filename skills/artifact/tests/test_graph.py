@@ -61,6 +61,9 @@ def rejects(label, spec, line, fragment):
               "line %d: %s (wanted line %d with %r)"
               % (exc.line, exc.message, line, fragment))
         return
+    except Exception as exc:                        # a traceback, not a refusal
+        check(label, False, "raised %s: %s" % (type(exc).__name__, exc))
+        return
     check(label, False, "built a spec that should have been refused")
 
 
@@ -225,6 +228,143 @@ else:
     rejects("a single-quoted colour is refused like a double-quoted one",
             fence(r'''digraph{a[fontname="monospace\" stroke='red' '''
                   r'''role=\"x"]}'''), 3, 'stroke="red"')
+
+    # BL-905: `fixedsize` keeps a box at width x height whatever its label, and
+    # Graphviz measures generic monospace while the page draws the kit's wider
+    # --mono stack, so the label ran past the box. The DOT a delegate shipped:
+    BL905 = fence(
+        "digraph {",
+        "  node [shape=box width=2.6 height=0.9 fixedsize=true];",
+        '  n1 [label="1. Landing de Framer\\ncookie gd_referral"];',
+        '  n2 [label="2. App de onboarding\\nenvía tracking_data"];',
+        '  n3 [label="3. Filtro del backend\\nhoy: aquí se pierden" class=flg];',
+        '  n4 [label="4. Token del enlace\\nmágico"];',
+        '  n5 [label="5. Seed al crear\\nel onboarding"];',
+        '  n6 [label="6. Salidas\\nadmin y BigQuery"];',
+        "  {rank=same; n1; n2; n3}",
+        "  {rank=same; n4; n5; n6}",
+        "  n1 -> n2 -> n3;",
+        "  n4 -> n5 -> n6;",
+        "  n3 -> n4 [constraint=true];",
+        "}")
+    rejects("BL-905: the shipped fixedsize DOT is refused, naming fixedsize",
+            BL905, 3, "fixedsize")
+    rejects("BL-905: the refusal names the row diagram for a linear flow",
+            BL905, 3, "::: diagram shape=row")
+    # Every spelling Graphviz reads as on (its mapbool, plus the literal
+    # `shape`), at every level it can be written; read from Graphviz's own parse.
+    for body in ("node [fixedsize=TRUE]; a", 'node ["fixedsize"=yes]; a',
+                 "a [fixedsize=1]", "a [fixedsize=01]", "a [fixedsize=shape]",
+                 "fixedsize=true; a", "edge [fixedsize=true]; a -> b",
+                 "subgraph s { node [fixedsize=true]; a }",
+                 # a graph attribute named like json0's own keys hides no node
+                 'edges="x"; a [fixedsize=true]', 'objects="y"; a [fixedsize=true]'):
+        rejects("fixedsize on is refused: %s" % body,
+                fence("digraph { %s }" % body), 3, "fixedsize")
+    # ...and every spelling Graphviz reads as off builds (`Shape` is not
+    # `shape`: Graphviz compares that one case-sensitively).
+    for body in ("node [fixedsize=false]; a", "a [fixedsize=no]",
+                 "a [fixedsize=0]", 'a [fixedsize=""]', "a [fixedsize=Shape]",
+                 "node [fixedsize=true]; a [fixedsize=false]"):
+        try:
+            build(fence("digraph { %s }" % body))
+            check("fixedsize off builds: %s" % body, True)
+        except (SpecSyntaxError, SpecBuildError) as exc:
+            check("fixedsize off builds: %s" % body, False, exc.message)
+    # An HTML label's <TABLE>/<TD> takes FIXEDSIZE too, inside the label
+    # string; Graphviz reads only "true" (any case, either quote) as on.
+    for body in ('a [shape=plain label=<<table><tr><td fixedsize="true" '
+                 'width="40" height="20">una etiqueta larga</td></tr></table>>]',
+                 "a [shape=plain label=<<TABLE FIXEDSIZE = 'TRUE' WIDTH='20'>"
+                 "<TR><TD>x</TD></TR></TABLE>>]",
+                 'a -> b [label=<<table><tr><td fixedsize="True">x</td></tr>'
+                 '</table>>]'):
+        rejects("an HTML label's fixedsize=\"true\" is refused: %s" % body,
+                fence("digraph { %s }" % body), 3, "fixedsize")
+    for body in ('a [shape=plain label=<<table><tr><td fixedsize="false">x'
+                 '</td></tr></table>>]',
+                 'a [shape=plain label=<<table><tr><td fixedsize="1">x'
+                 '</td></tr></table>>]',
+                 'a [shape=plain label=<<table><tr><td fixedsize="truex">x'
+                 '</td></tr></table>>]'):
+        try:
+            build(fence("digraph { %s }" % body))
+            check("an HTML fixedsize Graphviz reads as off builds: %s" % body,
+                  True)
+        except (SpecSyntaxError, SpecBuildError) as exc:
+            check("an HTML fixedsize Graphviz reads as off builds: %s" % body,
+                  False, exc.message)
+    # Graphviz writes a raw control character of a label into its JSON as is:
+    # still refused by name (the SVG check), never a JSONDecodeError.
+    rejects("a control character in a label is refused by name",
+            fence('digraph { a [label="x\x01y"] }'), 3,
+            "not well-formed SVG")
+
+    # BL-905: Graphviz's default nodesep (0.25 in) left ~10 px between boxes.
+    # A separation under 0.44 in (the diagram engine's 32 px GAP) is refused
+    # when the DOT sets it; an unset nodesep gets 0.44 (ranksep's own default,
+    # 0.5, is already above it).
+    for body in ("nodesep=0.43", "nodesep=0.25", "ranksep=0.43",
+                 'ranksep="0.3 equally"', "nodesep=abc", 'nodesep=" "',
+                 'ranksep="4e-1"', "nodesep=nan"):
+        rejects("a separation under 0.44 in is refused: %s" % body,
+                fence("digraph { %s; a -> b }" % body), 3, "0.44")
+    # An empty nodesep is no value: Graphviz leaves it out of its parse, so it
+    # gets the 0.44 floor like an unset one.
+    for body in ("nodesep=0.44", "ranksep=0.44", 'ranksep="0.5 equally"',
+                 "nodesep=1 ranksep=2", 'nodesep=""'):
+        try:
+            build(fence("digraph { %s; a -> b }" % body))
+            check("a separation of 0.44 in or more builds: %s" % body, True)
+        except (SpecSyntaxError, SpecBuildError) as exc:
+            check("a separation of 0.44 in or more builds: %s" % body, False,
+                  exc.message)
+    # The floor is dot's: neato, circo, fdp, osage and patchwork ignore nodesep
+    # and ranksep and place boxes touching or overlapping, so a root `layout=`
+    # other than dot is refused. Graphviz itself refuses a wrong case (`Dot`);
+    # a node's `layout` is ignored and dot lays the graph out.
+    for body in ("layout=neato; a -> b", "graph [layout=patchwork]; a; b",
+                 "layout=circo; a -> b"):
+        rejects("a layout engine other than dot is refused: %s" % body,
+                fence("digraph { %s }" % body), 3, "layout=")
+    rejects("a wrong-case engine is Graphviz's own refusal: layout=Dot",
+            fence("digraph { layout=Dot; a -> b }"), 3, "Layout type")
+    # Packing has dot lay out each unconnected part alone and set the parts
+    # `pack` points apart (8 by default, `pack=false` included): refused at any
+    # value on the root graph, where dot reads it; a subgraph's pack is ignored.
+    for body in ("pack=0; a; b", "pack=false; a; b", 'packmode="array"; a; b',
+                 "graph [pack=40]; a; b"):
+        rejects("packing is refused: %s" % body,
+                fence("digraph { %s }" % body), 3, "pack")
+    for body in ("layout=dot; a -> b", "node [layout=neato]; a -> b",
+                 "layout=neato; layout=dot; a -> b",
+                 "subgraph s { pack=0; a; b }"):
+        try:
+            build(fence("digraph { %s }" % body))
+            check("a graph dot lays out builds: %s" % body, True)
+        except (SpecSyntaxError, SpecBuildError) as exc:
+            check("a graph dot lays out builds: %s" % body, False, exc.message)
+    # json0 writes graph attributes beside its own `objects` and `edges` keys:
+    # a graph attribute of that name, with no node or edge to shadow it, is a
+    # string there, never a traceback.
+    for body in ('edges="x"; a', 'objects="y"'):
+        try:
+            build(fence("digraph { %s }" % body))
+            check("a graph attribute named like a json0 key builds: %s" % body, True)
+        except Exception as exc:
+            check("a graph attribute named like a json0 key builds: %s" % body,
+                  False, "%s: %s" % (type(exc).__name__, exc))
+    pair = build(fence("digraph { node [shape=box]; {rank=same; a; b} }"))
+    xs = sorted(float(x) for x in re.findall(r'points="([\d.-]+),', pair))
+    check("an unset nodesep leaves 0.44 in (31.68 units) between two boxes",
+          len(xs) == 2 and xs[1] - xs[0] - 54 >= 31.68 - 0.01, repr(xs))
+    # ...and the floor never replaces a wider nodesep the DOT sets: a -G value
+    # would override it.
+    wide = build(fence("digraph { nodesep=1; node [shape=box]; "
+                       "{rank=same; a; b} }"))
+    xs = sorted(float(x) for x in re.findall(r'points="([\d.-]+),', wide))
+    check("a nodesep=1 the DOT sets is kept (72 units between two boxes)",
+          len(xs) == 2 and abs(xs[1] - xs[0] - 54 - 72) < 0.01, repr(xs))
 
     # Determinism: in one process, and across processes with another seed.
     check("the same spec builds byte-identical twice", build(GOOD) == html)

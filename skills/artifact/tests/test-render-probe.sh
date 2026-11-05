@@ -421,8 +421,23 @@ figure-contrast figure-text-contrast "fallaclaro 1280
 figure-contrast figure-text-contrast "fallaoscuro 390
 label-box svg-label-outside-its-box "cajafix 1280
 label-box svg-label-outside-its-box "anchorfix 1280
+graph-label-box graph-label-outside-its-node "desbordafix 1280
+graph-label-box graph-label-outside-its-node "desbordafix 390
+graph-label-box graph-label-outside-its-node "altofix 1280
+graph-label-box graph-label-outside-its-node "estrechofix 1280
+graph-label-box graph-label-outside-its-node "estrechofix 390
 figure-contrast figure-text-contrast "usefix 1280
 EOF
+
+echo "== a graph node's label past its shape (BL-905) =="
+# Frozen Graphviz output of a fixedsize node (graph_svg now refuses the DOT): the defect
+# names the figure; the box and the ellipse whose labels fit, a point's xlabel (outside its
+# node on purpose) and a plaintext node (no shape to pair) are not reported.
+out="$(bash "$PROBE" "$TMP/graph-label-box.html" 2>&1)"
+grep -qE '^DEFECT graph-label-box\.html @1280px graph-label-outside-its-node: text "desbordafix crear" in figure #d-desborde' <<<"$out" \
+  && ok "the defect names the figure id and the label" || bad "no graph-label-outside-its-node naming #d-desborde in: $out"
+hit="$(grep -E '^DEFECT graph-label-box\.html .*(Cabe|Elipse|xlabelfix|planofix)' <<<"$out" || true)"
+[[ -z "$hit" ]] && ok "labels that fit their box and their ellipse, an xlabel outside its point and a shapeless plaintext node are not reported" || bad "$hit"
 
 echo "== a table of one to three columns cut by the box it scrolls in (BL-592) =="
 out="$(bash "$PROBE" "$TMP/table-cut.html" 2>&1)"; rc=$?

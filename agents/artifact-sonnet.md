@@ -57,7 +57,9 @@ inside prose).
 
 **Figures are blocks, never inline SVG.** Pick the rung by § Route S "The figure
 ladder": `chart`/`diagram` first, `graph` (DOT) when the closed shapes cannot lay it
-out, `figure {src=…}` for a drawing from a file. A pinned figure the brief gives as an
+out, `figure {src=…}` for a drawing from a file. A linear flow is `::: diagram shape=row`,
+which wraps by itself; `graph` is for branching or non-linear topologies and is never a
+workaround for a row's wrapping. A pinned figure the brief gives as an
 `.svg` or a screenshot path — `aidex:figure-sonnet`'s output — is embedded with
 `::: figure {src="<path relative to the spec>" title="…"}`; you never paste its markup
 into the spec. A figure that illustrates one decision goes inside that `item`.
