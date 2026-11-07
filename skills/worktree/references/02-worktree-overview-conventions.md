@@ -37,7 +37,7 @@ measured 2026-07-26:
 | Placement | Where | `<project>/.claude/` + `CLAUDE.md` |
 |---|---|---|
 | native `EnterWorktree` | `<project>/.claude/worktrees/<name>` — **inside** the repo | **apply** (verified: a project `skillOverrides` entry still blocked its skill from inside the worktree) |
-| `worktree.sh` | `<project>/../<project>-wt-<slug>` — a **sibling of** the repo | **do not apply** |
+| `worktree.sh` | `<project>/../<project>-wt-<slug>` — a **sibling of** the repo (or under `WT_PARENT`) | **do not apply** |
 
 `worktree.sh` places worktrees outside the project root by design, so the upward search
 for project settings never passes through it. The mechanism mirrors nothing of the sort

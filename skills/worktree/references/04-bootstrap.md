@@ -91,9 +91,9 @@ recipe. Prose is what let 15 projects each implement isolation differently.
      a structural fault that merely looked like a busy slot, because the
      allocator skipped past it.
    - **Placement** — where the worktree directory itself lands. The default is
-     **`worktree.sh`'s sibling placement**, `<project>/../<project>-wt-<slug>`, and
-     it is not a free choice: `worktree.sh` hardcodes it so a git worktree never
-     nests inside the working tree it came from. The one thing to decide here is
+     **`worktree.sh`'s sibling placement**, `<project>/../<project>-wt-<slug>`;
+     `WT_PARENT` in `config.env` moves the parent folder (e.g. `../_worktrees`), but
+     the worktree always stays outside the working tree it came from. The one thing to decide here is
      the consequence, because it is invisible until it bites: the upward search
      for project settings never passes through a sibling, so **if `.claude/` or
      `CLAUDE.md` are gitignored, an agent driving the worktree silently loses the

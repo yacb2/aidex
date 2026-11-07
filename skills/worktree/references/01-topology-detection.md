@@ -48,9 +48,10 @@ Isolation is defined over **database, ports and containers** — the three the i
 sizes. Placement decides where the worktree directory lands, and it is the one thing
 here that touches the *agent's* environment rather than the stack's.
 
-`worktree.sh` places worktrees as a **sibling** of the repo
-(`<project>/../<project>-wt-<slug>`) so a git worktree never nests inside its own working
-tree. That is deliberate and not configurable. Its consequence is what the interview must
+`worktree.sh` places worktrees outside the repo so a git worktree never nests inside its
+own working tree: by default as a **sibling** (`<project>/../<project>-wt-<slug>`), or in
+the folder `WT_PARENT` names in `config.env` (`WT_PARENT="../_worktrees"` gives
+`<project>/../_worktrees/<project>-wt-<slug>`). Outside the repo is not configurable. Its consequence is what the interview must
 surface: the upward search for project settings never passes through a sibling, so a
 gitignored `.claude/` or `CLAUDE.md` is simply absent inside the worktree — the session
 loses `skillOverrides`, permissions and conventions with no error, while the database,

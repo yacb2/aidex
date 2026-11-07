@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # leftover-sweep.sh — clean up what a worktree removal leaves on disk, scoped to the
-# wrappers `<workspace>-wt-*` next to the workspace root:
+# wrappers `<workspace>-wt-*` next to the workspace root (or in its WT_PARENT):
 #   - drops worktree records git marks `prunable` whose path is under such a wrapper
 #     (just those records, never a repo-wide prune); other prunable records are only listed
 #   - removes wrappers holding no non-directory entry at any depth (.DS_Store is noise)
 #     and no registered worktree: rmdir only, deepest first, never rm -rf
 #   - reports (never removes) wrappers with content that no repo registers
 # Repos: the workspace root when it is a git repo, plus each immediate child that is.
-# The workspace root is the `<base>` next to the `<base>-wt-<slug>` the caller stands in,
+# The workspace root is the `<base>` next to the `<base>-wt-<slug>` the caller stands in
+# (or one level up, for a WT_PARENT folder beside it),
 # else find_project_root. No `.context/worktrees/config.env` there: nothing is touched.
 # Usage: leftover-sweep.sh [--root <workspace-dir>]
 # Always exits 0 unless the arguments are wrong.
@@ -15,6 +16,7 @@
 set -euo pipefail
 
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../conventions/scripts" && pwd -P)/_lib.sh"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/wt-config.sh"
 
 # wrapper_base_root — when cwd is inside <parent>/<base>-wt-<slug>/..., print <parent>/<base>
 wrapper_base_root() {
@@ -27,6 +29,9 @@ wrapper_base_root() {
         base="${name%%-wt-*}"
         if [ -n "$base" ] && [ -d "$(dirname "$dir")/$base" ]; then
           printf '%s\n' "$(dirname "$dir")/$base"; return 0
+        fi
+        if [ -n "$base" ] && [ -d "$(dirname "$(dirname "$dir")")/$base/.context/worktrees" ]; then
+          printf '%s\n' "$(dirname "$(dirname "$dir")")/$base"; return 0
         fi ;;
     esac
     dir="$(dirname "$dir")"
@@ -44,7 +49,7 @@ done
 [ -n "$WS_ROOT" ] || WS_ROOT="$(wrapper_base_root || find_project_root)"
 WS_ROOT="$(cd "$WS_ROOT" && pwd -P)"
 WS_NAME="$(basename "$WS_ROOT")"
-WS_PARENT="$(dirname "$WS_ROOT")"
+WS_PARENT="$(wt_parent_of "$WS_ROOT")"   # WT_PARENT, else beside the root
 WRAP="$WS_PARENT/$WS_NAME-wt-"
 
 if [ ! -f "$WS_ROOT/.context/worktrees/config.env" ]; then

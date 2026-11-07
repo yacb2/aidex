@@ -47,6 +47,7 @@ set -uo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../conventions/scripts" && pwd -P)/_lib.sh"
 
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/wt-common.sh"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/wt-config.sh"
 
 # --all (first argument only): the machine-wide, label-judged listing lives in its
 # own script so nothing it decides can reach --slug / --check (BL-810, BL-811).
@@ -74,7 +75,7 @@ done
 # unchanged and a split workspace resolves to the same root every caller uses.
 WS_ROOT="$(find_project_root)"
 WS_NAME="$(basename "$WS_ROOT")"
-WS_PARENT="$(dirname "$WS_ROOT")"
+WS_PARENT="$(wt_parent_of "$WS_ROOT")"   # WT_PARENT, else beside the root
 
 # Every resource this script may speak about carries this prefix. Anything that
 # does not is another workspace's business (or not a worktree at all).

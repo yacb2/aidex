@@ -99,12 +99,18 @@
 #   WT_POST_CMD       ""                     shell run after seeding (E2E template, fixtures)
 #   WT_PRE_DOWN_CMD   ""                     shell run in the worktree BEFORE the Docker
 #                                            teardown; its failure is reported, not fatal
+#   WT_PARENT         ""                     where worktrees live, relative to the project
+#                                            root or absolute; empty = beside it
+#                                            (<root>/../<project>-wt-<slug>). "../_worktrees"
+#                                            gives <root>/../_worktrees/<project>-wt-<slug>;
+#                                            `new` creates the directory. The sweeps read it too
 
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 . "$(cd "$SELF_DIR/../../conventions/scripts" && pwd -P)/_lib.sh"
 . "$SELF_DIR/wt-common.sh"   # wt_usage (also in the check-*.sh scripts), wt_default_start (also in worktree-multi.sh)
+. "$SELF_DIR/wt-config.sh"   # wt_parent_resolve (WT_PARENT), shared with the sweeps
 set +e   # this script reports and decides; it does not want inherited errexit
 
 SWEEP="$SELF_DIR/orphan-sweep.sh"
@@ -125,7 +131,7 @@ CONFIG="$ROOT/.context/worktrees/config.env"
 WT_PARTICIPANTS=""; WT_LINKS=""; WT_COPIES=""; WT_SERVICES=""
 WT_SERVICES_BY_HOOK=""; WT_SERVICES_EXCLUDE=""; WT_ENV_RENDER=""
 WT_PORT_VARS=""; WT_PORT_STRIDE=100; WT_MAX_SLOTS=9
-WT_SUFFIX_VAR="WT_SUFFIX"; WT_SEED_CMD=""; WT_READY_CMD=""; WT_POST_CMD=""; WT_PRE_DOWN_CMD=""
+WT_SUFFIX_VAR="WT_SUFFIX"; WT_SEED_CMD=""; WT_READY_CMD=""; WT_POST_CMD=""; WT_PRE_DOWN_CMD=""; WT_PARENT=""
 # `set -a` so everything the project defines here is EXPORTED. WT_READY_CMD and
 # WT_SEED_CMD run in a subshell, so a plain shell variable would be empty there
 # — a profile that referenced its own $WT_DB_USER probed as an empty role, never
@@ -199,7 +205,13 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-DEST_FOR() { printf '%s/../%s-wt-%s\n' "$ROOT" "$PROJECT" "$1"; }
+if [[ -n "$WT_PARENT" ]]; then
+  [[ "$cmd" == new ]] && { mkdir -p "$(wt_parent_resolve "$ROOT" "$WT_PARENT")" || die "cannot create WT_PARENT directory: $WT_PARENT (config: $CONFIG)"; }
+  WT_PARENT_DIR="$(wt_parent_resolve "$ROOT" "$WT_PARENT")"
+else
+  WT_PARENT_DIR="$ROOT/.."
+fi
+DEST_FOR() { printf '%s/%s-wt-%s\n' "$WT_PARENT_DIR" "$PROJECT" "$1"; }
 # The compose project name, normalised the way Compose requires
 # (compose_project_name, _lib.sh). Only this name: DEST_FOR and the slot dir keep
 # the raw directory name.
@@ -349,7 +361,7 @@ if [[ "$cmd" == "list" ]]; then
   command -v docker >/dev/null 2>&1 \
     || { HAVE_DOCKER=false; warn "docker is not on PATH — STACK shows '?' (unknown), not down"; }
   hdr() { $PORCELAIN && return 0; [[ "$found" -eq 0 ]] && printf '%-20s %-5s %-28s %-9s %-7s %s\n' SLUG SLOT BRANCH STACK DIRTY DIR; }
-  for d in "$ROOT"/../"$PROJECT"-wt-*; do
+  for d in "$WT_PARENT_DIR/$PROJECT"-wt-*; do
     [[ -d "$d" ]] || continue
     hdr; found=1
     sg="$(basename "$d")"; sg="${sg#"${PROJECT}-wt-"}"

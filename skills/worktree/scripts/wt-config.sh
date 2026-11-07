@@ -3,7 +3,7 @@
 # .context/worktrees/config.env without sourcing it (the file is not vetted by the
 # checkers that read it). Shared by check-worktree-ports.sh, check-worktree-runner.sh
 # and check-worktree-isolation.sh so the three cannot read a field, or pick the
-# file, differently.
+# file, differently. wt_parent_* (WT_PARENT) also serve worktree.sh and the sweeps.
 # worktree.sh keeps its own WT_PROFILE peek: it must accept only a profile NAME.
 
 # wt_cfg_field <config.env> <VAR> — the value of the first `VAR=...` line, up to the
@@ -29,4 +29,22 @@ wt_cfg_path() {
     [[ -f "$main" ]] && { printf '%s\n' "$main"; return 0; }
   fi
   printf '%s\n' "$own"
+}
+
+# wt_parent_resolve <root> <value> — the directory <root>'s worktrees live in, from a
+# WT_PARENT value: relative to <root>, or absolute; empty means beside <root>.
+# Resolved with pwd -P when it exists; textual otherwise (`new` has not made it yet).
+wt_parent_resolve() {
+  local d
+  case "$2" in "") d="$1/.." ;; /*) d="$2" ;; *) d="$1/$2" ;; esac
+  if [[ -d "$d" ]]; then (cd "$d" && pwd -P); else printf '%s\n' "$d"; fi
+}
+
+# wt_parent_of <root> — wt_parent_resolve with WT_PARENT read from <root>'s config.env
+# (wt_cfg_path), for the sweeps that read the file without sourcing it.
+wt_parent_of() {
+  local cfg p=""
+  cfg="$(wt_cfg_path "$1")"
+  [[ -f "$cfg" ]] && p="$(wt_cfg_field "$cfg" WT_PARENT)"
+  wt_parent_resolve "$1" "$p"
 }
