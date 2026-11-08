@@ -124,6 +124,18 @@ rows += [
     ("REASON holds 'running in the background'", lambda: ("running in the background" in R, "missing")),
     ("REASON does not say 'end your turn'", lambda: ("end your turn" not in R, "present: kills a foreground run")),
     ("REASON does not say 'a timeout that covers it'", lambda: ("a timeout that covers it" not in R, "present")),
+    # BL-908: the reason names a route that exists in every launch mode. The Bash timeout
+    # parameter does; Monitor is in no roster agent's tool list, so it is named only on a
+    # condition, and a bounded loop is refused too (owner 2026-11-08: no exemption).
+    ("REASON names the Bash tool's timeout parameter", lambda: ("timeout parameter" in R, "missing")),
+    ("REASON names Monitor only on its tool-list condition",
+     lambda: (R.count("Monitor") == 1 and "Monitor tool, if your tool list has it" in R, "unconditional or absent")),
+    ("REASON says a bounded loop is refused too", lambda: ("even a short, bounded one" in R, "missing")),
+    # A delegate's own backgrounded command waits for its notification; "check once and
+    # report" is only for a condition it did not start, so it must not read as overriding.
+    ("REASON scopes 'check once' to what the delegate did not start",
+     lambda: ("other than a command you started" in R
+              and R.index("running in the background") < R.index("check once"), "unscoped or reordered")),
 ]
 
 

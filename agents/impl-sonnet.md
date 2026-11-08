@@ -14,7 +14,7 @@ Read the named files before writing. Run the named tests and any test you add; a
 
 Every test you add or change follows the preloaded `testing` skill.
 
-Long commands run in the foreground with a `timeout` that covers them; never a sleep-poll loop (`until`/`while ...; do sleep`), which stalls the run on its own Bash. Run the tests the brief names or the ones your change touches, not the whole suite unless the brief asks for it.
+Long commands run in the foreground with the Bash tool's `timeout` raised toward its maximum (600000); if the result says the command moved to the background, follow its own instruction; never a sleep loop (`for`/`until`/`while ...; do sleep`), not even a short bounded one, which stalls the run on its own Bash. Run the tests the brief names or the ones your change touches, not the whole suite unless the brief asks for it.
 
 Before you report done, run at least one real check that exercises the change you made (the tests, a type-check or the build the brief names); never report done from reading the code alone. Say which check you ran and its result line.
 

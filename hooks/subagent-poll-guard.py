@@ -42,11 +42,14 @@ TOKEN = re.compile(
 UNQUOTE = re.compile(r"""'([^']*)'|"((?:\\.|[^"\\])*)"|\\(.)""", re.S)
 
 REASON = (
-    "Sleep-polling loops are refused in subagents: they sit on the Bash timeout and read as a "
-    "hung delegate. Never poll. Run the command once in the foreground; if the result says the "
-    "command is running in the background, follow that result's own instruction on whether to "
-    "wait for its notification. Run only the tests the brief names or the ones your change "
-    "affects."
+    "Sleep loops are refused in subagents, even a short, bounded one: a delegate waiting inside "
+    "its own Bash call sits on the timeout and reads as hung. Never poll. Run a long command once "
+    "in the foreground, with the Bash tool's timeout parameter raised toward its maximum; if the "
+    "result says the command is running in the background, follow that result's own instruction "
+    "on whether to wait for its notification. To wait for anything other than a command you "
+    "started, use the Monitor tool, if your tool list has it; otherwise check once and report "
+    "what you found instead of waiting. "
+    "Run only the tests the brief names or the ones your change affects."
 )
 
 

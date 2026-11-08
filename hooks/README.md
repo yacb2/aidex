@@ -230,18 +230,21 @@ loop depth. It answers `permissionDecision: deny` when `sleep` (also `/bin/sleep
 or `until` body or a `while`/`until` condition, including the script of `bash -c '...'`; shell
 options before or after `-c` (`-o pipefail`, `+e`, `--rcfile f`) are skipped with their values.
 Only a `done` in command position closes a loop, so `out/done` or `echo done` does not. The
-reason says never poll, run the command once in the foreground and, if the result says it is
-running in the background, follow that result's own instruction. The main session is never
+reason says a bounded loop is refused too and never to poll, to run a long command once in the
+foreground with the Bash timeout parameter raised and, if the result says it is running in the
+background, to follow that result's own instruction; to wait for anything but a command the delegate
+started it names the Monitor tool only "if your tool list has it" (no roster agent lists it), else check once and report
+(BL-908; the guard itself lets Monitor through, BL-907). The main session is never
 touched; a loop without `sleep`, `sleep` as an argument, in a quoted string or a comment, `sleep.sh` and a
 `sleep` after `done` are allowed. Heredoc bodies are read as shell, and a command with an
 unbalanced quote is allowed. Why: a delegate polling on its own Bash call sits on the timeout
 and reads as a hung run.
 
-**Tests:** `python3 test-subagent-poll-guard.py` — one table: 73 cells on
+**Tests:** `python3 test-subagent-poll-guard.py` — one table: 75 cells on
 `decide()` (deny cells per loop shape, `done` sentinel, wrapper, path, line continuation,
 `bash -c` form with shell options per shell and a backgrounded poll; allow cells for poll shapes inside
 arguments, quotes, comments and commit messages, `bash` with options but no `-c`, and a `done`
-right after `}` or `fi`), 4 on the `REASON` text and 3 timing rows (each long input under 1 s).
+right after `}` or `fi`), 8 on the `REASON` text and 3 timing rows (each long input under 1 s).
 A main-parity row per cell that `git show main:hooks/subagent-poll-guard.py` denies fails when
 this checkout allows it, so a bypass main closed cannot come back with an edited expectation;
 without a readable `main` the parity rows are skipped with a `SKIP main parity` line.
