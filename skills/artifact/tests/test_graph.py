@@ -403,6 +403,36 @@ else:
     check("labels: an edge label is not a node label",
           "etiqueta de arista" not in got)
 
+# --- BL-905: a long single-line label grows its box (measure wider) --------
+# The browser draws the kit mono stack at 0.602 em (7.83 units at 13); Graphviz
+# measured `monospace` at 7.5 and sized the box for that. The real-browser proof
+# is test-render-probe.sh; this row pins the number without a browser.
+print("== long labels ==")
+if graph_svg.dot_path():
+    LONG = "x" * 80
+    svg, _ = graph_svg.render('digraph { node [shape=box]; a [label="%s"] }' % LONG)
+    box = re.search(r'<polygon fill="none"[^>]*points="([^"]*)"', svg).group(1)
+    xs = [float(p.split(",")[0]) for p in box.split()]
+    drawn = len(LONG) * 0.602 * 13
+    check("a long label: the box is wider than the browser's drawn text",
+          max(xs) - min(xs) >= drawn * 1.05, "box %g, text %g" % (max(xs) - min(xs), drawn))
+    check("a long label: the text keeps the kit size, not the layout size",
+          'font-size="13.00"' in svg and "14.30" not in svg)
+    svg, _ = graph_svg.render('digraph { a [fontsize=20] }')
+    check("a DOT's own fontsize=20 is left as written",
+          'font-size="20.00"' in svg)
+    svg, _ = graph_svg.render('digraph { a [fontsize=14] }')
+    check("a DOT's own fontsize=14 (Graphviz's default) is left as written",
+          'font-size="14.00"' in svg)
+    svg, _ = graph_svg.render('digraph { a [fontsize=14.3] }')
+    check("known: a DOT's own fontsize=14.3 reads as the layout size and is "
+          "written back as 13", 'font-size="13.00"' in svg)
+    svg, _ = graph_svg.render('digraph { subgraph cluster_x { label="t"; '
+                              'a -> b [label="e"] } }')
+    check("title and edge label: laid out at 12.3, drawn at 11; nodes at 13",
+          set(re.findall(r'font-size="([^"]*)"', svg)) == {"11.00", "13.00"}
+          and "12.30" not in svg, repr(set(re.findall(r'font-size="([^"]*)"', svg))))
+
 # --- a Graphviz that hangs is refused, not waited on (review finding 1) -----
 real_run, real_path = graph_svg.subprocess.run, graph_svg.dot_path
 

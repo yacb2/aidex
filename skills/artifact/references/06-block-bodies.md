@@ -400,7 +400,13 @@ Colour comes from `class=` and nothing else. Graphviz writes a node's or an edge
 theme it in both modes. Graphviz's default `black` becomes `currentColor`, every label
 is `fill="currentColor"`, and the labels are drawn in the kit's `--mono` stack — the
 build passes `fontname=monospace` as the default, so Graphviz sizes each box with a
-monospace advance.
+monospace advance. Graphviz measures that advance narrower than the browser draws the
+stack (7.5 against 7.83 units per character at 13), so the build lays the graph out at a
+slightly larger size (14.3 for a node, 12.3 for an edge and a graph or group title) and
+writes the kit size back: a node grows to its label, one line of any length, and the
+group title is inside its group. A `fontsize=` the DOT sets on one node keeps the old
+limit: a label runs past its box from a length that depends on that size (about 50
+characters at 13); drop the `fontsize=`.
 
 Refused at the fence's line: an empty body; no `dot` on PATH (the message carries the
 install line); DOT that Graphviz rejects (its message, with the DOT line); a colour

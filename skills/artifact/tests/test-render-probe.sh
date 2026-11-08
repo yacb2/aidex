@@ -439,6 +439,19 @@ grep -qE '^DEFECT graph-label-box\.html @1280px graph-label-outside-its-node: te
 hit="$(grep -E '^DEFECT graph-label-box\.html .*(Cabe|Elipse|xlabelfix|planofix)' <<<"$out" || true)"
 [[ -z "$hit" ]] && ok "labels that fit their box and their ellipse, an xlabel outside its point and a shapeless plaintext node are not reported" || bad "$hit"
 
+echo "== a long single-line graph label grows its node (BL-905, measure wider) =="
+# Built by spec_build.py from the real DOT route: an 83-character and a 60-character label and a
+# 58-character cluster title, no fixedsize. Graphviz measures `monospace` narrower than the
+# browser draws the kit stack, so before the layout size was raised the labels ran past their
+# boxes from about 50 characters. The frozen graph-label-box page above is the must-refuse side.
+( cd "$TMP" && python3 "$SCRIPTS/spec_build.py" "$FIX/graph-long-label.spec.md" -o "$TMP/graph-long-label.html" ) >/dev/null 2>&1 \
+  && ok "built graph-long-label from its spec" || bad "spec_build failed on graph-long-label.spec.md"
+out="$(bash "$PROBE" "$TMP/graph-long-label.html" 2>&1)"; rc=$?
+hit="$(grep -E 'graph-label-outside-its-node' <<<"$out" || true)"
+# Not exit 0: at 390 px a graph this wide is drawn under the 11 px floor (svg-text-small), a
+# separate defect of one long line that this change does not claim to remove.
+[[ -z "$hit" && "$(grep -c '^{' <<<"$out")" -eq 2 ]] && ok "long node labels stay inside their shapes at 1280 and 390" || bad "exit $rc: $hit $out"
+
 echo "== a table of one to three columns cut by the box it scrolls in (BL-592) =="
 out="$(bash "$PROBE" "$TMP/table-cut.html" 2>&1)"; rc=$?
 [[ $rc -eq 1 ]] && ok "table-cut exits 1" || bad "table-cut exit $rc, expected 1"
