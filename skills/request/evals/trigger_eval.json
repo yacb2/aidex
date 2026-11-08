@@ -98,5 +98,10 @@
     "query": "There's a CORS error when the dev frontend hits the backend — Access-Control-Allow-Origin missing. Help me debug.",
     "should_trigger": false,
     "expected_behavior": "Debugging task, NOT request."
+  },
+  {
+    "query": "Legal decided that invoice PDFs are kept for 10 years.",
+    "should_trigger": false,
+    "expected_behavior": "A relayed decision, not a request: /aidex:decision records it as an ADR."
   }
 ]

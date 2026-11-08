@@ -156,6 +156,8 @@ open ⇄ _deferred (blocked) → doing → done / dropped
                                └──→ awaiting owner (sweep only) → done
 ```
 
+A choice the owner states, or relays from a stakeholder, while an item is worked is an ADR in that turn (`/aidex:decision`), never only the item's Notes; the item links `decision/<file>` (`request-decision-conventions.md` § When to create a decision).
+
 Every state and rule lives once, in [references/01-backlog-conventions.md](references/01-backlog-conventions.md#lifecycle); this skill does not restate them. Move an item only through its script, never by editing `status`, `blocked_by` or the file's folder by hand: `start-item.sh` (`doing`; a `type: bug` item prints the RED→GREEN route), `defer-item.sh defer|reactivate` (`_deferred/`, not a close), `close-item.sh` (`done`/`dropped`, archived on close, D-10; with `--sweep` and every other row proven, an unanswered `owner` row parks the item as `awaiting: owner` instead).
 
 ---

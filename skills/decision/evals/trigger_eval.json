@@ -98,5 +98,25 @@
     "query": "There's a CORS issue when the frontend in dev tries to hit the backend. The error mentions Access-Control-Allow-Origin missing. Help me debug.",
     "should_trigger": false,
     "expected_behavior": "This is a debugging task, NOT decision."
+  },
+  {
+    "query": "Legal decidió que las facturas en PDF se conservan 10 años y que el enlace de descarga caduca a los 3 días. Actualiza el item del backlog con esto.",
+    "should_trigger": true,
+    "expected_behavior": "A stakeholder decision relayed mid-work, asked only as a backlog update (BL-906). Should record both choices in the existing ADR for the item (dated paragraph under Decision) and link it from the item."
+  },
+  {
+    "query": "The client confirmed: we drop the CSV export from v1 and ship it in v2.",
+    "should_trigger": true,
+    "expected_behavior": "A relayed scope decision. Should record a decision (new ADR or added to the item's existing one)."
+  },
+  {
+    "query": "The client confirmed the demo is Thursday at 10.",
+    "should_trigger": false,
+    "expected_behavior": "A relayed fact, not a choice: no ADR."
+  },
+  {
+    "query": "The client decided they would like a dark mode too. Can you put it on the backlog for later?",
+    "should_trigger": false,
+    "expected_behavior": "A relayed request parked for later (backlog), despite the word 'decided': no ADR."
   }
 ]

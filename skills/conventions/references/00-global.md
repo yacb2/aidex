@@ -286,7 +286,7 @@ refuses the write).
 | The state of a feature or repo, catalogued | an audit run (`audit-conventions.md`) |
 | Something to do later | a backlog item; the write-up above is its `origin_ref` |
 | A problem in code an external tracker owns | a backlog item with `raise` (routed from `--touches` under the backlog profile's `tracker_paths`); aidex files no ticket |
-| A choice that was made | a decision (ADR) |
+| A choice that was made | a decision (ADR), written in the turn the choice is stated (`request-decision-conventions.md` § When to create a decision) |
 | A finding that changes how a settled part works | update the module in `references/<topic>/` and stamp `updated`; the dated write-up stays in `research/` |
 
 One write-down has one home. When it spawns a backlog item or an ADR, link it; do not

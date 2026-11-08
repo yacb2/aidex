@@ -206,6 +206,14 @@ Per D-05 as amended by D-10, decisions in `superseded` or `dropped` status move 
 - Changing an established pattern or convention.
 - Trade-off decisions where the reasoning isn't obvious from the code.
 - Any decision you've reversed before or might reverse again.
+- A product, legal or business choice stated by the owner or relayed from a stakeholder
+  (a retention period a DPO set, a scope a client cut). It is recorded in the turn it is
+  stated, not when the work ends (BL-906: a DPO's decision reached only a backlog item).
+- If an `accepted` ADR already covers the same item, such a choice is added to it, as a
+  dated paragraph under **Decision** with `updated` stamped, rather than a second file; a
+  choice that reverses the ADR supersedes it instead (`superseded_by`), and the new ADR
+  restates whatever the old one held that still stands. A backlog item that receives such
+  a choice cites the ADR and never holds it alone.
 
 ### When NOT to create one
 

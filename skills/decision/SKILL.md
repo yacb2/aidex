@@ -1,6 +1,6 @@
 ---
 name: decision
-description: 'Use when the user has made an architectural, technical, or product decision and wants it recorded as a written `.context/decisions/` ADR — what was chosen, why, the alternatives, and the consequences — so the team does not re-litigate it later. Fires on "we decided X", "document this decision", "write an ADR", "record the decision to X", "log why we chose X", "we settled on X, write it up". Not for: planning multi-step work (/aidex:plan); deferring or parking an idea for later (/aidex:backlog); capturing a stakeholder/client request (/aidex:request), research notes (/aidex:research), or a settled reference (/aidex:reference); ecosystem audits (/aidex:aidex); project-state audits (/aidex:audit).'
+description: 'Use when an architectural, technical, or product decision was made, by the user or relayed from a stakeholder, and belongs recorded as a written `.context/decisions/` ADR — what was chosen, why, the alternatives, and the consequences — so the team does not re-litigate it later. Fires on "we decided X", "document this decision", "write an ADR", "record the decision to X", "log why we chose X", "we settled on X, write it up", "the DPO decided X", even when the prompt only asks to update a backlog item. Not for: planning multi-step work (/aidex:plan); deferring or parking an idea for later (/aidex:backlog); capturing a stakeholder/client request (/aidex:request), research notes (/aidex:research), or a settled reference (/aidex:reference); ecosystem audits (/aidex:aidex); project-state audits (/aidex:audit).'
 disable-model-invocation: false
 allowed-tools: Bash Read Write
 ---
@@ -19,7 +19,9 @@ lives in the shared `conventions` reference package (not forked here).
    (Decisions section; or `.claude/skills/conventions/references/request-decision-conventions.md`
    if a project-level copy exists).
 2. Create a single dated file: `.context/decisions/YYYY-MM-DD-<slug>.md`
-   (slug kebab-case; date `YYYY-MM-DD`).
+   (slug kebab-case; date `YYYY-MM-DD`), unless an `accepted` ADR already covers
+   the same item and the new choice does not reverse it: then add the choice to
+   it (canon § When to create a decision).
 3. Front-matter per the canon — decisions use the ADR status enum
    (`accepted` · `superseded` · `dropped`), **not** the base
    open/doing/done vocabulary. Set `superseded_by: decision/<filename>` when
