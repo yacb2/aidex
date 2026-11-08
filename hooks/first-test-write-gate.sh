@@ -27,8 +27,9 @@
 # python open/write_text; never cp/mv), resolved from the event's cwd across cd/pushd and
 # $VARs set earlier in the command; a path it cannot resolve is never denied. The test
 # patterns and the Bash
-# detector are IMPORTED from skills/testing/scripts/census.py, so the hook gates exactly
-# what the census counts. Any error, or a command it cannot parse, exits 0 with no output.
+# detector are IMPORTED from skills/testing/scripts/census.py, so the hook gates what the
+# census counts, minus throwaway paths under /tmp or a scratchpad segment, which the census
+# still counts (BL-909). Any error, or a command it cannot parse, exits 0 with no output.
 
 # -c, not a pipe or heredoc to `python3 -`: those consume the stdin the hook must read.
 PYSRC=$(cat <<'PY'
