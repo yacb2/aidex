@@ -249,6 +249,32 @@ A main-parity row per cell that `git show main:hooks/subagent-poll-guard.py` den
 this checkout allows it, so a bypass main closed cannot come back with an edited expectation;
 without a readable `main` the parity rows are skipped with a `SKIP main parity` line.
 
+## decision-capture-nudge.py — record an ADR when a decision lands in an item or plan (PostToolUse/Write, Edit, MultiEdit)
+
+Wired in `hooks.json` on its own `Write|Edit|MultiEdit` entry under `PostToolUse`. When the call
+writes under `/.context/backlog/` or `/.context/plans/` (not `_archive/`, not `00-index.md`) and
+the written text (`content`, `new_string`, or every `edits[].new_string`) holds a decision phrase
+(`decided`, `decision:` also as `**Decision**:` or `Decisión:`, `owner decision`, `agreed`, `settled on`, `chose`, `decidió`, `decidio`,
+`decidimos`, `acordamos`; case-insensitive, whole words, so `undecided` and `decisions` do not match),
+and no write under `/.context/decisions/`
+was seen this session, it adds one `additionalContext` message: record the choice before replying
+with `/aidex:decision` (appending to an existing accepted ADR when one covers it) and cite it from
+the item, skipping when the word records no choice (code or data vocabulary) or an ADR already holds it. It speaks once per session
+(the `spoke` file is created with `O_EXCL`). A subagent payload (`agent_id`) never speaks and never uses
+up the message, but its write under `decisions/` still counts for the session. There is no ADR-citation
+exemption: the session flag is the signal. State is
+`decision-capture-<session>-decided|spoke` under `${CLAUDE_CONFIG_DIR:-~/.claude}/tmp`, cleaned after 7
+days when it speaks. Missing or malformed input, or a missing session id, exits 0 silent. Known
+limits: writes through Bash (heredocs, `sed -i`) are not seen; Spanish wording beyond the list is
+not matched; an item that quotes an old decision can false-positive once.
+Why: BL-906, a decision that lands in a backlog item or plan and never reaches `decisions/`.
+
+**Tests:** `python3 test-decision-capture-nudge.py` — one table of 75 rows run through the script
+with a temp `CLAUDE_CONFIG_DIR`: path predicate (accept and refuse, `_archive/`, `00-index.md`,
+`decisions-old/`), each phrase plus `undecided`, `decisions`, `DECIDED`, an ADR citation that does not exempt, session state
+(suppression, once per session, another session, subagents, 7-day cleanup that survives a stale directory), the three tool shapes, malformed
+input and the output shape.
+
 ## docker-orphan-nudge.sh — compose projects whose working directory is gone (SessionStart, startup)
 
 At most once a day per project and config dir, one `systemMessage` line when the last

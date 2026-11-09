@@ -1,5 +1,5 @@
 {
-  "description": "aidex plugin hooks \u2014 memory hygiene nudge/gate, docker orphan nudge, references-root gate, generated-html edit gate, first-test-write gate, artifact open-once (+ wrap-without-open Stop check), context-depth nudge, subagent poll guard, opt-in delegation rule core (SessionStart, userConfig delegation_rule_core, default off)",
+  "description": "aidex plugin hooks \u2014 memory hygiene nudge/gate, docker orphan nudge, references-root gate, generated-html edit gate, first-test-write gate, artifact open-once (+ wrap-without-open Stop check), context-depth nudge, subagent poll guard, decision-capture nudge, opt-in delegation rule core (SessionStart, userConfig delegation_rule_core, default off)",
   "hooks": {
     "SessionStart": [
       {
@@ -83,6 +83,15 @@
           }
         ],
         "matcher": "Bash"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/decision-capture-nudge.py\""
+          }
+        ],
+        "matcher": "Write|Edit|MultiEdit"
       }
     ],
     "Stop": [
