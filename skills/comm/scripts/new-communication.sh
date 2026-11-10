@@ -122,7 +122,8 @@ inject_style() {
       close(bf); next
     }
     { print }
-  ' "$out" > "$out.tmp" && mv "$out.tmp" "$out"
+  ' "$out" > "$out.tmp" && mv "$out.tmp" "$out" \
+    || { rm -f "$out.tmp" "$out"; die "could not write the house style into $out (nothing scaffolded)"; }
 }
 
 usage() {

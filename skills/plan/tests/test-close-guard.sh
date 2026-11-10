@@ -154,5 +154,44 @@ fi
 [[ -f "$TD/.context/plans/_archive/2026-07-19-clean.md" ]] || fail "clean close did not archive"
 rm -rf "$TD"
 
+# --- a failed front-matter rewrite is not a close (same shape as close-item BL-926) ---
+#
+# `awk > tmp && mv` and `sed > tmp && mv` under set -e: a failing awk or sed skipped the
+# mv and the script went on, archived the plan with a stale status and printed "Closed".
+# Each cell: exit non-zero, plan byte-identical and still active, no .tmp, no "Closed".
+honest() {  # honest <label> <rc> <plan> <content before> <output>
+  if [[ $2 -eq 0 ]]; then fail "$1: reported success (exit 0) on a failed rewrite"
+  elif [[ "$(cat "$3" 2>/dev/null)" != "$4" ]]; then fail "$1: rc=$2 but the plan was mutated or moved"
+  elif [[ -e "$3.tmp" ]]; then fail "$1: rc=$2 but $3.tmp was left behind"
+  elif [[ "$5" == *"Closed plan"* ]]; then fail "$1: rc=$2 but printed 'Closed plan'"
+  elif [[ "$5" != *"$(basename "$3")"* ]]; then fail "$1: rc=$2 but the error does not name the plan: $5"
+  fi
+}
+# 13. awk fails AFTER the tmp exists (a stand-in: partial output, then exit 2)
+TD="$(make_project)"; PLAN="$TD/.context/plans/2026-07-19-awkfail.md"; write_plan "$PLAN" "[x]"
+BEFORE="$(cat "$PLAN")"; mkdir -p "$TD/shim"
+printf '#!/bin/sh\nfor a; do case "$a" in */plans/2026-07-19-awkfail.md) echo partial; exit 2;; esac; done\nexec %s "$@"\n' \
+  "$(command -v awk)" > "$TD/shim/awk"; chmod +x "$TD/shim/awk"
+OUT="$(cd "$TD" && PATH="$TD/shim:$PATH" NO_COLOR=1 bash "$SCRIPT" 2026-07-19-awkfail 2>&1)"; RC=$?
+honest "front-matter awk fails mid-write" "$RC" "$PLAN" "$BEFORE" "$OUT"
+rm -rf "$TD"
+
+# 14. the **Status:** sed fails AFTER the tmp exists
+TD="$(make_project)"; PLAN="$TD/.context/plans/2026-07-19-sedfail.md"; write_plan "$PLAN" "[x]"
+BEFORE="$(cat "$PLAN")"; mkdir -p "$TD/shim"
+printf '#!/bin/sh\nif [ -f /dev/stdout ]; then echo partial; exit 2; fi\nexec %s "$@"\n' \
+  "$(command -v sed)" > "$TD/shim/sed"; chmod +x "$TD/shim/sed"
+OUT="$(cd "$TD" && PATH="$TD/shim:$PATH" NO_COLOR=1 bash "$SCRIPT" 2026-07-19-sedfail 2>&1)"; RC=$?
+honest "Status-line sed fails mid-write" "$RC" "$PLAN" "$BEFORE" "$OUT"
+rm -rf "$TD"
+
+# 15. an unwritable plans/ directory (the redirect itself fails): no closing note lands
+TD="$(make_project)"; PLAN="$TD/.context/plans/2026-07-19-rodir.md"; write_plan "$PLAN" "[x]"
+BEFORE="$(cat "$PLAN")"; chmod a-w "$TD/.context/plans"
+OUT="$(cd "$TD" && NO_COLOR=1 bash "$SCRIPT" 2026-07-19-rodir --reason r 2>&1)"; RC=$?
+chmod u+w "$TD/.context/plans"
+honest "unwritable plans directory" "$RC" "$PLAN" "$BEFORE" "$OUT"
+rm -rf "$TD"
+
 if [[ "$FAILS" -gt 0 ]]; then echo "FAIL ($FAILS)"; exit 1; fi
-echo "OK — close-plan guard: 12 cells passed"
+echo "OK — close-plan guard: 15 cells passed"

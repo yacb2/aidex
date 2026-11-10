@@ -144,11 +144,13 @@ awk -v status="$STATUS" -v today="$TODAY" -v sup="$SUPERSEDED" -v commits="$COMM
     print; next
   }
   { print }
-' "$FM_FILE" > "$FM_FILE.tmp" && mv "$FM_FILE.tmp" "$FM_FILE"
-
+' "$FM_FILE" |
 # keep the Session Checkpoint's **Status:** line in lockstep with front-matter
-# (observed archive drift: front-matter done while the checkpoint still said open)
-sed -E "s/^\*\*Status:\*\*[[:space:]].*/**Status:** $STATUS/" "$FM_FILE" > "$FM_FILE.tmp" && mv "$FM_FILE.tmp" "$FM_FILE"
+# (observed archive drift: front-matter done while the checkpoint still said open).
+# One pipeline, one tmp, one mv: a failing awk or sed (pipefail) leaves the plan
+# untouched instead of archiving it half-rewritten and printing "Closed".
+sed -E "s/^\*\*Status:\*\*[[:space:]].*/**Status:** $STATUS/" > "$FM_FILE.tmp" && mv "$FM_FILE.tmp" "$FM_FILE" \
+  || { rm -f "$FM_FILE.tmp"; die "could not rewrite $FM_FILE (not closed)"; }
 
 [[ -n "$REASON" ]] && printf -- '\n> Closing note (%s): %s\n' "$TODAY" "$REASON" >> "$FM_FILE"
 

@@ -69,6 +69,19 @@ scaffold "sprint-2000-01-01-recap"
   || fail "mid-slug date: expected meetings/$TODAY-sprint-2000-01-01-recap untouched (rc=$RC; got: $(ls "$MEET" | tr '\n' ' '))"
 [[ -z "$(printf '%s\n' "$ERR" | grep -v communications/ | grep -F 2000-01-01)" ]] || fail "mid-slug date: printed a date note: $ERR"
 
+# A failed house-style injection (inject_style's `awk > tmp && mv`) leaves nothing behind:
+# a partial body.md.tmp, or a body.md with the raw {{STYLE}} line that makes the rerun
+# refuse to overwrite. A stand-in awk fails after the tmp exists (partial output, exit 2).
+SHIM="$ROOT/shim"; mkdir -p "$SHIM"
+printf '#!/bin/sh\nif [ -f /dev/stdout ]; then echo partial; exit 2; fi\nexec %s "$@"\n' "$(command -v awk)" > "$SHIM/awk"
+chmod +x "$SHIM/awk"
+SENT="$ROOT/.context/communications/sent/$TODAY-stylefail"
+ERR="$(cd "$ROOT" && PATH="$SHIM:$PATH" NO_COLOR=1 bash "$SCRIPT" sent stylefail 2>&1 >/dev/null)"; RC=$?
+if [[ $RC -eq 0 ]]; then fail "style injection failed but the script exited 0"
+elif [[ -e "$SENT/body.md.tmp" || -e "$SENT/body.md" ]]; then fail "style injection failed: left $(ls "$SENT" | tr '\n' ' ')behind"
+elif [[ "$ERR" == *"Communication scaffolded"* || "$ERR" != *"sent/$TODAY-stylefail/body.md"* ]]; then fail "style injection failed: the error does not name body.md or claims success: $ERR"
+fi
+
 if [[ $FAILURES -gt 0 ]]; then
   printf '\n%d check(s) failed\n' "$FAILURES"
   exit 1
