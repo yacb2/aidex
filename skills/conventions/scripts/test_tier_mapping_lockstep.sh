@@ -117,15 +117,28 @@ STD_CELL="$(canon_cell standard)"
 STD_MODEL="${STD_CELL%%/*}"; STD_EFFORT="${STD_CELL##*/}"
 for wf in "$WORKFLOWS"/*.workflow.js; do
   [ -e "$wf" ] || continue
+  # A script with a tier cell that carries no exec default would pass this loop vacuously.
+  case "${wf##*/}" in pipeline-with-gate*|fan-out-with-gate*)
+    grep -qE "model: .*p\.model \|\| '[a-z0-9.-]+'.*p\.effort \|\| '[a-z]+'" "$wf" \
+      || err "${wf##*/}: no \`p.model || 'x', ... p.effort || 'y'\` exec default found to compare" ;;
+  esac
   while IFS= read -r line; do
-    m="$(echo "$line" | sed -nE "s/.*model: p\.model \|\| '([a-z0-9.-]+)'.*/\1/p")"
-    e="$(echo "$line" | sed -nE "s/.*effort: p\.effort \|\| '([a-z]+)'.*/\1/p")"
+    m="$(echo "$line" | sed -nE "s/.*p\.model \|\| '([a-z0-9.-]+)'.*/\1/p")"
+    e="$(echo "$line" | sed -nE "s/.*p\.effort \|\| '([a-z]+)'.*/\1/p")"
     [ -z "$m" ] && [ -z "$e" ] && continue
     if [ "$m" != "$STD_MODEL" ] || [ "$e" != "$STD_EFFORT" ]; then
       err "${wf##*/}: exec default is $m/$e, canon says standard is $STD_MODEL/$STD_EFFORT"
     fi
   done < <(grep -E "p\.model \|\||p\.effort \|\|" "$wf")
 done
+
+# ---- 3c. the owner decision of 2026-11-10 is pinned ------------------------
+# One rule for who implements a phase: mechanical and standard both run sonnet/medium,
+# only hard stays on opus/high. Moving a cell is an owner decision, so it fails here
+# until this pin moves with it.
+[ "$(canon_cell mechanical)" = "sonnet/medium" ] || err "mechanical is $(canon_cell mechanical), owner decision 2026-11-10 says sonnet/medium"
+[ "$STD_CELL" = "sonnet/medium" ] || err "standard is $STD_CELL, owner decision 2026-11-10 says sonnet/medium"
+[ "$(canon_cell hard)" = "opus/high" ] || err "hard is $(canon_cell hard), owner decision 2026-11-10 says opus/high"
 
 # ---- 4. both consumers defer to the canon ---------------------------------
 for f in "$BATCH" "$TIERING"; do

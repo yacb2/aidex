@@ -437,9 +437,9 @@ Use one carrier per plan consistently; the derivation reads whichever the plan u
 
   | tier | model | effort | status |
   |---|---|---|---|
-  | `mechanical` | `fable` | `low` | measured 2026-09-07; `tools:` restricted, measured 2026-09-13 |
-  | `standard` | `opus` | `low` | measured 2026-10-04 (BL-470), N=3 per arm, opus/low 3/3 at 0.19x fable/low USD |
-  | `hard` | `opus` | `high` | default |
+  | `mechanical` | `sonnet` | `medium` | measured 2026-11-10 (BL-917), sonnet/medium 3/3 at USD 0.29 against fable/low 3/3 at 1.40; `tools:` restricted, measured 2026-09-13 on fable/low |
+  | `standard` (also the default when a phase names no tier) | `sonnet` | `medium` | owner decision 2026-11-10, aligned with the delegation rule (impl-sonnet is the default implementer; 2026-10-25 ADR, 477 vs 122 diffs) |
+  | `hard` | `opus` | `high` | default; the only tier that implements on opus |
   | `gate` — the verifier and arbiter of every batch shape | `sonnet` | `low` | default |
 
   **These are defaults, and they do not transfer across model generations.** Effort level
@@ -452,10 +452,20 @@ Use one carrier per plan consistently; the derivation reads whichever the plan u
   the tier exists for: the plan states how hard the work is, the run decides what to spend on
   it. Overriding is not a plan edit.
 
+  **One rule for who implements a phase (owner decision 2026-11-10).** `mechanical` moved
+  from `fable/low` to `sonnet/medium` and `standard` from `opus/low` to `sonnet/medium`; `hard`
+  stays `opus/high`. `mechanical`: BL-917 replayed the BL-335 phase on today's models, three runs
+  per cell, and `sonnet/medium` held the gate 3/3 at USD 0.29 against `fable/low` 3/3 at 1.40
+  (`opus/low` 2/3). `standard`: the 2026-10-25 ADR `impl-sonnet-default-implementer` (477 vs 122
+  diffs) makes sonnet the default implementer. The 2026-10-04 `opus/low` replay below is
+  superseded by this owner decision, not by a new replay. The history notes that follow
+  describe earlier cells and are kept as history. The `exec:` default in the workflow scripts
+  and `04-model-tiering.md` follow this table.
+
   **`standard` moved from `fable/low` to `opus/low` on 2026-10-04 (BL-470).** Re-measured
   with N=3 per arm: `opus/low` held the gate 3/3 at 0.19x the USD cost of `fable/low`.
   Note: `aidex_ws/.context/research/2026-10-04-plan-standard-tier-opus-5-5-remeasure.md`.
-  `mechanical` stays `fable/low` (not re-measured). The BL-321 measurement below is the
+  (Superseded 2026-11-10, see above.) The BL-321 measurement below is the
   history of the previous cell.
 
   **`standard` was measured on this suite's own phases (BL-321, 2026-09-07).** An archived

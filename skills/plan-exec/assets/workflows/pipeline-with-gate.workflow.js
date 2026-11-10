@@ -378,7 +378,7 @@ for (const p of cfg.phases) {
         // `agentType` is the only carrier for a TOOLSET (`agent()` has no `tools` option):
         // it names a registered agent definition whose `tools:` is the tier row's. Spread
         // conditionally — an `agentType: undefined` key is not the same as no key.
-        { label: `exec:${p.id}`, phase: 'Execute', schema: WORK_SCHEMA, model: isFirstGalleryBuild(p) ? 'opus' : p.model || 'opus', effort: isFirstGalleryBuild(p) ? 'high' : p.effort || 'low',
+        { label: `exec:${p.id}`, phase: 'Execute', schema: WORK_SCHEMA, model: isFirstGalleryBuild(p) ? 'opus' : p.model || 'sonnet', effort: isFirstGalleryBuild(p) ? 'high' : p.effort || 'medium',
           ...(p.agentType ? { agentType: p.agentType } : {}) }
       )),
   }

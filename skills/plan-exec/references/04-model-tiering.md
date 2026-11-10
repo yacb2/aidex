@@ -13,8 +13,8 @@ cost or quota; the effort column below is filled from it and moves when it moves
 | Step | Model | Effort |
 |---|---|---|
 | Orchestration in the main loop — between-phase review, commit per plan-exec discipline | the orchestrator model | the session's own |
-| Implementation agents — code that requires design judgment | `opus` | `high` |
-| Mechanical work — running suites, updating plan checkboxes, number swaps, adding mocks, `beforeEach` setup | `sonnet`, or `haiku` for the purely mechanical | `low` |
+| Implementation agents | the canon's `standard` cell (`sonnet`/`medium` by default); `opus`/`high` for phases the plan marks `hard` | see the canon |
+| Mechanical work — running suites, updating plan checkboxes, number swaps, adding mocks, `beforeEach` setup | the canon's `mechanical` cell (`sonnet`/`medium` by default) | see the canon |
 
 Default to one workflow per phase with this tiering.
 
