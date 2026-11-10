@@ -79,8 +79,9 @@ def verification_rows(text):
     for ln in section(fm_and_body(text)[1], 'Verification').splitlines():
         if not ln.startswith('|'):
             continue
-        cells = [c.strip() for c in ln.strip().strip('|').split('|')]
-        if not cells or cells[0] in ('kind', '') or re.match(r'^-+$', cells[0]):
+        # an escaped \| is cell text, not a separator (close-item.sh verification_rows)
+        cells = [c.strip().replace('\x1e', '|') for c in ln.strip().replace('\\|', '\x1e').strip('|').split('|')]
+        if not cells or cells[0] in ('kind', '') or re.match(r'^:?-+:?$', cells[0]):
             continue
         cells += [''] * (3 - len(cells))
         rows.append({'kind': cells[0], 'what': cells[1], 'proof': cells[2]})

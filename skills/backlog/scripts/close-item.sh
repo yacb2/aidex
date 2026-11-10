@@ -22,7 +22,9 @@
 #                               placeholder-proofs.txt — is no proof) and whose rows
 #                               meet the item's `surface` minimum; otherwise exit 2,
 #                               nothing mutated, nothing archived. An owner row that is
-#                               empty or a placeholder PARKS the item. Outside sweep
+#                               empty or a placeholder PARKS the item (--commit and
+#                               --escalated-to are written, --reason lands as a
+#                               `- Parked <date>` note). Outside sweep
 #                               mode the type: bug warning below is all there is.
 #   --reopen                    the reverse move for an item in _archive/ only: back to the
 #                               active root, `status: open`, `updated` stamped, a line
@@ -108,10 +110,11 @@ if [[ -z "$FILE" ]]; then
   die "cannot resolve target: $TARGET"
 fi
 
-[[ "$(dirname "$FILE")" == "$BACKLOG_DIR" ]] || die "target is not an active backlog item: $FILE"
+# a relative or symlinked path names the same file: compare physical directories
+[[ "$(cd "$(dirname "$FILE")" && pwd -P)" == "$(cd "$BACKLOG_DIR" && pwd -P)" ]] \
+  || die "target is not an active backlog item: $FILE"
 
 TODAY="$(date +%Y-%m-%d)"
-COMMITS_STR="${COMMITS[*]:-}"
 
 # --- every cited commit must be ON A TREE THIS RUN IS ACTUALLY IN ---
 # 2026-08-28: BL-635/636 cited a worktree branch's commits for hours while main carried
@@ -177,8 +180,17 @@ split_hint() {  # split_hint <sha> → prints the refusal tail; exit 1 when $ROO
   [[ $split -eq 1 ]] || return 1
   printf 'In a split workspace close after the merge, citing the merge sha (or the item commit, now reachable from the sub-repo main).'
 }
-for sha in "${COMMITS[@]:-}"; do
+for i in "${!COMMITS[@]}"; do
+  sha="${COMMITS[$i]}"
   [[ -n "$sha" ]] || continue
+  # A ref name (HEAD, a branch, a tag) moves; the record is the commit it names now (D-09),
+  # and it names it in the repo the caller is IN. Resolving it in the first searched repo
+  # that has a ref of that name stored the workspace's HEAD for a close run from a sub-repo.
+  if [[ ! "$sha" =~ ^[0-9a-fA-F]{4,40}$ ]]; then
+    sha="$(git rev-parse --short --verify --quiet "$sha^{commit}")" \
+      || die "--commit ${COMMITS[$i]} is a ref name and the repo you are in has no such commit: run from inside the repo it names, or cite the sha"
+    COMMITS[$i]="$sha"
+  fi
   rc=0; commit_on_trunk "$sha" >/dev/null || rc=$?
   case $rc in
     0) ;;
@@ -189,6 +201,7 @@ for sha in "${COMMITS[@]:-}"; do
        die "--commit $sha is not on the current branch of $SEARCHED — cite a commit that is here. In a single repo, run from inside the worktree that carries it; in a split workspace (code in a sub-repo) close after the merge, citing the merge sha." ;;
   esac
 done
+COMMITS_STR="${COMMITS[*]:-}"
 
 # --- sweep mode: proof is a precondition, not a warning (Q15/Q16) ---
 # The warning further down is what we had, and it is the 2.2% number: measured adoption
@@ -211,10 +224,11 @@ verification_rows() {  # -> "kind<TAB>what<TAB>proof" per data row
   awk 'BEGIN{insec=0}
     /^## /{insec=($0 ~ /^## Verification[[:space:]]*$/)}
     insec && /^\|/ {
-      line=$0; sub(/^\|/,"",line); sub(/\|[[:space:]]*$/,"",line)
+      # an escaped \| is cell text (GFM), not a separator: hide it from the split
+      line=$0; gsub(/\\\|/,"\036",line); sub(/^\|/,"",line); sub(/\|[[:space:]]*$/,"",line)
       n=split(line, c, "|")
-      for(i=1;i<=n;i++){gsub(/^[[:space:]]+|[[:space:]]+$/,"",c[i])}
-      if (c[1]=="kind" || c[1] ~ /^-+$/) next
+      for(i=1;i<=n;i++){gsub(/^[[:space:]]+|[[:space:]]+$/,"",c[i]); gsub(/\036/,"|",c[i])}
+      if (c[1]=="kind" || c[1] ~ /^:?-+:?$/) next
       # \x1f, not a tab: tab is IFS whitespace, so an empty `what` cell collapsed and
       # the proof landed in the what slot — a proven row refused with a misleading message.
       printf "%s\037%s\037%s\n", c[1], c[2], c[3]
@@ -232,7 +246,6 @@ if [[ $SWEEP -eq 1 && "$STATUS" == "done" ]]; then
   [[ -n "$ROWS" ]] || die "sweep close refused: $(basename "$FILE") has no ## Verification rows — one row per criterion (kind | what | proof), then close again"
   has_test=0 has_e2e=0 has_smoke=0 has_owner_proof=0 owner_open=0 missing=""
   while IFS=$'\037' read -r kind what proof; do
-    [[ -n "$kind" ]] || continue
     case "$kind" in
       test|e2e|smoke|owner) ;;
       *) die "sweep close refused: ## Verification row has kind '$kind' (test|e2e|smoke|owner)" ;;
@@ -260,19 +273,27 @@ if [[ $SWEEP -eq 1 && "$STATUS" == "done" ]]; then
   if [[ $owner_open -gt 0 ]]; then
     # Park, do not close: everything mechanical is proven, a judgement is still owed.
     # The resolving commits are kept too: a parked item is proven work whose sha was
-    # otherwise lost until the owner closed it by hand (BL-499, 2026-08-28).
-    awk -v today="$TODAY" -v commits="$COMMITS_STR" "$MERGE_AWK"'BEGIN{d=0;seen=0;seen_c=0}
+    # otherwise lost until the owner closed it by hand (BL-499, 2026-08-28). --escalated-to
+    # and --reason are kept for the same reason (BL-926); the reason note says Parked, not Closed.
+    awk -v today="$TODAY" -v commits="$COMMITS_STR" -v esc="$ESCALATED" "$MERGE_AWK"'BEGIN{d=0;seen=0;seen_c=0;seen_esc=0}
       /^---[[:space:]]*$/ { d++
         if (d==2 && !seen) print "awaiting: owner"
         if (d==2 && commits!="" && !seen_c) print "commits: \"" merge("", commits) "\""
+        if (d==2 && esc!="" && !seen_esc) print "escalated_to: \"" esc "\""
         print; next }
       d==1 && /^awaiting:/ { print "awaiting: owner"; seen=1; next }
+      # escalated_to ACCUMULATES on an active item (register-item.sh stamp_escalated_to, BL-360)
+      d==1 && esc!="" && /^escalated_to:/ { val=$0; sub(/^escalated_to:[[:space:]]*/,"",val); gsub(/^"|"[[:space:]]*$/,"",val)
+        n=split(val, e, /, */); dup=0; for (k=1; k<=n; k++) if (e[k]==esc) dup=1
+        print "escalated_to: \"" (val=="" ? esc : (dup ? val : val ", " esc)) "\""; seen_esc=1; next }
       d==1 && commits!="" && /^commits:/ { val=$0; sub(/^commits:[[:space:]]*/,"",val); gsub(/"/,"",val)
         if (val=="" || val=="[]") val=""
         print "commits: \"" merge(val, commits) "\""
         seen_c=1; next }
       d==1 && /^updated:/ { print "updated: " today; next }
-      { print }' "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE"
+      { print }' "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE" \
+      || { rm -f "$FILE.tmp"; die "could not rewrite the front matter of $FILE (not parked)"; }
+    [[ -z "$REASON" ]] || printf -- '\n- Parked %s (awaiting owner): %s\n' "$TODAY" "$REASON" >> "$FILE"
     [[ $NO_INDEX -eq 1 ]] || bash "$SCRIPT_DIR/register-item.sh" --reindex >/dev/null 2>&1 || true
     printf 'parked: %s awaits the owner (%d owner row(s) unanswered) — not closed, not archived; fill the proof cell(s) and close again\n' "$(basename "$FILE")" "$owner_open"
     exit 0
@@ -313,7 +334,8 @@ awk -v status="$STATUS" -v today="$TODAY" -v sup="$SUPERSEDED" -v esc="$ESCALATE
     print; next
   }
   { print }
-' "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE"
+' "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE" \
+  || { rm -f "$FILE.tmp"; die "could not rewrite the front matter of $FILE (not closed)"; }
 
 # --- optional closing note ---
 if [[ -n "$REASON" ]]; then
@@ -342,7 +364,11 @@ if [[ "$STATUS" == "done" ]]; then
     # HTML comments are stripped first: a template comment must never read as proof.
     # python, not sed: BSD sed reads `:a; s/…` as one label name, emits the input
     # unchanged and exits 0 — a silent no-op (found by review 2026-08-27).
-    BODY_NO_COMMENTS="$(python3 -c 'import re,sys; print(re.sub(r"<!--.*?-->", "", open(sys.argv[1]).read(), flags=re.S))' "$FILE")"
+    # This step is warn-only and runs after the front matter is written: it must not abort
+    # the close (BL-926). errors="replace" for a non-UTF-8 byte; an empty body (so: the
+    # warning) when python3 itself fails.
+    BODY_NO_COMMENTS="$(python3 -c 'import re,sys; print(re.sub(r"<!--.*?-->", "", open(sys.argv[1], errors="replace").read(), flags=re.S))' "$FILE")" \
+      || BODY_NO_COMMENTS=""
     if [[ $HAS_PROOF -eq 0 ]] && ! { grep -qE '\bRED\b' <<<"$BODY_NO_COMMENTS" && grep -qE '\bGREEN\b' <<<"$BODY_NO_COMMENTS"; }; then
       warn "bug item closing with no RED->GREEN proof (no proof_links, no RED/GREEN line in the body)"
       warn "  the regression test is what proves this bug fixed — see bugfix, and the"

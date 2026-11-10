@@ -341,4 +341,16 @@ grep -q 'gate policy publish `never`' <<<"$RPB" \
   && ok "BL-815: a work-list made with --publish never anchors as publish never" || bad "anchor publish never: $(grep 'gate policy' <<<"$RPB")"
 rm -f "$WLP"
 
+# BL-926: the Verification reader agrees with close-item.sh's: an escaped \| is cell text,
+# a colon-aligned separator row is not a data row
+ROWS="$(python3 -B - "$SCRIPTS/sweep-report.py" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("sr", sys.argv[1]); sr = importlib.util.module_from_spec(spec); spec.loader.exec_module(sr)
+text = "---\nid: BL-1\n---\n## Verification\n| kind | what | proof |\n|:---|:---:|---:|\n| owner | grep a \\| wc -l | |\n| test | t | 1 passed |\n"
+for r in sr.verification_rows(text): print("%s/%s/%s" % (r["kind"], r["what"], r["proof"]))
+PY
+)"
+[[ "$ROWS" == "owner/grep a | wc -l/
+test/t/1 passed" ]] && ok "BL-926: escaped pipe kept in the cell, :--- separator skipped" || bad "verification rows: $ROWS"
+
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — sweep report: $PASS cells"; exit 0; }; echo "$FAIL failure(s)"; exit 1

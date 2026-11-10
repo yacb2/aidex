@@ -36,4 +36,17 @@ git worktree add -q "$TMP/wt" -b wt 2>/dev/null
 mkdir -p "$TMP/wt/.context/backlog"; mk "$TMP/wt" 2026-01-04-noid.md ''
 expect "from a linked worktree the main tree's claims count" BL-010 "$TMP/wt"
 
-[[ $FAIL -eq 0 ]] && echo "OK — migrate-ids: 4 cells" || exit 1
+# BL-926: a failed --apply rewrite is not "assigned": exit non-zero, item byte-identical, no .tmp
+honest() { # honest <label> <dir>  (runs --apply in <dir>; PATH as the caller set it)
+  local f="$2/.context/backlog/2026-01-04-noid.md" before out rc; before="$(cat "$f")"
+  out="$(cd "$2" && bash "$SCRIPTS/migrate-ids.sh" --apply 2>&1)"; rc=$?
+  [[ $rc -ne 0 && "$(cat "$f")" == "$before" && ! -e "$f.tmp" && "$out" != *assigned* ]] && echo "ok: $1" || fail "$1: rc=$rc tmp=$([[ -e "$f.tmp" ]] && echo left) $out"
+}
+fresh; mk "$P" 2026-01-04-noid.md ''; chmod a-w "$P/.context/backlog"
+honest "--apply in an unwritable dir fails, nothing assigned" "$P"; chmod u+w "$P/.context/backlog"
+# an awk that fails AFTER the tmp exists: partial output into a regular-file stdout, exit 2
+mkdir -p "$TMP/shim"; printf '#!/bin/sh\nif [ -f /dev/stdout ]; then echo partial; exit 2; fi\nexec %s "$@"\n' "$(command -v awk)" > "$TMP/shim/awk"; chmod +x "$TMP/shim/awk"
+fresh; mk "$P" 2026-01-04-noid.md ''
+PATH="$TMP/shim:$PATH" honest "--apply whose awk fails mid-write leaves no .tmp" "$P"
+
+[[ $FAIL -eq 0 ]] && echo "OK — migrate-ids: 6 cells" || exit 1

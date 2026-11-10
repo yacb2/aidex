@@ -78,8 +78,8 @@ if [[ $sweep -eq 1 ]]; then
       if [[ -z "$proof" ]] || proof_is_placeholder "$proof"; then owner_open="$owner_open
       - $id: $what"; fi
     done < <(awk 'BEGIN{s=0} /^## /{s=($0 ~ /^## Verification[[:space:]]*$/)} s && /^\|/ {
-        l=$0; sub(/^\|/,"",l); sub(/\|[[:space:]]*$/,"",l); n=split(l,c,"|")
-        for(i=1;i<=n;i++){gsub(/^[[:space:]]+|[[:space:]]+$/,"",c[i])}
+        l=$0; gsub(/\\\|/,"\036",l); sub(/^\|/,"",l); sub(/\|[[:space:]]*$/,"",l); n=split(l,c,"|")
+        for(i=1;i<=n;i++){gsub(/^[[:space:]]+|[[:space:]]+$/,"",c[i]); gsub(/\036/,"|",c[i])}
         if (c[1]=="owner") printf "%s\037%s\n", c[2], c[3] }' "$f")
   done < <(wl_queue_grep "$file" "$WL_QUEUE_ITEM.*<!-- ref: backlog -->")
   # `[[ -n ]]`-free: an empty section is fine; an unchecked deferral with no BL-NNN / CLOSE: is not

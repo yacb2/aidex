@@ -69,7 +69,9 @@ if [[ -z "$FILE" ]]; then
   die "cannot resolve target: $TARGET"
 fi
 
-[[ "$(dirname "$FILE")" == "$BACKLOG_DIR" ]] || die "target is not an active backlog item: $FILE"
+# a relative or symlinked path names the same file: compare physical directories (BL-926)
+[[ "$(cd "$(dirname "$FILE")" && pwd -P)" == "$(cd "$BACKLOG_DIR" && pwd -P)" ]] \
+  || die "target is not an active backlog item: $FILE"
 
 TODAY="$(date +%Y-%m-%d)"
 
@@ -83,7 +85,8 @@ awk -v today="$TODAY" '
     print; next
   }
   { print }
-' "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE"
+' "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE" \
+  || { rm -f "$FILE.tmp"; die "could not rewrite the front matter of $FILE (not started)"; }
 
 TYPE="$(read_field "$FILE" type)"
 TITLE="$(read_field "$FILE" title)"

@@ -161,4 +161,28 @@ park_commits "repo labels kept verbatim" 'commits: "backend aaaaaaa"' bbbbbbb 'c
 park_commits "same commit, short vs full" 'commits: "abc1234"' abc1234def5678 'commits: "abc1234"'
 park_commits "spaces after the closing quote are trimmed" 'commits: "aaaaaaa"   ' bbbbbbb 'commits: "aaaaaaa bbbbbbb"'
 
+# BL-926: the park branch drops no caller-supplied field. escalated_to ACCUMULATES on an
+# active item as a comma scalar (register-item.sh stamp_escalated_to, BL-360), so a park
+# adds the ref to what is there; --reason lands as a Parked note, never a Closed one.
+park_esc() { # park_esc <label> <existing escalated_to line or ''> <--escalated-to> <expected line>
+  local f id
+  f="$(reg --title "park esc $1" --surface ops)"; id="$(idof "$f")"
+  add_row "$f" smoke "census" "proofs/census.txt: 0 findings"; add_row "$f" owner "wording" ""
+  if [[ -n "$2" ]]; then sed -i.bak "s|^escalated_to:.*|$2|" "$f" && rm -f "$f.bak"; else sed -i.bak '/^escalated_to:/d' "$f" && rm -f "$f.bak"; fi
+  bash "$SCRIPTS/close-item.sh" "$id" --sweep --escalated-to "$3" --no-index >/dev/null 2>&1
+  [[ -f "$f" ]] && grep -q '^awaiting: owner$' "$f" && [[ "$(grep -c '^escalated_to:' "$f")" == 1 && "$(grep '^escalated_to:' "$f")" == "$4" ]] \
+    && ok "park escalated_to: $1" || bad "park escalated_to $1: $(grep '^escalated_to:' "$f" 2>&1)"
+}
+park_esc "empty value" 'escalated_to: ""' plan/p 'escalated_to: "plan/p"'
+park_esc "no escalated_to line" '' plan/p 'escalated_to: "plan/p"'
+park_esc "accumulates onto an existing link" 'escalated_to: "a/BL-1"' plan/p 'escalated_to: "a/BL-1, plan/p"'
+park_esc "accumulates onto an unquoted link" 'escalated_to: a/BL-1' plan/p 'escalated_to: "a/BL-1, plan/p"'
+park_esc "a ref already there is not repeated" 'escalated_to: "a/BL-1, plan/p"' plan/p 'escalated_to: "a/BL-1, plan/p"'
+park_esc "a ref that only contains the new one is no match" 'escalated_to: "plan/pq"' plan/p 'escalated_to: "plan/pq, plan/p"'
+PR="$(reg --title "park reason" --surface ops)"; PRID="$(idof "$PR")"
+add_row "$PR" smoke "census" "proofs/census.txt: 0 findings"; add_row "$PR" owner "wording" ""
+bash "$SCRIPTS/close-item.sh" "$PRID" --sweep --reason "did the mechanical part" --no-index >/dev/null 2>&1
+grep -qxF -- "- Parked $(date +%Y-%m-%d) (awaiting owner): did the mechanical part" "$PR" && ! grep -q '^- Closed' "$PR" \
+  && ok "park appends --reason as a Parked note, never a Closed one" || bad "park reason: $(tail -3 "$PR")"
+
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — verification gate: $PASS cells"; exit 0; }; echo "$FAIL failure(s)"; exit 1

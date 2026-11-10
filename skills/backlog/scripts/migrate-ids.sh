@@ -71,7 +71,7 @@ for f in $(printf '%s\n' "$BACKLOG_DIR"/*.md | sort) $(printf '%s\n' "$BACKLOG_D
     awk -v id="$newid" '
       !done && /^title:/ { print; print "id: " id; done=1; next }
       { print }
-    ' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+    ' "$f" > "$f.tmp" && mv "$f.tmp" "$f" || { rm -f "$f.tmp"; die "could not write the id into $f"; }
     echo "assigned $newid -> $base"
   else
     echo "[dry-run] would assign $newid -> $base"

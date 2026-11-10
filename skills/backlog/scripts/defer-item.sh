@@ -76,7 +76,9 @@ if [[ "$ACTION" == "defer" ]]; then
   [[ -n "$REASON" ]] || die "--reason \"<blocker>\" is required when deferring"
   FILE="$(resolve_backlog_target "$BACKLOG_DIR" "$TARGET" read_id fuzzy)"
   [[ -n "$FILE" && -f "$FILE" ]] || die "cannot resolve active backlog item: $TARGET"
-  [[ "$(dirname "$FILE")" == "$BACKLOG_DIR" ]] || die "target is not an active backlog item: $FILE"
+  # a relative or symlinked path names the same file: compare physical directories (BL-926)
+  [[ "$(cd "$(dirname "$FILE")" && pwd -P)" == "$(cd "$BACKLOG_DIR" && pwd -P)" ]] \
+    || die "target is not an active backlog item: $FILE"
   DEST="$DEFERRED_DIR/$(basename "$FILE")"
   [[ -e "$DEST" ]] && die "_deferred collision: $DEST already exists"
 
@@ -137,7 +139,8 @@ elif [[ "$ACTION" == "reactivate" ]]; then
   [[ -d "$DEFERRED_DIR" ]] || die "no _deferred/ directory at $DEFERRED_DIR"
   FILE="$(resolve_backlog_target "$DEFERRED_DIR" "$TARGET" read_id fuzzy)"
   [[ -n "$FILE" && -f "$FILE" ]] || die "cannot resolve deferred item: $TARGET"
-  [[ "$(dirname "$FILE")" == "$DEFERRED_DIR" ]] || die "target is not a deferred item: $FILE"
+  [[ "$(cd "$(dirname "$FILE")" && pwd -P)" == "$(cd "$DEFERRED_DIR" && pwd -P)" ]] \
+    || die "target is not a deferred item: $FILE"
   DEST="$BACKLOG_DIR/$(basename "$FILE")"
   [[ -e "$DEST" ]] && die "active collision: $DEST already exists"
 
