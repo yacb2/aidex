@@ -1,6 +1,6 @@
 ---
 name: plugin-auditor
-description: Launched by /aidex:aidex audit; not for direct use. Returns uninstall candidates by subagent cost vs usage.
+description: Launched by /aidex:aidex audit; not for direct use.
 model: haiku
 effort: high
 tools: Read, Grep, Glob, Bash

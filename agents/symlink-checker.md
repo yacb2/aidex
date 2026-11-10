@@ -1,6 +1,6 @@
 ---
 name: symlink-checker
-description: Launched by /aidex:aidex audit; not for direct use. Returns broken symlinks in .claude/.
+description: Launched by /aidex:aidex audit; not for direct use.
 model: haiku
 effort: low
 tools: Read, Glob, Bash

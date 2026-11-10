@@ -1,6 +1,6 @@
 ---
 name: reference-refuter
-description: Launched by /aidex:reference step 5 (close gate); not for direct use. Returns a verdict per claim of a reference module.
+description: Launched by /aidex:reference step 5 (close gate); not for direct use.
 model: sonnet
 tools: Read, Grep, Glob, Bash
 effort: high

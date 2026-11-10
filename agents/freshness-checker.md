@@ -1,6 +1,6 @@
 ---
 name: freshness-checker
-description: Launched by /aidex:aidex audit; not for direct use. Returns stale documentation artifacts.
+description: Launched by /aidex:aidex audit; not for direct use.
 model: haiku
 effort: medium
 tools: Read, Grep, Glob, Bash, WebFetch

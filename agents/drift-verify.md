@@ -1,6 +1,6 @@
 ---
 name: drift-verify
-description: Launched by /aidex:reference drift's Workflow; not for direct use. Refutes a list of facts against the code they cite and returns a verdict per fact. Read-only.
+description: Launched by /aidex:reference drift's Workflow; not for direct use.
 model: sonnet
 effort: high
 omitClaudeMd: true

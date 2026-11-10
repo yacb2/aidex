@@ -1,6 +1,6 @@
 ---
 name: backlog-reader
-description: Launched by /aidex:backlog detect-resolved; not for direct use. Reads a batch of backlog items (about five) and the paths and commits each cites, and returns one verdict per item (resolved / partially / not) with a cited path or commit. Read-only; never closes or edits an item.
+description: Launched by /aidex:backlog detect-resolved; not for direct use.
 model: sonnet
 tools: Read, Grep, Glob, Bash
 effort: low

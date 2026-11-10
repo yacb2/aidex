@@ -1,6 +1,6 @@
 ---
 name: context-auditor
-description: Launched by /aidex:aidex audit; not for direct use. Returns structural findings on .context/ content.
+description: Launched by /aidex:aidex audit; not for direct use.
 model: sonnet
 effort: low
 tools: Read, Grep, Glob, Bash

@@ -1,6 +1,6 @@
 ---
 name: drift-compare
-description: Launched by /aidex:reference drift's Workflow; not for direct use. Compares one code unit's confirmed facts with the reference modules that cover it and reports stale, wrong or missing items with code evidence. Read-only.
+description: Launched by /aidex:reference drift's Workflow; not for direct use.
 model: sonnet
 effort: medium
 omitClaudeMd: true

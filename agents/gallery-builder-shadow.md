@@ -1,6 +1,6 @@
 ---
 name: gallery-builder-shadow
-description: Launched by /aidex:ui-contract beside aidex:gallery-builder on a first build, as a measured shadow (BL-820); not for direct use. Builds the same gallery on sonnet at medium effort in a separate worktree. Its output is never applied and never shown as the result; it exists to be compared with the live builder's. Never commits.
+description: Launched by /aidex:ui-contract beside aidex:gallery-builder on a first build, as a measured shadow (BL-820); not for direct use.
 model: sonnet
 effort: medium
 tools: Bash, Read, Edit, Write, Grep, Glob

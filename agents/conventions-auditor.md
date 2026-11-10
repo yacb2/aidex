@@ -1,6 +1,6 @@
 ---
 name: conventions-auditor
-description: Launched by /aidex:aidex audit; not for direct use. Returns validate.py violations as aidex findings.
+description: Launched by /aidex:aidex audit; not for direct use.
 model: haiku
 effort: low
 tools: Read, Bash
