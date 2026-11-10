@@ -81,14 +81,17 @@ for depth, expect in [(199_999, "SILENT"), (200_000, "Nothing to do yet"),
                       # Band 3's marker is its cost statement, not a recommendation:
                       # the wording that told the assistant what to decide is gone.
                       (299_999, "stops paying for itself"),
-                      (300_000, "Over half of all input spend"),
-                      (900_000, "Over half of all input spend")]:
+                      (300_000, "the deepest band"),
+                      (900_000, "the deepest band")]:
     sid = f"TEST-b{depth}"
     clean(sid)
     got = fire(transcript(f"t{depth}", depth), sid)
     check(f"{depth:>9,} -> {expect}", (got == "SILENT") if expect == "SILENT" else (expect in got), got)
     # The 1.4x latency claim was an Opus 5 figure that no longer holds; no band may state a slowdown.
     check(f"{depth:>9,} -> no slowdown claim", "slower" not in got and "1.4x" not in got, got)
+    # Band 3's "over half of input spend / plateaued" claim was Opus 5 only (BL-920).
+    check(f"{depth:>9,} -> no spend or plateau claim",
+          not any(w in got for w in ("Over half", "input spend", "plateaued")), got)
     clean(sid)
 
 print("\n=== 2. depth is max-over-iterations, not the billed sum ===")
@@ -116,7 +119,7 @@ clean(sid)
 p1, p3 = transcript("g1", 210_000), transcript("g3", 350_000)
 r = [fire(p1, sid) for _ in range(3)]
 check("band 1 fires once", "Nothing to do yet" in r[0] and r[1] == "SILENT" and r[2] == "SILENT", r)
-check("band 3 still escalates", "Over half of all input spend" in fire(p3, sid), "")
+check("band 3 still escalates", "the deepest band" in fire(p3, sid), "")
 check("no downgrade re-fire", fire(p1, sid) == "SILENT", "")
 clean(sid)
 
@@ -200,7 +203,7 @@ with open(path, "a") as f:
         "role": "assistant", "model": "<synthetic>", "usage": ZERO,
         "content": [{"type": "text", "text": "API Error: 429"}]}}) + "\n")
 got = fire(path, sid)
-check("API-error entry after a 320k turn still fires band 3", "Over half of all input spend" in got, got)
+check("API-error entry after a 320k turn still fires band 3", "the deepest band" in got, got)
 clean(sid)
 
 sid = "TEST-torn"
@@ -209,7 +212,7 @@ path = transcript("torn", 320_000)
 with open(path, "a") as f:
     f.write('{"type":"assistant","message":{"usage":{"input_tok')   # no newline: mid-write
 got = fire(path, sid)
-check("partially written last line is skipped, not fatal", "Over half of all input spend" in got, got)
+check("partially written last line is skipped, not fatal", "the deepest band" in got, got)
 clean(sid)
 
 print("\n=== 9. state follows CLAUDE_CONFIG_DIR, never a hard-coded ~/.claude ===")

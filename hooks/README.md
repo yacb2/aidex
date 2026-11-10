@@ -49,7 +49,9 @@ the candidates.
 These are Opus 5 measurements (2026-08-13). The re-derivation of 2026-11-10 did not
 find them on Opus 5.5 or Fable 5.1: 1.03x and 1.02x at 150-200k, and 5.2% and 7.5% of
 input tokens at 300k or deeper. The bands are kept unchanged pending a re-derivation
-that includes Fable 5.2, and the message no longer states a slowdown figure.
+that includes Fable 5.2, and the message no longer states a slowdown figure. 2026-11-10 (BL-920): band 3 no
+longer says that over half of input spend sits above 300k or that the speed loss has
+plateaued; it states the depth and points to who makes the call.
 
 **Why it counts but does not decide.** It does not judge whether to hand off and
 does not fire one. The retired durability Stop hook (`2ca548a`) ran a `claude -p`
@@ -82,7 +84,7 @@ reads as 40% and colours green under a percentage scheme.
 > `transcript_path` with the same `max`-over-iterations rule this hook uses, and
 > fall back to `context_window` only when no transcript is available.
 
-**Tests:** `python3 test-context-depth-nudge.py` — 54 checks, self-contained
+**Tests:** `python3 test-context-depth-nudge.py` — 61 checks, self-contained
 (synthetic transcripts, no dependency on real ones). Covers exact band boundaries,
 the max-over-iterations rule, post-compaction depth drops, once-per-band gating
 with escalation, six fail-open paths, and the non-blocking output shape.
