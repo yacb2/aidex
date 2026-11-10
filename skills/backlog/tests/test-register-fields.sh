@@ -103,5 +103,13 @@ printf '%s' "$(fm "$SRC" escalated_to)" | tr ',' '\n' | sed 's/^ *//' \
   | grep >/dev/null -vE '^[A-Za-z0-9_.-]+/BL-[0-9]+$' \
   && bad "a fan-out element is not a <repo>/BL-NNN ref: '$(fm "$SRC" escalated_to)'" \
   || ok "every fan-out element keeps the cross-repo ref format"
+# The stamp reads the existing value through the same normaliser as close-item.sh's park and
+# close: blanks after a hand-written closing quote were read into the value, and the stamp
+# wrote a broken scalar ("a/BL-1"  , r1/BL-NNN") (BL-926 N2 sibling).
+SRC2="$(bash "$REG" --origin manual --title "stamp a hand-edited line" 2>/dev/null | sed -n 1p)"
+sed -i.bak 's|^escalated_to:.*|escalated_to: "a/BL-1"  |' "$SRC2" && rm -f "$SRC2.bak"
+bash "$REG" --origin manual --title "stamp it" --escalate-to "$TMP/r2" --source-id "$(fm "$SRC2" id)" >/dev/null 2>&1
+grep -qE '^escalated_to: "a/BL-1, r2/BL-[0-9]+"$' "$SRC2" && ok "a stamp onto a value with blanks after its closing quote stays one scalar" \
+  || bad "stamp onto a hand-edited line: '$(grep '^escalated_to:' "$SRC2")'"
 
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — register fields: $PASS cells round-trip"; exit 0; }; echo "$FAIL failure(s)"; exit 1

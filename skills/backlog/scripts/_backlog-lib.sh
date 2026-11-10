@@ -17,6 +17,21 @@ function merge(val, add,   n, a, m, t, i, j, dup, out) {
 }
 '
 
+# escalated_to ACCUMULATES as a comma-separated scalar (BL-360; validate.py splits it on the
+# comma). esc_line(line, add) is the whole new line: the existing line ("" when there is none)
+# plus each ref of `add` (itself a comma list) not already there, every element trimmed and
+# unquoted before it is compared, so `plan/p ` and `plan/p` are one ref (BL-926). A trailing
+# ` # comment` on the existing line is YAML's, not the value's, and is dropped.
+ESC_AWK='function esc_trim(s) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", s)
+  if (s ~ /^".*"$/ || s ~ /^\047.*\047$/) s = substr(s, 2, length(s) - 2)
+  return s }
+function esc_line(line, add,   n, e, k, x, out) {
+  sub(/^escalated_to:/, "", line); sub(/[[:space:]]+#.*$/, "", line); out = ""; n = split(esc_trim(line) "," add, e, ",")
+  for (k = 1; k <= n; k++) { x = esc_trim(e[k]); if (x != "" && index(", " out ", ", ", " x ", ") == 0) out = out (out == "" ? "" : ", ") x }
+  return "escalated_to: \"" out "\""
+}
+'
+
 # append_commit <file> <shas>: merge the shas into the front-matter `commits:` line, or add the
 # line before the closing `---`. A sha already recorded (a whole token of that line, equal or
 # short/full prefix) returns before any rewrite, so a non-canonical line is never normalised.

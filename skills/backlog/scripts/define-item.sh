@@ -126,7 +126,8 @@ _prof="$(resolve_profile "${_abs%/backlog/*}" backlog)" && PATTERN="$(profile_fi
 PATTERN="${PATTERN#"${PATTERN%%[![:space:]]*}"}"; PATTERN="${PATTERN%"${PATTERN##*[![:space:]]}"}"
 # blocked_by and escalated_to carry lifecycle invariants: a _deferred/ item's blocked_by is
 # defer-item.sh's and must stay populated, an archived item's escalated_to is its close
-# record. Active means directly under some project's backlog/ (the item may be another
+# record (close-item.sh keeps every link the item already had, so a stale one is dropped
+# here BEFORE the close). Active means directly under some project's backlog/ (the item may be another
 # project's, so the cwd's BACKLOG_DIR is not the test). The logical folder counts too: a
 # .context/backlog symlinked to a folder named otherwise is still the active root.
 if [[ $SET_BLOCKED -eq 1 || $SET_ESCALATED -eq 1 ]]; then

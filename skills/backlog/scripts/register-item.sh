@@ -347,27 +347,23 @@ resolve_source_by_id() {
 # front-matter parser — reads one line as one string; validate.py splits on the comma and
 # judges each element.
 stamp_escalated_to() {
-  local f="$1" ref="$2" today prev merged tmp lock rc=0
+  local f="$1" ref="$2" today tmp lock rc=0
   today="$(date +%Y-%m-%d)"
-  # The read below and the rename at the end are one critical section: a `prev` read
-  # outside the lock still loses a concurrent run's link.
+  # The read of the existing value (inside the awk below) and the rename at the end are one
+  # critical section: a read outside the lock still loses a concurrent run's link.
   lock="$(backlog_lock_file "$BACKLOG_DIR")" && lock_take "$lock" 10 || die "could not stamp $f: the backlog is locked"
-  # Inline, not read_field: that helper is defined INSIDE the --list block (line ~859)
-  # and does not exist here.
-  prev="$(awk 'BEGIN{d=0} /^---[[:space:]]*$/{d++; if(d==2) exit; next} d==1 && index($0,"escalated_to:")==1 {sub(/^[^:]*:[[:space:]]*/,""); gsub(/^\"|\"$/,""); print; exit}' "$f")"
-  # No de-duplication: every escalation mints a NEW counterpart id, so the same
-  # <repo>/<id> pair cannot be produced twice by this flow. A guard for it would be
-  # untestable code standing in for a case that cannot happen.
-  merged="${prev:+$prev, }$ref"
+  # esc_line (_backlog-lib.sh) is close-item.sh's accumulation too. Its de-duplication never
+  # fires here (every escalation mints a NEW counterpart id); its element trim is what keeps
+  # a hand-edited `"a/BL-1"  ` from being read into the value (BL-926).
   # A private temp file beside the item (atomic rename) that takes its mode (cp -p).
-  tmp="$(mktemp "$(dirname "$f")/.$(basename "$f").XXXXXX")" && cp -p "$f" "$tmp" && awk -v ref="$merged" -v today="$today" '
+  tmp="$(mktemp "$(dirname "$f")/.$(basename "$f").XXXXXX")" && cp -p "$f" "$tmp" && awk -v ref="$ref" -v today="$today" "$ESC_AWK"'
     BEGIN { d=0; seen=0 }
     /^---[[:space:]]*$/ {
       d++
-      if (d==2 && !seen) print "escalated_to: \"" ref "\""
+      if (d==2 && !seen) print esc_line("", ref)
       print; next
     }
-    d==1 && /^escalated_to:/ { print "escalated_to: \"" ref "\""; seen=1; next }
+    d==1 && /^escalated_to:/ { print esc_line($0, ref); seen=1; next }
     d==1 && /^updated:/      { print "updated: " today; next }
     { print }
   ' "$f" > "$tmp" && [[ -s "$tmp" ]] && mv -f "$tmp" "$f" || rc=$?

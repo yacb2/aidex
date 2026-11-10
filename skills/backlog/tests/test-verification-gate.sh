@@ -179,6 +179,38 @@ park_esc "accumulates onto an existing link" 'escalated_to: "a/BL-1"' plan/p 'es
 park_esc "accumulates onto an unquoted link" 'escalated_to: a/BL-1' plan/p 'escalated_to: "a/BL-1, plan/p"'
 park_esc "a ref already there is not repeated" 'escalated_to: "a/BL-1, plan/p"' plan/p 'escalated_to: "a/BL-1, plan/p"'
 park_esc "a ref that only contains the new one is no match" 'escalated_to: "plan/pq"' plan/p 'escalated_to: "plan/pq, plan/p"'
+# elements are compared normalised: trimmed, unquoted, and a flag carrying a comma list is
+# a list, not one element
+park_esc "an unquoted value with a trailing space is the same ref" 'escalated_to: plan/p ' plan/p 'escalated_to: "plan/p"'
+park_esc "a single-quoted value is unquoted" "escalated_to: 'a/BL-1'" plan/p 'escalated_to: "a/BL-1, plan/p"'
+park_esc "a trailing YAML comment is not part of the value" 'escalated_to: "a/BL-1" # note' plan/p 'escalated_to: "a/BL-1, plan/p"'
+park_esc "a comma list in one flag adds only what is new" 'escalated_to: "a/BL-1"' 'plan/p,a/BL-1' 'escalated_to: "a/BL-1, plan/p"'
+park_esc "blanks around the flag value are not part of the ref" 'escalated_to: "plan/p"' ' plan/p ' 'escalated_to: "plan/p"'
+park_esc "the inserted line is normalised too" '' ' plan/p, plan/p' 'escalated_to: "plan/p"'
+park_esc "an empty element is dropped" 'escalated_to: "a/BL-1"' 'plan/p,' 'escalated_to: "a/BL-1, plan/p"'
+# The archiving close accumulates through the same code: the links a park gathered survive
+# the final close (BL-926 N1 — it used to replace the line with the flag value).
+close_esc() { # close_esc <label> <existing escalated_to line or ''> <--escalated-to> <expected line>
+  local f id
+  f="$(reg --title "close esc $1" --surface ops)"; id="$(idof "$f")"
+  add_row "$f" smoke "census" "proofs/census.txt: 0 findings"
+  if [[ -n "$2" ]]; then sed -i.bak "s|^escalated_to:.*|$2|" "$f" && rm -f "$f.bak"; else sed -i.bak '/^escalated_to:/d' "$f" && rm -f "$f.bak"; fi
+  f="$(bash "$SCRIPTS/close-item.sh" "$id" --sweep --escalated-to "$3" --no-index 2>/dev/null)"
+  [[ "$f" == */_archive/* && "$(grep -c '^escalated_to:' "$f")" == 1 && "$(grep '^escalated_to:' "$f")" == "$4" ]] \
+    && ok "close escalated_to: $1" || bad "close escalated_to $1: $(grep '^escalated_to:' "$f" 2>&1)"
+}
+close_esc "no escalated_to line" '' 'plan/p, plan/p' 'escalated_to: "plan/p"'
+close_esc "accumulates onto an existing link" 'escalated_to: "a/BL-1"' plan/p 'escalated_to: "a/BL-1, plan/p"'
+close_esc "spaces after the closing quote are trimmed" 'escalated_to: "a/BL-1"  ' plan/p 'escalated_to: "a/BL-1, plan/p"'
+close_esc "a trailing YAML comment is not part of the value" 'escalated_to: "a/BL-1" # note' plan/p 'escalated_to: "a/BL-1, plan/p"'
+PE="$(reg --title "park then close esc" --surface ops)"; PEID="$(idof "$PE")"
+add_row "$PE" smoke "census" "proofs/census.txt: 0 findings"; add_row "$PE" owner "wording" ""
+sed -i.bak 's|^escalated_to:.*|escalated_to: "a/BL-1"|' "$PE" && rm -f "$PE.bak"
+bash "$SCRIPTS/close-item.sh" "$PEID" --sweep --escalated-to plan/p --no-index >/dev/null 2>&1
+sed -i.bak 's/^| owner | wording |  |$/| owner | wording | approved |/' "$PE" && rm -f "$PE.bak"
+OUT="$(bash "$SCRIPTS/close-item.sh" "$PEID" --sweep --escalated-to plan/p --no-index 2>/dev/null)"
+[[ "$OUT" == */_archive/* && "$(grep '^escalated_to:' "$OUT")" == 'escalated_to: "a/BL-1, plan/p"' ]] \
+  && ok "park, fill the owner cell, close: the archived item keeps every link" || bad "park then close: $OUT $(grep '^escalated_to:' "$OUT" 2>&1)"
 PR="$(reg --title "park reason" --surface ops)"; PRID="$(idof "$PR")"
 add_row "$PR" smoke "census" "proofs/census.txt: 0 findings"; add_row "$PR" owner "wording" ""
 bash "$SCRIPTS/close-item.sh" "$PRID" --sweep --reason "did the mechanical part" --no-index >/dev/null 2>&1

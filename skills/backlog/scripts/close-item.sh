@@ -13,7 +13,9 @@
 #                               was fixed directly, with no plan (D-09 provenance).
 #   --superseded-by <type/ref>  mark superseded (still closes: status is set and the item archived;
 #                               the index shows "superseded →")
-#   --escalated-to <type/ref>   mark handed off (e.g. plan/<slug>)
+#   --escalated-to <type/ref>   mark handed off (e.g. plan/<slug>); added to the links the item
+#                               already has, never replacing them (drop a stale one first
+#                               with define-item.sh --escalated-to)
 #   --reason "<text>"           appended under ## Notes
 #   --no-index                  skip index regeneration
 #   --sweep                     sweep mode: closing `done` REQUIRES a ## Verification
@@ -187,9 +189,11 @@ for i in "${!COMMITS[@]}"; do
   # and it names it in the repo the caller is IN. Resolving it in the first searched repo
   # that has a ref of that name stored the workspace's HEAD for a close run from a sub-repo.
   if [[ ! "$sha" =~ ^[0-9a-fA-F]{4,40}$ ]]; then
-    sha="$(git rev-parse --short --verify --quiet "$sha^{commit}")" \
+    # The trunk check takes the FULL sha: an abbreviation is unique only in this repo, and
+    # the searched trees start at $ROOT, where it can name another commit (BL-926).
+    sha="$(git rev-parse --verify --quiet "$sha^{commit}")" \
       || die "--commit ${COMMITS[$i]} is a ref name and the repo you are in has no such commit: run from inside the repo it names, or cite the sha"
-    COMMITS[$i]="$sha"
+    COMMITS[$i]="$(git rev-parse --short "$sha")"
   fi
   rc=0; commit_on_trunk "$sha" >/dev/null || rc=$?
   case $rc in
@@ -275,17 +279,15 @@ if [[ $SWEEP -eq 1 && "$STATUS" == "done" ]]; then
     # The resolving commits are kept too: a parked item is proven work whose sha was
     # otherwise lost until the owner closed it by hand (BL-499, 2026-08-28). --escalated-to
     # and --reason are kept for the same reason (BL-926); the reason note says Parked, not Closed.
-    awk -v today="$TODAY" -v commits="$COMMITS_STR" -v esc="$ESCALATED" "$MERGE_AWK"'BEGIN{d=0;seen=0;seen_c=0;seen_esc=0}
+    awk -v today="$TODAY" -v commits="$COMMITS_STR" -v esc="$ESCALATED" "$MERGE_AWK$ESC_AWK"'BEGIN{d=0;seen=0;seen_c=0;seen_esc=0}
       /^---[[:space:]]*$/ { d++
         if (d==2 && !seen) print "awaiting: owner"
         if (d==2 && commits!="" && !seen_c) print "commits: \"" merge("", commits) "\""
-        if (d==2 && esc!="" && !seen_esc) print "escalated_to: \"" esc "\""
+        if (d==2 && esc!="" && !seen_esc) print esc_line("", esc)
         print; next }
       d==1 && /^awaiting:/ { print "awaiting: owner"; seen=1; next }
-      # escalated_to ACCUMULATES on an active item (register-item.sh stamp_escalated_to, BL-360)
-      d==1 && esc!="" && /^escalated_to:/ { val=$0; sub(/^escalated_to:[[:space:]]*/,"",val); gsub(/^"|"[[:space:]]*$/,"",val)
-        n=split(val, e, /, */); dup=0; for (k=1; k<=n; k++) if (e[k]==esc) dup=1
-        print "escalated_to: \"" (val=="" ? esc : (dup ? val : val ", " esc)) "\""; seen_esc=1; next }
+      # escalated_to ACCUMULATES (esc_line, _backlog-lib.sh; BL-360)
+      d==1 && esc!="" && /^escalated_to:/ { print esc_line($0, esc); seen_esc=1; next }
       d==1 && commits!="" && /^commits:/ { val=$0; sub(/^commits:[[:space:]]*/,"",val); gsub(/"/,"",val)
         if (val=="" || val=="[]") val=""
         print "commits: \"" merge(val, commits) "\""
@@ -306,14 +308,14 @@ DEST="$BACKLOG_DIR/_archive/$(basename "$FILE")"
 [[ ! -e "$DEST" ]] || die "archive collision: $DEST already exists"
 
 # --- mutate front-matter (status, updated, optional superseded_by/escalated_to/commits) ---
-awk -v status="$STATUS" -v today="$TODAY" -v sup="$SUPERSEDED" -v esc="$ESCALATED" -v commits="$COMMITS_STR" "$MERGE_AWK"'
+awk -v status="$STATUS" -v today="$TODAY" -v sup="$SUPERSEDED" -v esc="$ESCALATED" -v commits="$COMMITS_STR" "$MERGE_AWK$ESC_AWK"'
   BEGIN { d=0; infm=0; seen_sup=0; seen_esc=0; seen_commits=0 }
   /^---[[:space:]]*$/ {
     d++
     if (d==1) { infm=1; print; next }
     if (d==2) {
       if (sup!="" && !seen_sup) print "superseded_by: " sup
-      if (esc!="" && !seen_esc) print "escalated_to: " esc
+      if (esc!="" && !seen_esc) print esc_line("", esc)
       if (commits!="" && !seen_commits) print "commits: \"" merge("", commits) "\""
       infm=0; print; next
     }
@@ -323,7 +325,8 @@ awk -v status="$STATUS" -v today="$TODAY" -v sup="$SUPERSEDED" -v esc="$ESCALATE
     if ($0 ~ /^status:/)  { print "status: " status; next }
     if ($0 ~ /^updated:/) { print "updated: " today; next }
     if (sup!="" && $0 ~ /^superseded_by:/) { print "superseded_by: " sup; seen_sup=1; next }
-    if (esc!="" && $0 ~ /^escalated_to:/)  { print "escalated_to: " esc; seen_esc=1; next }
+    # accumulates, as on park: the links a parked item gathered survive the close (BL-926)
+    if (esc!="" && $0 ~ /^escalated_to:/)  { print esc_line($0, esc); seen_esc=1; next }
     if (commits!="" && $0 ~ /^commits:/) {
       val=$0; sub(/^commits:[[:space:]]*/,"",val); gsub(/"/,"",val)
       gsub(/^[[:space:]]+|[[:space:]]+$/,"",val)
