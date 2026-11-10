@@ -42,6 +42,12 @@ block against this canonical one and fails on any mismatch.
   that needs a standard **pulls** a targeted one via its phase spec, so the reviewer can enforce a
   rule the implementer was never shown. Make the review verdict's machine-checkable `passed`
   boolean (not its prose findings) the gate trigger, mirroring the Bash verifier's `proof.passed`.
+  A script that reviews its own units returns, per reviewed unit, `{unit, authorLabel,
+  reviewerLabel}` built from the `label` strings it passed to `agent()`: `authorLabel` is the
+  label of the unit's **final** authoring step (the fix agent when a fix round ran, not the first
+  implementer). A script cannot see agent ids, and the run journal maps a label to its agent only
+  by exact match, so the session that logs the review writes `<runId>/<authorLabel>` verbatim;
+  give every authoring step of a run a distinct label.
 - **`verify_first` carried by the JS loop** in batch — `if (!proof.passed) retry`. The arbiter
   is the carrier only in the interactive (Stop-hook) host.
 - **Conditional arbiter** — invoked **only** on machine-checkable triggers (retry budget
