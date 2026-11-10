@@ -11,7 +11,7 @@
 # have had to find five files by memory.
 #
 # Not to be confused with workflow's stage heuristic
-# (`breadth/mechanical -> sonnet`, `adversarial verify -> opus/high`): that maps
+# (`breadth/mechanical -> sonnet`, `adversarial verify -> sonnet/high`): that maps
 # a workflow STAGE, not a plan PHASE. Different axis, deliberately not unified.
 #
 # Invariants:

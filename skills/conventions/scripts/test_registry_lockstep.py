@@ -213,10 +213,8 @@ def _process_sentences(desc: str, exempt: tuple[str, ...] = ()) -> list[str]:
 
 
 # Agents allowed to declare no effort, each with its reason (guard 7).
-EFFORT_EXEMPT = {
-    "artifact-grader": "calibrated (34ffb28) with no declared effort; owner sets the value "
-                       "on recalibration",
-}
+# Empty since 2026-11-10: artifact-grader, the one exemption, now declares `effort: medium`.
+EFFORT_EXEMPT: dict[str, str] = {}
 VALID_EFFORT = {"low", "medium", "high", "xhigh", "max"}
 
 
@@ -733,8 +731,8 @@ def main() -> int:
         failures.append("guard 7 passed a sonnet agent with no effort")
     if _effort_failures("p", "haiku", "low") or _effort_failures("p", "sonnet", "high"):
         failures.append("guard 7 rejects a valid agent")
-    if _effort_failures("artifact-grader", "opus", ""):
-        failures.append("guard 7 rejects the named exemption")
+    if not _effort_failures("artifact-grader", "opus", ""):
+        failures.append("guard 7 passed an opus agent with no effort")
 
     if failures:
         print("FAIL")

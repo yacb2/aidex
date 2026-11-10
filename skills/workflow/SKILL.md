@@ -80,7 +80,7 @@ parameters were defaulted. Full rule:
    Fix the order once here; do not re-ask per item at run time.
 4. **Per-agent model + effort.** For each stage, assign `model` + `effort` and say why
    (extraction behind a verifier → `haiku/medium`; breadth → `sonnet/medium`; adversarial
-   verify / synthesis → `opus/high`; mechanical transform → `sonnet/low`). Add a Tools
+   verify → `sonnet/high`; synthesis / judgment → `opus/high`; mechanical transform → `sonnet/low`). Add a Tools
    cell per row. This table is the spec's distinctive payload — see
    §"Per-agent model table" in the conventions.
 5. **Stop condition + gate policy.** The machine gate each agent's output must pass, and

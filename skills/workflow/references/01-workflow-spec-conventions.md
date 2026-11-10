@@ -63,7 +63,7 @@ barrier. Pick one:
 
 | Shape | Items are… | Stage flow | Isolation | Typical models |
 |---|---|---|---|---|
-| **review-by-dimension** | review angles (bugs, perf, security…) | pipeline: each dimension reviews → verifies as it completes | none (read-only) | find: haiku/medium or sonnet/medium · verify: opus/high |
+| **review-by-dimension** | review angles (bugs, perf, security…) | pipeline: each dimension reviews → verifies as it completes | none (read-only) | find: haiku/medium or sonnet/medium · verify: sonnet/high |
 | **migrate-N-sites** | call-sites / files to transform | fan-out: one agent per site, each gated | `worktree` per agent (parallel writes) | transform: sonnet/medium · gate: sonnet/low |
 | **research-N-sources** | sources / sub-questions | fan-out → barrier → synthesis | none (read-only) | fetch: haiku/medium (or sonnet/medium) · synth: opus/high |
 | **decompose-impl** | independent implementation slices | fan-out (DAG on `depends_on`), each gated | `worktree` per agent if they write | impl: sonnet/medium · review: opus/high |
@@ -83,7 +83,7 @@ effort and **toolset** assignment. Each row maps a stage to
 | Stage | Agent | Model | Effort | Tools / skills | Why |
 |---|---|---|---|---|---|
 | find | finders ×N | sonnet | medium | Read Grep Glob | breadth, cheap |
-| verify | skeptics ×3 | opus | high | Read Grep Glob Bash | adversarial, must be right |
+| verify | skeptics ×3 | sonnet | high | Read Grep Glob Bash | adversarial; sonnet/high matches opus within its own noise at half the price |
 | synth | synthesizer | opus | high | Read | judgment |
 ```
 
@@ -98,8 +98,10 @@ for a body the stage needs). A row whose Tools cell is "default" is declaring th
 pays the full prefix, and says why.
 
 Heuristic: extraction/worker tier behind a stronger verifier → `haiku`; breadth/mechanical
-→ `sonnet` (`low` for pure transforms, `medium` for search); adversarial verify, synthesis,
-or judgment → `opus/high`. Omit `model` to
+→ `sonnet` (`low` for pure transforms, `medium` for search); adversarial verify →
+`sonnet/high` (measured 2026-10-18, n=20: Sonnet agrees with Opus within Opus's own run-to-run
+noise at half the price, `../../review/references/01-review-angles.md`; the shipped verifiers
+already run there); synthesis or judgment → `opus/high`. Omit `model` to
 inherit the session model — only set it when a different tier clearly fits.
 
 **The haiku tier.** Haiku 5.5 is the extraction/worker tier **when a stronger verifier sits
@@ -114,7 +116,8 @@ agent reads in slices). It honours a declared `effort`; declare it like any othe
 |---|---|---|
 | extract / worker | `haiku/medium` | many small units, a verifier behind it, input capped < 100K |
 | breadth / search | `sonnet/medium` | the worker also has to judge relevance |
-| verify / synth | `opus/high` | the answer ships |
+| verify | `sonnet/high` | the answer ships; measured equal to opus within noise |
+| synth / judgment | `opus/high` | the result is a judgment call |
 
 ### The advisor arrangement (worker + conditional escalation)
 
@@ -122,8 +125,11 @@ A stage pattern, not a fan-out shape — it composes with any shape above. A che
 executor does the work; a stronger model checks its plan and judges its output, and
 **coaches only when needed**. Example pairing: a Sonnet 5.5 worker with an Opus 5.5
 advisor, priced as the worker throughout plus the advisor on the escalated fraction only.
-(No published figure is quoted here: measure the escalated fraction in your first run and
-put it in the cost estimate.)
+Published result (Anthropic, "Which Claude model should you build with?", claude.dev,
+2026-11-09): of the four pairings in the platform cost guide's advisor table none clearly beat
+its executor alone; Opus 5.5 at high with a Fable 5.1 advisor scored 1.7 points over Opus 5.5
+alone for about 2.1 times the money, at the edge of noise; an advisor helps only when the
+executor consults it. Not a default choice: measure it before use, escalated fraction included.
 
 **The escalation trigger is the design question a spec must answer**, because it is the
 whole economy of the pattern: advise on every step and you pay for two models to do one

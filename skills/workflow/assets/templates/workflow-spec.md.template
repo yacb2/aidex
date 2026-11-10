@@ -49,8 +49,8 @@ updated: {{DATE}}
 
 <!-- The distinctive payload of a workflow-spec. One row per stage. Map
      model/effort to the work: extraction behind a verifier → haiku/medium (cap the
-     input under 100K tokens); breadth → sonnet/medium; adversarial verify or
-     synthesis → opus/high; mechanical transform → sonnet/low. These become the
+     input under 100K tokens); breadth → sonnet/medium; adversarial verify →
+     sonnet/high (measured equal to opus within noise); synthesis or judgment → opus/high; mechanical transform → sonnet/low. These become the
      agent(prompt, {model, effort, agentType}) options at launch. Tools is a cost
      line (~14k-49k per agent by toolset): agent() has no tools option, so it travels
      through agentType; "default" means paying the full prefix, say why. -->
@@ -58,7 +58,7 @@ updated: {{DATE}}
 | Stage | Agent | Model | Effort | Tools / skills | Why |
 |---|---|---|---|---|---|
 | extract | workers ×N | haiku | medium | Read Grep Glob | cheap recall |
-| verify | skeptics ×3 | opus | high | Read Grep Glob Bash | adversarial |
+| verify | skeptics ×3 | sonnet | high | Read Grep Glob Bash | adversarial |
 | synth | synthesizer | opus | high | Read | judgment |
 
 ## Stop condition + gate policy
