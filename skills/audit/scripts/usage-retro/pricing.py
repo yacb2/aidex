@@ -1,10 +1,11 @@
 """Per-model USD prices, from platform.claude.com/docs/en/about-claude/pricing, read 2026-09-13; Haiku 5.5 and the Sonnet 5.5 cache-read cut added 2026-10-07
 (aidex_ws/.context/research/2026-10-07-haiku-5-5-and-sonnet-cache-pricing.md).
 Prices are USD per million tokens: (base_input, create_5m, create_1h, cache_read, output).
-Cache read is 0.1x base, except Fable/Mythos 5.1 (0.025x) and Opus 5.5 / Sonnet 5.5 (0.05x). Sonnet 5's $2/$10
+Cache read is 0.1x base, except Fable/Mythos 5.1 and 5.2 (0.025x) and Opus 5.5 / Sonnet 5.5 (0.05x). Sonnet 5's $2/$10
 introductory price became standard (page note). Keys are model-id prefixes, longest match wins.
 """
 PRICES = {
+    "claude-fable-5-2":  (8, 10, 16, 0.20, 40),  # 2026-11-10; own row so the fable-5 prefix cannot win
     "claude-fable-5-1":  (10, 12.5, 20, 0.25, 50),
     "claude-fable-5":    (10, 12.5, 20, 1.00, 50),
     "claude-opus-5-5":   (4, 5, 8, 0.20, 20),  # claude.dev "What a task costs on Opus 5.5", 2026-09-25

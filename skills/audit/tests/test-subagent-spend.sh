@@ -348,6 +348,10 @@ if P.prices_for("claude-haiku-5-5-20261007") != (0.10, 0.125, 0.20, 0.01, 0.50):
 if P.prices_for("claude-haiku-4-5") != (1, 1.25, 2, 0.10, 5): bad.append("haiku-4-5 row moved")
 if P.prices_for("claude-sonnet-5-5")[3] != 0.10: bad.append("sonnet-5-5 cache read")
 if P.prices_for("claude-sonnet-5")[3] != 0.20: bad.append("sonnet-5 cache read moved")
+# Fable 5.2 (2026-11-10) has its own row, not claude-fable-5 by prefix; 5.1 and 5 keep theirs.
+if P.prices_for("claude-fable-5-2") != (8, 10, 16, 0.20, 40): bad.append(f"fable-5-2 row {P.prices_for('claude-fable-5-2')}")
+if P.prices_for("claude-fable-5-1") != (10, 12.5, 20, 0.25, 50): bad.append("fable-5-1 row moved")
+if P.prices_for("claude-fable-5") != (10, 12.5, 20, 1.00, 50): bad.append("fable-5 row moved")
 print("\n".join(bad) or "PYOK")
 PYW
 )"
