@@ -38,7 +38,7 @@ def resolve_profile(context_dir, name):
 
 
 def profile_field(path, key):
-    """One front-matter scalar, quotes and a trailing ` #` comment stripped; "" when absent.
+    """One front-matter scalar, a matched pair of surrounding quotes and a trailing ` #` comment stripped; "" when absent.
     Twin of `profile_field` in _lib.sh: the same awk rules, line for line."""
     if not os.path.isfile(path):
         return ""
@@ -49,8 +49,9 @@ def profile_field(path, key):
             if fences == 2:
                 break
         elif fences == 1 and line.split(None, 1)[:1] == [key + ":"]:
-            val = re.sub(r"\s+#.*$", "", re.sub(r"^[^:]*:\s*", "", line))
-            return re.sub(r"""^["']|["']$""", "", val)
+            val = re.sub(r"\s+#.*$", "", re.sub(r"^[^:]*:\s*", "", line)).rstrip()
+            m = re.match(r"""^(["'])(.*)\1$""", val)
+            return m.group(2) if m else val
     return ""
 
 

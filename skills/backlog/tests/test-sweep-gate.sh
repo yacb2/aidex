@@ -781,5 +781,29 @@ OUT="$(GATE_N=7 run --only suite)"
 [[ "$OUT" == *"leg=suite exit=0 count=7 "* ]] && ok "14 control: the same stub that prints 7 passed is scored 7" || bad "14 control: $OUT"
 [[ -s "$P/_tmp/sweep-gate/suite.log" ]] && ok "14 the latest leg log is still left at <leg>.log" || bad "14 no suite.log"
 
+# ── 15 · only a MATCHED pair of surrounding quotes is stripped from a command (BL-927) ──
+# The reader stripped a leading and a trailing quote each on its own, so an unquoted
+# `echo '3 passed'` lost its closing quote and the leg died on a shell syntax error.
+# want: pass = the leg ran the command intact and counted 3; leg-fail = the value reached
+# the shell unstripped and the shell refused it; unbound = gate exit 2, nothing ran.
+while IFS='|' read -r want value; do
+  profile "suite_cmd: $value"
+  OUT="$(run --only suite)"; RC=$?
+  case "$want" in
+    pass)     [[ $RC -eq 0 && "$OUT" == *"leg=suite exit=0 count=3 "* ]] ;;
+    leg-fail) [[ $RC -eq 1 && "$OUT" == *"leg=suite exit="* && "$OUT" != *"exit=0 "* ]] ;;
+    unbound)  [[ $RC -eq 2 && "$OUT" != *"leg=suite"* ]] ;;
+  esac && ok "15 [$value] -> $want" || bad "15 [$value] want $want: rc=$RC $OUT $(cat "$TMP/err")"
+done <<'ROWS'
+pass|echo '3 passed'
+pass|echo "3 passed"
+pass|"echo '3 passed'"
+pass|'echo "3 passed"'
+leg-fail|"echo 3 passed'
+leg-fail|'echo 3 passed
+unbound|""
+unbound|''
+ROWS
+
 [[ $FAIL -eq 0 ]] && { echo "OK — sweep-gate: $PASS cells, countless leg fails, mutation flips it"; exit 0; }
 echo "$FAIL failure(s), $PASS ok"; exit 1

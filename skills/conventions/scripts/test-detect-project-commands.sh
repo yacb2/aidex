@@ -68,6 +68,25 @@ down="$(printf '%s' "$out3" | python3 -c 'import json,sys; print(json.load(sys.s
 [[ "$up" == "None" ]] || fail "non-executable worktree-up.sh was detected as a command: $up"
 [[ "$down" == "./worktree-down.sh" ]] || fail "executable worktree-down.sh not detected: $down"
 
+# Only a MATCHED pair of surrounding quotes is stripped from a front-matter command: an
+# unquoted value ending in a quote keeps it, a quoted one keeps its inner quotes (BL-927).
+P3="$TMP/quotes"; mkdir -p "$P3/.context/worktrees"
+printf -- '---\nworktree_up: worktree.sh up "<slug>"\nworktree_down: "worktree.sh down \x27<slug>\x27"\n---\n' > "$P3/.context/worktrees/00-index.md"
+bash "$DETECTOR" --project "$P3" >/dev/null
+out4="$(cat "$P3/.claude/.aidex-detected-commands.json")"
+up="$(printf '%s' "$out4" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("worktree_up_command"))')"
+down="$(printf '%s' "$out4" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("worktree_down_command"))')"
+[[ "$up" == 'worktree.sh up "<slug>"' ]] || fail "unquoted worktree_up lost its closing quote: $up"
+[[ "$down" == "worktree.sh down '<slug>'" ]] || fail "quoted worktree_down: only the surrounding pair goes: $down"
+printf -- '---\nworktree_up: "worktree.sh up <slug>\n---\n' > "$P3/.context/worktrees/00-index.md"; rm -f "$P3/.claude/.aidex-detected-commands.json"
+bash "$DETECTOR" --project "$P3" >/dev/null
+up="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("worktree_up_command"))' "$P3/.claude/.aidex-detected-commands.json")"
+[[ "$up" == '"worktree.sh up <slug>' ]] || fail "a lone leading quote on worktree_up was stripped: $up"
+printf -- '---\nworktree_up: "worktree.sh up <slug>"  \r\n---\n' > "$P3/.context/worktrees/00-index.md"; rm -f "$P3/.claude/.aidex-detected-commands.json"
+bash "$DETECTOR" --project "$P3" >/dev/null
+up="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("worktree_up_command"))' "$P3/.claude/.aidex-detected-commands.json")"
+[[ "$up" == 'worktree.sh up <slug>' ]] || fail "trailing whitespace and a CR after a matched pair kept the quotes: $up"
+
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"
   exit 1

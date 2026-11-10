@@ -141,10 +141,11 @@ fi
 # executable worktree-up*.sh / worktree-down*.sh at root or scripts/ (secondary).
 WT_DOC="$ROOT/.context/worktrees/00-index.md"
 fm_field() {
-  # $1 = front-matter key; prints its unquoted value from WT_DOC (first block only).
+  # $1 = front-matter key; prints its value from WT_DOC (first block only), a matched
+  # pair of surrounding double quotes stripped (a lone one is part of the command, BL-927).
   awk -F': ' -v key="$1" '
     /^---[[:space:]]*$/ { c++; if (c == 2) exit; next }
-    c == 1 && $1 == key { sub(/^[^:]*: */, ""); gsub(/^"|"$/, ""); print; exit }
+    c == 1 && $1 == key { sub(/^[^:]*: */, ""); sub(/[[:space:]]+$/, ""); if (/^".*"$/) $0 = substr($0, 2, length($0) - 2); print; exit }
   ' "$WT_DOC"
   return 0
 }

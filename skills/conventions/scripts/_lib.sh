@@ -573,14 +573,17 @@ resolve_profile() {
   return 1
 }
 
-# profile_field <file> <key> — one front-matter scalar of a profile, surrounding quotes and
+# profile_field <file> <key> — one front-matter scalar of a profile, a MATCHED pair of
+# surrounding quotes (a lone or mismatched quote is part of the value, BL-927) and
 # a trailing ` #` comment stripped (so a value cannot contain ` #`); empty when the key, the
 # front matter or the file is absent. Not named profile_key: sweep-gate.sh defines its own
 # one-argument profile_key after sourcing this file. Python twin: profiles.py.
 profile_field() {
   [[ -f "$1" ]] || return 0
   awk -v k="$2" '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1==k":"{
-    sub(/^[^:]*:[[:space:]]*/,""); sub(/[[:space:]]+#.*$/,""); gsub(/^["\x27]|["\x27]$/,""); print; exit}' "$1"
+    sub(/^[^:]*:[[:space:]]*/,""); sub(/[[:space:]]+#.*$/,""); sub(/[[:space:]]+$/,""); q=substr($0,1,1)
+    if (length($0)>=2 && (q=="\"" || q=="\047") && substr($0,length($0))==q) $0=substr($0,2,length($0)-2)
+    print; exit}' "$1"
 }
 
 # Digest of stdin (first field) for lock and log file names: shasum, else

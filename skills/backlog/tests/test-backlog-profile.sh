@@ -74,15 +74,39 @@ ticket_pattern: [A-Z]+-[0-9]+ # bare value
 ticket_url: 'https://tracker.example/issue/{key}'
 pr_url: https://git.example/org/{repo}/pull/{n}#files
 empty_key: ""
+lone_trailing: [A-Z]+-[0-9]+'
+lone_leading: "[A-Z]+-[0-9]+
+mismatched: "[A-Z]+-[0-9]+'
+inner_quote: '["A-Z]+'
+empty_single: ''
+quote_only: "
+quote_only_sq: '
+same_ends: e2e
+trailing_ws: "app api"  
+crlf: "x"@CR@
 ---
 live_views: "body https://git.example/not-read"
 EOF
+  perl -pi -e 's/\@CR\@$/\r/' "$f"   # a CRLF line: the heredoc cannot carry a literal CR
   for fn in sh_field py_field; do
     [[ "$($fn "$f" tracker_paths)" == "app api" ]] && ok "$fn: quoted value with comment" || bad "$fn tracker_paths: '$($fn "$f" tracker_paths)'"
     [[ "$($fn "$f" ticket_pattern)" == "[A-Z]+-[0-9]+" ]] && ok "$fn: bare value with comment" || bad "$fn ticket_pattern: '$($fn "$f" ticket_pattern)'"
     [[ "$($fn "$f" ticket_url)" == "https://tracker.example/issue/{key}" ]] && ok "$fn: single quotes stripped" || bad "$fn ticket_url: '$($fn "$f" ticket_url)'"
     [[ "$($fn "$f" pr_url)" == "https://git.example/org/{repo}/pull/{n}#files" ]] && ok "$fn: '#' with no space before it is kept" || bad "$fn pr_url: '$($fn "$f" pr_url)'"
     [[ -z "$($fn "$f" empty_key)" ]] && ok "$fn: empty value -> empty" || bad "$fn empty_key: '$($fn "$f" empty_key)'"
+    # only a MATCHED pair of surrounding quotes is stripped; a lone or mismatched quote is
+    # part of the value (BL-927)
+    [[ "$($fn "$f" lone_trailing)" == "[A-Z]+-[0-9]+'" ]] && ok "$fn: a lone trailing quote is kept" || bad "$fn lone_trailing: '$($fn "$f" lone_trailing)'"
+    [[ "$($fn "$f" lone_leading)" == '"[A-Z]+-[0-9]+' ]] && ok "$fn: a lone leading quote is kept" || bad "$fn lone_leading: '$($fn "$f" lone_leading)'"
+    [[ "$($fn "$f" mismatched)" == "\"[A-Z]+-[0-9]+'" ]] && ok "$fn: a mismatched pair is kept" || bad "$fn mismatched: '$($fn "$f" mismatched)'"
+    [[ "$($fn "$f" inner_quote)" == '["A-Z]+' ]] && ok "$fn: a matched pair goes, an inner quote stays" || bad "$fn inner_quote: '$($fn "$f" inner_quote)'"
+    [[ "$($fn "$f" quote_only)" == '"' ]] && ok "$fn: a value that is one quote is kept" || bad "$fn quote_only: '$($fn "$f" quote_only)'"
+    [[ "$($fn "$f" quote_only_sq)" == "'" ]] && ok "$fn: a value that is one single quote is kept" || bad "$fn quote_only_sq: '$($fn "$f" quote_only_sq)'"
+    # trailing whitespace (a CR included) is not part of the value: the pair still surrounds it
+    [[ "$($fn "$f" trailing_ws)" == "app api" ]] && ok "$fn: trailing whitespace after a matched pair" || bad "$fn trailing_ws: '$($fn "$f" trailing_ws)'"
+    [[ "$($fn "$f" crlf)" == "x" ]] && ok "$fn: a CRLF line" || bad "$fn crlf: '$($fn "$f" crlf)'"
+    [[ "$($fn "$f" same_ends)" == "e2e" ]] && ok "$fn: equal ends that are not quotes are kept" || bad "$fn same_ends: '$($fn "$f" same_ends)'"
+    [[ -z "$($fn "$f" empty_single)" ]] && ok "$fn: empty single-quoted value -> empty" || bad "$fn empty_single: '$($fn "$f" empty_single)'"
     [[ -z "$($fn "$f" live_views)" ]] && ok "$fn: key outside front matter -> empty" || bad "$fn live_views body: '$($fn "$f" live_views)'"
     [[ -z "$($fn "$f" TRACKER_PATHS)" ]] && ok "$fn: wrong-case key -> empty" || bad "$fn wrong case: '$($fn "$f" TRACKER_PATHS)'"
     [[ -z "$($fn "$TMP/p1/missing.md" tracker_paths 2>/dev/null)" ]] && ok "$fn: missing file -> empty" || bad "$fn missing file"
