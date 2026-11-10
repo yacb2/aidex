@@ -27,6 +27,10 @@
 #   200k  warn    — 1.41x slower than the same session's own sub-100k baseline
 #   250k  advise  — marginal knee under the constants that describe deep sessions
 #   300k  urgent  — half of all input spend sits above here; slowdown has plateaued
+# Those figures (1.41x, half of input spend) are Opus 5 measurements of 2026-08-13. The
+# re-derivation of 2026-11-10 did not find them on Opus 5.5 or Fable 5.1 (1.03x and 1.02x
+# at 150-200k; 5.2% and 7.5% of input tokens at 300k or deeper). The bands are kept
+# unchanged pending a re-derivation that includes Fable 5.2.
 #
 # Fails open on every path: no jq, no transcript, malformed JSON -> silent exit 0.
 
@@ -109,7 +113,7 @@ printf '%s' "$BAND" > "$STATE_FILE"
 DEPTH_K=$((DEPTH / 1000))
 
 case "$BAND" in
-  1) MSG="Context depth is now ~${DEPTH_K}k tokens. Turns here run about 1.4x slower than this session did below 100k. Nothing to do yet — but if the current thread is close to a natural boundary, that is the cheap moment to hand off." ;;
+  1) MSG="Context depth is now ~${DEPTH_K}k tokens. Nothing to do yet — but if the current thread is close to a natural boundary, that is the cheap moment to hand off." ;;
   2) MSG="Context depth is now ~${DEPTH_K}k tokens — past the point where staying in-session stops paying for itself. The next natural boundary (end of a phase, after a commit) is the cheap place to hand off. Who makes that call is already governed by skills/conventions/references/autonomy-conventions.md and the session-handoff skill; this hook reports the number and nothing else." ;;
   3) MSG="Context depth is now ~${DEPTH_K}k tokens. Over half of all input spend sits above this line and the speed loss has plateaued, so continuing here buys nothing a fresh session would not give back. Who makes that call is already governed by skills/conventions/references/autonomy-conventions.md and the session-handoff skill; this hook reports the number and nothing else." ;;
 esac

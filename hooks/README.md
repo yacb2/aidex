@@ -46,6 +46,11 @@ rising to 1.73x at 400-600k; and a counterfactual replay puts the marginal knee
 expensive re-entry is assumed to be. 150k was rejected — worst marginal return of
 the candidates.
 
+These are Opus 5 measurements (2026-08-13). The re-derivation of 2026-11-10 did not
+find them on Opus 5.5 or Fable 5.1: 1.03x and 1.02x at 150-200k, and 5.2% and 7.5% of
+input tokens at 300k or deeper. The bands are kept unchanged pending a re-derivation
+that includes Fable 5.2, and the message no longer states a slowdown figure.
+
 **Why it counts but does not decide.** It does not judge whether to hand off and
 does not fire one. The retired durability Stop hook (`2ca548a`) ran a `claude -p`
 judge over exactly that call and measured 4 real blocks, 0 justified, 4 misfires,
@@ -77,7 +82,7 @@ reads as 40% and colours green under a percentage scheme.
 > `transcript_path` with the same `max`-over-iterations rule this hook uses, and
 > fall back to `context_window` only when no transcript is available.
 
-**Tests:** `python3 test-context-depth-nudge.py` — 46 checks, self-contained
+**Tests:** `python3 test-context-depth-nudge.py` — 54 checks, self-contained
 (synthetic transcripts, no dependency on real ones). Covers exact band boundaries,
 the max-over-iterations rule, post-compaction depth drops, once-per-band gating
 with escalation, six fail-open paths, and the non-blocking output shape.

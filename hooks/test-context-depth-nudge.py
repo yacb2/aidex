@@ -76,8 +76,8 @@ def fire(path, sid):
 
 
 print("=== 1. band boundaries are exact ===")
-for depth, expect in [(199_999, "SILENT"), (200_000, "1.4x slower"),
-                      (249_999, "1.4x slower"), (250_000, "stops paying for itself"),
+for depth, expect in [(199_999, "SILENT"), (200_000, "Nothing to do yet"),
+                      (249_999, "Nothing to do yet"), (250_000, "stops paying for itself"),
                       # Band 3's marker is its cost statement, not a recommendation:
                       # the wording that told the assistant what to decide is gone.
                       (299_999, "stops paying for itself"),
@@ -87,6 +87,8 @@ for depth, expect in [(199_999, "SILENT"), (200_000, "1.4x slower"),
     clean(sid)
     got = fire(transcript(f"t{depth}", depth), sid)
     check(f"{depth:>9,} -> {expect}", (got == "SILENT") if expect == "SILENT" else (expect in got), got)
+    # The 1.4x latency claim was an Opus 5 figure that no longer holds; no band may state a slowdown.
+    check(f"{depth:>9,} -> no slowdown claim", "slower" not in got and "1.4x" not in got, got)
     clean(sid)
 
 print("\n=== 2. depth is max-over-iterations, not the billed sum ===")
@@ -113,7 +115,7 @@ sid = "TEST-gate"
 clean(sid)
 p1, p3 = transcript("g1", 210_000), transcript("g3", 350_000)
 r = [fire(p1, sid) for _ in range(3)]
-check("band 1 fires once", "1.4x slower" in r[0] and r[1] == "SILENT" and r[2] == "SILENT", r)
+check("band 1 fires once", "Nothing to do yet" in r[0] and r[1] == "SILENT" and r[2] == "SILENT", r)
 check("band 3 still escalates", "Over half of all input spend" in fire(p3, sid), "")
 check("no downgrade re-fire", fire(p1, sid) == "SILENT", "")
 clean(sid)
