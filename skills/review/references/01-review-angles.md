@@ -163,7 +163,7 @@ announced floor **132k**, actual spend **2.2M**, ~**17×**. n=1.
 
 **The model is the other half of the bill.** This skill is `model-policy: per-stage`:
 each `Agent` call passes `effort` (finders `medium`, verifiers `high`, never `xhigh` or
-`max`); finders pass no `model` and run at the invoking session's model, verifiers pass
+`max`); finders pass `model: fable` (measured below, 2026-11-10), verifiers pass
 `model: sonnet` (measured below, 2026-10-18). Anthropic's guidance
 for current models is that effort is the primary dial, and that at `xhigh`/`max` a model
 starts its own review rounds and spawns reviewer subagents, which is why those two levels
@@ -171,6 +171,24 @@ are excluded. The measured 17x run (34 agents: 6 finders plus 28 verifiers, the 
 by subtraction) predates this policy: it ran inherited at the session's tier, model not
 recorded. The cost of the medium/high pair is unmeasured. On a module review model and
 effort are the dominant term, which is why Step 2 has to name them beside the floor.
+
+**Finder model, measured 2026-11-10 (aidex_ws research
+`2026-11-10-fable-5-2-model-guide-vs-suite-assumptions`,
+`09-review-finders-seeded-defect-bench.md`; owner decision 2026-11-11).** Ten defects seeded
+one per test-proven line into two aidex bash scripts, three finder runs per model per script
+at `medium`, scored blind against the answer key (30 seed-chances per model):
+
+| Finder at `medium` | Seeds found, of 30 | USD per run |
+|---|---|---|
+| Fable 5.2 | 27 | 0.97 |
+| Sonnet 5.5 | 23 | 0.15 |
+| Opus 5.5 | 22 | 0.37 |
+
+Finders are pinned to Fable because inheriting would move them to Opus the day the session
+does, and Opus found one seed fewer than Sonnet at more than twice its price. A second,
+independent measurement points the same way: as diff reviewer Fable caught 30 of 30 seeded
+defects against Opus's 28 (2026-11-10). Limits: two scripts, one repository, bash only;
+the Sonnet-Opus gap is one seed.
 
 **Verifier model, measured 2026-10-18 (aidex_ws audit `2026-10-18-usage-retro-efficiency`,
 `lever-C1-3-workflow-models.md`).** 20 verify prompts from five past find-merge-verify runs
@@ -203,8 +221,8 @@ and 1.5-4 min. Restricting opus's tools changed nothing measurable. Two conseque
 policy above has to carry: reviewer money buys volume of minor findings, not recall of the
 class that ships (fenced-code paths, selector chains, branch order), which usage finds and
 the bugfix regression test closes; and a finder on `sonnet/medium` restricted returns the
-same class at a third of the price. The skill's current policy (finders `medium`,
-verifiers `high`, session model) is a policy choice and not one of the Q9 cells: Q9 is not
+same class at a third of the price. The skill's current policy (finders `fable/medium`,
+verifiers `sonnet/high`) is not one of the Q9 cells: Q9 is not
 evidence for or against it. Limits: N=3 per cell, one
 repository, one finder per run against production's 3 + verifier.
 

@@ -135,15 +135,15 @@ which is where a re-measurement lands.
 
 **Name the model and effort in the same breath as the cost.** This skill is
 `model-policy: per-stage`: every `Agent` call passes an explicit `effort` set by role —
-**finders `medium` at the session's model (no `model` passed), verifiers `high` on
-`model: sonnet`**. Never `xhigh` or `max` on a subagent: Anthropic's guidance for these
+**finders `medium` on `model: fable`, verifiers `high` on `model: sonnet`**, whatever
+model the session runs. Never `xhigh` or `max` on a subagent: Anthropic's guidance for these
 models is that at those levels the model starts its own rounds of review and spawns
 reviewer subagents, which multiplies the verifier bill. Effort is the main cost dial here
 because 34 agents reading a whole module is not 8 agents reading a diff (34 = the 6
 finders plus 28 verifiers of the measured run; the 28 is derived, not recorded). So say
-it: *"N finders at &lt;session model&gt;/medium + one verifier per candidate at
-sonnet/high."* The finder pair is a policy choice; the verifier model was measured
-(`01-review-angles.md` § Cost, 2026-10-18).
+it: *"N finders at fable/medium + one verifier per candidate at sonnet/high."* Both
+models were measured (`01-review-angles.md` § Cost: verifier 2026-10-18, finder
+2026-11-10).
 
 Present: target, files/LOC, lenses chosen with their evidence, angles per lens, angles
 dropped (and, separately, angles not selected), the cost floor stated as above, and the
