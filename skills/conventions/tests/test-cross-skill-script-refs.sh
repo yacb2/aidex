@@ -20,6 +20,9 @@ checked=0
 for f in "$HERE"/../scripts/*.sh; do
   [[ -e "$f" ]] || continue
   base="$(basename "$f")"
+  # A test's printf writes fixture data, not advice to a reader (BL-927's profile fixture
+  # names worktree.sh as a profile value).
+  case "$base" in test-*) continue ;; esac
   while IFS= read -r line; do
     case "$line" in *echo*|*printf*|*die*) ;; *) continue ;; esac
     for name in $(printf '%s\n' "$line" | grep -oE '\b[a-z0-9_-]+\.sh\b' | sort -u); do
