@@ -148,7 +148,11 @@ than a diff review, so the cost of a permissive verifier is a report nobody read
 
 Finders: ~22k tokens per agent (measured in the plan-exec-as-workflow work, recorded in
 `review-scope-conventions.md` §4, from 3 Sonnet finders and a Haiku verifier, before
-Sonnet 5.5 and Opus 5.5; unmeasured on the current models). Knowable before the run, and the resolver prints it as
+Sonnet 5.5 and Opus 5.5). It is the fixed cost of starting an agent, not what a finder
+spends: on the current models one finder run on one module created 61k to 77k new tokens,
+about three times the floor, re-read roughly 280k cached and wrote roughly 15k (2026-11-10,
+n=3 per cell; `fable/medium`, the pinned pair, cost 1.69 USD per run there and 0.97 USD per
+run in the seeded bench below). Knowable before the run, and the resolver prints it as
 `finder_floor_ktokens_per_lens` so that the name itself says what it is. It follows
 `finders_per_lens`, which comes from `source_loc` and can be raised with `--finders`.
 

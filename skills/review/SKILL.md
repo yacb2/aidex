@@ -141,7 +141,8 @@ models is that at those levels the model starts its own rounds of review and spa
 reviewer subagents, which multiplies the verifier bill. Effort is the main cost dial here
 because 34 agents reading a whole module is not 8 agents reading a diff (34 = the 6
 finders plus 28 verifiers of the measured run; the 28 is derived, not recorded). So say
-it: *"N finders at fable/medium + one verifier per candidate at sonnet/high."* Both
+it: *"N finders at fable/medium (about 1 to 1.7 USD each, measured 2026-11-10) + one
+verifier per candidate at sonnet/high."* Both
 models were measured (`01-review-angles.md` § Cost: verifier 2026-10-18, finder
 2026-11-10).
 
