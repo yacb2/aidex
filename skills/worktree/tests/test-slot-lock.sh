@@ -248,8 +248,78 @@ grep -q "template is missing: $RP/.context/worktrees/env-templates/frontend/.env
   || fail "up render refusal: must name the missing template: $out"
 [[ ! -e "$RSD/slot-3" ]] || fail "up render refusal: the claim up had just made on slot 3 was left behind"
 
+# --- 11. BL-929: a sibling worktree's .wt-slot holds its slot ----------------
+# The allocator, `new --slot` and `up --slot` asked only the claim files. A
+# worktree whose claim was gone from /tmp but whose .wt-slot still said 1 had
+# slot 1 handed to the next `new`: two worktrees, one set of ports. Its own
+# project, so the sibling directories of sections 9 and 10 do not shift slots.
+# Only a .wt-slot that IS the slot (string equality) holds it.
+SP="$TMP/sibproj"; SSD="$SLOTS/aidex-wt-slots-sibproj"; SIB="$TMP/sibproj-wt-held"
+mkdir -p "$SP/.context/worktrees" "$SP/backend" "$SIB"
+cp "$PROJ/.context/worktrees/config.env" "$SP/.context/worktrees/config.env"
+run_sib() { out="$( cd "$SP" && TMPDIR="$SLOTS" PATH="$BIN:$PATH" AIDEX_WT_LOCK_WAIT=1 bash "$WT" "$@" 2>&1 )"; RC=$?; }
+
+# 'aaa' sorts before 'held' and records another slot: the lookup must keep
+# looking past a sibling that does not match, not stop at the first one.
+mkdir -p "$TMP/sibproj-wt-aaa"; echo 3 > "$TMP/sibproj-wt-aaa/.wt-slot"
+echo 1 > "$SIB/.wt-slot"
+run_sib new sib-auto --branch wt/sib-auto --base main
+grep -q 'slot 2 -> DB_PORT=6600' <<<"$out" \
+  || fail "BL-929 new: slot 1 is recorded by sibling 'held' and must be skipped for slot 2, got: $out"
+rm -f "$SSD"/slot-*
+
+run_sib new sib-pin --branch wt/sib-pin --base main --slot 1
+grep -q "error: slot 1 is recorded by worktree 'held'" <<<"$out" \
+  || fail "BL-929 new --slot 1: must be refused naming the sibling that records slot 1, got: $out"
+[[ ! -e "$SSD/slot-1" ]] || fail "BL-929 new --slot 1: a claim was written on the sibling's slot"
+rm -f "$SSD"/slot-*
+run_sib new sib-pin --branch wt/sib-pin --base main --slot 2
+grep -q 'slot 2 -> DB_PORT=6600' <<<"$out" \
+  || fail "BL-929 new --slot 2: a slot no sibling records must be reserved, got: $out"
+rm -f "$SSD"/slot-*
+# --no-infra writes the slot it is given into .wt-slot with no reservation, and
+# a later `up` resumes it as its own: the refusal must not depend on the stack.
+# The message is the assertion: this fixture's `new` dies before .wt-slot anyway.
+run_sib new sib-ni --branch wt/sib-ni --base main --no-infra --slot 1
+[[ "$RC" -eq 2 ]] || fail "BL-929 new --no-infra --slot 1: must exit 2, got $RC: $out"
+grep -q "error: slot 1 is recorded by worktree 'held'" <<<"$out" \
+  || fail "BL-929 new --no-infra --slot 1: must be refused naming the sibling that records slot 1, got: $out"
+
+D11="$TMP/sibproj-wt-mover"; mkdir -p "$D11"; : > "$D11/.wt-slot"
+run_sib up mover --slot 1
+[[ "$RC" -eq 2 ]] || fail "BL-929 up --slot 1: must exit 2, got $RC: $out"
+grep -q "error: slot 1 is recorded by worktree 'held'" <<<"$out" \
+  || fail "BL-929 up --slot 1: must be refused naming the sibling that records slot 1, got: $out"
+[[ ! -e "$SSD/slot-1" ]] || fail "BL-929 up --slot 1: a claim was written on the sibling's slot"
+rm -f "$SSD"/slot-*
+run_sib up mover --slot 2
+[[ "$RC" -eq 0 ]] || fail "BL-929 up --slot 2: a slot no sibling records must not be refused, got $RC: $out"
+rm -f "$SSD"/slot-*
+# Resuming the slot a tree already records is not a move: two trees that both
+# record slot 1 (the state this bug left behind) can still each be brought up.
+echo 1 > "$D11/.wt-slot"
+run_sib up mover
+[[ "$RC" -eq 0 ]] || fail "BL-929 up resume: a tree resuming its own recorded slot 1 must not be refused, got $RC: $out"
+# Nor is resuming the slot this tree's claim holds when its .wt-slot is not a
+# slot (BL-776 falls back to the claim): refusing it, with --slot refused too
+# while the claim stands, would leave the tree no way up.
+echo abc > "$D11/.wt-slot"; printf '%s mover\n' "$$" > "$SSD/slot-1"
+run_sib up mover
+[[ "$RC" -eq 0 ]] || fail "BL-929 up resume (claim): a tree resuming the slot its claim holds must not be refused, got $RC: $out"
+rm -rf "$D11"; rm -f "$SSD"/slot-*
+
+# What is not slot 1 does not hold slot 1.
+for v in 2 '' abc 01 11 '1 ' 'a[$(touch pwned929)]'; do
+  printf '%s\n' "$v" > "$SIB/.wt-slot"
+  run_sib new sib-free --branch wt/sib-free --base main
+  grep -q 'slot 1 -> DB_PORT=6500' <<<"$out" \
+    || fail "BL-929 new: a sibling .wt-slot of '$v' must not hold slot 1, got: $out"
+  rm -f "$SSD"/slot-*
+done
+[[ ! -e "$SP/pwned929" && ! -e "$TMP/pwned929" ]] || fail "BL-929: a sibling .wt-slot payload EXECUTED"
+
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"
   exit 1
 fi
-echo "OK — slot lock: a killed holder does not wedge it, a live holder is waited for, planted claim symlinks refused, up locks too, a refused slot dir stops there, reused PIDs and failed listings judged right, up takes no second slot and undoes a fresh claim"
+echo "OK — slot lock: a killed holder does not wedge it, a live holder is waited for, planted claim symlinks refused, up locks too, a refused slot dir stops there, reused PIDs and failed listings judged right, up takes no second slot and undoes a fresh claim, a sibling's .wt-slot holds its slot"

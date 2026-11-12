@@ -267,6 +267,18 @@ claim_live() {  # claim_live <pid> <start>: is the run that wrote the claim stil
   [[ -z "$2" || "$(proc_start "$1")" == "$2" ]]
 }
 slot_taken() { [[ -e "$1/slot-$2" || -L "$1/slot-$2" ]]; }
+# The claim is not the only record of a held slot (BL-929): a worktree whose claim
+# was gone from /tmp still had `.wt-slot` = 1, and `new` handed slot 1 to the next
+# one. String equality to a slot the caller has validated, never arithmetic: the
+# file is untrusted, and only a value that IS the slot holds it.
+SLOT_SIBLING() {  # slot -> slug of a worktree whose .wt-slot records it
+  local d
+  for d in "$WT_PARENT_DIR/$PROJECT"-wt-*; do
+    [[ "$(cat "$d/.wt-slot" 2>/dev/null)" == "$1" ]] || continue
+    d="${d##*/}"; printf '%s' "${d#"${PROJECT}-wt-"}"; return 0
+  done
+  return 1
+}
 
 # A kernel lock (`lock_take`, perl flock) on `<slotdir>/.flock`, one section at a
 # time: take, decide, write the claim, drop. Its two predecessors each had a
@@ -966,6 +978,11 @@ if [[ "$cmd" == "up" ]]; then
   done
   other="$(awk '{print $2}' "$SLOTDIR/slot-$SLOT" 2>/dev/null)"
   [[ -n "$other" && "$other" != "$SLUG" ]] && { release_slot_lock "$SLOTDIR"; die "slot $SLOT is held by '$other' — free it first"; }
+  # Moving onto a slot another tree records (BL-929); resuming the one this tree
+  # records or claims is not a move, even when a sibling records it too.
+  if [[ "$other" != "$SLUG" && "$(cat "$DEST/.wt-slot" 2>/dev/null)" != "$SLOT" ]] && sib="$(SLOT_SIBLING "$SLOT")"; then
+    die "slot $SLOT is recorded by worktree '$sib' in its .wt-slot — pick another --slot"   # exit drops the lock
+  fi
   fresh_claim=true; [[ "$other" == "$SLUG" ]] && fresh_claim=false
   write_claim "$SLOTDIR" "$SLOT" "$SLUG"
   release_slot_lock "$SLOTDIR"
@@ -1046,6 +1063,12 @@ if [[ "$cmd" == "new" ]]; then
   [[ -z "$BASE" && "$base_label" == "$default_branch" ]] && base_label="$base_label$_ambient"
   info "base $base_label -> worktree $CPROJ · branch $BRANCH · participants: ${REPOS[*]}"
 
+  # A slot another tree records is refused with or without a stack (BL-929):
+  # --no-infra writes --slot into .wt-slot unreserved, and `up` resumes it.
+  if [[ -n "$SLOT" ]] && sib="$(SLOT_SIBLING "$SLOT")"; then
+    die "slot $SLOT is recorded by worktree '$sib' in its .wt-slot — pick another --slot"
+  fi
+
   # --- slot RESERVATION -----------------------------------------------------
   #
   # A port probe alone cannot allocate. Five concurrent creations all probed,
@@ -1101,6 +1124,7 @@ if [[ "$cmd" == "new" ]]; then
     else
       for cand in $(seq 1 "$WT_MAX_SLOTS"); do
         slot_taken "$SLOTDIR" "$cand" && continue
+        SLOT_SIBLING "$cand" >/dev/null && continue
         busy=0
         while IFS= read -r line; do
           p="${line##*=}"
