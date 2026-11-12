@@ -32,12 +32,20 @@ Three sites keep `~/.claude` on purpose, because an env value must not move a tr
 > corpus; they report a number and decide nothing.
 
 Surfaces how deep the session's context has grown, once per band, as one line of
-`hookSpecificOutput.additionalContext`. Bands: **200k** warn, **250k** advise,
-**300k** urgent. Silent below 200k and silent on every later prompt in a band it
+`hookSpecificOutput.additionalContext`. Bands: **300k** warn, **350k** advise,
+**400k** urgent. Silent below 300k and silent on every later prompt in a band it
 already announced. Never blocks; any failure (no jq, missing/malformed transcript,
 malformed payload) exits 0 with no output.
 
-**Where the numbers come from.** Measured over 674 Opus 5 sessions / 86,800 turns
+**Where the numbers come from (2026-11-12 decision).** The owner raised the bands from
+200k / 250k / 300k to 300k / 350k / 400k. Evidence
+(`.context/research/2026-11-12-depth-nudge-bands-raise.md`, from the claude-session-handoff
+research 2026-11-12-handoff-context-quality): the 200k bases (cost, the 1.41x slowdown) are gone on
+Opus 5.5 and Fable 5.x; failure signals do not rise from 100-200k to 200-300k; early-fact recall
+is 100% to about 600k on Opus 5.5 and Fable 5.2. Not shown: reasoning quality above 300k is
+unmeasured. The paragraphs below are the history of the earlier 200k / 250k / 300k bands.
+
+Measured over 674 Opus 5 sessions / 86,800 turns
 (`.context/research/2026-08-13-session-token-threshold-handoff.md`): 87.9% of all
 input tokens are spent at depth >=150k; a within-session paired test puts turns at
 150-200k at 1.41x the seconds-per-output-token of the same session below 100k,
@@ -48,8 +56,8 @@ the candidates.
 
 These are Opus 5 measurements (2026-08-13). The re-derivation of 2026-11-10 did not
 find them on Opus 5.5 or Fable 5.1: 1.03x and 1.02x at 150-200k, and 5.2% and 7.5% of
-input tokens at 300k or deeper. The bands are kept unchanged pending a re-derivation
-that includes Fable 5.2, and the message no longer states a slowdown figure. 2026-11-10 (BL-920): band 3 no
+input tokens at 300k or deeper. The bands were kept unchanged on 2026-11-10 pending a re-derivation
+that includes Fable 5.2 (raised on 2026-11-12, above), and the message no longer states a slowdown figure. 2026-11-10 (BL-920): band 3 no
 longer says that over half of input spend sits above 300k or that the speed loss has
 plateaued; it states the depth and points to who makes the call.
 
@@ -84,7 +92,7 @@ reads as 40% and colours green under a percentage scheme.
 > `transcript_path` with the same `max`-over-iterations rule this hook uses, and
 > fall back to `context_window` only when no transcript is available.
 
-**Tests:** `python3 test-context-depth-nudge.py` — 61 checks, self-contained
+**Tests:** `python3 test-context-depth-nudge.py` — 67 checks, self-contained
 (synthetic transcripts, no dependency on real ones). Covers exact band boundaries,
 the max-over-iterations rule, post-compaction depth drops, once-per-band gating
 with escalation, six fail-open paths, and the non-blocking output shape.
@@ -94,7 +102,7 @@ with escalation, six fail-open paths, and the non-blocking output shape.
 Handoffs already fire at a median depth of 337k on Opus 5, but that depth is not a
 choice: trigger depth tracks session *peak* depth at ~1.0x, so no depth-based
 trigger is operating today at all. There is therefore no evidence a depth cue will
-change timing. Review was due **2026-09-03**; no recorded outcome of that re-run was found, and the hook stayed wired (`hooks.json`, since the plugin manifest of 2026-09-12). **Outcome of the 2026-11-10 re-derivation (BL-920):** the slowdown at 150-200k is 1.03x on Opus 5.5 (4,460 sessions) and 1.02x on Fable 5.1 (402), against 1.43x on Opus 5; input at 300k or deeper is 5.2% and 7.5% of spend, against 50%. Both latency and spend claims were removed from the messages (v1.40.6, v1.40.7). The bands themselves are kept unchanged until Fable 5.2 has enough sessions to re-derive them (7 on 2026-11-10). The criterion stands as written:
+change timing. Review was due **2026-09-03**; no recorded outcome of that re-run was found, and the hook stayed wired (`hooks.json`, since the plugin manifest of 2026-09-12). **Outcome of the 2026-11-10 re-derivation (BL-920):** the slowdown at 150-200k is 1.03x on Opus 5.5 (4,460 sessions) and 1.02x on Fable 5.1 (402), against 1.43x on Opus 5; input at 300k or deeper is 5.2% and 7.5% of spend, against 50%. Both latency and spend claims were removed from the messages (v1.40.6, v1.40.7). The bands themselves were kept unchanged on 2026-11-10 (Fable 5.2 had 7 sessions) and raised to 300k / 350k / 400k on 2026-11-12. The criterion stands as written:
 
 > Re-run the predecessor->successor trigger query over Opus 5 sessions started
 > after 2026-08-13. **Keep** if the median trigger depth falls below 300k *and*

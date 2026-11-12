@@ -96,7 +96,7 @@ sweep report) — not only in a handoff seed, which is exactly what a handoff dr
 
 ### 4. Context check → auto-handoff, never asked
 
-The trigger is a number, not an impression: **at 250k tokens of context** — the band
+The trigger is a number, not an impression: **at 350k tokens of context** — the band
 `hooks/context-depth-nudge.sh` reports — **hand off at the next unit boundary,
 automatically.** Never on call count, and never mid-unit: a hop costs about 40% fact
 survival, so it has to buy more than it drops, and cost per call at 350+ calls measured

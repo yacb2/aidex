@@ -76,12 +76,15 @@ def fire(path, sid):
 
 
 print("=== 1. band boundaries are exact ===")
-for depth, expect in [(199_999, "SILENT"), (200_000, "Nothing to do yet"),
-                      (249_999, "Nothing to do yet"), (250_000, "stops paying for itself"),
+for depth, expect in [(199_999, "SILENT"),
+                      # 250k was band 2 under the old 200k/250k/300k bands: now silent.
+                      (250_000, "SILENT"),
+                      (299_999, "SILENT"), (300_000, "Nothing to do yet"),
+                      (349_999, "Nothing to do yet"), (350_000, "stops paying for itself"),
                       # Band 3's marker is its cost statement, not a recommendation:
                       # the wording that told the assistant what to decide is gone.
-                      (299_999, "stops paying for itself"),
-                      (300_000, "the deepest band"),
+                      (399_999, "stops paying for itself"),
+                      (400_000, "the deepest band"),
                       (900_000, "the deepest band")]:
     sid = f"TEST-b{depth}"
     clean(sid)
@@ -95,15 +98,15 @@ for depth, expect in [(199_999, "SILENT"), (200_000, "Nothing to do yet"),
     clean(sid)
 
 print("\n=== 2. depth is max-over-iterations, not the billed sum ===")
-# Three iterations of 100k each: top-level cache_read reports 300k, real depth is 100k.
+# Three iterations of 100k each: top-level cache_read reports 300k (band 1), real depth is 100k.
 # Using the billed sum would fire the RED band at 100k of actual occupancy.
 sid = "TEST-iter"
 clean(sid)
 got = fire(transcript("iter", [100_000, 100_000, 100_000]), sid)
 check("3x100k iterations stays silent (real depth 100k)", got == "SILENT", got)
 clean(sid)
-got = fire(transcript("iter2", [260_000, 260_000]), sid)
-check("2x260k iterations fires orange (real depth 260k)", "stops paying for itself" in got, got)
+got = fire(transcript("iter2", [360_000, 360_000]), sid)
+check("2x360k iterations fires band 2 (real depth 360k)", "stops paying for itself" in got, got)
 clean(sid)
 
 print("\n=== 3. reads the LAST turn, not the deepest ===")
@@ -116,7 +119,7 @@ clean(sid)
 print("\n=== 4. once per band, but bands still escalate ===")
 sid = "TEST-gate"
 clean(sid)
-p1, p3 = transcript("g1", 210_000), transcript("g3", 350_000)
+p1, p3 = transcript("g1", 310_000), transcript("g3", 450_000)
 r = [fire(p1, sid) for _ in range(3)]
 check("band 1 fires once", "Nothing to do yet" in r[0] and r[1] == "SILENT" and r[2] == "SILENT", r)
 check("band 3 still escalates", "the deepest band" in fire(p3, sid), "")
@@ -140,7 +143,7 @@ for name, payload, raw in [
 print("\n=== 6. output shape is a non-blocking UserPromptSubmit context injection ===")
 sid = "TEST-shape"
 clean(sid)
-out, _, _ = run({"transcript_path": transcript("shape", 320_000), "session_id": sid, "prompt": "x"})
+out, _, _ = run({"transcript_path": transcript("shape", 420_000), "session_id": sid, "prompt": "x"})
 try:
     j = json.loads(out)
     check("valid JSON", True)
@@ -172,7 +175,7 @@ PRESCRIPTIONS = [
     "mention this to the user",
     "tell the user",
 ]
-for band_name, depth in [("band 2 (250k)", 260_000), ("band 3 (300k)", 320_000)]:
+for band_name, depth in [("band 2 (350k)", 360_000), ("band 3 (400k)", 420_000)]:
     sid = f"TEST-noprescribe-{depth}"
     clean(sid)
     out, _, _ = run({"transcript_path": transcript(f"np{depth}", depth),
@@ -197,7 +200,7 @@ print("\n=== 8. API-error entries and a torn last line do not void the depth (BL
 ZERO = {"input_tokens": 0, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0, "output_tokens": 0}
 sid = "TEST-apierr"
 clean(sid)
-path = transcript("apierr", 320_000)
+path = transcript("apierr", 420_000)
 with open(path, "a") as f:
     f.write(json.dumps({"type": "assistant", "isApiErrorMessage": True, "message": {
         "role": "assistant", "model": "<synthetic>", "usage": ZERO,
@@ -208,7 +211,7 @@ clean(sid)
 
 sid = "TEST-torn"
 clean(sid)
-path = transcript("torn", 320_000)
+path = transcript("torn", 420_000)
 with open(path, "a") as f:
     f.write('{"type":"assistant","message":{"usage":{"input_tok')   # no newline: mid-write
 got = fire(path, sid)
@@ -238,7 +241,7 @@ for label, cfg_value, where in [("set", os.path.join(TMP, "cfg"), os.path.join(T
     CWD = os.path.join(TMP, "cwd-" + label)
     os.makedirs(CWD)
     subprocess.run(["/bin/sh", HOOK], input=json.dumps({
-        "transcript_path": transcript("cfg-" + label, 320_000), "session_id": "TEST-cfg",
+        "transcript_path": transcript("cfg-" + label, 420_000), "session_id": "TEST-cfg",
         "prompt": "x"}), capture_output=True, text=True, env=env, cwd=CWD, timeout=30)
     check(f"CLAUDE_CONFIG_DIR {label}: band marker under {os.path.relpath(where, TMP)}",
           os.path.isfile(os.path.join(where, "ctx-band-TEST-cfg")),

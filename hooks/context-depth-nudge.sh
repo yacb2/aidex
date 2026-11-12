@@ -23,16 +23,22 @@
 # cut), and it can inform without blocking — Stop can only act by blocking, which
 # is the retired hook's failure mode.
 #
-# Bands and their justification: .context/research/2026-08-13-session-token-threshold-handoff.md
-#   200k  warn    — 1.41x slower than the same session's own sub-100k baseline
-#   250k  advise  — marginal knee under the constants that describe deep sessions
-#   300k  urgent  — deepest band; the Opus 5 reading (half of input spend above here) no longer holds
-# Those figures (1.41x, half of input spend) are Opus 5 measurements of 2026-08-13. The
-# re-derivation of 2026-11-10 did not find them on Opus 5.5 or Fable 5.1 (1.03x and 1.02x
-# at 150-200k; 5.2% and 7.5% of input tokens at 300k or deeper). The bands are kept
-# unchanged pending a re-derivation that includes Fable 5.2. 2026-11-10 (BL-920): band 3's
-# message no longer says that over half of input spend sits above 300k or that the speed
-# loss has plateaued; it states the depth and points to who makes the call.
+# Bands and their justification: .context/research/2026-11-12-depth-nudge-bands-raise.md
+#   300k  warn    — information only, nothing to do yet
+#   350k  advise  — the next natural boundary is the cheap place to hand off
+#   400k  urgent  — deepest band
+# Raised from 200k / 250k / 300k on 2026-11-12 (owner decision). The old bands came from
+# .context/research/2026-08-13-session-token-threshold-handoff.md, an Opus 5 measurement:
+# a 1.41x slowdown at 150-200k and half of input spend above 300k. Both bases are gone on
+# Opus 5.5 and Fable 5.x (1.03x and 1.02x at 150-200k; 5.2% and 7.5% of input at 300k or
+# deeper; BL-920, 2026-11-10), and cost does not push toward 200k either. Two checks ran
+# for the raise: the observational readout shows no rise in failure signals from 100-200k
+# to 200-300k on Opus 5.5 and Fable 5.1, and early-fact recall stays at 100% to about 600k
+# on Opus 5.5 and Fable 5.2. WHAT THAT EVIDENCE DOES NOT SHOW: reasoning quality above
+# 300k is unmeasured (the recall probe is saturated and the observational data above 300k
+# is thin; Fable 5.2 has none there). 2026-11-10 (BL-920): band 3's message no longer says
+# that over half of input spend sits above 300k or that the speed loss has plateaued; it
+# states the depth and points to who makes the call.
 #
 # Fails open on every path: no jq, no transcript, malformed JSON -> silent exit 0.
 
@@ -84,9 +90,9 @@ DEPTH=$(tail -n 400 "$TRANSCRIPT" 2>/dev/null | jq -Rs -r '
 
 case "$DEPTH" in ''|*[!0-9]*) exit 0 ;; esac
 
-if   [ "$DEPTH" -ge 300000 ]; then BAND=3
-elif [ "$DEPTH" -ge 250000 ]; then BAND=2
-elif [ "$DEPTH" -ge 200000 ]; then BAND=1
+if   [ "$DEPTH" -ge 400000 ]; then BAND=3
+elif [ "$DEPTH" -ge 350000 ]; then BAND=2
+elif [ "$DEPTH" -ge 300000 ]; then BAND=1
 else exit 0
 fi
 
