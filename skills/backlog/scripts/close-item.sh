@@ -72,6 +72,8 @@ done
 
 [[ -n "$TARGET" ]] || die "target required: <BL-id | filename | path>"
 case "$STATUS" in done|dropped) ;; *) die "invalid --status: $STATUS (done|dropped)";; esac
+# a line break would land in the front matter as more refs, or more keys (BL-930)
+[[ "$ESCALATED" != *[$'\n\r']* ]] || die "--escalated-to takes one line: a line break is no ref"
 
 ROOT="$(find_project_root)"
 BACKLOG_DIR="$ROOT/.context/backlog"
@@ -183,7 +185,7 @@ split_hint() {  # split_hint <sha> → prints the refusal tail; exit 1 when $ROO
   printf 'In a split workspace close after the merge, citing the merge sha (or the item commit, now reachable from the sub-repo main).'
 }
 for i in "${!COMMITS[@]}"; do
-  sha="${COMMITS[$i]}"
+  sha="${COMMITS[$i]}" typed="${COMMITS[$i]}"  # messages name what the caller typed (BL-930)
   [[ -n "$sha" ]] || continue
   # A ref name (HEAD, a branch, a tag) moves; the record is the commit it names now (D-09),
   # and it names it in the repo the caller is IN. Resolving it in the first searched repo
@@ -194,15 +196,24 @@ for i in "${!COMMITS[@]}"; do
     sha="$(git rev-parse --verify --quiet "$sha^{commit}")" \
       || die "--commit ${COMMITS[$i]} is a ref name and the repo you are in has no such commit: run from inside the repo it names, or cite the sha"
     COMMITS[$i]="$(git rev-parse --short "$sha")"
+  else
+    # A typed hex too, when the caller's repo has it (stored as typed); else searched as typed,
+    # unless something there that peels to a commit starts with it: the prefix did not resolve,
+    # so it is ambiguous (two commits, a commit and a tag), and the root may accept another (BL-930).
+    if ! sha="$(git rev-parse --verify --quiet "$sha^{commit}" 2>/dev/null)"; then
+      sha="$typed"
+      [[ "$(git rev-parse --disambiguate="$sha" 2>/dev/null | while read -r o; do git rev-parse -q --verify "$o^{commit}" >/dev/null 2>&1 && echo; done | wc -l)" -eq 0 ]] \
+        || die "--commit $typed is ambiguous in the repo you are in (more than one object starts with it): cite more of the sha"
+    fi
   fi
   rc=0; commit_on_trunk "$sha" >/dev/null || rc=$?
   case $rc in
     0) ;;
-    3) warn "--commit $sha not verified: no git repository under $ROOT" ;;
+    3) warn "--commit $typed not verified: no git repository under $ROOT" ;;
     *) if HINT="$(split_hint "$sha")"; then
-         die "--commit $sha is not on the current branch of $SEARCHED. $HINT"
+         die "--commit $typed is not on the current branch of $SEARCHED. $HINT"
        fi
-       die "--commit $sha is not on the current branch of $SEARCHED — cite a commit that is here. In a single repo, run from inside the worktree that carries it; in a split workspace (code in a sub-repo) close after the merge, citing the merge sha." ;;
+       die "--commit $typed is not on the current branch of $SEARCHED — cite a commit that is here. In a single repo, run from inside the worktree that carries it; in a split workspace (code in a sub-repo) close after the merge, citing the merge sha." ;;
   esac
 done
 COMMITS_STR="${COMMITS[*]:-}"
@@ -279,7 +290,7 @@ if [[ $SWEEP -eq 1 && "$STATUS" == "done" ]]; then
     # The resolving commits are kept too: a parked item is proven work whose sha was
     # otherwise lost until the owner closed it by hand (BL-499, 2026-08-28). --escalated-to
     # and --reason are kept for the same reason (BL-926); the reason note says Parked, not Closed.
-    awk -v today="$TODAY" -v commits="$COMMITS_STR" -v esc="$ESCALATED" "$MERGE_AWK$ESC_AWK"'BEGIN{d=0;seen=0;seen_c=0;seen_esc=0}
+    CI_ESC="$ESCALATED" awk -v today="$TODAY" -v commits="$COMMITS_STR" "$MERGE_AWK$ESC_AWK"'BEGIN{d=0;seen=0;seen_c=0;seen_esc=0;esc=ENVIRON["CI_ESC"]}
       /^---[[:space:]]*$/ { d++
         if (d==2 && !seen) print "awaiting: owner"
         if (d==2 && commits!="" && !seen_c) print "commits: \"" merge("", commits) "\""
@@ -308,8 +319,8 @@ DEST="$BACKLOG_DIR/_archive/$(basename "$FILE")"
 [[ ! -e "$DEST" ]] || die "archive collision: $DEST already exists"
 
 # --- mutate front-matter (status, updated, optional superseded_by/escalated_to/commits) ---
-awk -v status="$STATUS" -v today="$TODAY" -v sup="$SUPERSEDED" -v esc="$ESCALATED" -v commits="$COMMITS_STR" "$MERGE_AWK$ESC_AWK"'
-  BEGIN { d=0; infm=0; seen_sup=0; seen_esc=0; seen_commits=0 }
+CI_ESC="$ESCALATED" awk -v status="$STATUS" -v today="$TODAY" -v sup="$SUPERSEDED" -v commits="$COMMITS_STR" "$MERGE_AWK$ESC_AWK"'
+  BEGIN { d=0; infm=0; seen_sup=0; seen_esc=0; seen_commits=0; esc=ENVIRON["CI_ESC"] }
   /^---[[:space:]]*$/ {
     d++
     if (d==1) { infm=1; print; next }

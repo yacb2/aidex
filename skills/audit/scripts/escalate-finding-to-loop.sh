@@ -12,7 +12,8 @@
 #   --dry-run   print what would happen; scaffold nothing, mutate nothing
 #
 # Exit: 0 escalated; 2 refused before scaffolding (unknown or ambiguous id, done or dropped
-#   row, unusable lock dir, escalation lock held by another run); 4 the loop spec was
+#   row, unusable lock dir, escalation lock held by another run) or the scaffolded spec could
+#   not be prefilled (the spec is removed); 4 the loop spec was
 #   scaffolded but its row could not be marked (the message names the spec; mark the row
 #   by hand, do not rerun).
 
@@ -146,14 +147,16 @@ fi
 # after their section headings (instructional comments are left in place). The temp
 # file sits beside the spec (atomic rename) and takes its mode (cp -p): mktemp's 0600
 # must not replace it (BL-779).
+# A rewrite that fails takes the spec with it: the row is not marked yet, so this run
+# escalated nothing, and a spec left behind would be an orphan (BL-779, BL-930).
+prefill_failed() { rm -f "$1" "$LOOP_FILE"; die "could not prefill the scaffolded loop spec for $FINDING_ID (removed); nothing was escalated"; }
 TMP="$(mktemp "$LOOP_FILE.XXXXXX")"
 cp -p "$LOOP_FILE" "$TMP"
 awk -v goal="$GOAL_TEXT" -v prov="$PROV_TEXT" -v gate="$GATE_TEXT" '
   /^## Goal$/ { print; print ""; print goal; print ""; print prov; next }
   /^## Stop condition \(the gate\)$/ { print; print ""; print gate; next }
   { print }
-' "$LOOP_FILE" > "$TMP"
-mv "$TMP" "$LOOP_FILE"
+' "$LOOP_FILE" > "$TMP" && mv "$TMP" "$LOOP_FILE" || prefill_failed "$TMP"
 
 # Back-link (canon forward+back invariant): the loop-spec front-matter carries
 # origin_ref pointing at the finding. The template never writes one, so insert it
@@ -163,7 +166,7 @@ cp -p "$LOOP_FILE" "$TMP2"
 awk -v ref="$ORIGIN_REF" '
   /^---[[:space:]]*$/ { c++; if (c == 2) print "origin_ref: " ref }
   { print }
-' "$LOOP_FILE" > "$TMP2" && mv "$TMP2" "$LOOP_FILE"
+' "$LOOP_FILE" > "$TMP2" && mv "$TMP2" "$LOOP_FILE" || prefill_failed "$TMP2"
 
 # Canon cross-ref MARKER (D-03), never a markdown relative link.
 MARKER="loop/$(basename "$LOOP_FILE" .md)"

@@ -402,7 +402,7 @@ companions_of() {
 archive_companions() {
   local ctx="$1" ref="$2" dest="$3"
   local anchors comp src base
-  anchors="$(scan_artifact_anchors "$ctx")"
+  anchors="$(scan_artifact_anchors "$ctx")" || { warn "companions of $ref not checked (the anchor scan failed; python3?): move any page anchored to it by hand"; return 0; }
   while IFS= read -r comp; do
     [[ -n "$comp" ]] || continue
     src="$ctx/$comp"

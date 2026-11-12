@@ -386,7 +386,8 @@ awk -v marker="$MARKER" -v run="$RUN_SLUG" -v rundate="$RUN_DATE" "$AWK_UNESC$AW
     for (i = 2; i <= n; i++) out = out "|" c[i]
     print unesc(out)
   }
-' "$INV" > "$TMP2" && mv "$TMP2" "$INV"
+' "$INV" > "$TMP2" && mv "$TMP2" "$INV" \
+  || { rm -f "$TMP2" "$LOOP_FILE"; die "could not mark the rows of $RUN_SLUG in $INV_REL; the spec was removed, nothing emitted"; }
 
 ok "remediation loop-spec emitted"
 printf '  loop-spec  : %s\n' "$LOOP_FILE" >&2

@@ -5,13 +5,15 @@
 # (test-verification-gate.sh), sweep-report.py's reader (test-sweep-report.sh), migrate-ids
 # (test-migrate-ids.sh).
 #   1 a relative or symlinked path to an active item is that item (header: "<... | path>")
-#   2 --commit HEAD (any ref name) records the commit it names in the CALLER's repo
+#   2 --commit HEAD (any ref name) records the commit it names in the CALLER's repo; a typed
+#     hex is checked as the commit it names there too, an ambiguous one refused (BL-930)
 #   3 an escaped \| inside a Verification cell is cell text, not a separator
 #   4 a colon-aligned separator row (:---, ---:, :---:) is not a data row
 #   5 a row with an empty kind but a criterion is refused, not skipped
 #   7 a failed front-matter rewrite never reports success: exit non-zero, item untouched
 #   8 the warn-only RED/GREEN reader of a type: bug item cannot abort a close half-way,
-#     whether it fails on a non-UTF-8 byte or python3 itself fails
+#     whether it fails on a non-UTF-8 byte or python3 itself fails; nor can the companion
+#     scan after the archive (BL-930)
 set -uo pipefail
 SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts" && pwd -P)"
 PASS=0 FAIL=0
@@ -78,6 +80,61 @@ swclose 298 "$SW/code" v1; RC=$?; got="$(fm "$SW/.context/backlog/_archive/bl-29
 [[ $RC -eq 0 && "$got" == "\"$CODE_HEAD\"" ]] && ok "split: --commit v1 from code/ stores the sub-repo's $CODE_HEAD" || bad "split v1 from code/: rc=$RC commits=$got $(cat "$TMP/err")"
 swclose 299 "$SW" v1; RC=$?
 [[ $RC -eq 2 && -f "$SW/.context/backlog/bl-299-x.md" ]] && grep -q 'ref name' "$TMP/err" && ok "split: --commit v1 from the root (no such ref there) is refused, item untouched" || bad "split v1 from root: rc=$RC $(cat "$TMP/err")"
+# a hex the caller types is checked as the commit it names in the caller's repo, like a ref
+# (BL-930): code/'s unmerged X, cited by a 4-hex prefix that on the root names Y (on HEAD)
+HX="$TMP/hexsplit"; mkdir -p "$HX/code" "$HX/.context/backlog"
+export GIT_AUTHOR_DATE=1700000000 GIT_COMMITTER_DATE=1700000000  # fixed shas: no prefix clash by chance
+G -C "$HX" init -q -b main; G -C "$HX" commit -q --allow-empty -m ws
+G -C "$HX/code" init -q -b main; G -C "$HX/code" commit -q --allow-empty -m code; CM="$(G -C "$HX/code" rev-parse HEAD)"
+G -C "$HX/code" checkout -q -b side; G -C "$HX/code" commit -q --allow-empty -m unmerged
+X="$(G -C "$HX/code" rev-parse HEAD)"; G -C "$HX/code" checkout -q main; P="${X:0:4}"
+craft() { # craft <repo> <commit|tag> <prefix> <header lines> -> writes an object whose sha starts with <prefix> (a nonce search)
+  python3 - "$2" "$3" "$4" <<'PY2' | G -C "$1" hash-object -t "$2" -w --stdin
+import hashlib, sys
+kind, pfx, head = sys.argv[1:]
+for n in range(10**7):
+    body = (head + "\n\nnonce %d\n" % n).encode()  # head comes through $(...): no trailing newline
+    if hashlib.sha1(b"%s %d\0" % (kind.encode(), len(body)) + body).hexdigest().startswith(pfx):
+        sys.stdout.buffer.write(body); break
+PY2
+}
+WHO='t <t@t> 1700000000 +0000'
+commit_head() { printf 'tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904\nparent %s\nauthor %s\ncommitter %s\n' "$1" "$WHO" "$WHO"; }
+Y="$(craft "$HX" commit "$P" "$(commit_head "$(G -C "$HX" rev-parse HEAD)")")"; G -C "$HX" update-ref refs/heads/main "$Y"; unset GIT_AUTHOR_DATE GIT_COMMITTER_DATE
+hxclose() { # hxclose <id> <--commit>: an item of the hex fixture, closed from code/
+  cp "$(item "$1" improvement "$PROVEN")" "$HX/.context/backlog/"; rm -f "$B/bl-$1-x.md"
+  (cd "$HX/code" && NO_COLOR=1 bash "$SCRIPTS/close-item.sh" "BL-$1" --commit "$2" --no-index >/dev/null 2>"$TMP/err")
+}
+NONE=0000000  # a prefix naming nothing in either repo
+if [[ "$(G -C "$HX" rev-parse "$P^{commit}" 2>/dev/null)" != "$Y" || "$(G -C "$HX/code" rev-parse "$P^{commit}" 2>/dev/null)" != "$X" ]] \
+   || G -C "$HX" rev-parse -q --verify "$NONE^{commit}" >/dev/null 2>&1 || G -C "$HX/code" rev-parse -q --verify "$NONE^{commit}" >/dev/null 2>&1; then
+  bad "setup: $P must name Y on the root's HEAD and X in code/, $NONE nothing"
+else
+  hxclose 293 "${CM:0:7}"; RC=$?; got="$(fm "$HX/.context/backlog/_archive/bl-293-x.md" commits 2>/dev/null)"
+  [[ $RC -eq 0 && "$got" == "\"${CM:0:7}\"" ]] && ok "split: hex ${CM:0:7} on code/'s trunk, from code/, is accepted and stored as typed" || bad "split hex on code trunk: rc=$RC commits=$got $(cat "$TMP/err")"
+  UP="$(printf %s "${CM:0:7}" | tr a-f A-F)"; hxclose 292 "$UP"; RC=$?; got="$(fm "$HX/.context/backlog/_archive/bl-292-x.md" commits 2>/dev/null)"
+  [[ $RC -eq 0 && "$got" == "\"$UP\"" ]] && ok "split: uppercase hex $UP on code/'s trunk is accepted and stored as typed" || bad "split uppercase hex $UP: rc=$RC commits=$got $(cat "$TMP/err")"
+  hxclose 296 "$P"; RC=$?
+  [[ $RC -eq 2 && -f "$HX/.context/backlog/bl-296-x.md" ]] && grep -q 'branch side of code' "$TMP/err" && ok "split: hex $P from code/ is checked as code's unmerged commit, refused" || bad "split hex $P from code/: rc=$RC (accepted as the root's $Y?) $(cat "$TMP/err")"
+  grep -q -- "--commit $P " "$TMP/err" && ! grep -qE "$X|$Y" "$TMP/err" && ok "...and the refusal names the value typed ($P), no sha the caller never typed" || bad "refusal does not name $P alone: $(cat "$TMP/err")"
+  hxclose 295 "$NONE"; RC=$?
+  [[ $RC -eq 2 && -f "$HX/.context/backlog/bl-295-x.md" ]] && grep -q -- "--commit $NONE " "$TMP/err" && ok "split: hex $NONE naming nothing anywhere is refused, named as typed" || bad "split hex $NONE: rc=$RC $(cat "$TMP/err")"
+  # an annotated tag object in code/ sharing the prefix: X is no longer the one commit-ish it names
+  T="$(craft "$HX/code" tag "$P" "$(printf 'object %s\ntype commit\ntag t\ntagger %s\n' "$CM" "$WHO")")"
+  hxclose 291 "$P"; RC=$?
+  [[ $RC -eq 2 && -f "$HX/.context/backlog/bl-291-x.md" && "$T" == "$P"* ]] && grep -q 'ambiguous' "$TMP/err" && ! grep -q 'Closed' "$TMP/err" && ok "split: hex $P naming a commit and a tag in code/ is refused as ambiguous" || bad "split commit+tag $P: rc=$RC tag=$T $(cat "$TMP/err")"
+  # two tags and no commit with prefix Q in code/, a commit with Q on the root's HEAD: the tags
+  # peel to commits, so Q is ambiguous where the caller is, never the root's commit
+  Q=beef; Y2="$(craft "$HX" commit "$Q" "$(commit_head "$Y")")"; G -C "$HX" update-ref refs/heads/main "$Y2"
+  craft "$HX/code" tag "$Q" "$(printf 'object %s\ntype commit\ntag t1\ntagger %s\n' "$CM" "$WHO")" >/dev/null
+  craft "$HX/code" tag "$Q" "$(printf 'object %s\ntype commit\ntag t2\ntagger %s\n' "$CM" "$WHO")" >/dev/null
+  hxclose 290 "$Q"; RC=$?
+  [[ $RC -eq 2 && -f "$HX/.context/backlog/bl-290-x.md" ]] && grep -q 'ambiguous' "$TMP/err" && ok "split: hex $Q naming two tags in code/ is refused as ambiguous, not taken as the root's commit" || bad "split two tags $Q: rc=$RC $(cat "$TMP/err")"
+  # a second commit with the same prefix in code/: the caller's repo cannot say which one is meant
+  craft "$HX/code" commit "$P" "$(commit_head "$CM")" >/dev/null
+  hxclose 294 "$P"; RC=$?
+  [[ $RC -eq 2 && -f "$HX/.context/backlog/bl-294-x.md" ]] && grep -q 'ambiguous' "$TMP/err" && grep -q -- "--commit $P " "$TMP/err" && ok "split: hex $P with two commits in code/ is refused as ambiguous" || bad "split ambiguous $P: rc=$RC $(cat "$TMP/err")"
+fi
 
 sweep() { # sweep <label> <expect: closes|refused> <rows> [message fragment]
   local f id rc; n3=$((n3+1)); f="$(item 3$n3 improvement "$3")"; id="BL-3$n3"
@@ -155,11 +212,19 @@ F="$(item 802 bug "$PROVEN")"; printf 'RED: failed, then GREEN: passed\ncaf\351\
 ERR="$(cd "$W" && LC_ALL=C NO_COLOR=1 bash "$SCRIPTS/close-item.sh" BL-802 --no-index 2>&1 >/dev/null)"; RC=$?
 [[ $RC -eq 0 && -f "$A/bl-802-x.md" && "$ERR" != *"no RED->GREEN proof"* ]] && ok "...and its RED/GREEN body line is still read as proof (no false warning)" || bad "bug item with proof: rc=$RC $ERR"
 # python3 itself failing (missing, broken) is a warn-only step failing: the close goes on.
-# The exit code is not asserted: the companion move AFTER the archive (scan_artifact_anchors,
-# _lib.sh) needs python3 too and still fails the run once the item is archived.
+# The companion move AFTER the archive (scan_artifact_anchors, _lib.sh) needs python3 too.
 PYSHIM="$TMP/pyshim"; mkdir -p "$PYSHIM"; printf '#!/bin/sh\nexit 127\n' > "$PYSHIM/python3"; chmod +x "$PYSHIM/python3"
 F="$(item 803 bug "$PROVEN")"
-ERR="$(cd "$W" && PATH="$PYSHIM:$PATH" NO_COLOR=1 bash "$SCRIPTS/close-item.sh" BL-803 --no-index 2>&1 >/dev/null)"; RC=$?
+OUT="$(cd "$W" && PATH="$PYSHIM:$PATH" NO_COLOR=1 bash "$SCRIPTS/close-item.sh" BL-803 --no-index 2>"$TMP/err")"; RC=$?; ERR="$(cat "$TMP/err")"
 [[ -f "$A/bl-803-x.md" && "$(fm "$A/bl-803-x.md" status)" == done && ! -e "$F" && "$ERR" == *"no RED->GREEN proof"* ]] && ok "python3 failing: the bug item is not half-closed (archived as done) and warns" || bad "python3 failing: rc=$RC active=$([[ -e "$F" ]] && fm "$F" status) $ERR"
+# ...and the companion scan after the archive (python3 too) cannot abort the run: exit 0,
+# the archived path printed, a warning that companions were not checked (BL-930)
+[[ $RC -eq 0 && "$OUT" == */.context/backlog/_archive/bl-803-x.md && "$ERR" == *"companions"*"not checked"* ]] && ok "python3 failing: the run finishes (exit 0, path printed) and says companions were not checked" || bad "python3 failing, run end: rc=$RC out='$OUT' $ERR"
+# the same without --no-index, in a workspace of its own (the reindex's id guard sees only this item)
+PW="$TMP/pyws"; mkdir -p "$PW/.context/backlog"; G -C "$PW" init -q -b main; G -C "$PW" commit -q --allow-empty -m b
+mv "$(item 804 bug "$PROVEN")" "$PW/.context/backlog/"
+OUT="$(cd "$PW" && PATH="$PYSHIM:$PATH" NO_COLOR=1 bash "$SCRIPTS/close-item.sh" BL-804 2>"$TMP/err")"; RC=$?; ERR="$(cat "$TMP/err")"
+[[ $RC -eq 0 && "$OUT" == */_archive/bl-804-x.md && -f "$PW/.context/backlog/00-index.md" && "$ERR" == *"index rebuilt"* && "$ERR" == *"companions"*"not checked"* ]] && ok "python3 failing, index rebuilt: exit 0, path printed, companions not checked" || bad "python3 failing with reindex: rc=$RC out='$OUT' $ERR"
+
 
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — close-item BL-926: $PASS cells"; exit 0; }; echo "$PASS ok, $FAIL failed"; exit 1

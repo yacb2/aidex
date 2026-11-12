@@ -277,5 +277,21 @@ printf '%s' "$RE_OUT" | grep >/dev/null 'already held by loop/' \
 bash "$EMIT" no-such-run >/dev/null 2>&1
 [[ $? -ne 0 ]] || fail "unknown run should exit non-zero"
 
+# BL-930: the row mark failing (an awk shim that fails the call whose program sets a row
+# `" doing "`) is no emit: exit 2,
+# no "emitted", the spec removed (a rerun would otherwise scaffold a second one), no temp left
+mkdir -p "$A/mk/2026-07-20-mark"
+printf '| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |\n|---|---|---|---|---|---|---|---|---|\n| MK-1 | bug | api | Mark me | open | P1 | 2026-07-20 | — | — |\n' > "$A/mk/00-inventory.md"
+echo "# m" > "$A/mk/00-methodology.md"; echo "# c" > "$A/mk/00-changelog.md"
+printf -- '---\ntitle: "mk"\nstatus: doing\ncreated: 2026-07-20\nupdated: 2026-07-20\nmethodology: mk\n---\n' > "$A/mk/2026-07-20-mark/index.md"
+SHIM="$TMP/awkshim"; mkdir -p "$SHIM" "$TMP/mktmp"
+printf '#!/bin/sh\ncase "$*" in *"$AWK_FAIL_ON"*) echo partial; exit 2;; esac\nexec %s "$@"\n' "$(command -v awk)" > "$SHIM/awk"; chmod +x "$SHIM/awk"
+before="$(cksum < "$A/mk/00-inventory.md")"
+MK_OUT="$(PATH="$SHIM:$PATH" AWK_FAIL_ON='c[i_status] = " doing "' TMPDIR="$TMP/mktmp" bash "$EMIT" 2026-07-20-mark 2>&1)"; rc=$?
+[[ $rc -eq 2 && "$MK_OUT" == *"could not mark the rows"* && "$MK_OUT" != *"remediation loop-spec emitted"* ]] || fail "mark fails: emit should exit 2 saying 'could not mark the rows', without 'emitted', rc $rc: $MK_OUT"
+[[ -z "$(ls .context/loops/*-remediate-mark.md 2>/dev/null)" ]] || fail "mark fails: the spec was left behind"
+[[ -z "$(ls "$TMP/mktmp")" ]] || fail "mark fails: a temp file was left: $(ls "$TMP/mktmp")"
+[[ "$(cksum < "$A/mk/00-inventory.md")" == "$before" ]] || fail "mark fails: the inventory was written"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — inventory-anchored gate, doing+marker at emit, no hand-editing, priority-grouped, both validators clean"

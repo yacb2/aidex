@@ -21,14 +21,36 @@ function merge(val, add,   n, a, m, t, i, j, dup, out) {
 # comma). esc_line(line, add) is the whole new line: the existing line ("" when there is none)
 # plus each ref of `add` (itself a comma list) not already there, every element trimmed and
 # unquoted before it is compared, so `plan/p ` and `plan/p` are one ref (BL-926). A trailing
-# ` # comment` on the existing line is YAML's, not the value's, and is dropped.
+# ` # comment` on the existing line is YAML's, not the value's, and is dropped: after the closing
+# quote of a quoted value, never inside it (BL-930).
+# The line is written as a double-quoted scalar: an existing double-quoted line has its `\"`
+# and `\\` read back (yaml_escape's, as define-item.sh writes them; any other backslash is a
+# character of the value), a single-quoted one its `''`, and every `"` and `\` is escaped on
+# the way out, so a quote in a ref cannot end the scalar (BL-930).
+# Pass `add` through ENVIRON, never `-v`: awk -v re-reads backslash escapes.
 ESC_AWK='function esc_trim(s) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", s)
   if (s ~ /^".*"$/ || s ~ /^\047.*\047$/) s = substr(s, 2, length(s) - 2)
   return s }
+function esc_bs(s, unq,   o, i, ch, nx) { o = ""  # unq: read \\ and \" back; else add a backslash before \ and "
+  for (i = 1; i <= length(s); i++) { ch = substr(s, i, 1); nx = substr(s, i + 1, 1)
+    if (unq && ch == "\\" && (nx == "\\" || nx == "\"")) { i++; ch = nx }
+    else if (!unq && (ch == "\\" || ch == "\"")) o = o "\\"
+    o = o ch }
+  return o }
+function esc_val(line,   q, i, ch) {  # a quoted value up to its closing quote, else the text before a ` #` comment
+  gsub(/^[[:space:]]+|[[:space:]]+$/, "", line); q = substr(line, 1, 1)
+  if (q == "\"" || q == "\047") for (i = 2; i <= length(line); i++) { ch = substr(line, i, 1)
+    if (q == "\"" && ch == "\\") i++
+    else if (ch == q && q == "\047" && substr(line, i + 1, 1) == q) i++
+    else if (ch == q) return substr(line, 1, i) }
+  sub(/[[:space:]]+#.*$/, "", line); return line }
 function esc_line(line, add,   n, e, k, x, out) {
-  sub(/^escalated_to:/, "", line); sub(/[[:space:]]+#.*$/, "", line); out = ""; n = split(esc_trim(line) "," add, e, ",")
+  sub(/^escalated_to:/, "", line); line = esc_val(line)
+  if (line ~ /^".*"$/) line = esc_bs(substr(line, 2, length(line) - 2), 1)
+  else if (line ~ /^\047.*\047$/) { line = substr(line, 2, length(line) - 2); gsub(/\047\047/, "\047", line) }
+  out = ""; n = split(line "," add, e, ",")
   for (k = 1; k <= n; k++) { x = esc_trim(e[k]); if (x != "" && index(", " out ", ", ", " x ", ") == 0) out = out (out == "" ? "" : ", ") x }
-  return "escalated_to: \"" out "\""
+  return "escalated_to: \"" esc_bs(out, 0) "\""
 }
 '
 

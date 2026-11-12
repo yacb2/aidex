@@ -527,6 +527,22 @@ LOOP_FILE="$(ls .context/loops/*.md 2>/dev/null | grep -v STATE | sed -n 1p)"
 [[ $rc -eq 4 && "$out" == *"$LOOP_FILE"* && "$out" == *"was not marked"* ]] \
   || fail "loop-mark-fails: a mark failing after the scaffold should exit 4 naming the spec ($LOOP_FILE), rc $rc: $out"
 
+# --- BL-930: a prefill rewrite of the scaffolded spec that fails (an awk shim that fails the
+# call whose PROGRAM carries the step's token) is no escalation: rc 2, the spec and its temp
+# file removed, row as it was ---
+SHIM="$TMP/awkshim"; mkdir -p "$SHIM"
+printf '#!/bin/sh\ncase "$*" in *"$AWK_FAIL_ON"*) echo partial; exit 2;; esac\nexec %s "$@"\n' "$(command -v awk)" > "$SHIM/awk"; chmod +x "$SHIM/awk"
+for c in goal origin; do
+  case $c in goal) tok='/^## Goal$/' ;; origin) tok='print "origin_ref: " ref' ;; esac
+  new_project "loop-prefill-$c"
+  board "$A/ux/00-inventory.md" F-001; before="$(cksum < "$A/ux/00-inventory.md")"
+  out="$(PATH="$SHIM:$PATH" AWK_FAIL_ON="$tok" bash "$SCRIPTS/escalate-finding-to-loop.sh" F-001 --loop 2>&1)"; rc=$?
+  [[ $rc -eq 2 && "$out" == *"could not prefill"*"nothing was escalated"* && "$out" != *"escalated to loop-spec"* ]] \
+    || fail "loop-prefill-$c: a failed rewrite should refuse with rc 2, rc $rc: $out"
+  [[ -z "$(ls .context/loops)" ]] || fail "loop-prefill-$c: the spec or its temp file was left: $(ls .context/loops)"
+  [[ "$(cksum < "$A/ux/00-inventory.md")" == "$before" ]] || fail "loop-prefill-$c: the row was marked"
+done
+
 # --- BL-779: the loop spec takes the umask mode of a created file, never mktemp's 0600;
 # concurrent escalations of one id (loop x loop, loop x backlog) are serialised by the
 # project escalation lock: one lands, the other is refused as done, nothing orphaned ---

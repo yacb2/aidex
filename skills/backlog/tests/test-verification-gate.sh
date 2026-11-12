@@ -164,11 +164,15 @@ park_commits "spaces after the closing quote are trimmed" 'commits: "aaaaaaa"   
 # BL-926: the park branch drops no caller-supplied field. escalated_to ACCUMULATES on an
 # active item as a comma scalar (register-item.sh stamp_escalated_to, BL-360), so a park
 # adds the ref to what is there; --reason lands as a Parked note, never a Closed one.
+set_esc() { # set_esc <file> <escalated_to line, or '' to drop it>: the line verbatim (awk ENVIRON, not sed: a backslash survives)
+  if [[ -n "$2" ]]; then L="$2" awk '/^escalated_to:/{print ENVIRON["L"]; next} {print}' "$1" > "$1.tmp" && mv "$1.tmp" "$1"
+  else sed -i.bak '/^escalated_to:/d' "$1" && rm -f "$1.bak"; fi
+}
 park_esc() { # park_esc <label> <existing escalated_to line or ''> <--escalated-to> <expected line>
   local f id
   f="$(reg --title "park esc $1" --surface ops)"; id="$(idof "$f")"
   add_row "$f" smoke "census" "proofs/census.txt: 0 findings"; add_row "$f" owner "wording" ""
-  if [[ -n "$2" ]]; then sed -i.bak "s|^escalated_to:.*|$2|" "$f" && rm -f "$f.bak"; else sed -i.bak '/^escalated_to:/d' "$f" && rm -f "$f.bak"; fi
+  set_esc "$f" "$2"
   bash "$SCRIPTS/close-item.sh" "$id" --sweep --escalated-to "$3" --no-index >/dev/null 2>&1
   [[ -f "$f" ]] && grep -q '^awaiting: owner$' "$f" && [[ "$(grep -c '^escalated_to:' "$f")" == 1 && "$(grep '^escalated_to:' "$f")" == "$4" ]] \
     && ok "park escalated_to: $1" || bad "park escalated_to $1: $(grep '^escalated_to:' "$f" 2>&1)"
@@ -188,13 +192,16 @@ park_esc "a comma list in one flag adds only what is new" 'escalated_to: "a/BL-1
 park_esc "blanks around the flag value are not part of the ref" 'escalated_to: "plan/p"' ' plan/p ' 'escalated_to: "plan/p"'
 park_esc "the inserted line is normalised too" '' ' plan/p, plan/p' 'escalated_to: "plan/p"'
 park_esc "an empty element is dropped" 'escalated_to: "a/BL-1"' 'plan/p,' 'escalated_to: "a/BL-1, plan/p"'
+# BL-930: the value is a double-quoted YAML scalar, written escaped and read back unescaped
+park_esc "a quote and a backslash in a new ref are escaped" '' 'plan/a"\b' 'escalated_to: "plan/a\"\\b"'
+park_esc "a single-quoted list is unquoted, then split" "escalated_to: 'plan/a, plan/b'" plan/c 'escalated_to: "plan/a, plan/b, plan/c"'
 # The archiving close accumulates through the same code: the links a park gathered survive
 # the final close (BL-926 N1 — it used to replace the line with the flag value).
 close_esc() { # close_esc <label> <existing escalated_to line or ''> <--escalated-to> <expected line>
   local f id
   f="$(reg --title "close esc $1" --surface ops)"; id="$(idof "$f")"
   add_row "$f" smoke "census" "proofs/census.txt: 0 findings"
-  if [[ -n "$2" ]]; then sed -i.bak "s|^escalated_to:.*|$2|" "$f" && rm -f "$f.bak"; else sed -i.bak '/^escalated_to:/d' "$f" && rm -f "$f.bak"; fi
+  set_esc "$f" "$2"
   f="$(bash "$SCRIPTS/close-item.sh" "$id" --sweep --escalated-to "$3" --no-index 2>/dev/null)"
   [[ "$f" == */_archive/* && "$(grep -c '^escalated_to:' "$f")" == 1 && "$(grep '^escalated_to:' "$f")" == "$4" ]] \
     && ok "close escalated_to: $1" || bad "close escalated_to $1: $(grep '^escalated_to:' "$f" 2>&1)"
@@ -203,14 +210,46 @@ close_esc "no escalated_to line" '' 'plan/p, plan/p' 'escalated_to: "plan/p"'
 close_esc "accumulates onto an existing link" 'escalated_to: "a/BL-1"' plan/p 'escalated_to: "a/BL-1, plan/p"'
 close_esc "spaces after the closing quote are trimmed" 'escalated_to: "a/BL-1"  ' plan/p 'escalated_to: "a/BL-1, plan/p"'
 close_esc "a trailing YAML comment is not part of the value" 'escalated_to: "a/BL-1" # note' plan/p 'escalated_to: "a/BL-1, plan/p"'
-PE="$(reg --title "park then close esc" --surface ops)"; PEID="$(idof "$PE")"
-add_row "$PE" smoke "census" "proofs/census.txt: 0 findings"; add_row "$PE" owner "wording" ""
-sed -i.bak 's|^escalated_to:.*|escalated_to: "a/BL-1"|' "$PE" && rm -f "$PE.bak"
-bash "$SCRIPTS/close-item.sh" "$PEID" --sweep --escalated-to plan/p --no-index >/dev/null 2>&1
-sed -i.bak 's/^| owner | wording |  |$/| owner | wording | approved |/' "$PE" && rm -f "$PE.bak"
-OUT="$(bash "$SCRIPTS/close-item.sh" "$PEID" --sweep --escalated-to plan/p --no-index 2>/dev/null)"
-[[ "$OUT" == */_archive/* && "$(grep '^escalated_to:' "$OUT")" == 'escalated_to: "a/BL-1, plan/p"' ]] \
-  && ok "park, fill the owner cell, close: the archived item keeps every link" || bad "park then close: $OUT $(grep '^escalated_to:' "$OUT" 2>&1)"
+# BL-930: escaped on write, `\"` and `\\` read back; any other backslash is a character of the value
+close_esc "a quote in a new ref is escaped" '' 'plan/a"b' 'escalated_to: "plan/a\"b"'
+close_esc "a backslash in a new ref is escaped" '' 'plan/a\b' 'escalated_to: "plan/a\\b"'
+close_esc "an escaped existing ref is kept, the new one added" 'escalated_to: "plan/a\"b"' plan/c 'escalated_to: "plan/a\"b, plan/c"'
+close_esc "the same quoted ref added again is one ref" 'escalated_to: "plan/a\"b"' 'plan/a"b' 'escalated_to: "plan/a\"b"'
+close_esc "another backslash sequence is the backslash itself" 'escalated_to: "plan/a\tb"' plan/c 'escalated_to: "plan/a\\tb, plan/c"'
+close_esc "a malformed scalar is written well-formed" 'escalated_to: "plan/x\"' plan/c 'escalated_to: "plan/x\\, plan/c"'
+close_esc "a single-quoted list is unquoted, then split" "escalated_to: 'plan/a, plan/b'" plan/c 'escalated_to: "plan/a, plan/b, plan/c"'
+close_esc "a single-quoted '' is one quote" "escalated_to: 'it''s/a'" plan/c "escalated_to: \"it's/a, plan/c\""
+close_esc "an escaped backslash is read back and written again" 'escalated_to: "plan/a\\b"' plan/c 'escalated_to: "plan/a\\b, plan/c"'
+close_esc "a # inside the quoted value is not a comment" 'escalated_to: "plan/a #1"' plan/c 'escalated_to: "plan/a #1, plan/c"'
+close_esc "a comment after an unquoted value is dropped" 'escalated_to: a/BL-1 # note' plan/p 'escalated_to: "a/BL-1, plan/p"'
+close_esc "a comment after a single-quoted value is dropped" "escalated_to: 'plan/a' # note" plan/c 'escalated_to: "plan/a, plan/c"'
+close_esc "a lone single quote is kept as a ref (pinned)" "escalated_to: '" plan/c 'escalated_to: "'"'"', plan/c"'
+# a line break in the flag is no ref: refused before any write, park and close alike
+esc_refused() { # esc_refused <label> <park|close> <--escalated-to>
+  local f id before rc
+  f="$(reg --title "esc refused $1 $2" --surface ops)"; id="$(idof "$f")"
+  add_row "$f" smoke "census" "proofs/census.txt: 0 findings"; [[ $2 == park ]] && add_row "$f" owner "wording" ""
+  before="$(cat "$f")"
+  bash "$SCRIPTS/close-item.sh" "$id" --sweep --escalated-to "$3" --no-index >/dev/null 2>"$TMP/err"; rc=$?
+  [[ $rc -eq 2 && -f "$f" && "$(cat "$f")" == "$before" ]] && grep -q -- '--escalated-to' "$TMP/err" \
+    && ok "$2 escalated_to: $1 refused, item untouched" || bad "$2 escalated_to $1: rc=$rc $(cat "$TMP/err") $(grep -A2 '^escalated_to:' "$f" 2>&1)"
+}
+esc_refused "a newline" park $'plan/a\n---\nstatus: open'
+esc_refused "a newline" close $'plan/a\n---\nstatus: open'
+esc_refused "a carriage return" close $'plan/a\rplan/b'
+park_close() { # park_close <label> <existing escalated_to line> <--escalated-to> <expected line>: park, fill the owner cell, close
+  local PE PEID OUT
+  PE="$(reg --title "park then close esc $1" --surface ops)"; PEID="$(idof "$PE")"
+  add_row "$PE" smoke "census" "proofs/census.txt: 0 findings"; add_row "$PE" owner "wording" ""
+  set_esc "$PE" "$2"
+  bash "$SCRIPTS/close-item.sh" "$PEID" --sweep --escalated-to "$3" --no-index >/dev/null 2>&1
+  sed -i.bak 's/^| owner | wording |  |$/| owner | wording | approved |/' "$PE" && rm -f "$PE.bak"
+  OUT="$(bash "$SCRIPTS/close-item.sh" "$PEID" --sweep --escalated-to "$3" --no-index 2>/dev/null)"
+  [[ "$OUT" == */_archive/* && "$(grep '^escalated_to:' "$OUT")" == "$4" ]] \
+    && ok "park, fill the owner cell, close: $1" || bad "park then close $1: $OUT $(grep '^escalated_to:' "$OUT" 2>&1)"
+}
+park_close "the archived item keeps every link" 'escalated_to: "a/BL-1"' plan/p 'escalated_to: "a/BL-1, plan/p"'
+park_close "an escaped backslash does not grow" 'escalated_to: "plan/a\\b"' plan/c 'escalated_to: "plan/a\\b, plan/c"'
 PR="$(reg --title "park reason" --surface ops)"; PRID="$(idof "$PR")"
 add_row "$PR" smoke "census" "proofs/census.txt: 0 findings"; add_row "$PR" owner "wording" ""
 bash "$SCRIPTS/close-item.sh" "$PRID" --sweep --reason "did the mechanical part" --no-index >/dev/null 2>&1
