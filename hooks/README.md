@@ -94,7 +94,7 @@ with escalation, six fail-open paths, and the non-blocking output shape.
 Handoffs already fire at a median depth of 337k on Opus 5, but that depth is not a
 choice: trigger depth tracks session *peak* depth at ~1.0x, so no depth-based
 trigger is operating today at all. There is therefore no evidence a depth cue will
-change timing. Review was due **2026-09-03**; no recorded outcome of that re-run was found, and the hook stayed wired (`hooks.json`, since the plugin manifest of 2026-09-12). The criterion stands as written:
+change timing. Review was due **2026-09-03**; no recorded outcome of that re-run was found, and the hook stayed wired (`hooks.json`, since the plugin manifest of 2026-09-12). **Outcome of the 2026-11-10 re-derivation (BL-920):** the slowdown at 150-200k is 1.03x on Opus 5.5 (4,460 sessions) and 1.02x on Fable 5.1 (402), against 1.43x on Opus 5; input at 300k or deeper is 5.2% and 7.5% of spend, against 50%. Both latency and spend claims were removed from the messages (v1.40.6, v1.40.7). The bands themselves are kept unchanged until Fable 5.2 has enough sessions to re-derive them (7 on 2026-11-10). The criterion stands as written:
 
 > Re-run the predecessor->successor trigger query over Opus 5 sessions started
 > after 2026-08-13. **Keep** if the median trigger depth falls below 300k *and*
