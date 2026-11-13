@@ -573,16 +573,22 @@ resolve_profile() {
   return 1
 }
 
-# profile_field <file> <key> — one front-matter scalar of a profile, a MATCHED pair of
-# surrounding quotes (a lone or mismatched quote is part of the value, BL-927) and
-# a trailing ` #` comment stripped (so a value cannot contain ` #`); empty when the key, the
-# front matter or the file is absent. Not named profile_key: sweep-gate.sh defines its own
-# one-argument profile_key after sourcing this file. Python twin: profiles.py.
+# profile_field <file> <key> — one front-matter scalar of a profile. A trailing ` #` comment
+# is stripped (so a value cannot contain ` #`), and a value that is `#` then whitespace or
+# nothing is a comment, so a blank template key reads empty (`#[0-9]+` is a value, BL-931).
+# A MATCHED pair of surrounding quotes is stripped (a lone or mismatched quote is part of the
+# value, BL-927) unless its kind occurs inside unescaped: `"echo" "3 passed"` is two quoted
+# words and is kept; `\"` inside "" and `''` inside '' do not count and stay as written
+# (BL-931). Empty when the key, the front matter or the file is absent. Not named
+# profile_key: sweep-gate.sh defines its own one-argument profile_key after sourcing this
+# file. Python twin: profiles.py; detect-project-commands.sh's fm_field keeps the same
+# value rule except the trailing ` #`.
 profile_field() {
   [[ -f "$1" ]] || return 0
   awk -v k="$2" '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1==k":"{
-    sub(/^[^:]*:[[:space:]]*/,""); sub(/[[:space:]]+#.*$/,""); sub(/[[:space:]]+$/,""); q=substr($0,1,1)
-    if (length($0)>=2 && (q=="\"" || q=="\047") && substr($0,length($0))==q) $0=substr($0,2,length($0)-2)
+    sub(/^[^:]*:[[:space:]]*/,""); sub(/[[:space:]]+#.*$/,""); sub(/[[:space:]]+$/,""); if ($0=="#" || $0 ~ /^#[[:space:]]/) $0=""
+    q=substr($0,1,1); inner=substr($0,2,length($0)-2); t=inner; if (q=="\"") gsub(/\\"/,"",t); else gsub("\047\047","",t)
+    if (length($0)>=2 && (q=="\"" || q=="\047") && substr($0,length($0))==q && index(t,q)==0) $0=inner
     print; exit}' "$1"
 }
 

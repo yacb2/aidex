@@ -84,10 +84,20 @@ quote_only_sq: '
 same_ends: e2e
 trailing_ws: "app api"  
 crlf: "x"@CR@
+same_inside: "echo" "3 passed"
+same_inside_sq: 'a' 'b'
+escaped_inside: "say \"hi\""
+escaped_inside_sq: 'echo ''3 passed'''
+quote_triple: """
+blank_comment:            # fill in: bash tests/run-all.sh
+hash_only: #
+hash_tab: #@TAB@fill in
+hash_value: #[0-9]+
+quoted_hash: "#tag"
 ---
 live_views: "body https://git.example/not-read"
 EOF
-  perl -pi -e 's/\@CR\@$/\r/' "$f"   # a CRLF line: the heredoc cannot carry a literal CR
+  perl -pi -e 's/\@CR\@$/\r/; s/\@TAB\@/\t/' "$f"   # a CRLF line: the heredoc cannot carry a literal CR
   for fn in sh_field py_field; do
     [[ "$($fn "$f" tracker_paths)" == "app api" ]] && ok "$fn: quoted value with comment" || bad "$fn tracker_paths: '$($fn "$f" tracker_paths)'"
     [[ "$($fn "$f" ticket_pattern)" == "[A-Z]+-[0-9]+" ]] && ok "$fn: bare value with comment" || bad "$fn ticket_pattern: '$($fn "$f" ticket_pattern)'"
@@ -106,6 +116,21 @@ EOF
     [[ "$($fn "$f" trailing_ws)" == "app api" ]] && ok "$fn: trailing whitespace after a matched pair" || bad "$fn trailing_ws: '$($fn "$f" trailing_ws)'"
     [[ "$($fn "$f" crlf)" == "x" ]] && ok "$fn: a CRLF line" || bad "$fn crlf: '$($fn "$f" crlf)'"
     [[ "$($fn "$f" same_ends)" == "e2e" ]] && ok "$fn: equal ends that are not quotes are kept" || bad "$fn same_ends: '$($fn "$f" same_ends)'"
+    # a pair is stripped only when that quote kind does not occur inside: `"echo" "3 passed"`
+    # is two quoted words, not one quoted value. An escaped one (`\"` inside "", `''` inside '')
+    # does not count: the pair goes and the escape stays as written, as before BL-931.
+    [[ "$($fn "$f" same_inside)" == '"echo" "3 passed"' ]] && ok "$fn: the same quote kind inside keeps the outer pair" || bad "$fn same_inside: '$($fn "$f" same_inside)'"
+    [[ "$($fn "$f" same_inside_sq)" == "'a' 'b'" ]] && ok "$fn: the same single-quote kind inside keeps the outer pair" || bad "$fn same_inside_sq: '$($fn "$f" same_inside_sq)'"
+    [[ "$($fn "$f" escaped_inside)" == 'say \"hi\"' ]] && ok "$fn: an escaped double quote inside: the pair goes, the escape stays" || bad "$fn escaped_inside: '$($fn "$f" escaped_inside)'"
+    [[ "$($fn "$f" escaped_inside_sq)" == "echo ''3 passed''" ]] && ok "$fn: an escaped '' inside: the pair goes, the escape stays" || bad "$fn escaped_inside_sq: '$($fn "$f" escaped_inside_sq)'"
+    [[ "$($fn "$f" quote_triple)" == '"""' ]] && ok "$fn: three quotes are kept" || bad "$fn quote_triple: '$($fn "$f" quote_triple)'"
+    # a blank key followed by a comment (the shipped templates' shape) is empty, not the comment;
+    # only `#` then whitespace or nothing is one: `#[0-9]+` is a value the backlog template keeps (BL-931)
+    [[ -z "$($fn "$f" blank_comment)" ]] && ok "$fn: a blank key with a comment -> empty" || bad "$fn blank_comment: '$($fn "$f" blank_comment)'"
+    [[ -z "$($fn "$f" hash_only)" ]] && ok "$fn: a lone '#' is a comment -> empty" || bad "$fn hash_only: '$($fn "$f" hash_only)'"
+    [[ -z "$($fn "$f" hash_tab)" ]] && ok "$fn: '#' then a tab is a comment -> empty" || bad "$fn hash_tab: '$($fn "$f" hash_tab)'"
+    [[ "$($fn "$f" hash_value)" == "#[0-9]+" ]] && ok "$fn: '#' followed by a non-space is a value" || bad "$fn hash_value: '$($fn "$f" hash_value)'"
+    [[ "$($fn "$f" quoted_hash)" == "#tag" ]] && ok "$fn: a quoted '#tag' is a value" || bad "$fn quoted_hash: '$($fn "$f" quoted_hash)'"
     [[ -z "$($fn "$f" empty_single)" ]] && ok "$fn: empty single-quoted value -> empty" || bad "$fn empty_single: '$($fn "$f" empty_single)'"
     [[ -z "$($fn "$f" live_views)" ]] && ok "$fn: key outside front matter -> empty" || bad "$fn live_views body: '$($fn "$f" live_views)'"
     [[ -z "$($fn "$f" TRACKER_PATHS)" ]] && ok "$fn: wrong-case key -> empty" || bad "$fn wrong case: '$($fn "$f" TRACKER_PATHS)'"

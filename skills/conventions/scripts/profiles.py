@@ -37,8 +37,22 @@ def resolve_profile(context_dir, name):
     return None
 
 
+def scalar(text):
+    """A front-matter value (the text after `key:`) by the profile rule: a trailing ` #` comment
+    stripped; `#` then whitespace or nothing is a blank key's comment, so ""; a matched pair of
+    surrounding quotes stripped unless its kind occurs inside unescaped (`\\"` in "", `''` in '').
+    Twin of the awk in _lib.sh's profile_field."""
+    val = re.sub(r"\s+#.*$", "", text.strip()).rstrip()
+    if re.match(r"#(\s|$)", val):
+        return ""
+    m = re.match(r"""^(["'])(.*)\1$""", val)
+    if m and m.group(1) not in m.group(2).replace('\\"' if m.group(1) == '"' else "''", ""):
+        return m.group(2)
+    return val
+
+
 def profile_field(path, key):
-    """One front-matter scalar, a matched pair of surrounding quotes and a trailing ` #` comment stripped; "" when absent.
+    """One front-matter scalar read by `scalar`; "" when absent.
     Twin of `profile_field` in _lib.sh: the same awk rules, line for line."""
     if not os.path.isfile(path):
         return ""
@@ -49,9 +63,7 @@ def profile_field(path, key):
             if fences == 2:
                 break
         elif fences == 1 and line.split(None, 1)[:1] == [key + ":"]:
-            val = re.sub(r"\s+#.*$", "", re.sub(r"^[^:]*:\s*", "", line)).rstrip()
-            m = re.match(r"""^(["'])(.*)\1$""", val)
-            return m.group(2) if m else val
+            return scalar(line.split(":", 1)[1])
     return ""
 
 

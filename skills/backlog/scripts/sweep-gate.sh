@@ -185,9 +185,11 @@ else
 fi
 
 # Front-matter scalar, read by _lib.sh's profile_field: a matched pair of surrounding quotes
-# stripped (a lone one is part of the command: `echo '3 passed'`, BL-927), a trailing
-# ` # comment` dropped (so a command may not itself contain ` #`); a block scalar
-# (`key: |`) is not a command.
+# stripped (a lone one is part of the command: `echo '3 passed'`, BL-927) unless its kind
+# occurs inside unescaped (`"echo" "3 passed"` is kept whole, BL-931), a trailing
+# ` # comment` dropped (so a command may not itself contain ` #`), a value that is `#` then
+# whitespace or nothing read as empty (a blank key's comment: unbound, BL-931; `#[0-9]+` is
+# a value); a block scalar (`key: |`) is not a command.
 profile_key() { profile_field "$PROFILE" "$1"; }
 key_for() { case "$1" in backend) echo backend_suite_cmd;; frontend) echo frontend_suite_cmd;; build) echo build_cmd;; e2e) echo e2e_suite_cmd;; suite) echo suite_cmd;; esac; }
 

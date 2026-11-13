@@ -799,6 +799,8 @@ pass|echo '3 passed'
 pass|echo "3 passed"
 pass|"echo '3 passed'"
 pass|'echo "3 passed"'
+pass|"echo" "3 passed"
+pass|"echo \"3 passed\""
 leg-fail|"echo 3 passed'
 leg-fail|'echo 3 passed
 unbound|""

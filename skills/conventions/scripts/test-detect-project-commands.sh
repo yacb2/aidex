@@ -86,6 +86,49 @@ printf -- '---\nworktree_up: "worktree.sh up <slug>"  \r\n---\n' > "$P3/.context
 bash "$DETECTOR" --project "$P3" >/dev/null
 up="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("worktree_up_command"))' "$P3/.claude/.aidex-detected-commands.json")"
 [[ "$up" == 'worktree.sh up <slug>' ]] || fail "trailing whitespace and a CR after a matched pair kept the quotes: $up"
+# The same pair rule as profile_field (BL-931): a single-quoted pair goes too; a pair whose
+# quote kind occurs inside is two quoted words, kept whole; a blank key with a comment is no
+# command, so the executable worktree-down.sh fallback still answers.
+printf -- '---\nworktree_up: \x27worktree.sh up <slug>\x27\nworktree_down: # fill in\n---\n' > "$P3/.context/worktrees/00-index.md"; rm -f "$P3/.claude/.aidex-detected-commands.json"
+printf '#!/usr/bin/env bash\n' > "$P3/worktree-down.sh"; chmod +x "$P3/worktree-down.sh"
+bash "$DETECTOR" --project "$P3" >/dev/null
+up="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("worktree_up_command"))' "$P3/.claude/.aidex-detected-commands.json")"
+down="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("worktree_down_command"))' "$P3/.claude/.aidex-detected-commands.json")"
+[[ "$up" == 'worktree.sh up <slug>' ]] || fail "a single-quoted worktree_up kept its quotes: $up"
+[[ "$down" == './worktree-down.sh' ]] || fail "a blank worktree_down with a comment was read as a command: $down"
+printf -- '---\nworktree_up: "worktree.sh" "up <slug>"\n---\n' > "$P3/.context/worktrees/00-index.md"; rm -f "$P3/.claude/.aidex-detected-commands.json"
+bash "$DETECTOR" --project "$P3" >/dev/null
+up="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("worktree_up_command"))' "$P3/.claude/.aidex-detected-commands.json")"
+[[ "$up" == '"worktree.sh" "up <slug>"' ]] || fail "two quoted words on worktree_up lost the outer pair: $up"
+# an escaped quote inside does not count (the pair goes, the escape stays); a blank key whose
+# comment follows a tab is still blank; `#` then a non-space is a value; a trailing ` #` is the
+# command's and stays.
+printf -- '---\nworktree_up: "worktree.sh up \\"<slug>\\""\nworktree_down: \t# fill in\n---\n' > "$P3/.context/worktrees/00-index.md"; rm -f "$P3/.claude/.aidex-detected-commands.json"
+bash "$DETECTOR" --project "$P3" >/dev/null
+up="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("worktree_up_command"))' "$P3/.claude/.aidex-detected-commands.json")"
+down="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("worktree_down_command"))' "$P3/.claude/.aidex-detected-commands.json")"
+[[ "$up" == 'worktree.sh up \"<slug>\"' ]] || fail "an escaped quote inside worktree_up kept the outer pair: $up"
+[[ "$down" == './worktree-down.sh' ]] || fail "a blank worktree_down with a tab before its comment was read as a command: $down"
+printf -- '---\nworktree_up: #up.sh\nworktree_down: worktree.sh down <slug> # note\n---\n' > "$P3/.context/worktrees/00-index.md"; rm -f "$P3/.claude/.aidex-detected-commands.json"
+bash "$DETECTOR" --project "$P3" >/dev/null
+up="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("worktree_up_command"))' "$P3/.claude/.aidex-detected-commands.json")"
+down="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("worktree_down_command"))' "$P3/.claude/.aidex-detected-commands.json")"
+[[ "$up" == '#up.sh' ]] || fail "'#' followed by a non-space on worktree_up was read as a comment: $up"
+[[ "$down" == 'worktree.sh down <slug> # note' ]] || fail "a trailing ' #' on worktree_down was stripped: $down"
+# an escaped '' inside a single-quoted pair does not count either; a lone `#` is a blank key's
+# comment; a quoted "#tag" is a value; a value that is one quote is kept.
+printf -- '---\nworktree_up: \x27worktree.sh up \x27\x27<slug>\x27\x27\x27\nworktree_down: #\n---\n' > "$P3/.context/worktrees/00-index.md"; rm -f "$P3/.claude/.aidex-detected-commands.json"
+bash "$DETECTOR" --project "$P3" >/dev/null
+up="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("worktree_up_command"))' "$P3/.claude/.aidex-detected-commands.json")"
+down="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("worktree_down_command"))' "$P3/.claude/.aidex-detected-commands.json")"
+[[ "$up" == "worktree.sh up ''<slug>''" ]] || fail "an escaped '' inside a single-quoted worktree_up kept the outer pair: $up"
+[[ "$down" == './worktree-down.sh' ]] || fail "a lone '#' on worktree_down was read as a command: $down"
+printf -- '---\nworktree_up: "#up.sh"\nworktree_down: "\n---\n' > "$P3/.context/worktrees/00-index.md"; rm -f "$P3/.claude/.aidex-detected-commands.json"
+bash "$DETECTOR" --project "$P3" >/dev/null
+up="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("worktree_up_command"))' "$P3/.claude/.aidex-detected-commands.json")"
+down="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("worktree_down_command"))' "$P3/.claude/.aidex-detected-commands.json")"
+[[ "$up" == '#up.sh' ]] || fail "a quoted '#up.sh' on worktree_up was not read as a value: $up"
+[[ "$down" == '"' ]] || fail "a worktree_down that is one quote was not kept: $down"
 
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"

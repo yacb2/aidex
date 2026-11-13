@@ -17,7 +17,8 @@ def profile_module_map(root):
     the map cannot ship at all, so a fresh clone had no per-item selection and fell
     back to the full suite (BL-366). The profile is resolved the way sweep-gate.sh and
     profile-init.py --check resolve it: .context/ first, the repo root as the tracked
-    fallback (BL-289).
+    fallback (BL-289). The value is read by profiles.scalar, so a blank template key with a
+    comment is no map and a trailing ` #` comment is not part of the path (BL-931).
     """
     prof = profiles.resolve_profile_or_root(root, "testing")
     if prof:
@@ -31,7 +32,7 @@ def profile_module_map(root):
                         break
                     continue
                 if in_fm and line.startswith("module_map:"):
-                    val = line.split(":", 1)[1].strip().strip('"\'')
+                    val = profiles.scalar(line.split(":", 1)[1])
                     if val:
                         return os.path.join(root, val)
     return None

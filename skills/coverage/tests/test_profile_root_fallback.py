@@ -79,6 +79,23 @@ class RootFallback(unittest.TestCase):
             pathlib.Path(root, "testing-profile.md").write_text(profile("root-map.json"))
             self.assertIsNone(COVERAGE_LIB.profile_module_map(root))
 
+    def test_module_map_is_read_by_the_profile_field_rule(self):
+        """A blank template key with a comment is no map, and a trailing comment is not part of the path (BL-931)."""
+        with tempfile.TemporaryDirectory() as root:
+            top = pathlib.Path(root, "testing-profile.md")
+            for value, want in (("          # repo-relative path: x.json", None),
+                                ('"ctx map.json"   # tracked', os.path.join(root, "ctx map.json")),
+                                ("map.json", os.path.join(root, "map.json"))):
+                with self.subTest(value):
+                    top.write_text(profile(value))
+                    self.assertEqual(COVERAGE_LIB.profile_module_map(root), want)
+            # the key is matched as before: top level only, no space needed after the colon
+            for text, want in (("---\ncoverage:\n  module_map: nested.json\nmodule_map: top.json\n---\n", "top.json"),
+                               ("---\nmodule_map:x.json\n---\n", "x.json")):
+                with self.subTest(text):
+                    top.write_text(text)
+                    self.assertEqual(COVERAGE_LIB.profile_module_map(root), os.path.join(root, want))
+
 
 if __name__ == "__main__":
     unittest.main()
