@@ -151,7 +151,7 @@ Description quality matters **up to a competence threshold, then plateaus.** The
 
 Implications when authoring or reviewing a skill:
 
-- **Do not chase recall with description micro-optimization.** Once the description is trigger-first, keyword-rich, and single-purpose, further word-tuning yields noise, not gains.
+- **Do not chase recall with description micro-optimization.** On the runs in the methodology §1 (one model generation), once the description was trigger-first, keyword-rich, and single-purpose, further word-tuning yielded noise, not gains.
 - **A clean single-purpose skill caps around 70% recall** on a realistic mixed-phrasing query inventory in a busy environment (50+ ambient skills). Treat 100% as unreachable; 60–70% is "good".
 - **Stative-narrative queries under-fire by matcher design.** "Mi MEMORY.md tiene 120 líneas y siento que la mitad ya no aplica" reads to the matcher as the user describing state, not requesting an action. No description wording reliably fixes this. Don't treat these misses as description bugs.
 - **The eval harness measures a pessimistic floor.** It loads every ambient skill; real sessions have fewer competitors and higher real recall.
@@ -491,8 +491,8 @@ Instructions accumulate for the model that was current when they were written: e
 added because it under-triggered, a step script because it planned poorly, a guard for a
 failure the next generation no longer has. Current models follow such text literally, so
 dated lines cost tokens and steer behaviour. Whenever a new model generation enters
-daily use, run Anthropic's `/claude-api prompt-audit` over `skills/` and `rules/`, naming the new model
-as the target. Do not copy its checklist here: Anthropic revises it per generation, and a
+daily use, run Anthropic's `/claude-api prompt-audit` over `skills/` and `agents/`, naming the new model
+as the target. A user-level CLAUDE.md and rules sit outside the repo and are covered only when the request names them. Do not copy its checklist here: Anthropic revises it per generation, and a
 local copy drifts. The question that produced the real findings last time is its Step 2,
 asked per line: which failure, on which model, did this prevent, and does it still
 reproduce? The report lands in `.context/research/`, the accepted hunks in one backlog
@@ -568,7 +568,7 @@ Skill descriptions deserve empirical testing. Inspection-only review is unreliab
 ### Recommended: the native `claude plugin eval` harness
 
 For aidex's own skills the harness is `tests/native-eval/` — one case per skill under
-`skills/<name>/evals/native/<case>/`, run with `bash tests/native-eval/run-eval.sh --only <name>`
+`skills/<name>/evals/native/<case>/`, run with `EVAL_MODEL=<full model id> bash tests/native-eval/run-eval.sh --only <name>`
 (with/without ablation, the `tool_used: Skill` grader scores whether the skill fired). The
 trigger-eval probe block that the PTY harness needed was retired on 2026-09-12 (models
 refuse it as a prompt injection); see the companion methodology doc.
@@ -647,7 +647,7 @@ These were observed across the aidex 2026-05-15/16 trigger-eval (4 iterations, 3
 |----------------|-----|
 | Create a skill | Ask Claude: "create a new skill for X" (loads these conventions automatically) |
 | Validate structure | `/aidex:aidex` or ask: "check this skill's structure" |
-| Measure description recall/precision | `bash tests/native-eval/run-eval.sh --only <name>` (aidex); the external PTY harness for other trees |
+| Measure description recall/precision | `EVAL_MODEL=<full model id> bash tests/native-eval/run-eval.sh --only <name>` (aidex); the external PTY harness for other trees |
 | Improve a description after a low-recall eval | Rewrite trigger-first ("Use when…", triggers not capability); re-run the harness once. If still low after a trigger-first rewrite, the gap is structural (mega-skill, ambiguous inventory, matcher limit) — do not keep micro-tuning wording |
 | Update from external sources | Ask: "sync this skill/reference from official docs" |
 | Diagnose what a skill needs | `/aidex:aidex` or ask: "what does this skill need?" |
@@ -661,7 +661,7 @@ These were observed across the aidex 2026-05-15/16 trigger-eval (4 iterations, 3
 |---------|-------|-----|
 | Skill never triggers on natural phrasings | `description` leads with what the skill does, or summarizes workflow | Rewrite trigger-first: start with "Use when…", describe only triggering conditions, keyword-rich |
 | Skill triggers on imperatives but misses narrative ("I want to…", "My X has…") | Matcher reads stative phrasings as the user describing state, not requesting action | Add English narrative phrasings ("I want to…", "I need to…"), but accept this is a partial fix — it is a documented matcher limit, not fully description-fixable |
-| Skill recall plateaus (~35%) despite multiple rewrites | Mega-skill, ambiguous/mislabeled inventory queries, or matcher ceiling — NOT wording | Stop micro-tuning. Split if mega-skill; re-curate the inventory (separate read/list intents from create intents); accept ~70% is the practical ceiling for a clean skill |
+| Skill recall plateaus (~35%) despite multiple rewrites | Mega-skill, ambiguous/mislabeled inventory queries, or matcher ceiling; on those runs wording did not move aggregate recall | Check mega-skill and inventory first; a case that never fires is a description defect, and a lead rewrite is the fix. Split if mega-skill; re-curate the inventory (separate read/list intents from create intents); accept ~70% is the practical ceiling for a clean skill |
 | Triggers too often (false positives) | Description scope too broad, or overlapping vocabulary with sibling skill | Add a precise disambiguator naming the specific confused surface form ("Not for: …") at the end of the description |
 | `/doctor` reports skill descriptions cut short | Global skill-listing budget overflow (default 1% of context window) | Raise `skillListingBudgetFraction`, set lower-priority skills to `name-only` via `skillOverrides`, or trim less-used skills |
 | `description` (+ `when_to_use` if split) truncates at 1,536 | Exceeds the per-skill cap | Shorten — drop the weakest phrasing first; never drop the disambiguator |

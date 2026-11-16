@@ -36,9 +36,9 @@ any project, any skill).
 
 | Lever | Status | Evidence |
 |---|---|---|
-| Description **wording / style** micro-tuning | **DEAD — do not iterate** | Runs 1–4: 4 iterations, 3 structurally distinct hypotheses (bilingual mega-enum; canonical `description`+`when_to_use`; Superpowers trigger-first) → flat ~35% aggregate across all four. Directional, at the strength §10 allows. |
-| Inventory **mislabel cleanup** | **EXHAUSTED — small** | Run-4: exhaustive audit of all 40 `should_trigger=true` queries found **exactly one** genuine mislabel (backlog #7, read/list in a create-skill). One in forty ⇒ the ~35% is *not* inventory pollution. |
-| **Structural split of mega-skills** | **REFUTED (two fair isolated pilots, 2026-05-16, B-β + B-γ)** | **B-β** `plan` (colliding intent, whole aidex family neutralized): adj recall **20%**. **B-γ** `decision` (no-affordance-twin intent, family **incl. plan** neutralized): adj recall **40%** — vs same-session same-env control `backlog` 78%. Both far below the usable single-purpose floor; structure perfected precision (→100% both) but never recall. Mechanism, **directional only** (n=20/pilot — one matcher coin-flip ≈ ±10pp; do **not** cite the pp figures as measured point estimates): the no-twin intent out-recalling the colliding one (40 vs 20) is consistent with **two components** — a *partial* plan-create affordance collision (the twin-specific part) plus a larger *twin-independent* residual suppressor that survives split + full isolation even with no native twin. Not the aidex siblings, not structure. See `.context/audits/2026-05-15-skill-trigger-eval/stage-a-b-assessment.md` "ISOLATED RE-TEST (B-β)" + "CONFOUND-CONTROL PILOT (B-γ)". **Do not re-run or extend (no request/research pilots)** — settled across a colliding and a non-colliding intent. |
+| Description **wording / style** micro-tuning | **DEAD** on claude-sonnet-4-6 (2026-05); not re-run on a model in current use | Runs 1–4: 4 iterations, 3 structurally distinct hypotheses (bilingual mega-enum; canonical `description`+`when_to_use`; Superpowers trigger-first) → flat ~35% aggregate across all four. Directional, at the strength §10 allows. |
+| Inventory **mislabel cleanup** | **EXHAUSTED — small** on claude-sonnet-4-6 (2026-05); not re-run on a model in current use | Run-4: exhaustive audit of all 40 `should_trigger=true` queries found **exactly one** genuine mislabel (backlog #7, read/list in a create-skill). One in forty ⇒ the ~35% is *not* inventory pollution. |
+| **Structural split of mega-skills** | **REFUTED (two fair isolated pilots, 2026-05-16, B-β + B-γ)** | **B-β** `plan` (colliding intent, whole aidex family neutralized): adj recall **20%**. **B-γ** `decision` (no-affordance-twin intent, family **incl. plan** neutralized): adj recall **40%** — vs same-session same-env control `backlog` 78%. Both far below the usable single-purpose floor; structure perfected precision (→100% both) but never recall. Mechanism, **directional only** (n=20/pilot — one matcher coin-flip ≈ ±10pp; do **not** cite the pp figures as measured point estimates): the no-twin intent out-recalling the colliding one (40 vs 20) is consistent with **two components** — a *partial* plan-create affordance collision (the twin-specific part) plus a larger *twin-independent* residual suppressor that survives split + full isolation even with no native twin. Not the aidex siblings, not structure. See `.context/audits/2026-05-15-skill-trigger-eval/stage-a-b-assessment.md` "ISOLATED RE-TEST (B-β)" + "CONFOUND-CONTROL PILOT (B-γ)". Settled across a colliding and a non-colliding intent, on claude-sonnet-4-6 (2026-05); not re-run on a model in current use. |
 
 **Bottom line (updated 2026-05-16, B-β + B-γ):** all three recall levers are
 exhausted — wording **DEAD**, inventory **EXHAUSTED**, structure **REFUTED**
@@ -46,11 +46,11 @@ exhausted — wording **DEAD**, inventory **EXHAUSTED**, structure **REFUTED**
 both well below the 78% single-purpose floor). No lever showed detectable
 movement. "Recall can't be improved by skill-side changes (text, inventory,
 or structure)" is where the evidence points, at §10's strength rather than
-as a significance claim. The residual gap is **consistent with two
+as a significance claim. Scope: runs 1 to 6 ran on claude-sonnet-4-6 in 2026-05; the latest PTY comparison is the `coverage` skill on claude-sonnet-5 on 2026-09-01, direction down; no run exists on a model in current use. This scopes the table above, this paragraph and §1a. The residual gap is **consistent with two
 components** (directional, n=20/pilot — not precise estimates): a *partial*
 plan-create affordance collision (twin-specific) and a larger
 *twin-independent* matcher suppressor that survives splitting + full sibling
-isolation. Do not re-open any of the three levers; do not extend the split experiment.
+isolation. The closure holds for the model it was measured on, at §10's strength: the same evidence on the same model does not reopen it. A re-test on another model is an owner decision and needs a query set sized per §10 (about 20 positives per description).
 
 ### 1a. Catalog size is a FOURTH lever, and it is also closed for recall (2026-08-01)
 
