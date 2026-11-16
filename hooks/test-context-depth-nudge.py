@@ -80,10 +80,8 @@ for depth, expect in [(199_999, "SILENT"),
                       # 250k was band 2 under the old 200k/250k/300k bands: now silent.
                       (250_000, "SILENT"),
                       (299_999, "SILENT"), (300_000, "Nothing to do yet"),
-                      (349_999, "Nothing to do yet"), (350_000, "stops paying for itself"),
-                      # Band 3's marker is its cost statement, not a recommendation:
-                      # the wording that told the assistant what to decide is gone.
-                      (399_999, "stops paying for itself"),
+                      (349_999, "Nothing to do yet"), (350_000, "The next natural boundary"),
+                      (399_999, "The next natural boundary"),
                       (400_000, "the deepest band"),
                       (900_000, "the deepest band")]:
     sid = f"TEST-b{depth}"
@@ -92,6 +90,8 @@ for depth, expect in [(199_999, "SILENT"),
     check(f"{depth:>9,} -> {expect}", (got == "SILENT") if expect == "SILENT" else (expect in got), got)
     # The 1.4x latency claim was an Opus 5 figure that no longer holds; no band may state a slowdown.
     check(f"{depth:>9,} -> no slowdown claim", "slower" not in got and "1.4x" not in got, got)
+    # The price reason ("stops paying for itself") was withdrawn; no band may state it.
+    check(f"{depth:>9,} -> no paying-for-itself claim", "paying for itself" not in got, got)
     # Band 3's "over half of input spend / plateaued" claim was Opus 5 only (BL-920).
     check(f"{depth:>9,} -> no spend or plateau claim",
           not any(w in got for w in ("Over half", "input spend", "plateaued")), got)
@@ -106,7 +106,7 @@ got = fire(transcript("iter", [100_000, 100_000, 100_000]), sid)
 check("3x100k iterations stays silent (real depth 100k)", got == "SILENT", got)
 clean(sid)
 got = fire(transcript("iter2", [360_000, 360_000]), sid)
-check("2x360k iterations fires band 2 (real depth 360k)", "stops paying for itself" in got, got)
+check("2x360k iterations fires band 2 (real depth 360k)", "The next natural boundary" in got, got)
 clean(sid)
 
 print("\n=== 3. reads the LAST turn, not the deepest ===")

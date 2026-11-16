@@ -99,8 +99,7 @@ sweep report) — not only in a handoff seed, which is exactly what a handoff dr
 The trigger is a number, not an impression: **at 350k tokens of context** — the band
 `hooks/context-depth-nudge.sh` reports — **hand off at the next unit boundary,
 automatically.** Never on call count, and never mid-unit: a hop costs about 40% fact
-survival, so it has to buy more than it drops, and cost per call at 350+ calls measured
-2.4x the first 50 (325 chained sessions, 2026-09-12). Where no depth is reported, fall back
+survival, so it has to buy more than it drops. Where no depth is reported, fall back
 to the estimate — long tool outputs, many file reads, several units in one session. A known
 pause of more than an hour is a trigger too: on return the session re-creates a median 150k
 tokens of cache at write price, about four handoffs' worth. Handoff is a mandated step of

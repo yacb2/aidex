@@ -122,7 +122,7 @@ DEPTH_K=$((DEPTH / 1000))
 
 case "$BAND" in
   1) MSG="Context depth is now ~${DEPTH_K}k tokens. Nothing to do yet — but if the current thread is close to a natural boundary, that is the cheap moment to hand off." ;;
-  2) MSG="Context depth is now ~${DEPTH_K}k tokens — past the point where staying in-session stops paying for itself. The next natural boundary (end of a phase, after a commit) is the cheap place to hand off. Who makes that call is already governed by skills/conventions/references/autonomy-conventions.md and the session-handoff skill; this hook reports the number and nothing else." ;;
+  2) MSG="Context depth is now ~${DEPTH_K}k tokens. The next natural boundary (end of a phase, after a commit) is the cheap place to hand off. Who makes that call is already governed by skills/conventions/references/autonomy-conventions.md and the session-handoff skill; this hook reports the number and nothing else." ;;
   3) MSG="Context depth is now ~${DEPTH_K}k tokens, the deepest band this hook reports. Who makes that call is already governed by skills/conventions/references/autonomy-conventions.md and the session-handoff skill; this hook reports the number and nothing else." ;;
 esac
 
