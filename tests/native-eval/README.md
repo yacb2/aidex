@@ -17,10 +17,10 @@ Two things the legacy trigger suites cannot:
 ## Run it
 
 ```bash
-./tests/native-eval/run-eval.sh                      # iterate: 1 run/arm
-./tests/native-eval/run-eval.sh --verdict            # decide: 3 runs/arm
-./tests/native-eval/run-eval.sh --case 'aidex-decision-adr'
-./tests/native-eval/run-eval.sh --only artifact   # every case of one skill
+EVAL_MODEL=<full model id> ./tests/native-eval/run-eval.sh                      # iterate: 1 run/arm
+EVAL_MODEL=<full model id> ./tests/native-eval/run-eval.sh --verdict            # decide: 3 runs/arm
+EVAL_MODEL=<full model id> ./tests/native-eval/run-eval.sh --case 'aidex-decision-adr'
+EVAL_MODEL=<full model id> ./tests/native-eval/run-eval.sh --only artifact   # every case of one skill
 ```
 
 `--only <skill>` is sugar for `--case '<skill>--*'` — `<skill>` is the skill's
@@ -30,7 +30,7 @@ FOLDER name (`plan`, `plan-exec`, `artifact`), and the double dash is what keeps
 `--case` matches the `name:` inside `case.yaml`, **not** the folder. A run that
 selects zero cases exits 1 rather than reporting green.
 
-Knobs, all env vars: `EVAL_MODEL` (default `claude-sonnet-5`), `EVAL_JUDGE_MODEL`
+Knobs, all env vars: `EVAL_MODEL` (required, no default: the full id of the model that runs the skill, the main-session model, or the delegate's model for a skill preloaded into an agent; raise `EVAL_MAX_COST` with the model, a pricier one hits the ceiling and the result is INVALID), `EVAL_JUDGE_MODEL`
 (`claude-haiku-5-5`), `EVAL_MIN_DELTA` (`0.30`), `EVAL_MAX_COST` (`8`), `EVAL_JOBS` (`1`, passes `--concurrency`; 1-8 agent runs at once on the same
 rate limit — the way to parallelise, since two `run-eval.sh` processes collide on
 `plugin-evals/`, which collect-cases.sh rebuilds), `EVAL_KEEP_TEMP=1`
@@ -208,7 +208,7 @@ reads or stores it:
 
 ```bash
 export CLAUDE_CODE_OAUTH_TOKEN="$(claude setup-token)"
-EVAL_BASH=1 EVAL_JOBS=2 ./tests/native-eval/run-eval.sh --only bugfix
+EVAL_MODEL=<full model id> EVAL_BASH=1 EVAL_JOBS=2 ./tests/native-eval/run-eval.sh --only bugfix
 ```
 
 A dry run with a fake token reaches the child and dies at turn 1 with

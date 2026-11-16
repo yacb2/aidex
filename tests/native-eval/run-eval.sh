@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Run the native `claude plugin eval` suite over the aidex skills.
 #
-#   ./tests/native-eval/run-eval.sh                  # iterate: 1 run, both arms
-#   ./tests/native-eval/run-eval.sh --verdict         # decide: 3 runs, both arms
-#   ./tests/native-eval/run-eval.sh --case 'decision*'
-#   ./tests/native-eval/run-eval.sh --only artifact   # every case of one skill
+#   EVAL_MODEL=<full model id> ./tests/native-eval/run-eval.sh                  # iterate: 1 run, both arms
+#   EVAL_MODEL=<full model id> ./tests/native-eval/run-eval.sh --verdict         # decide: 3 runs, both arms
+#   EVAL_MODEL=<full model id> ./tests/native-eval/run-eval.sh --case 'decision*'
+#   EVAL_MODEL=<full model id> ./tests/native-eval/run-eval.sh --only artifact   # every case of one skill
 #
 # --only <skill> is sugar for --case '<skill>--*'. collect-cases.sh names each
 # collected case `<skill>--<case>` (folder AND case.yaml `name:`, which is what
@@ -34,7 +34,8 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-MODEL="${EVAL_MODEL:-claude-sonnet-5}"
+# No default on purpose: the model that leads sessions moves, and a literal goes stale.
+MODEL="${EVAL_MODEL:?set EVAL_MODEL to the full id of the model that runs the skill}"
 # Full model ID, not the `haiku` alias: the alias moves under you when the default
 # changes, and a sidecar that says "haiku" cannot reproduce the run. This is the
 # alias's target in claude 2.1.316. `--judge-model` takes any model string `--model`
@@ -127,13 +128,14 @@ fi
 # too. Gating those on delta marked 6 of 19 correct cases as failures, which is
 # how an operator learns to ignore a gate. They are asserted on the fired
 # indicator instead - the property they actually measure.
-EVAL_STATUS="$eval_status" MIN_DELTA="$MIN_DELTA" RUNS="$RUNS" REPO="$REPO" python3 - "$OUT" <<'PY'
+EVAL_STATUS="$eval_status" MODEL="$MODEL" JUDGE="$JUDGE" MIN_DELTA="$MIN_DELTA" RUNS="$RUNS" REPO="$REPO" python3 - "$OUT" <<'PY'
 import json, os, sys
 
 d = json.load(open(sys.argv[1]))
 min_delta = float(os.environ["MIN_DELTA"])
 runs = int(os.environ["RUNS"])
-print(f"\nruns/case: {runs}   reference cost: USD {d['costUsd']:.3f}   {d['durationSeconds']}s")
+print(f"\nmodel: {os.environ['MODEL']}   judge: {os.environ['JUDGE']}")
+print(f"runs/case: {runs}   reference cost: USD {d['costUsd']:.3f}   {d['durationSeconds']}s")
 print(f"{'case':38} {'with':>6} {'without':>8} {'delta':>7}  verdict")
 if not d["cases"]:
     print("\nERROR: the run selected ZERO cases — a green result here means nothing.")

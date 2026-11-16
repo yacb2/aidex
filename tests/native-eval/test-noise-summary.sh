@@ -155,11 +155,17 @@ for k, v in docs.items(): json.dump(v, open(f"{t}/eval-{k}.json", "w"))
 PYF
 runeval() { # runeval <fixture> <stub-status> -> output in $RE_OUT, status in $RE_RC
   rm -rf "$R/_tmp"
-  RE_OUT="$(cd "$R" && env -u EVAL_MODEL -u EVAL_JUDGE_MODEL -u EVAL_MIN_DELTA -u EVAL_BASH PATH="$R/bin:$PATH" STUB_JSON="$T/eval-$1.json" STUB_STATUS="$2" STUB_ARGS="$T/args.txt" \
+  RE_OUT="$(cd "$R" && env -u EVAL_JUDGE_MODEL -u EVAL_MIN_DELTA -u EVAL_BASH EVAL_MODEL=claude-fixture-model-1 PATH="$R/bin:$PATH" STUB_JSON="$T/eval-$1.json" STUB_STATUS="$2" STUB_ARGS="$T/args.txt" \
     bash tests/native-eval/run-eval.sh 2>&1)"; RE_RC=$?
 }
+# No default model: an unset EVAL_MODEL stops the run before any quota is spent.
+UNSET_OUT="$(cd "$R" && env -u EVAL_MODEL PATH="$R/bin:$PATH" STUB_JSON="$T/eval-valid.json" STUB_STATUS=0 STUB_ARGS="$T/args-unset.txt" bash tests/native-eval/run-eval.sh 2>&1)"; UNSET_RC=$?
+check "unset EVAL_MODEL exits non-zero" "$([ "$UNSET_RC" -ne 0 ] && echo yes)" "yes"
+check "unset EVAL_MODEL names the variable" "$(printf '%s\n' "$UNSET_OUT" | grep -c 'set EVAL_MODEL to the full id')" "1"
+check "unset EVAL_MODEL never reaches claude" "$([ -e "$T/args-unset.txt" ] && echo ran || echo stopped)" "stopped"
 runeval valid 0
 check "valid result exits 0" "$RE_RC" "0"
+check "summary prints model and judge" "$(printf '%s\n' "$RE_OUT" | grep -c '^model: claude-fixture-model-1   judge: claude-haiku-5-5$')" "1"
 check "valid result is not INVALID" "$(printf '%s\n' "$RE_OUT" | grep -c INVALID)" "0"
 for k in timeout ceiling skipped; do
   runeval $k 0
@@ -199,7 +205,7 @@ check "sidecar exists" "$([ -n "$meta" ] && echo yes)" "yes"
 check "sidecar git_sha" "$(field git_sha)" "$sha"
 check "sidecar dirty clean tree" "$(field dirty)" "False"
 check "sidecar claude_version" "$(field claude_version)" "9.9.9 (Claude Code)"
-check "sidecar model" "$(field model)" "claude-sonnet-5"
+check "sidecar model" "$(field model)" "claude-fixture-model-1"
 check "sidecar judge_model" "$(field judge_model)" "claude-haiku-5-5"
 check "judge pinned in the claude call" "$(grep -c -e '--judge-model claude-haiku-5-5 ' "$T/args.txt")" "1"
 echo dirty > "$R/untracked.txt"

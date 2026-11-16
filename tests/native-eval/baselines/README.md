@@ -7,7 +7,7 @@ The raw run output lives in `_tmp/` and is disposable; this folder is the copy
 that survives.
 
 To compare after a change to the suite (the plugin migration is the first
-consumer): run `./tests/native-eval/run-eval.sh --verdict`, store the new
+consumer): run `EVAL_MODEL=<full model id> ./tests/native-eval/run-eval.sh --verdict`, store the new
 folder next to this one, and diff the `aggregates` per case. Anything below
 `EVAL_MIN_DELTA` that was above it before is a regression.
 
