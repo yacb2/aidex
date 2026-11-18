@@ -132,7 +132,8 @@ that narrowed the decision, not code writing. Five moves:
   once per merge, in parallel with the review.
 - **On an impl hand-back, launch together:** `aidex:review-diff-opus` (when its shape
   applies) and `aidex:gate-runner` for E2E (at merge). A DO NOT SHIP verdict goes back to the
-  same impl agent through `SendMessage`, never a fresh one.
+  same impl agent through `SendMessage`, never a fresh one. At most 3 review rounds per unit:
+  after the third DO NOT SHIP, stop and hand the unit to the user with what each round found.
 - **The review brief carries the diff's file:line list and the prior round's verdict**, so
   the reviewer starts where the last one stopped. It may still read beyond the list.
 - **One answered page, one impl brief.** Answers to one consultation round go out as one

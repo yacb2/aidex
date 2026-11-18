@@ -155,3 +155,6 @@ timeout, hides both.
 - **Halve the preceding test set to find the polluter.** If it fails only after other
   tests, run the first half of those tests before it, then the half that still fails,
   until one test remains. Fix that test's leftover state (file, env var, global, row).
+- **No race and no polluter found: delete the test and write down why.** Say in the commit
+  body or the item which behaviour lost its guard and what was tried; do not retry it or
+  raise the timeout.

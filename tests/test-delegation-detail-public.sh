@@ -26,5 +26,9 @@ for a in $agents; do
 $hits"; fi
 done
 
+# The impl loop is capped: without it a DO NOT SHIP verdict can bounce forever.
+grep -q 'At most 3 review rounds per unit' "$DIR/SKILL.md" || fail "impl-loop review-round cap missing"
+grep -q 'stop and hand the unit to the user' "$DIR/SKILL.md" || fail "impl-loop cap lost its hand-off to the user"
+
 if [ "$failures" -gt 0 ]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — delegation-detail carries no private content and only aidex:-prefixed agent names"
