@@ -65,6 +65,10 @@ The bug-fix workflow is these nine steps — the prose below keys to their step 
    it is written down like any other: one `class-prevention: <answer>` line in the commit
    body, next to the RED→GREEN proof (amend it if the answer only lands after the
    commit). This is a question, not a gate — it never blocks the commit.
+   Next to it, run `${CLAUDE_PLUGIN_ROOT}/skills/bugfix/scripts/introducing-commit.sh <fix-sha>`
+   (no argument before the commit: it reads the uncommitted diff) and write one line,
+   `introduced-by: <first sha>`, or `introduced-by: none — <why>` on exit 3. It is a pointer
+   to the commit that most likely wrote the faulty lines, never a gate: it does not block the commit.
 9. **Guided human verification, at the integration boundary** — before the fix merges,
    pushes or the run ends, not before the commit. A bug the user reported by *looking at
    something* is not proven fixed by a green test: the RED→GREEN pair proves the
