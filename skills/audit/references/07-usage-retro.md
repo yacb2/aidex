@@ -203,7 +203,7 @@ when the question is "did a human speak in this session". And the machine kinds 
 **returned, never dropped**: hiding them is how the inflation survived three runs, so
 `mine_items.py` reports what it excluded and `extract.py` tags every record with `kind`.
 
-Pinned by `tests/test-prompt-kinds.sh` (22 cases). The load-bearing ones are where a
+Pinned by `tests/test-prompt-kinds.sh` (30 cases). The load-bearing ones are where a
 naive rule inverts: the desktop-app `sdk`+`human` record, a typed `continue` in a
 session that was *not* handoff-seeded, and the requirement that injected rows still
 appear in `classify_session` output.

@@ -140,6 +140,65 @@ assert_eq "(i4) the wrapper v8 kickoff sentence is kickoff" "kickoff real" "$got
 got="$(session_kinds 1 'arranca por la fase 1')"
 assert_eq "(i3) a seeded session opened with a real instruction has no kickoff" "real real" "$got"
 
+# (r) WHERE the marker may sit. The pre-v8 wrapper's sessions carry it in a
+# SessionStart attachment at record index 12 to 15, so a fixed head count
+# missed them. The window is every record before the first human prompt;
+# anything after it never seeds (a pasted marker is not a handoff).
+seeded_layout() {
+  # seeded_layout <spec> -> session kinds; with a "seeded:" prefix, the bare
+  # is_handoff_seeded boolean instead.
+  # spec: comma list of pad:N (N metadata records), M (marker attachment),
+  # H:<text> (typed prompt), I (an sdk-injected prompt)
+  RETRO="$RETRO" SPEC="$1" python3 - <<'PY'
+import os, sys
+sys.path.insert(0, os.environ["RETRO"])
+import prompt_kinds as P
+spec = os.environ["SPEC"]
+bare = spec.startswith("seeded:")
+objs = []
+meta = ["agent-name", "custom-title", "mode", "permission-mode", "last-prompt",
+        "file-history-snapshot", "attachment"]
+def human(text):
+    return {"type": "user", "origin": {"kind": "human"}, "entrypoint": "cli",
+            "message": {"role": "user", "content": text}}
+for part in (spec.split(":", 1)[1] if bare else spec).split(","):
+    if part.startswith("pad:"):
+        objs += [{"type": meta[i % len(meta)]} for i in range(int(part[4:]))]
+    elif part == "M":
+        objs.append({"type": "attachment", "userType": "external", "attachment": {
+            "type": "hook_success", "hookEvent": "SessionStart",
+            "content": P.HANDOFF_MARKER + "\nseeded\n=== END HANDOFF ==="}})
+    elif part.startswith("H:"):
+        objs.append(human(part[2:]))
+    elif part == "I":
+        objs.append({"type": "user", "promptSource": "sdk", "entrypoint": "sdk-py",
+                     "message": {"role": "user", "content": "harness prompt"}})
+if bare:
+    print(P.is_handoff_seeded(objs))
+else:
+    print(" ".join(k for _, k, _ in P.classify_session(objs)))
+PY
+}
+
+got="$(seeded_layout 'pad:13,M,H:continue,H:continue')"
+assert_eq "(r1) marker at record 13, before the first human prompt, still seeds" "kickoff real" "$got"
+got="$(seeded_layout 'H:continue,M,H:continue')"
+assert_eq "(r2) marker after the first human prompt does not seed" "real real" "$got"
+got="$(seeded_layout 'I,M,H:continue')"
+assert_eq "(r3) an injected prompt is machine text and does not close the window" "injected kickoff" "$got"
+
+# Implementation pin, not a contract: with no human prompt there is nothing for
+# classify_session to relabel, so no caller sees this. It pins the chosen bound
+# (no human prompt -> not seeded, nothing scanned) against a whole-file scan.
+got="$(seeded_layout 'seeded:pad:3,M')"
+assert_eq "(r4) no human prompt: not seeded, the session is not scanned" "False" "$got"
+
+# (s) the kickoff sentence the idle-handoff wrapper sends, in English.
+got="$(seeded_layout 'M,H:Continue from the handoff brief.')"
+assert_eq "(s1) the English wrapper kickoff sentence is kickoff" "kickoff" "$got"
+got="$(seeded_layout 'M,H:Continue from the handoff brief and fix the parser')"
+assert_eq "(s2) the sentence followed by an instruction is a real prompt" "real" "$got"
+
 # (j) the machine kinds must be REPORTED, not dropped — a miner that hides them
 # reproduces the original defect. classify_session emits one row per user record.
 got="$(RETRO="$RETRO" python3 - <<'PY'

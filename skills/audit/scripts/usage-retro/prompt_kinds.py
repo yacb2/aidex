@@ -100,14 +100,14 @@ _SNAPSHOT_COMMANDS = ("/context", "/skill-doctor")
 
 # The kickoff positional `claude-session-handoff` passes to the session it
 # launches (scripts/claude-wrapper.sh: `run_claude "continue"`, and since
-# wrapper v8 "Continúa desde el brief del handoff."). It exists
+# wrapper v8 "Continúa desde el brief del handoff."; the idle-handoff path
+# sends "Continue from the handoff brief."). It exists
 # because SessionStart's `initialUserMessage` is accepted and silently ignored
 # by Claude Code — re-probed on 2.1.221/223/224. So this is correct behaviour
 # being excluded, not a bug being counted.
-_KICKOFF_RX = re.compile(r"^(continue|continua|contin[uú]a|adelante|sigue|sigamos|contin[uú]a desde el brief del handoff)[\s.!,]*$", re.I)
+_KICKOFF_RX = re.compile(r"^(continue|continua|contin[uú]a|adelante|sigue|sigamos|contin[uú]a desde el brief del handoff|continue from the handoff brief)[\s.!,]*$", re.I)
 
 HANDOFF_MARKER = "=== HANDOFF FROM PREVIOUS SESSION ==="
-_HANDOFF_HEAD_RECORDS = 12   # the marker rides in the SessionStart hook attachments
 
 
 def _text_of(o):
@@ -168,8 +168,16 @@ def classify(o):
 
 
 def is_handoff_seeded(objs):
-    """True when this session was opened by claude-session-handoff with a payload."""
-    for o in objs[:_HANDOFF_HEAD_RECORDS]:
+    """True when this session was opened by claude-session-handoff with a payload.
+
+    The marker rides in a SessionStart hook attachment, which real transcripts
+    put at record index 12 to 15, so no fixed head count is the window: every
+    record before the first human prompt is. The prompt itself and anything
+    after it may quote the marker without the session being seeded. With no
+    human prompt at all there is no kickoff to relabel, so nothing is scanned.
+    """
+    end = next((i for i, o in enumerate(objs) if classify(o)[0] in HUMAN_KINDS), 0)
+    for o in objs[:end]:
         if HANDOFF_MARKER in json.dumps(o):
             return True
     return False
