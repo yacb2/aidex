@@ -21,6 +21,7 @@ an item whose content moved to a stack pack keeps its number as a pointer.
 - [6. MSW's `onUnhandledRequest: 'error'`](#6-msws-onunhandledrequest-error)
 - [7. The pyramid-versus-trophy resolution](#7-the-pyramid-versus-trophy-resolution)
 - [8. The six-layer model and its layer-assignment rubric](#8-the-six-layer-model-and-its-layer-assignment-rubric)
+- [9. Property tests: four shapes and the library per stack](#9-property-tests-four-shapes-and-the-library-per-stack)
 
 ## 1. The 2026-08-21 primary-source sweep, re-run against current versions
 
@@ -111,3 +112,17 @@ See [01-layer-model.md](01-layer-model.md) in full — six layers, each tied to 
 documentation that defines its scope, plus the rubric ("test the decision, not the pixels
 — except when the browser is what decides"). Recorded here as the index entry the sourcing
 rule requires; not duplicated in this file.
+
+## 9. Property tests: four shapes and the library per stack
+
+When a predicate ranges over a domain, one property can replace a pile of examples. It is
+an option, not a requirement; an example table stays right for a small closed set.
+
+- **Round trip:** decode(encode(x)) == x. Example: parse a date, format it back, compare.
+- **Invariant:** a fact that holds for every input. Example: a sorted list is ordered and keeps its length.
+- **Idempotency:** applying it twice equals applying it once. Example: normalising a path twice.
+- **Equivalence with a reference:** the fast code agrees with a slow, obvious one. Example: a hand-written matcher against the regex it replaces.
+
+Library: Hypothesis for Python, fast-check for JS/TS. The in-house example is
+`skills/artifact/tests/rounds_gate.py`: seeded random operation sequences checked against a
+model (the stateful form of the same idea).
