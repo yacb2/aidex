@@ -35,6 +35,7 @@ docs/retired/tests/test-doctor.sh | RETIRED with install.sh --doctor; returns as
 docs/retired/hooks/eval/test-router-fallback.sh | the RETIRED aidex-router's eval harness — the hook is unwired and its replay came out p=0.72
 docs/retired/hooks/test-durability-hook.sh | the RETIRED durability Stop hook's test — hook unwired 2026-08-03, files moved to docs/retired/hooks/ 2026-10-17 (D3)
 docs/retired/tests/test-memory-worklist.sh | RETIRED with build-memory-worklist.py, a one-shot 2026-08-31 fleet-cleanup tool (D4)
+docs/retired/hooks/test-memory-audit-nudge.py | the RETIRED memory-audit-nudge SessionStart hook's test — 0 of 63 nudges led to an audit, retired 2026-11-18 (BL-933)
 skills/worktree/scripts/test-db-preflight.sh | a PRODUCTION script that preflights the TEST database, which is why its name starts that way; its own test is test-test-db-preflight.sh"
 
 # The widest set the runner can discover.

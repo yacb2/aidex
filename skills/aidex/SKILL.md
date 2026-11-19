@@ -60,9 +60,7 @@ verdict goes. Read it before applying; the agent returns the verdict and nothing
 
 An unlisted verdict is a `KEEP`. Every MOVE writes its destination **before** the memory
 is deleted, and `DELETE-{DUP,CLOSED,LOG}` backs up before removing the file and its index
-line. On completion re-run the sweep with `--stamp`: that silences the 30-day
-SessionStart nudge until the directory changes again. Budgets are words, never lines —
-800 per memory, 1,200 for the index. Canon: [`references/memory-hygiene.md`](references/memory-hygiene.md); detail:
+line. Budgets are words, never lines — 800 per memory, 1,200 for the index. Canon: [`references/memory-hygiene.md`](references/memory-hygiene.md); detail:
 [`references/03-memory-workflow.md`](references/03-memory-workflow.md).
 
 ## Sub-action: `/aidex:aidex init`

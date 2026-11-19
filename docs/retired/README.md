@@ -47,3 +47,12 @@ it carried is now enforced by `tests/test-skill-description-language.sh`. The ag
 launched; it was reachable only from the optional step 5 of the one-shot `audit migrate`, which
 is dropped from `migrate-audit.sh` and `05-migration-guide.md`, and its listing line rode every
 main request.
+
+`hooks/memory-audit-nudge.sh` and its test `hooks/test-memory-audit-nudge.py`, retired 2026-11-18:
+the SessionStart line asking for `/aidex:aidex memory` was shown in 63 sessions after 2026-11-05
+(when its firing rule last changed) and none was followed by a memory audit within 7 days in the
+same project (316 shown and 0 followed since it became visible on 2026-10-17). The retire rule
+(under 1 in 5 followed) was written before the data was read. It cost about 0.4 s at every
+session start. The memory audit itself (`/aidex:aidex memory`) is unchanged. Its only input, the
+`--stamp` flag of `skills/aidex/scripts/memory-sweep.py` (and `dir_digest`), went with it: nothing else
+read the stamp. Re-wiring the hook means restoring both from git history.

@@ -61,10 +61,6 @@ returns a verdict and nothing else. An unlisted verdict is a `KEEP`: nothing hap
 **The destination artifact is written before the memory is deleted.** A MOVE that deletes
 first is a REMOVE that lost its content.
 
-On completion, re-run the sweep with `--stamp`. That records the directory as *audited*
-and silences the 30-day SessionStart nudge until it changes again — a plain sweep does
-not stamp, because running it for a look is not an audit.
-
 Verify every named thing before judging it: a memory pointing at a file, flag or script
 that Glob cannot find is `DELETE-CLOSED`. One that says "pending" is `DELETE-DUP` if
 `.context/backlog/` already has the item, `MOVE-BACKLOG` if it does not.

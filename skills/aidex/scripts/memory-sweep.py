@@ -33,7 +33,6 @@ import os
 import re
 import subprocess
 import sys
-import time
 
 # Overridable so the sweep can be tested against a fixture tree. A checker with no
 # adversarial test is the exact pattern the 2026-07-25 audit named ("checkers lie by
@@ -636,42 +635,6 @@ def sweep(dirs: list[str]) -> list[dict]:
     return findings
 
 
-def dir_digest(memdir: str) -> str:
-    """count:newest-mtime:total-size over the directory's memory files.
-
-    Never a content hash. The SessionStart nudge recomputes this on every session start
-    in every project, so it must stay sub-millisecond — three stat fields per file, no
-    reads. Size is in there because count and mtime alone miss an edit that replaces a
-    file without changing either, which is exactly what rewriting a memory in place does.
-    """
-    n = 0
-    newest = 0
-    total = 0
-    for f in glob.glob(os.path.join(memdir, "*.md")):
-        try:
-            st = os.stat(f)
-        except OSError:
-            continue
-        n += 1
-        total += st.st_size
-        newest = max(newest, int(st.st_mtime))
-    return f"{n}:{newest}:{total}"
-
-
-def write_stamp(memdir: str) -> None:
-    """Record that `memdir` was audited now. Never raises: a stamp is a convenience."""
-    try:
-        d = os.path.join(CONFIG_DIR, "aidex", "memory-audit-stamp")
-        os.makedirs(d, exist_ok=True)
-        slug = os.path.basename(os.path.dirname(memdir.rstrip("/")))
-        with open(os.path.join(d, slug + ".json"), "w") as fh:
-            json.dump({"at": int(time.time()),
-                       "date": time.strftime("%Y-%m-%d"),
-                       "digest": dir_digest(memdir)}, fh)
-    except Exception:
-        pass
-
-
 def verb_total(dry: bool) -> str:
     return "would drop" if dry else "dropped"
 
@@ -723,12 +686,6 @@ def main() -> int:
                          "--project=<slug>: real slugs start with '-' and the "
                          "space-separated form is parsed as a flag")
     ap.add_argument("--json", help="write findings to this path as JSON")
-    ap.add_argument("--stamp", action="store_true",
-                    help="record that the swept directories were AUDITED, silencing the "
-                         "30-day SessionStart nudge until they change again. Only "
-                         "`/aidex:aidex memory` should pass it: running the sweep for a look "
-                         "is not an audit, and stamping on every plain run would mute "
-                         "the nudge for every project nobody actually reviewed.")
     ap.add_argument("--reindex", action="store_true",
                     help="drop MEMORY.md lines whose target file no longer exists, and "
                          "report memories no line points at")
@@ -763,19 +720,6 @@ def main() -> int:
         with open(args.json, "w") as fh:
             json.dump({"dirs": len(dirs), "memories": total_files,
                        "findings": findings}, fh, indent=1)
-
-    if args.stamp:
-        # --stamp requires --project=. Stamping every directory a bare sweep touched
-        # would mark all 30 as audited after a run that actually reviewed a handful,
-        # silencing the nudge fleet-wide — and a tiered cleanup that reaches some
-        # projects and not others is exactly that shape.
-        if not args.project:
-            print("--stamp needs --project=<slug>: stamping every swept directory would "
-                  "mark projects nobody audited", file=sys.stderr)
-            return 2
-        for d in dirs:
-            write_stamp(d)
-        print(f"stamped {len(dirs)} director{'y' if len(dirs) == 1 else 'ies'} as audited")
 
     if not findings:
         print("clean — nothing over budget, every memory typed, no throwaway or duplicate dirs")

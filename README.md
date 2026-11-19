@@ -132,8 +132,8 @@ at zero tokens, into a single self-contained HTML page:
 
 ### Hooks
 
-Six hooks ship wired by `hooks/hooks.json` and start working the moment the plugin is
-installed: `memory-audit-nudge.sh` (SessionStart), `memory-save-gate.sh`,
+Five hooks ship wired by `hooks/hooks.json` and start working the moment the plugin is
+installed: `memory-save-gate.sh`,
 `references-root-gate.sh`, `first-test-write-gate.sh` and `artifact-open-once.sh` (PreToolUse), and
 `context-depth-nudge.sh` (UserPromptSubmit).
 The retired ones are kept in `hooks/` for the record; what each does and why lives in
