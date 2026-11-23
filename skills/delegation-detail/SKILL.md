@@ -111,6 +111,25 @@ line, it is stale: `TaskStop` and relaunch.
   `aidex:smoke-sonnet` for behaviour (the flow the diff touched), `aidex:verify-browser-sonnet`
   for measurable appearance, `aidex:verify-browser-opus` for judgment-only appearance. The
   diff reviewer reads predicates and cannot see UI behaviour.
+- **Log each review in the review ledger, when the install keeps one** (its path is in the
+  install's own delegation rule), once its diff is committed and again after any amend: one
+  line, tab-separated, six fields:
+  1. the date;
+  2. the AUTHOR agentId, the delegate whose diff was reviewed, never the reviewer; for a
+     Workflow unit, `<runId>/<authorLabel>` verbatim from the script's result, never an
+     invented label;
+  3. `defect` or `clean`;
+  4. one phrase;
+  5. the failure type: `missed-edge-case`, `wrong-reading`, `vacuous-test` or `other`;
+     empty for `clean`, the tab still written;
+  6. the short sha of the commit that landed the reviewed diff, `-` if it never landed.
+
+  The ledger prices a review and cannot otherwise see what it caught.
+- **After committing a bug fix, record where it came from:** pass the commit body's
+  `introduced-by:` sha to the install's escape recorder, `record_escape.py --introduced <sha>
+  --fix <fix sha> --repo <repo> --note '<phrase>' [--type <failure type>]`. It appends
+  `missed` (a reviewed commit let it through), `unreviewed` or `unknown` (older than the sha
+  column). Skip it when the line says `none`.
 
 ## Implementation goes to `aidex:impl-sonnet` at medium effort
 
